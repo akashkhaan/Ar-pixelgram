@@ -28,6 +28,7 @@ const ReelCard: React.FC<{
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const hasMusic = !!reel.music_preview_url;
+  const isOriginalAudio = !reel.music_track_id || reel.music_track_id.startsWith('original__');
   const musicStart = (reel.music_start_ms || 0) / 1000;
   const muteOriginal = hasMusic && !!reel.mute_original;
   const [liked, setLiked] = useState(reel.is_liked || false);
@@ -49,6 +50,25 @@ const ReelCard: React.FC<{
       .catch(() => { if (alive) setFollowStatus(null); });
     return () => { alive = false; };
   }, [user?.id, reel.user_id, isOwner]);
+
+  const [audioOwner, setAudioOwner] = useState<Reel['profile']>(reel.profile);
+
+  // Reused original audio ka owner source reel se live profile ke saath lao,
+  // taaki creator apni profile photo badle to yahan bhi nayi photo dikhe.
+  useEffect(() => {
+    let alive = true;
+    const sourceId = reel.music_track_id?.startsWith('original__')
+      ? reel.music_track_id.slice('original__'.length)
+      : null;
+    if (!sourceId) {
+      setAudioOwner(reel.profile);
+      return () => { alive = false; };
+    }
+    getReelById(sourceId)
+      .then(source => { if (alive) setAudioOwner(source?.profile || reel.profile); })
+      .catch(() => { if (alive) setAudioOwner(reel.profile); });
+    return () => { alive = false; };
+  }, [reel.id, reel.music_track_id, reel.profile?.user_id]);
 
   // Deep-link from a notification: "reel X, open comments"
   useEffect(() => {
@@ -322,8 +342,8 @@ const ReelCard: React.FC<{
       </div>
 
       {/* Bottom info */}
-      <div className="absolute left-0 right-16 bottom-[calc(4rem+env(safe-area-inset-bottom))] px-4 space-y-1.5">
-        {/* Instagram-style lower creator row: avatar, username and follow state together */}
+      <div className="absolute left-0 right-16 bottom-[calc(2.75rem+env(safe-area-inset-bottom))] px-4 space-y-1.5">
+        {/* Creator row low on the left, like Instagram */}
         <div className="flex items-center gap-2">
           <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0">
             <Avatar className="w-8 h-8 border border-white/70 shrink-0">
@@ -356,36 +376,40 @@ const ReelCard: React.FC<{
             👁 {viewsCount > 999 ? (viewsCount / 1000).toFixed(1) + 'k' : viewsCount} views
           </p>
         )}
-        {/* Audio row stays low with the creator photo for original audio, like Instagram */}
+      </div>
+
+      {/* Audio ticker opposite the creator row, with the original creator photo */}
+      <div className="absolute right-20 bottom-[calc(2.75rem+env(safe-area-inset-bottom))] max-w-[42%] flex justify-end">
         <button
           type="button"
           onClick={() => navigate('/song/' + (reel.music_track_id || 'original__' + reel.id))}
-          className="flex items-center gap-2 mt-1 max-w-full rounded-full bg-black/30 backdrop-blur px-2 py-1"
+          className="flex items-center gap-2 max-w-full rounded-full bg-black/35 backdrop-blur px-2 py-1"
         >
-          {hasMusic && reel.music_artwork_url ? (
+          {isOriginalAudio ? (
+            <Avatar className="w-6 h-6 border border-white/50 shrink-0">
+              <AvatarImage src={(audioOwner || profile)?.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-[9px] font-bold">
+                {(audioOwner || profile)?.username?.[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          ) : reel.music_artwork_url ? (
             <img
               src={reel.music_artwork_url}
               alt={reel.music_title || 'song'}
-              className="w-6 h-6 rounded-full object-cover border border-white/40 animate-spin-slow"
+              className="w-6 h-6 rounded-full object-cover border border-white/40 animate-spin-slow shrink-0"
             />
-          ) : hasMusic ? (
-            <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur flex items-center justify-center animate-spin-slow">
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur flex items-center justify-center animate-spin-slow shrink-0">
               <span className="text-xs">♪</span>
             </div>
-          ) : (
-            <Avatar className="w-6 h-6 border border-white/50">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-[9px] font-bold">
-                {profile?.username?.[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
           )}
-          <span className="text-white/85 text-xs truncate max-w-[75%]">
-            {hasMusic
-              ? reel.music_title + ' · ' + reel.music_artist
-              : 'Original audio · @' + (profile?.username || 'user')}
+          <span className="text-white/85 text-xs truncate">
+            {isOriginalAudio
+              ? 'Original audio · @' + ((audioOwner || profile)?.username || 'user')
+              : reel.music_title + ' · ' + reel.music_artist}
           </span>
         </button>
+      </div>
       </div>
       <ReelCommentsSheet
         reelId={reel.id}
