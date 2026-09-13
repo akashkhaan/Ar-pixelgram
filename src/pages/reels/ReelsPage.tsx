@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, type Reel } from '@/services/api';
+import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, type Reel } from '@/services/api';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
@@ -35,6 +35,20 @@ const ReelCard: React.FC<{
   const [commentsCount, setCommentsCount] = useState(reel.comments_count || 0);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const isOwner = user?.id === reel.user_id;
+  const [followStatus, setFollowStatus] = useState<'accepted' | 'pending' | null>(null);
+  const [followLoading, setFollowLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    if (!user || isOwner) {
+      setFollowStatus(null);
+      return () => { alive = false; };
+    }
+    getFollowStatus(user.id, reel.user_id)
+      .then(status => { if (alive) setFollowStatus(status); })
+      .catch(() => { if (alive) setFollowStatus(null); });
+    return () => { alive = false; };
+  }, [user?.id, reel.user_id, isOwner]);
 
   // Deep-link from a notification: "reel X, open comments"
   useEffect(() => {
@@ -111,6 +125,33 @@ const ReelCard: React.FC<{
     }
   };
 
+  const handleFollow = async () => {
+    if (!user || !profile || followLoading) return;
+    setFollowLoading(true);
+    try {
+      const isAlreadyFollowing = followStatus === 'accepted' || followStatus === 'pending';
+      if (isAlreadyFollowing) {
+        await unfollowUser(profile.user_id, user.id);
+        setFollowStatus(null);
+        toast.success('Unfollowed @' + profile.username);
+      } else {
+        await followUser(profile.user_id, !!profile.is_private);
+        const nextStatus = profile.is_private ? 'pending' : 'accepted';
+        setFollowStatus(nextStatus);
+        await createNotification(
+          profile.user_id,
+          profile.is_private ? 'follow_request' : 'follow',
+          user.id,
+        ).catch(() => {});
+        toast.success(profile.is_private ? 'Follow request sent' : 'Following @' + profile.username);
+      }
+    } catch {
+      toast.error('Follow status update nahi ho paaya');
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
   const handleShare = async () => {
     const url = `${window.location.origin}/reels?r=${reel.id}`;
     try {
@@ -133,7 +174,7 @@ const ReelCard: React.FC<{
     }
   };
 
-  const profile = reel.profile as { username: string; full_name: string; avatar_url: string; is_verified: boolean; user_id: string } | undefined;
+  const profile = reel.profile as { username: string; full_name: string | null; avatar_url: string | null; is_verified: boolean; is_private: boolean; user_id: string } | undefined;
 
   return (
     <div className="relative w-full h-full bg-black select-none">
@@ -246,9 +287,11 @@ const ReelCard: React.FC<{
                 {profile?.username?.[0]?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-black">
-              <Plus className="w-3 h-3 text-white" />
-            </div>
+            {!isOwner && followStatus !== 'accepted' && (
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-black">
+                <Plus className="w-3 h-3 text-white" />
+              </div>
+            )}
           </div>
         </button>
 
@@ -279,30 +322,44 @@ const ReelCard: React.FC<{
       </div>
 
       {/* Bottom info */}
-      <div className="absolute left-0 right-16 bottom-24 px-4 space-y-2">
-        {/* Instagram jaisa — profile photo + username ek saath */}
-        <button onClick={() => navigate(`/profile/${profile?.user_id}`)} className="flex items-center gap-2">
-          <Avatar className="w-8 h-8 border border-white/70">
-            <AvatarImage src={profile?.avatar_url} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-[11px] font-bold">
-              {profile?.username?.[0]?.toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="text-white font-bold text-sm">@{profile?.username}</span>
-          {profile?.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
-        </button>
+      <div className="absolute left-0 right-16 bottom-[calc(4rem+env(safe-area-inset-bottom))] px-4 space-y-1.5">
+        {/* Instagram-style lower creator row: avatar, username and follow state together */}
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0">
+            <Avatar className="w-8 h-8 border border-white/70 shrink-0">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-[11px] font-bold">
+                {profile?.username?.[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-white font-bold text-sm truncate">@{profile?.username}</span>
+            {profile?.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
+          </button>
+          {!isOwner && (
+            <button
+              type="button"
+              onClick={handleFollow}
+              disabled={followLoading}
+              className="shrink-0 rounded-md border border-white/70 px-2 py-1 text-[11px] font-bold text-white backdrop-blur-sm disabled:opacity-50"
+            >
+              {followStatus === 'accepted' ? (
+                <span className="inline-flex items-center gap-1"><UserCheck className="w-3 h-3" /> Following</span>
+              ) : followStatus === 'pending' ? 'Requested' : 'Follow'}
+            </button>
+          )}
+        </div>
         {reel.caption && (
           <p className="text-white/90 text-sm line-clamp-2 leading-relaxed">{reel.caption}</p>
         )}
         {isOwner && (
           <p className="text-white/70 text-xs flex items-center gap-1">
-            👁 {viewsCount > 999 ? `${(viewsCount / 1000).toFixed(1)}k` : viewsCount} views
+            👁 {viewsCount > 999 ? (viewsCount / 1000).toFixed(1) + 'k' : viewsCount} views
           </p>
         )}
-        {/* Music info — Instagram jaisa, tap karo to song page khulta hai */}
+        {/* Audio row stays low with the creator photo for original audio, like Instagram */}
         <button
           type="button"
-          onClick={() => navigate(`/song/${reel.music_track_id || `original__${reel.id}`}`)}
+          onClick={() => navigate('/song/' + (reel.music_track_id || 'original__' + reel.id))}
           className="flex items-center gap-2 mt-1 max-w-full rounded-full bg-black/30 backdrop-blur px-2 py-1"
         >
           {hasMusic && reel.music_artwork_url ? (
@@ -311,21 +368,25 @@ const ReelCard: React.FC<{
               alt={reel.music_title || 'song'}
               className="w-6 h-6 rounded-full object-cover border border-white/40 animate-spin-slow"
             />
-          ) : (
+          ) : hasMusic ? (
             <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur flex items-center justify-center animate-spin-slow">
               <span className="text-xs">♪</span>
             </div>
+          ) : (
+            <Avatar className="w-6 h-6 border border-white/50">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-[9px] font-bold">
+                {profile?.username?.[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
           )}
-          <span className="text-white/85 text-xs truncate max-w-[60%]">
+          <span className="text-white/85 text-xs truncate max-w-[75%]">
             {hasMusic
-              ? `${reel.music_title} · ${reel.music_artist}`
-              : `Original audio · @${profile?.username || 'user'}`}
+              ? reel.music_title + ' · ' + reel.music_artist
+              : 'Original audio · @' + (profile?.username || 'user')}
           </span>
         </button>
       </div>
-
-
-      {/* Comments sheet */}
       <ReelCommentsSheet
         reelId={reel.id}
         reelOwnerId={reel.user_id}
