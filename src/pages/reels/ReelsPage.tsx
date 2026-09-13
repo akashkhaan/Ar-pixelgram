@@ -410,7 +410,6 @@ const ReelCard: React.FC<{
           </span>
         </button>
       </div>
-      </div>
       <ReelCommentsSheet
         reelId={reel.id}
         reelOwnerId={reel.user_id}
