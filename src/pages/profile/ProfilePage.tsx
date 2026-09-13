@@ -107,28 +107,33 @@ const ProfilePage: React.FC = () => {
   const handleFollow = async () => {
     if (!user || !profile) return;
     setFollowLoading(true);
-    if (followStatus === 'accepted' || followStatus === 'pending') {
-      await unfollowUser(profile.user_id, user.id);
-      setFollowStatus(null);
-      setFollowersCount(c => c - 1);
-      toast.success('Unfollowed');
-    } else {
-      await followUser(profile.user_id, profile.is_private);
-      if (profile.is_private) {
-        setFollowStatus('pending');
-        await createNotification(profile.user_id, 'follow_request', user.id);
-        toast.success('Follow request sent');
+    try {
+      if (followStatus === 'accepted' || followStatus === 'pending') {
+        await unfollowUser(profile.user_id, user.id);
+        setFollowStatus(null);
+        setFollowersCount(c => Math.max(0, c - 1));
+        toast.success('Unfollowed');
       } else {
-        setFollowStatus('accepted');
-        setFollowersCount(c => c + 1);
-        await createNotification(profile.user_id, 'follow', user.id);
-        toast.success(`Following ${profile.username}`);
-        const [userPosts, userReels] = await Promise.all([getUserPosts(profile.user_id, user?.id), getUserReels(profile.user_id)]);
-        setPosts(userPosts);
-        setReels(userReels);
+        await followUser(profile.user_id, profile.is_private);
+        if (profile.is_private) {
+          setFollowStatus('pending');
+          await createNotification(profile.user_id, 'follow_request', user.id).catch(() => {});
+          toast.success('Follow request sent');
+        } else {
+          setFollowStatus('accepted');
+          setFollowersCount(c => c + 1);
+          await createNotification(profile.user_id, 'follow', user.id).catch(() => {});
+          toast.success('Following ' + profile.username);
+          const [userPosts, userReels] = await Promise.all([getUserPosts(profile.user_id, user?.id), getUserReels(profile.user_id)]);
+          setPosts(userPosts);
+          setReels(userReels);
+        }
       }
+    } catch {
+      toast.error('Follow status update nahi ho paaya');
+    } finally {
+      setFollowLoading(false);
     }
-    setFollowLoading(false);
   };
 
   if (loading) {
