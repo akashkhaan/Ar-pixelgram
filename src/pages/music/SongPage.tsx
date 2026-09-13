@@ -46,9 +46,12 @@ const SongPage: React.FC = () => {
   const artist = isOriginal
     ? `@${ownerReel?.profile?.username || 'user'}`
     : (first?.music_artist || 'AR Pixelgram');
-  const artwork = isOriginal ? (ownerReel?.thumbnail_url || undefined) : (first?.music_artwork_url || undefined);
-  const preview = isOriginal ? (ownerReel?.video_url || undefined) : (first?.music_preview_url || undefined);
   const owner = ownerReel?.profile;
+  // Original audio ka cover uploader ka live profile photo rahega.
+  const artwork = isOriginal
+    ? (owner?.avatar_url || ownerReel?.thumbnail_url || undefined)
+    : (first?.music_artwork_url || undefined);
+  const preview = isOriginal ? (ownerReel?.video_url || undefined) : (first?.music_preview_url || undefined);
   const totalViews = reels.reduce((sum, r) => sum + (r.views_count || 0), 0);
 
   const asTrack = (): MusicTrack | null => {
@@ -127,7 +130,7 @@ const SongPage: React.FC = () => {
                 <h2 className="font-bold text-foreground text-lg truncate">{title}</h2>
                 <p className="text-sm text-muted-foreground truncate">{artist}</p>
                 <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><Film className="w-3.5 h-3.5" />{reels.length} {reels.length === 1 ? 'reel' : 'reels'}</span>
+                  <span className="flex items-center gap-1"><Film className="w-3.5 h-3.5" />{reels.length} {reels.length === 1 ? 'reel' : 'reels'} used</span>
                   <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" />{totalViews > 999 ? `${(totalViews / 1000).toFixed(1)}k` : totalViews} views</span>
                 </div>
               </div>
