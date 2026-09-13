@@ -292,11 +292,13 @@ export async function getAllStories(page = 0, pageSize = 20): Promise<Story[]> {
 // ===================== FOLLOWS =====================
 export async function followUser(followingId: string, isPrivate: boolean): Promise<void> {
   const status = isPrivate ? 'pending' : 'accepted';
-  await supabase.from('follows').insert({ following_id: followingId, status });
+  const { error } = await supabase.from('follows').insert({ following_id: followingId, status });
+  if (error) throw error;
 }
 
 export async function unfollowUser(followingId: string, followerId: string): Promise<void> {
-  await supabase.from('follows').delete().eq('follower_id', followerId).eq('following_id', followingId);
+  const { error } = await supabase.from('follows').delete().eq('follower_id', followerId).eq('following_id', followingId);
+  if (error) throw error;
 }
 
 export async function getFollowStatus(followerId: string, followingId: string): Promise<'accepted' | 'pending' | null> {
@@ -1102,7 +1104,7 @@ export interface Reel {
 export async function getReelsFeed(limit = 20, offset = 0): Promise<Reel[]> {
   const { data, error } = await supabase
     .from('reels')
-    .select('*, profile:profiles(id, user_id, username, full_name, avatar_url, is_verified)')
+    .select('*, profile:profiles(id, user_id, username, full_name, avatar_url, is_verified, is_private)')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
   if (error) throw error;
@@ -1134,7 +1136,7 @@ export async function recordReelView(reelId: string): Promise<void> {
 export async function getReelById(reelId: string): Promise<Reel | null> {
   const { data, error } = await supabase
     .from('reels')
-    .select('*, profile:profiles(id, user_id, username, full_name, avatar_url, is_verified)')
+    .select('*, profile:profiles(id, user_id, username, full_name, avatar_url, is_verified, is_private)')
     .eq('id', reelId)
     .maybeSingle();
   if (error || !data) return null;
@@ -1148,7 +1150,7 @@ export async function getReelById(reelId: string): Promise<Reel | null> {
 export async function getUserReels(userId: string): Promise<Reel[]> {
   const { data, error } = await supabase
     .from('reels')
-    .select('*, profile:profiles(id, user_id, username, full_name, avatar_url, is_verified)')
+    .select('*, profile:profiles(id, user_id, username, full_name, avatar_url, is_verified, is_private)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -1312,7 +1314,7 @@ export async function getStoryViewers(storyId: string): Promise<StoryViewer[]> {
 export async function getReelsByMusic(trackId: string): Promise<Reel[]> {
   const { data, error } = await supabase
     .from('reels')
-    .select('*, profile:profiles(id, user_id, username, full_name, avatar_url, is_verified)')
+    .select('*, profile:profiles(id, user_id, username, full_name, avatar_url, is_verified, is_private)')
     .eq('music_track_id', trackId)
     .order('created_at', { ascending: true });
   if (error) return [];
