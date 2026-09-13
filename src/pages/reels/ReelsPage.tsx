@@ -378,8 +378,8 @@ const ReelCard: React.FC<{
         )}
       </div>
 
-      {/* Audio ticker in the lower-left corner, with the original creator photo */}
-      <div className="absolute left-4 bottom-[calc(2.75rem+env(safe-area-inset-bottom))] max-w-[62%] flex justify-start">
+      {/* Audio ticker in the lower-right corner, with the original creator photo */}
+      <div className="absolute right-4 bottom-[calc(2.75rem+env(safe-area-inset-bottom))] max-w-[48%] flex justify-end">
         <button
           type="button"
           onClick={() => navigate('/song/' + (reel.music_track_id || 'original__' + reel.id))}
