@@ -342,7 +342,7 @@ const ReelCard: React.FC<{
       </div>
 
       {/* Bottom info */}
-      <div className="absolute left-0 right-16 bottom-[calc(2.75rem+env(safe-area-inset-bottom))] px-4 space-y-1.5">
+      <div className="absolute left-0 right-16 bottom-[calc(6rem+env(safe-area-inset-bottom))] px-4 space-y-1.5">
         {/* Creator row low on the left, like Instagram */}
         <div className="flex items-center gap-2">
           <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0">
@@ -378,8 +378,8 @@ const ReelCard: React.FC<{
         )}
       </div>
 
-      {/* Audio ticker opposite the creator row, with the original creator photo */}
-      <div className="absolute right-20 bottom-[calc(2.75rem+env(safe-area-inset-bottom))] max-w-[42%] flex justify-end">
+      {/* Audio ticker in the lower-left corner, with the original creator photo */}
+      <div className="absolute left-4 bottom-[calc(2.75rem+env(safe-area-inset-bottom))] max-w-[62%] flex justify-start">
         <button
           type="button"
           onClick={() => navigate('/song/' + (reel.music_track_id || 'original__' + reel.id))}
