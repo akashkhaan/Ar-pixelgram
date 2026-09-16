@@ -302,7 +302,7 @@ const ReelCard: React.FC<{
         <button onClick={() => navigate(`/profile/${profile?.user_id}`)}>
           <div className="relative">
             <Avatar className="w-12 h-12 border-2 border-white">
-              <AvatarImage src={profile?.avatar_url} />
+              <AvatarImage src={profile?.avatar_url ?? undefined} />
               <AvatarFallback className="bg-primary text-primary-foreground text-sm font-bold">
                 {profile?.username?.[0]?.toUpperCase()}
               </AvatarFallback>
