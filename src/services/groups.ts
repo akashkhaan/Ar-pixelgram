@@ -2,7 +2,7 @@ import { supabase } from '@/db/supabase';
 import type { Profile } from '@/types/types';
 import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary } from '@/types/groups';
 
-interface GroupMemberRow extends GroupMember { profile?: Profile | null }
+interface GroupMemberRow extends Omit<GroupMember, 'profile'> { profile?: Profile | null }
 
 function throwIfError(error: { message?: string } | null) {
   if (error) throw new Error(error.message || 'Group request failed');
