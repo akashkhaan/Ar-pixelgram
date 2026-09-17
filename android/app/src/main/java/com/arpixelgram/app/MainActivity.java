@@ -5,19 +5,16 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.webkit.PermissionRequest;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
-
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
-
 import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends BridgeActivity {
-
     private static final int PERMISSION_REQUEST_CODE = 9001;
 
     @Override
@@ -25,6 +22,13 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
 
         WebView webView = getBridge().getWebView();
+        WebSettings settings = webView.getSettings();
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setAllowFileAccess(true);
+        settings.setAllowContentAccess(true);
+
         webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
@@ -43,12 +47,15 @@ public class MainActivity extends BridgeActivity {
         addIfMissing(needed, Manifest.permission.CAMERA);
         addIfMissing(needed, Manifest.permission.RECORD_AUDIO);
         addIfMissing(needed, Manifest.permission.MODIFY_AUDIO_SETTINGS);
+
         if (Build.VERSION.SDK_INT >= 33) {
             addIfMissing(needed, Manifest.permission.POST_NOTIFICATIONS);
             addIfMissing(needed, Manifest.permission.READ_MEDIA_IMAGES);
             addIfMissing(needed, Manifest.permission.READ_MEDIA_VIDEO);
+            addIfMissing(needed, Manifest.permission.READ_MEDIA_AUDIO);
         } else {
             addIfMissing(needed, Manifest.permission.READ_EXTERNAL_STORAGE);
+            addIfMissing(needed, Manifest.permission.WRITE_EXTERNAL_STORAGE);
         }
 
         if (!needed.isEmpty()) {
