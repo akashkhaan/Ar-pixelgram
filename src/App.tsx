@@ -13,6 +13,7 @@ import { CallProvider } from "@/contexts/CallContext";
 import { CallOverlay, IncomingCallModal } from "@/components/call/CallOverlay";
 import { routes } from "./routes";
 import { useVisitTracker } from "@/hooks/useVisitTracker";
+import UploadProgressOverlay from "@/components/common/UploadProgressOverlay";
 
 const VisitTracker: React.FC = () => {
   useVisitTracker();
@@ -40,6 +41,7 @@ const App: React.FC = () => {
               </RouteGuard>
             <IncomingCallModal />
             <CallOverlay />
+            <UploadProgressOverlay />
           </CallProvider>
         </AuthProvider>
         <Toaster />

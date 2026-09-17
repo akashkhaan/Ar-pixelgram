@@ -5,7 +5,7 @@ import MobileLayout from '@/components/layouts/MobileLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { withTimeout } from '@/lib/withTimeout';
 import {
-  getFeedStories, getAllPosts, createStory, uploadImage, uploadVideo, deleteStory,
+  getFeedStories, getAllPosts, createStory, deleteStory,
   toggleStoryLike, isStoryLiked, getStoryLikers, getStoryViewers, recordStoryView, sendMessage, createNotification,
   type StoryViewer
 } from '@/services/api';
@@ -14,9 +14,15 @@ import PostCard from '@/components/common/PostCard';
 import PullToRefresh from '@/components/common/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, X, ChevronLeft, ChevronRight, Trash2, ImagePlus, Film, Loader2, Share2, Heart, Eye, Send, Clock } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, Trash2, ImagePlus, Film, Loader2, Share2, Heart, Eye, Send, Clock, Music2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
+import MusicPickerSheet from '@/components/reels/MusicPickerSheet';
+import MusicTrimmer from '@/components/reels/MusicTrimmer';
+import type { MusicTrack } from '@/services/music';
+import { composeMediaWithMusic } from '@/services/mediaComposer';
+import { uploadMediaWithProgress } from '@/services/mediaUpload';
+import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
 
 function groupStoriesByUser(stories: Story[]): Record<string, { profile: Profile; stories: Story[] }> {
   const groups: Record<string, { profile: Profile; stories: Story[] }> = {};
@@ -43,6 +49,11 @@ const StoriesPage: React.FC = () => {
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [caption, setCaption] = useState('');
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false);
+  const [trimTrack, setTrimTrack] = useState<MusicTrack | null>(null);
+  const [storyTrack, setStoryTrack] = useState<MusicTrack | null>(null);
+  const [musicStartMs, setMusicStartMs] = useState(0);
+  const [muteOriginal, setMuteOriginal] = useState(true);
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
   const [replyText, setReplyText] = useState('');
   const [showReply, setShowReply] = useState(false);
@@ -220,18 +231,29 @@ const StoriesPage: React.FC = () => {
     setMediaFile(file);
     setMediaType(type);
     setMediaPreview(URL.createObjectURL(file));
+    setStoryTrack(null);
+    setTrimTrack(null);
+    setMusicStartMs(0);
   };
 
   const handleUploadStory = async () => {
     if (!mediaFile || !user) return;
+    const uploadId = startUpload('story', 'Story upload');
     setUploading(true);
     try {
-      let url: string;
-      if (mediaType === 'video') {
-        url = await uploadVideo('stories', mediaFile, user.id);
-      } else {
-        url = await uploadImage('stories', mediaFile, user.id);
+      let fileToUpload = mediaFile;
+      if (storyTrack) {
+        toast.info('Music mix ho raha hai…');
+        fileToUpload = await composeMediaWithMusic(mediaFile, {
+          track: storyTrack,
+          startMs: musicStartMs,
+          muteOriginal,
+          mediaType,
+        });
       }
+      const url = await uploadMediaWithProgress('stories', fileToUpload, user.id, (progress) => {
+        updateUpload(uploadId, progress);
+      });
       await createStory(url, caption.trim() || null);
       toast.success(t('newStory') + ' posted! ✨');
       const updated = await getFeedStories(user.id);
@@ -240,8 +262,13 @@ const StoriesPage: React.FC = () => {
       setMediaFile(null);
       setMediaPreview(null);
       setCaption('');
+      setStoryTrack(null);
+      setMusicStartMs(0);
+      setMuteOriginal(true);
+      finishUpload(uploadId);
     } catch {
       toast.error('Failed to post story');
+      finishUpload(uploadId, 'Story upload fail hua');
     } finally {
       setUploading(false);
     }
@@ -623,7 +650,7 @@ const StoriesPage: React.FC = () => {
       {showUpload && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
           <div
-            className="w-full max-w-lg bg-card rounded-t-3xl border-t border-border/40 overflow-y-auto"
+            className="w-full max-w-lg bg-card rounded-t-[32px] border-t border-border/40 overflow-y-auto shadow-2xl"
             style={{
               maxHeight: '90vh',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
@@ -631,8 +658,19 @@ const StoriesPage: React.FC = () => {
           >
             <div className="p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-foreground">{t('newStory')}</h3>
-              <button onClick={() => { setShowUpload(false); setMediaFile(null); setMediaPreview(null); }} className="p-1.5 rounded-full hover:bg-muted/60">
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-lg"
+                  style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }}
+                >
+                  <Plus className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground">{t('newStory')}</h3>
+                  <p className="text-xs text-muted-foreground">Photo, video aur music add karein</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowUpload(false); setMediaFile(null); setMediaPreview(null); setStoryTrack(null); }} className="p-1.5 rounded-full hover:bg-muted/60">
                 <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
@@ -672,6 +710,54 @@ const StoriesPage: React.FC = () => {
               </div>
             )}
 
+            {mediaPreview && (
+              <div className="rounded-2xl border border-border/70 bg-muted/35 p-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                    {storyTrack?.artwork ? (
+                      <img src={storyTrack.artwork} alt="" className="h-10 w-10 rounded-xl object-cover" />
+                    ) : (
+                      <Music2 className="h-5 w-5 text-primary" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-primary">Story music</p>
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {storyTrack ? `${storyTrack.title} · ${storyTrack.artist}` : 'Gana add karein'}
+                    </p>
+                    {storyTrack && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {Math.floor(musicStartMs / 1000)}s se start · original audio {muteOriginal ? 'off' : 'on'}
+                      </p>
+                    )}
+                  </div>
+                  {storyTrack ? (
+                    <button
+                      onClick={() => setTrimTrack(storyTrack)}
+                      className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-2 text-xs font-bold text-primary"
+                    >
+                      <Pencil className="h-3.5 w-3.5" /> Cut
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setMusicPickerOpen(true)}
+                      className="rounded-full bg-gradient-to-r from-[hsl(var(--p1))] to-[hsl(var(--p2))] px-4 py-2 text-xs font-bold text-white"
+                    >
+                      Add music
+                    </button>
+                  )}
+                </div>
+                {storyTrack && (
+                  <button
+                    onClick={() => setMusicPickerOpen(true)}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-background/60 py-2 text-xs font-semibold text-foreground"
+                  >
+                    <Music2 className="h-3.5 w-3.5 text-primary" /> Change song
+                  </button>
+                )}
+              </div>
+            )}
+
             <input
               type="text"
               placeholder={t('caption') + ' (optional)'}
@@ -693,6 +779,33 @@ const StoriesPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      <MusicPickerSheet
+        open={musicPickerOpen}
+        onClose={() => setMusicPickerOpen(false)}
+        onSelect={(selected) => {
+          setMusicPickerOpen(false);
+          setTrimTrack(selected);
+        }}
+      />
+
+      {trimTrack && mediaPreview && (
+        <MusicTrimmer
+          track={trimTrack}
+          videoUrl={mediaPreview}
+          mediaType={mediaType}
+          initialStartMs={trimTrack.id === storyTrack?.id ? musicStartMs : 0}
+          initialMuteOriginal={muteOriginal}
+          onBack={() => setTrimTrack(null)}
+          onDone={({ startMs, muteOriginal: nextMuteOriginal }) => {
+            setStoryTrack(trimTrack);
+            setMusicStartMs(startMs);
+            setMuteOriginal(nextMuteOriginal);
+            setTrimTrack(null);
+            toast.success('Story music set ho gaya 🎵');
+          }}
+        />
       )}
       </PullToRefresh>
     </MobileLayout>

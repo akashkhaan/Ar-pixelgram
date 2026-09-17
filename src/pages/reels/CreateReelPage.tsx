@@ -5,13 +5,15 @@ import {
   Play, Pause, Check, ChevronRight, Sparkles,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { createReel, uploadVideo, uploadImage, type ReelMusic } from '@/services/api';
+import { createReel, uploadImage, type ReelMusic } from '@/services/api';
 import type { MusicTrack } from '@/services/music';
 import MusicPickerSheet from '@/components/reels/MusicPickerSheet';
 import MusicTrimmer from '@/components/reels/MusicTrimmer';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { uploadMediaWithProgress } from '@/services/mediaUpload';
+import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
 
 type Step = 'pick' | 'edit' | 'share';
 
@@ -121,9 +123,12 @@ const CreateReelPage: React.FC = () => {
 
   const handlePublish = async () => {
     if (!user || !videoFile) { toast.error('Pehle video select karein'); return; }
+    const uploadId = startUpload('reel', 'Reel upload');
     setLoading(true);
     try {
-      const videoUrl = await uploadVideo('reels', videoFile, user.id);
+      const videoUrl = await uploadMediaWithProgress('reels', videoFile, user.id, (progress) => {
+        updateUpload(uploadId, progress);
+      });
 
       let thumbnailUrl: string | undefined;
       const coverFile = await captureCover();
@@ -145,9 +150,11 @@ const CreateReelPage: React.FC = () => {
         : null;
 
       await createReel(user.id, videoUrl, caption.trim(), thumbnailUrl, music);
+      finishUpload(uploadId);
       toast.success('Reel share ho gaya 🎬');
       navigate('/reels');
     } catch {
+      finishUpload(uploadId, 'Reel upload fail hua');
       toast.error('Reel publish nahi ho paaya');
     } finally {
       setLoading(false);

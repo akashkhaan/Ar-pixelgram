@@ -5,6 +5,7 @@ import { formatMusicDuration, type MusicTrack } from '@/services/music';
 interface Props {
   track: MusicTrack;
   videoUrl: string;
+  mediaType?: 'image' | 'video';
   /** Reel me pehle se set kiya hua start point (ms) */
   initialStartMs?: number;
   initialMuteOriginal?: boolean;
@@ -26,6 +27,7 @@ function barHeights(seed: string): number[] {
 const MusicTrimmer: React.FC<Props> = ({
   track,
   videoUrl,
+  mediaType = 'video',
   initialStartMs = 0,
   initialMuteOriginal = true,
   onBack,
@@ -43,9 +45,9 @@ const MusicTrimmer: React.FC<Props> = ({
 
   const clipLen = useMemo(() => {
     if (!audioDuration) return 0;
-    const v = videoDuration || 15;
+    const v = mediaType === 'image' ? 15 : (videoDuration || 15);
     return Math.min(audioDuration, Math.max(3, v));
-  }, [audioDuration, videoDuration]);
+  }, [audioDuration, mediaType, videoDuration]);
 
   const maxStart = Math.max(0, audioDuration - clipLen);
 
@@ -107,15 +109,19 @@ const MusicTrimmer: React.FC<Props> = ({
 
       {/* Video preview */}
       <div className="flex-1 relative overflow-hidden">
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          className="absolute inset-0 w-full h-full object-contain"
-          playsInline
-          loop
-          muted={muteOriginal}
-          onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration || 0)}
-        />
+        {mediaType === 'image' ? (
+          <img src={videoUrl} alt="Story preview" className="absolute inset-0 w-full h-full object-contain" />
+        ) : (
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            className="absolute inset-0 w-full h-full object-contain"
+            playsInline
+            loop
+            muted={muteOriginal}
+            onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration || 0)}
+          />
+        )}
         <audio
           ref={audioRef}
           src={track.previewUrl}
