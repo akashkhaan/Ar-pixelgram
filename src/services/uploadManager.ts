@@ -25,55 +25,20 @@ function emit() {
   listeners.forEach((listener) => listener(current));
 }
 
+import { notifyPhone } from "@/lib/notifyPhone";
+
 async function notifyOnPhone(job: UploadJob) {
-  if (typeof window === 'undefined') return;
-
-  const cap = (window as unknown as {
-    Capacitor?: { isNativePlatform?: () => boolean };
-  }).Capacitor;
-
+  if (typeof window === "undefined") return;
   try {
-    if (cap?.isNativePlatform?.()) {
-      const { LocalNotifications } = await import('@capacitor/local-notifications');
-      const permissions = await LocalNotifications.checkPermissions();
-      if (permissions.display !== 'granted') {
-        const requested = await LocalNotifications.requestPermissions();
-        if (requested.display !== 'granted') return;
-      }
-      await LocalNotifications.schedule({
-        notifications: [{
-          id: Math.abs(hash(job.id)),
-          title: job.status === 'complete' ? `${job.label} complete` : `${job.label} upload`,
-          body: job.status === 'complete' ? 'Upload ho gaya ✅' : `${job.progress}% complete`,
-          smallIcon: 'ic_launcher',
-          ongoing: job.status === 'uploading',
-          autoCancel: job.status !== 'uploading',
-        }],
-      });
-      return;
-    }
-
-    if (!('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-    const registration = await navigator.serviceWorker?.ready;
-    if (registration) {
-      await registration.showNotification(
-        job.status === 'complete' ? `${job.label} complete` : `${job.label} upload`,
-        {
-          body: job.status === 'complete' ? 'Upload ho gaya ✅' : `${job.progress}% complete`,
-          tag: `ar-upload-${job.id}`,
-          renotify: job.status === 'complete',
-          data: { url: window.location.origin },
-        },
-      );
-    } else {
-      new Notification(job.status === 'complete' ? `${job.label} complete` : `${job.label} upload`, {
-        body: job.status === 'complete' ? 'Upload ho gaya ✅' : `${job.progress}% complete`,
-        tag: `ar-upload-${job.id}`,
-      });
-    }
+    notifyPhone({
+      title: job.status === "complete" ? `${job.label} complete 🎉` : `${job.label} uploading...`,
+      body: job.status === "complete" ? "Aapka upload publish ho gaya hai ✅" : `${job.progress}% complete`,
+      tag: `upload_${job.id}`,
+      progress: job.status === "complete" ? 100 : job.progress,
+      isOngoing: job.status === "uploading",
+    });
   } catch {
-    // Notification permission/plugin unavailable — upload itself should continue.
+    // Notification permission/plugin unavailable
   }
 }
 

@@ -183,7 +183,17 @@ export async function getAllPosts(page = 0, pageSize = 20, currentUserId?: strin
 
 // ===================== LIKES =====================
 export async function likePost(postId: string): Promise<void> {
-  await supabase.from('likes').insert({ post_id: postId });
+  const { data: sessionData } = await supabase.auth.getSession();
+  const uid = sessionData.session?.user?.id;
+  await supabase.from('likes').insert({ post_id: postId, ...(uid ? { user_id: uid } : {}) });
+  if (uid) {
+    try {
+      const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).maybeSingle();
+      if (post?.user_id && post.user_id !== uid) {
+        await createNotification(post.user_id, 'like', uid, postId);
+      }
+    } catch { /* noop */ }
+  }
 }
 
 export async function unlikePost(postId: string, userId: string): Promise<void> {
@@ -207,6 +217,12 @@ export async function addComment(postId: string, content: string): Promise<void>
   if (!uid) throw new Error('Comment karne ke liye login karein');
   const { error } = await supabase.from('comments').insert({ post_id: postId, user_id: uid, content });
   if (error) throw error;
+  try {
+    const { data: post } = await supabase.from('posts').select('user_id').eq('id', postId).maybeSingle();
+    if (post?.user_id && post.user_id !== uid) {
+      await createNotification(post.user_id, 'comment', uid, postId, undefined, content.slice(0, 100));
+    }
+  } catch { /* noop */ }
 }
 
 export async function getComments(postId: string): Promise<Comment[]> {

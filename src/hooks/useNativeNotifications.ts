@@ -1,10 +1,6 @@
-// Android APK (Capacitor WebView) me Web Push kaam nahi karta. Isliye yahan
-// hum Supabase realtime se `notifications` table sunte hain aur har nayi
-// notification par phone ka apna notification (Local Notification) dikhate
-// hain — bilkul Instagram/WhatsApp jaisa: message, like, comment, follow
-// aur incoming call sab ka notification phone me aata hai.
 import { useEffect } from 'react';
 import { supabase } from '@/db/supabase';
+import { notifyPhone } from '@/lib/notifyPhone';
 
 type Row = {
   id: string;
@@ -14,30 +10,20 @@ type Row = {
   message: string | null;
 };
 
-function isNative(): boolean {
-  const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return !!cap?.isNativePlatform?.();
-}
-
-async function getPlugin() {
-  const mod = await import('@capacitor/local-notifications');
-  return mod.LocalNotifications;
-}
-
 function titleFor(type: string, who: string): string {
   switch (type) {
-    case 'like': return `${who} ne aapki post like ki`;
-    case 'reel_like': return `${who} ne aapka reel like kiya`;
-    case 'story_like': return `${who} ne aapki story like ki`;
-    case 'story_reply': return `${who} ne aapki story par reply kiya`;
-    case 'comment': return `${who} ne aapki post par comment kiya`;
-    case 'reel_comment': return `${who} ne aapke reel par comment kiya`;
-    case 'comment_reply': return `${who} ne aapke comment ka jawab diya`;
-    case 'follow': return `${who} ne aapko follow kiya`;
-    case 'follow_request': return `${who} ne follow request bheji`;
-    case 'follow_accepted': return `${who} ne aapki follow request accept ki`;
-    case 'message': return `${who}`;
-    case 'new_story': return `${who} ne nayi story daali`;
+    case 'like': return `${who} liked your post ❤️`;
+    case 'reel_like': return `${who} liked your reel 🔥`;
+    case 'story_like': return `${who} liked your story 💖`;
+    case 'story_reply': return `${who} replied to your story 💬`;
+    case 'comment': return `${who} commented on your post 💬`;
+    case 'reel_comment': return `${who} commented on your reel 💬`;
+    case 'comment_reply': return `${who} replied to your comment 💬`;
+    case 'follow': return `${who} started following you 👤`;
+    case 'follow_request': return `${who} sent you a follow request 📩`;
+    case 'follow_accepted': return `${who} accepted your follow request ✅`;
+    case 'message': return `${who} sent you a message 💬`;
+    case 'new_story': return `${who} added a new story 📸`;
     default: return 'AR Pixelgram';
   }
 }
@@ -53,69 +39,47 @@ function urlFor(row: Row): string {
 
 export function useNativeNotifications(userId: string | undefined) {
   useEffect(() => {
-    if (!userId || typeof window === 'undefined' || !isNative()) return;
-
+    if (!userId || typeof window === 'undefined') return;
     let cancelled = false;
-    let counter = 1;
 
-    const run = async () => {
-      const LocalNotifications = await getPlugin();
-      try {
-        const perm = await LocalNotifications.checkPermissions();
-        if (perm.display !== 'granted') await LocalNotifications.requestPermissions();
-      } catch { /* noop */ }
+    const channel = supabase
+      .channel(`user-push-notifs-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
+        async (payload) => {
+          if (cancelled) return;
+          const row = payload.new as Row;
+          let who = 'Someone';
+          if (row.actor_id) {
+            const { data } = await supabase
+              .from('profiles')
+              .select('username, full_name')
+              .eq('user_id', row.actor_id)
+              .maybeSingle();
+            who = data?.username || data?.full_name || who;
+          }
 
-      // Notification tap karte hi sahi screen khul jaye.
-      try {
-        await LocalNotifications.addListener('localNotificationActionPerformed', (e) => {
-          const url = (e.notification.extra as { url?: string } | undefined)?.url;
-          if (url) window.location.href = url;
-        });
-      } catch { /* noop */ }
+          const isCall = !!row.message && (row.message.startsWith('📞') || row.message.startsWith('📵'));
+          const title = isCall
+            ? `${who} — ${row.message?.startsWith('📞') ? 'Incoming call 📞' : 'Missed call 📵'}`
+            : titleFor(row.type, who);
+          const body = row.message || (row.type === 'message' ? 'New message received' : 'AR Pixelgram');
 
-      const channel = supabase
-        .channel(`native-notifs-${userId}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-          async (payload) => {
-            if (cancelled) return;
-            const row = payload.new as Row;
-            let who = 'Kisi ne';
-            if (row.actor_id) {
-              const { data } = await supabase
-                .from('profiles').select('username, full_name')
-                .eq('user_id', row.actor_id).maybeSingle();
-              who = data?.username || data?.full_name || who;
-            }
-            const isCall = !!row.message && (row.message.startsWith('📞') || row.message.startsWith('📵'));
-            const title = isCall
-              ? `${who} — ${row.message?.startsWith('📞') ? 'Incoming call' : 'Missed call'}`
-              : titleFor(row.type, who);
-            const body = row.message || (row.type === 'message' ? 'Naya message' : 'AR Pixelgram');
+          notifyPhone({
+            title,
+            body,
+            tag: isCall ? 'call_notif' : `notif_${row.id}`,
+            url: isCall ? '/chat' : urlFor(row),
+            isCall,
+          });
+        },
+      )
+      .subscribe();
 
-            try {
-              await LocalNotifications.schedule({
-                notifications: [{
-                  id: (Date.now() % 100000) + counter++,
-                  title,
-                  body,
-                  smallIcon: 'ic_launcher',
-                  extra: { url: isCall ? '/chat' : urlFor(row) },
-                }],
-              });
-            } catch { /* noop */ }
-          },
-        )
-        .subscribe();
-
-      return () => { supabase.removeChannel(channel); };
-    };
-
-    const cleanupPromise = run();
     return () => {
       cancelled = true;
-      cleanupPromise.then((fn) => fn?.()).catch(() => {});
+      supabase.removeChannel(channel);
     };
   }, [userId]);
 }

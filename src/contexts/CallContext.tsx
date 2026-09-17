@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, createNotification, sendMessage, saveCallLog, formatCallDuration, sendPushTo } from '@/services/api';
+import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
 import type { Profile } from '@/types/types';
 
 export type CallKind = 'audio' | 'video';
@@ -146,6 +147,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user]);
 
   const cleanup = useCallback(() => {
+    dismissPhoneNotification("call_ongoing");
     stopInviteRetry();
     if (pcRef.current) { try { pcRef.current.close(); } catch { /* noop */ } pcRef.current = null; }
     if (localStream) { localStream.getTracks().forEach(t => t.stop()); }
@@ -609,46 +611,54 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (Notification.permission === 'default') { Notification.requestPermission().catch(() => {}); }
   }, []);
 
-  // While a call is active, keep a live phone-level notification showing the
-  // other person's photo/name, a running call-duration timer, and an
-  // "End Call" action — like a normal phone call notification. Updates every
-  // second and is automatically closed once the call ends.
+  // Live phone notification for call states: Ringing-out, Ringing-in, and Active Call
   useEffect(() => {
-    if (state.status !== 'active') return;
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
-    const tag = `active-call-${user?.id || 'me'}`;
-    let cancelled = false;
+    if (state.status === "idle" || state.status === "ended") {
+      dismissPhoneNotification("call_ongoing");
+      return;
+    }
 
-    const post = async () => {
-      const reg = await navigator.serviceWorker.ready.catch(() => null);
-      if (!reg?.active || cancelled) return;
-      const startedAt = startedAtRef.current;
-      const durSec = startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0;
-      const mm = Math.floor(durSec / 60).toString().padStart(2, '0');
-      const ss = Math.floor(durSec % 60).toString().padStart(2, '0');
-      const label = state.kind === 'video' ? 'Video call' : 'Voice call';
-      const who = state.peerProfile?.username || 'Ongoing call';
-      reg.active.postMessage({
-        type: 'show-call-notification',
-        title: `${label} · ${who}`,
-        body: `${mm}:${ss} — tap to return, or end the call`,
-        icon: state.peerProfile?.avatar_url || '/images/logo/logo-icon.svg',
-        tag,
-        actions: [{ action: 'end', title: '📴 End Call' }],
-        data: { peerId: state.peerId, kind: state.kind, activeCall: true },
+    const who = state.peerProfile?.username || state.peerProfile?.full_name || "User";
+    const label = state.kind === "video" ? "Video call" : "Voice call";
+
+    if (state.status === "ringing-out") {
+      notifyPhone({
+        title: `${label} · Ringing...`,
+        body: `Calling ${who}...`,
+        tag: "call_ongoing",
+        isCall: true,
+        isOngoing: true,
       });
-    };
+    } else if (state.status === "ringing-in") {
+      notifyPhone({
+        title: `Incoming ${label} 📞`,
+        body: `${who} is calling you...`,
+        tag: "call_ongoing",
+        isCall: true,
+        isOngoing: false,
+      });
+    } else if (state.status === "active") {
+      const updateOngoing = () => {
+        const startedAt = startedAtRef.current;
+        const durSec = startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0;
+        const mm = Math.floor(durSec / 60).toString().padStart(2, "0");
+        const ss = Math.floor(durSec % 60).toString().padStart(2, "0");
+        notifyPhone({
+          title: `Active ${label}`,
+          body: `${who} (${mm}:${ss}) · Tap to return`,
+          tag: "call_ongoing",
+          isCall: true,
+          isOngoing: true,
+        });
+      };
+      updateOngoing();
+      const intervalId = window.setInterval(updateOngoing, 1000);
+      return () => {
+        clearInterval(intervalId);
+      };
+    }
+  }, [state.status, state.kind, state.peerProfile]);
 
-    post();
-    const id = window.setInterval(post, 1000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-      navigator.serviceWorker.ready
-        .then(reg => reg.active?.postMessage({ type: 'close-call-notification', tag }))
-        .catch(() => {});
-    };
-  }, [state.status, state.peerId, state.kind, state.peerProfile, user?.id]);
 
   // Receiver side: if an incoming call rings unanswered for 45s, auto-decline
   // and send the caller a missed-call alert.
