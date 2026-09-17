@@ -8,6 +8,7 @@ type Row = {
   actor_id: string | null;
   post_id: string | null;
   message: string | null;
+  comment_id?: string | null;
 };
 
 function titleFor(type: string, who: string): string {
@@ -22,8 +23,10 @@ function titleFor(type: string, who: string): string {
     case 'follow': return `${who} started following you 👤`;
     case 'follow_request': return `${who} sent you a follow request 📩`;
     case 'follow_accepted': return `${who} accepted your follow request ✅`;
-    case 'message': return `${who} sent you a message 💬`;
+    case 'message': return `${who} sent a message 💬`;
     case 'new_story': return `${who} added a new story 📸`;
+    case 'new_post': return `${who} shared a new post 📷`;
+    case 'new_reel': return `${who} shared a new reel 🎬`;
     default: return 'AR Pixelgram';
   }
 }
@@ -34,6 +37,7 @@ function urlFor(row: Row): string {
   if (row.type.startsWith('reel_') || row.type === 'comment_reply') {
     return row.post_id ? `/reels?r=${row.post_id}` : '/reels';
   }
+  if (row.type === 'new_post' && row.post_id) return `/post/${row.post_id}`;
   return '/notifications';
 }
 
@@ -42,8 +46,9 @@ export function useNativeNotifications(userId: string | undefined) {
     if (!userId || typeof window === 'undefined') return;
     let cancelled = false;
 
-    const channel = supabase
-      .channel(`user-push-notifs-${userId}`)
+    // Listen for new notifications for this user
+    const notifChannel = supabase
+      .channel(`user-notif-push-${userId}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
@@ -52,12 +57,14 @@ export function useNativeNotifications(userId: string | undefined) {
           const row = payload.new as Row;
           let who = 'Someone';
           if (row.actor_id) {
-            const { data } = await supabase
-              .from('profiles')
-              .select('username, full_name')
-              .eq('user_id', row.actor_id)
-              .maybeSingle();
-            who = data?.username || data?.full_name || who;
+            try {
+              const { data } = await supabase
+                .from('profiles')
+                .select('username, full_name')
+                .eq('user_id', row.actor_id)
+                .maybeSingle();
+              who = data?.username || data?.full_name || who;
+            } catch { /* noop */ }
           }
 
           const isCall = !!row.message && (row.message.startsWith('📞') || row.message.startsWith('📵'));
@@ -77,9 +84,41 @@ export function useNativeNotifications(userId: string | undefined) {
       )
       .subscribe();
 
+    // Also listen directly to incoming chat messages in Realtime!
+    const msgChannel = supabase
+      .channel(`user-direct-messages-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${userId}` },
+        async (payload) => {
+          if (cancelled) return;
+          const newMsg = payload.new as { sender_id: string; content: string; id: string };
+          // Don't duplicate if call marker
+          if (newMsg.content?.startsWith('📞') || newMsg.content?.startsWith('📵')) return;
+          let senderName = 'Someone';
+          try {
+            const { data } = await supabase
+              .from('profiles')
+              .select('username, full_name')
+              .eq('user_id', newMsg.sender_id)
+              .maybeSingle();
+            senderName = data?.username || data?.full_name || senderName;
+          } catch { /* noop */ }
+
+          notifyPhone({
+            title: `${senderName} 💬`,
+            body: newMsg.content || 'Sent a photo/attachment',
+            tag: `msg_${newMsg.id}`,
+            url: `/chat/${newMsg.sender_id}`,
+          });
+        },
+      )
+      .subscribe();
+
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      supabase.removeChannel(notifChannel);
+      supabase.removeChannel(msgChannel);
     };
   }, [userId]);
 }

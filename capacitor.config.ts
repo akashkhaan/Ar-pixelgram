@@ -7,12 +7,6 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
   },
-  server: {
-    url: 'https://ar-pixelgram.vercel.app',
-    cleartext: true,
-    androidScheme: 'https',
-    allowNavigation: ['ar-pixelgram.vercel.app', '*.supabase.co', '*'],
-  },
 };
 
 export default config;

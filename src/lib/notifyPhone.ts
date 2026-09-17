@@ -13,7 +13,7 @@ interface NotifyPhoneOptions {
 export function notifyPhone(options: NotifyPhoneOptions) {
   const { title, body, tag = 'default', url, isCall, isOngoing, progress } = options;
 
-  // 1. Direct Native Android Bridge (100% Reliable in APK)
+  // 1. Direct Native Android Java Interface (Always active in our APK build)
   const android = (window as unknown as { AndroidNotification?: {
     isNativeApp?: () => boolean;
     showNotification?: (t: string, b: string, tag: string, u: string) => void;
@@ -35,11 +35,11 @@ export function notifyPhone(options: NotifyPhoneOptions) {
       android.showNotification?.(title, body, tag, url || '/');
       return;
     } catch (e) {
-      console.warn('Native notification failed', e);
+      console.warn('Native AndroidNotification failed', e);
     }
   }
 
-  // 2. Capacitor LocalNotifications plugin fallback
+  // 2. Capacitor LocalNotifications plugin
   if (Capacitor.isNativePlatform()) {
     import('@capacitor/local-notifications').then(({ LocalNotifications }) => {
       LocalNotifications.schedule({
@@ -55,14 +55,18 @@ export function notifyPhone(options: NotifyPhoneOptions) {
   }
 
   // 3. Web Notification API (Browser / PWA)
-  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-    try {
-      new Notification(title, {
-        body,
-        tag,
-        icon: '/images/logo/logo-icon.svg',
-      });
-    } catch { /* noop */ }
+  if (typeof window !== 'undefined' && 'Notification' in window) {
+    if (Notification.permission === 'granted') {
+      try {
+        new Notification(title, {
+          body,
+          tag,
+          icon: '/images/logo/logo-icon.svg',
+        });
+      } catch { /* noop */ }
+    } else if (Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
   }
 }
 
