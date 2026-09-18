@@ -22,6 +22,7 @@ export const GroupCallPanel: React.FC<{ groupId: string }> = ({ groupId }) => {
   const localStreamRef = useRef<MediaStream | null>(null);
   const activeCallRef = useRef<string | null>(null);
   const starterRef = useRef(false);
+  const channelReadyRef = useRef(false);
   const [callId, setCallId] = useState<string | null>(null);
   const [kind, setKind] = useState<CallKind>('audio');
   const [incoming, setIncoming] = useState<Signal | null>(null);
@@ -34,6 +35,13 @@ export const GroupCallPanel: React.FC<{ groupId: string }> = ({ groupId }) => {
 
   const send = useCallback((signal: Signal) => {
     void channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: signal });
+  }, []);
+
+  const waitForChannel = useCallback(async () => {
+    for (let attempt = 0; attempt < 30 && !channelReadyRef.current; attempt += 1) {
+      await new Promise(resolve => window.setTimeout(resolve, 100));
+    }
+    if (!channelReadyRef.current) throw new Error('Call connection is still starting. Please try again.');
   }, []);
 
   const closePeer = useCallback((peerId: string) => {
@@ -83,12 +91,14 @@ export const GroupCallPanel: React.FC<{ groupId: string }> = ({ groupId }) => {
 
   useEffect(() => {
     const channel = supabase.channel('group-call-signal-' + groupId);
-    channel.on('broadcast', { event: 'signal' }, payload => { void handleSignal(payload.payload as Signal); }).subscribe();
+    channel.on('broadcast', { event: 'signal' }, payload => { void handleSignal(payload.payload as Signal); });
+    channel.subscribe(status => { channelReadyRef.current = status === 'SUBSCRIBED'; });
     channelRef.current = channel;
-    return () => { void channel.unsubscribe(); channelRef.current = null; };
+    return () => { channelReadyRef.current = false; void channel.unsubscribe(); channelRef.current = null; };
   }, [groupId, handleSignal]);
 
   const getMedia = async (requestedKind: CallKind) => {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('Audio/video calls need HTTPS and browser microphone/camera permission');
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: requestedKind === 'video' });
     localStreamRef.current = stream;
     setLocalStream(stream);
@@ -98,6 +108,7 @@ export const GroupCallPanel: React.FC<{ groupId: string }> = ({ groupId }) => {
   const start = async (requestedKind: CallKind) => {
     if (!user || active) return;
     try {
+      await waitForChannel();
       const id = await createGroupCall(groupId, requestedKind);
       await getMedia(requestedKind);
       await joinGroupCall(id);
@@ -109,6 +120,7 @@ export const GroupCallPanel: React.FC<{ groupId: string }> = ({ groupId }) => {
   const accept = async () => {
     if (!incoming || !user) return;
     try {
+      await waitForChannel();
       await getMedia(incoming.kind || 'audio');
       await joinGroupCall(incoming.callId);
       activeCallRef.current = incoming.callId; starterRef.current = false; setCallId(incoming.callId); setKind(incoming.kind || 'audio'); setActive(true); setIncoming(null);
