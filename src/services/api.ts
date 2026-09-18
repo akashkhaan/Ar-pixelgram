@@ -525,6 +525,7 @@ export async function createNotification(
     new_post: `${who} added a new post`,
     new_reel: `${who} added a new reel`,
     new_video: `${who} uploaded a new video`,
+    group_mention: `${who} mentioned you in a group`,
   };
   const title = titles[type];
   if (!title || message?.startsWith('📞') || message?.startsWith('📵')) return;
