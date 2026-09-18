@@ -170,6 +170,17 @@ function uniqueTerms(terms: string[]): string[] {
   return [...new Set(terms.map((term) => term.trim()).filter(Boolean))];
 }
 
+function getCountryTerms(countryCode: string, countryName: string): string[] {
+  return uniqueTerms([
+    ...(COUNTRY_TERMS[countryCode] || []),
+    `${countryName} latest songs`,
+    `${countryName} top songs`,
+    `${countryName} popular music`,
+    'latest songs',
+    'top songs',
+  ]);
+}
+
 function getCountryName(countryCode: string): string {
   try {
     const IntlWithDisplayNames = Intl as typeof Intl & {
@@ -223,7 +234,7 @@ function localeFromBrowser(): MusicLocale {
     countryCode,
     countryName,
     localTerms: uniqueTerms([
-      ...(COUNTRY_TERMS[countryCode] || [`${countryName} latest songs`, `${countryName} hits`]),
+      ...getCountryTerms(countryCode, countryName),
       ...(LANGUAGE_TERMS[languageCode] || []),
     ]),
     source: 'browser',
@@ -302,7 +313,7 @@ export async function detectMusicLocale(): Promise<MusicLocale> {
       regionName,
       localTerms: uniqueTerms([
         ...(regionName && countryCode === 'IN' ? (INDIAN_REGION_TERMS[regionName] || []) : []),
-        ...(COUNTRY_TERMS[countryCode] || [`${countryName} latest songs`, `${countryName} hits`]),
+        ...getCountryTerms(countryCode, countryName),
         ...fallback.localTerms,
         ...(regionName ? [`${regionName} latest songs`] : []),
       ]),
