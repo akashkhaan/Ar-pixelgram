@@ -1,6 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, Bookmark, Play, Pause, Loader2, Music2 } from 'lucide-react';
-import { searchMusic, getTrendingMusic, formatMusicDuration, type MusicTrack } from '@/services/music';
+import { Search, X, Bookmark, Play, Pause, Loader2, Music2, MapPin } from 'lucide-react';
+import {
+  searchMusic,
+  getTrendingMusic,
+  formatMusicDuration,
+  getDefaultMusicLocale,
+  detectMusicLocale,
+  type MusicLocale,
+  type MusicTrack,
+} from '@/services/music';
 import { getSavedSongs, saveSong, unsaveSong } from '@/services/savedSongs';
 import { toast } from 'sonner';
 
@@ -19,20 +27,28 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [saved, setSaved] = useState<MusicTrack[]>([]);
   const [loading, setLoading] = useState(false);
+  const [locale, setLocale] = useState<MusicLocale>(() => getDefaultMusicLocale());
+  const [locationLoading, setLocationLoading] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Trending / default list
+  // Detect location once per picker session. GPS coordinates are never stored;
+  // only the country/state label and music terms are cached for 24 hours.
   useEffect(() => {
     if (!open) return;
-    const ac = new AbortController();
-    setLoading(true);
-    getTrendingMusic(ac.signal)
-      .then((list) => setTracks((prev) => (query.trim() ? prev : list)))
-      .finally(() => setLoading(false));
+    let active = true;
+    setLocationLoading(true);
+    detectMusicLocale()
+      .then((detected) => {
+        if (active) setLocale(detected);
+      })
+      .finally(() => {
+        if (active) setLocationLoading(false);
+      });
     getSavedSongs().then(setSaved);
-    return () => ac.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      active = false;
+    };
   }, [open]);
 
   // Debounced search
@@ -42,20 +58,30 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
     const ac = new AbortController();
     if (!q) {
       setLoading(true);
-      getTrendingMusic(ac.signal).then(setTracks).finally(() => setLoading(false));
+      getTrendingMusic(ac.signal, locale)
+        .then((list) => {
+          if (!ac.signal.aborted) setTracks(list);
+        })
+        .finally(() => {
+          if (!ac.signal.aborted) setLoading(false);
+        });
       return () => ac.abort();
     }
     setLoading(true);
     const t = setTimeout(() => {
-      searchMusic(q, ac.signal)
-        .then(setTracks)
-        .finally(() => setLoading(false));
+      searchMusic(q, ac.signal, locale)
+        .then((list) => {
+          if (!ac.signal.aborted) setTracks(list);
+        })
+        .finally(() => {
+          if (!ac.signal.aborted) setLoading(false);
+        });
     }, 350);
     return () => {
       clearTimeout(t);
       ac.abort();
     };
-  }, [query, open]);
+  }, [query, open, locale]);
 
   // Stop preview audio when sheet closes
   useEffect(() => {
@@ -132,6 +158,15 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
               <X className="w-4 h-4" />
             </button>
           )}
+        </div>
+
+        <div className="flex items-center gap-1.5 text-[11px] text-white/60">
+          <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+          <span className="truncate">
+            {locationLoading
+              ? 'Finding music near you…'
+              : `Latest near ${locale.regionName ? `${locale.regionName}, ` : ''}${locale.countryName}`}
+          </span>
         </div>
 
         <div className="flex gap-2">
