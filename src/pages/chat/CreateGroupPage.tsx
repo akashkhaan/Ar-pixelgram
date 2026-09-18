@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Image, Loader2, Search, Users } from 'lucide-react';
+import { ArrowLeft, Check, Loader2, Search, Users } from 'lucide-react';
 import MobileLayout from '@/components/layouts/MobileLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
