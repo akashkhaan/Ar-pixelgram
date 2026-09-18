@@ -1,4 +1,5 @@
 import { supabase } from '@/db/supabase';
+import { createNotification } from '@/services/api';
 import type { Profile } from '@/types/types';
 import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary } from '@/types/groups';
 
@@ -108,13 +109,30 @@ export async function getGroupPinnedMessages(groupId: string): Promise<GroupPinn
   return rows.flatMap(pin => { const message = messageMap.get(pin.message_id); return message ? [{ ...pin, message }] : []; });
 }
 
-export async function sendGroupMessage(groupId: string, content: string, replyToId?: string | null): Promise<GroupMessage> {
+export async function sendGroupMessage(groupId: string, content: string, replyToId?: string | null, mentionUserIds: string[] = []): Promise<GroupMessage> {
   const { data, error } = await supabase
     .from('group_messages')
     .insert({ group_id: groupId, content: content.trim(), reply_to_id: replyToId || null })
     .select('*')
     .single();
   throwIfError(error);
+  const sender = (await supabase.auth.getUser()).data.user;
+  const mentionedIds = [...new Set(mentionUserIds)].filter(id => id && id !== sender?.id);
+  if (mentionedIds.length && sender) {
+    const { error: mentionError } = await supabase.from('group_message_mentions').upsert(
+      mentionedIds.map(userId => ({ message_id: data.id, group_id: groupId, user_id: userId })),
+      { onConflict: 'message_id,user_id' },
+    );
+    if (mentionError) console.warn('Group mention record failed', mentionError);
+    await Promise.allSettled(mentionedIds.map(userId => createNotification(
+      userId,
+      'group_mention',
+      sender.id,
+      undefined,
+      undefined,
+      'You were mentioned in a group message',
+    )));
+  }
   return data as GroupMessage;
 }
 
@@ -172,6 +190,23 @@ export async function updateGroup(groupId: string, updates: Pick<Group, 'name' |
   throwIfError(error);
 }
 
+export async function uploadGroupAvatar(groupId: string, file: File): Promise<string> {
+  const auth = (await supabase.auth.getUser()).data.user;
+  if (!auth) throw new Error('Not authenticated');
+  if (!file.type.startsWith('image/')) throw new Error('Group photo must be an image');
+  const extension = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
+  const storagePath = groupId + '/avatars/' + auth.id + '-' + crypto.randomUUID() + '.' + extension;
+  const { error: uploadError } = await supabase.storage.from('group-media').upload(storagePath, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  throwIfError(uploadError);
+  const { data } = supabase.storage.from('group-media').getPublicUrl(storagePath);
+  const { error: updateError } = await supabase.from('groups').update({ avatar_url: data.publicUrl }).eq('id', groupId);
+  throwIfError(updateError);
+  return data.publicUrl;
+}
+
 export async function rotateGroupInvite(groupId: string): Promise<string> {
   const { data, error } = await supabase.rpc('rotate_group_invite', { p_group_id: groupId });
   throwIfError(error);
@@ -216,7 +251,9 @@ export async function sendGroupFileMessage(groupId: string, file: File): Promise
 }
 
 export async function createGroupCall(groupId: string, kind: 'audio' | 'video'): Promise<string> {
-  const { data, error } = await supabase.from('group_calls').insert({ group_id: groupId, started_by: (await supabase.auth.getUser()).data.user?.id, kind }).select('id').single();
+  const auth = (await supabase.auth.getUser()).data.user;
+  if (!auth) throw new Error('Not authenticated');
+  const { data, error } = await supabase.from('group_calls').insert({ group_id: groupId, started_by: auth.id, kind }).select('id').single();
   throwIfError(error);
   if (!data?.id) throw new Error('Call could not be started');
   return data.id as string;
