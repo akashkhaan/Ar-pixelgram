@@ -219,7 +219,7 @@ const GroupChatPage: React.FC = () => {
           <button type="button" onClick={openInfo} className="flex min-w-0 flex-1 items-center gap-2 text-left"><Avatar profile={group.avatar_url ? { avatar_url: group.avatar_url, username: group.name } as Profile : null} /><span className="min-w-0"><span className="block truncate text-sm font-semibold">{group.name}</span><span className="block truncate text-xs text-muted-foreground">{members.length} members</span></span></button>
           <button type="button" onClick={() => setShowMessageSearch(value => !value)} className="rounded-full p-2 hover:bg-muted" aria-label="Search messages"><Search className="h-5 w-5" /></button><button type="button" onClick={openInfo} className="rounded-full p-2 hover:bg-muted" aria-label="Group info"><MoreVertical className="h-5 w-5" /></button>
         </header>
-        <GroupCallPanel groupId={group.id} />
+        <GroupCallPanel groupId={group.id} groupName={group.name} members={members} />
 
         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
           <div className="mx-auto max-w-sm rounded-xl bg-primary/8 px-3 py-2 text-center text-xs text-muted-foreground">Messages in this group are visible only to its members.</div>
