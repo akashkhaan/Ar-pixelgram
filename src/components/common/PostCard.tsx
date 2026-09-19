@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, BadgeCheck, Music2, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,22 +27,78 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const lastTapRef = useRef(0);
+  const [showHeartAnim, setShowHeartAnim] = useState(false);
 
   const isOwner = user?.id === post.user_id;
+  const hasMusic = Boolean(post.music_preview_url || post.music_title);
 
-  const toggleAudio = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  // Toggle audio play/pause (Instagram mute / unmute)
+  const toggleAudio = (e?: React.SyntheticEvent) => {
+    if (e) e.stopPropagation();
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !post.music_preview_url) return;
     if (isPlayingAudio) {
       audio.pause();
       setIsPlayingAudio(false);
     } else {
-      if (post.music_start_ms) {
+      if (post.music_start_ms && Math.abs(audio.currentTime - (post.music_start_ms / 1000)) > 3) {
         audio.currentTime = post.music_start_ms / 1000;
       }
-      audio.play().then(() => setIsPlayingAudio(true)).catch(() => {});
+      audio.play().then(() => {
+        setIsPlayingAudio(true);
+        window.dispatchEvent(new CustomEvent('pixelgram_play_audio', { detail: { postId: post.id } }));
+      }).catch(() => {});
     }
+  };
+
+  // Only one post plays audio at a time
+  useEffect(() => {
+    const handleOtherPlay = (e: Event) => {
+      const customEvent = e as CustomEvent<{ postId: string }>;
+      if (customEvent.detail?.postId !== post.id && isPlayingAudio) {
+        audioRef.current?.pause();
+        setIsPlayingAudio(false);
+      }
+    };
+    window.addEventListener('pixelgram_play_audio', handleOtherPlay);
+    return () => window.removeEventListener('pixelgram_play_audio', handleOtherPlay);
+  }, [post.id, isPlayingAudio]);
+
+  // Pause audio automatically when post is scrolled out of viewport
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || !post.music_preview_url) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting && isPlayingAudio) {
+            audioRef.current?.pause();
+            setIsPlayingAudio(false);
+          }
+        });
+      },
+      { threshold: 0.25 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [post.music_preview_url, isPlayingAudio]);
+
+  const handleImageClick = (e: React.MouseEvent) => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 320) {
+      // Double tap -> Instagram like
+      if (!liked) handleLike();
+      setShowHeartAnim(true);
+      setTimeout(() => setShowHeartAnim(false), 900);
+    } else {
+      // Single tap -> toggle music if post has audio
+      if (hasMusic) {
+        toggleAudio(e);
+      }
+    }
+    lastTapRef.current = now;
   };
 
   const handleLike = async () => {
@@ -86,10 +142,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
   const authorProfile = post.profile;
   const avatarUrl = authorProfile?.avatar_url;
   const username = authorProfile?.username || 'user';
-  const hasMusic = Boolean(post.music_title || post.music_preview_url);
 
   return (
-    <article className="bg-card border-b border-border">
+    <article ref={cardRef} className="bg-card border-b border-border">
       {/* Post header */}
       <div className="flex items-center gap-3 px-4 py-3">
         <Link to={`/profile/${post.user_id}`} className="shrink-0">
@@ -115,7 +170,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
                 type="button"
                 onClick={toggleAudio}
                 className="flex items-center gap-1 text-[11px] text-foreground font-medium truncate max-w-[170px] hover:text-primary transition-colors"
-                title="Play/Pause song"
+                title={isPlayingAudio ? "Mute audio" : "Play audio"}
               >
                 <Music2 className={cn("w-3 h-3 text-primary shrink-0", isPlayingAudio && "animate-spin")} />
                 <span className="truncate">{post.music_title || 'Original audio'}</span>
@@ -146,8 +201,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
       </div>
 
       {/* Post image */}
-      <div className="aspect-square w-full bg-muted overflow-hidden relative">
+      <div
+        className="aspect-square w-full bg-muted overflow-hidden relative cursor-pointer select-none"
+        onClick={handleImageClick}
+      >
         <SmartImage src={post.image_url} alt={post.caption || 'Post'} />
+
+        {/* Double-tap animated heart */}
+        {showHeartAnim && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <Heart className="w-24 h-24 text-white fill-red-500 drop-shadow-2xl animate-in zoom-in-50 duration-200" />
+          </div>
+        )}
 
         {/* Audio control floating pill on image if post has music */}
         {post.music_preview_url && (
@@ -155,24 +220,32 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
             <audio
               ref={audioRef}
               src={post.music_preview_url}
+              loop
               onEnded={() => setIsPlayingAudio(false)}
               onPause={() => setIsPlayingAudio(false)}
               onPlay={() => setIsPlayingAudio(true)}
               preload="none"
             />
             <button
+              type="button"
               onClick={toggleAudio}
-              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-lg active:scale-95 transition-all text-xs font-semibold"
+              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/70 hover:bg-black/85 backdrop-blur-md text-white shadow-xl active:scale-95 transition-all text-xs font-semibold z-10"
+              aria-label={isPlayingAudio ? "Mute audio" : "Unmute audio"}
             >
               {isPlayingAudio ? (
                 <>
-                  <Volume2 className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                  <span>Pause</span>
+                  <Volume2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="flex items-end gap-0.5 h-3">
+                    <span className="w-0.5 h-3 bg-emerald-400 rounded-full animate-pulse" />
+                    <span className="w-0.5 h-2 bg-emerald-400 rounded-full animate-pulse delay-75" />
+                    <span className="w-0.5 h-3 bg-emerald-400 rounded-full animate-pulse delay-150" />
+                  </span>
+                  <span className="text-[11px] font-medium text-emerald-300">Mute</span>
                 </>
               ) : (
                 <>
-                  <VolumeX className="w-3.5 h-3.5" />
-                  <span>Audio</span>
+                  <VolumeX className="w-4 h-4 text-white/90 shrink-0" />
+                  <span className="text-[11px] font-medium text-white/90">Unmute</span>
                 </>
               )}
             </button>

@@ -60,6 +60,47 @@ export async function getAllProfiles(page = 0, pageSize = 20): Promise<Profile[]
 }
 
 // ===================== POSTS =====================
+export function encodePostMusic(caption: string | null, music: ReelMusic): string {
+  const meta = {
+    _m: 1,
+    id: music.track_id,
+    title: music.title,
+    artist: music.artist,
+    artwork: music.artwork_url || null,
+    previewUrl: music.preview_url,
+    startMs: music.start_ms || 0,
+    durationMs: music.duration_ms || 30000,
+  };
+  const tag = `<!--pixelgram_music:${JSON.stringify(meta)}-->`;
+  return caption ? `${caption}\n\n${tag}` : tag;
+}
+
+export function decodePostMusic(post: Post): Post {
+  if (post.music_preview_url || post.music_title) {
+    return post;
+  }
+  if (!post.caption) return post;
+  const match = post.caption.match(/<!--pixelgram_music:(\{.*?\})-->/s);
+  if (!match) return post;
+  try {
+    const meta = JSON.parse(match[1]);
+    const cleanCaption = post.caption.replace(/<!--pixelgram_music:(\{.*?\})-->/s, '').trim();
+    return {
+      ...post,
+      caption: cleanCaption || null,
+      music_track_id: meta.id,
+      music_title: meta.title,
+      music_artist: meta.artist,
+      music_artwork_url: meta.artwork,
+      music_preview_url: meta.previewUrl,
+      music_start_ms: meta.startMs || 0,
+      music_duration_ms: meta.durationMs,
+    };
+  } catch {
+    return post;
+  }
+}
+
 export async function createPost(
   imageUrl: string,
   caption: string | null,
@@ -82,10 +123,11 @@ export async function createPost(
     .maybeSingle();
 
   if (error && music) {
-    console.warn('Retrying createPost without music columns:', error);
+    console.warn('DB columns missing for music, saving resiliently via caption payload:', error);
+    const captionWithMusic = encodePostMusic(caption, music);
     const retry = await supabase
       .from('posts')
-      .insert({ image_url: imageUrl, caption })
+      .insert({ image_url: imageUrl, caption: captionWithMusic })
       .select('id, user_id')
       .maybeSingle();
     data = retry.data;
@@ -129,13 +171,16 @@ async function attachPostSocialMeta(rows: Post[], currentUserId?: string): Promi
   (commentsRes.data || []).forEach((r: { post_id: string }) => commentCounts.set(r.post_id, (commentCounts.get(r.post_id) || 0) + 1));
   const likedSet = new Set((likedRes.data || []).map((r: { post_id: string }) => r.post_id));
   const savedSet = new Set((savedRes.data || []).map((r: { post_id: string }) => r.post_id));
-  return rows.map(r => ({
-    ...r,
-    likes_count: likeCounts.get(r.id) || 0,
-    comments_count: commentCounts.get(r.id) || 0,
-    is_liked: likedSet.has(r.id),
-    is_saved: savedSet.has(r.id),
-  }));
+  return rows.map(r => {
+    const postWithMusic = decodePostMusic(r);
+    return {
+      ...postWithMusic,
+      likes_count: likeCounts.get(r.id) || 0,
+      comments_count: commentCounts.get(r.id) || 0,
+      is_liked: likedSet.has(r.id),
+      is_saved: savedSet.has(r.id),
+    };
+  });
 }
 
 export async function getPostById(postId: string, currentUserId?: string): Promise<Post | null> {

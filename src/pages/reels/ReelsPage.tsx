@@ -419,47 +419,6 @@ const ReelsPage: React.FC = () => {
   const reelsCountRef = useRef(0);
   const [navHidden, setNavHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
-  const touchStartYRef = useRef(0);
-  const touchStartTimeRef = useRef(0);
-  const isSnappingRef = useRef(false);
-  const lastWheelTimeRef = useRef(0);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartYRef.current = e.touches[0].clientY;
-    touchStartTimeRef.current = Date.now();
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const el = containerRef.current;
-    if (!el || isSnappingRef.current) return;
-    const deltaY = touchStartYRef.current - e.changedTouches[0].clientY;
-    const deltaTime = Math.max(1, Date.now() - touchStartTimeRef.current);
-    const velocity = Math.abs(deltaY) / deltaTime;
-
-    // Fast flick (Instagram feel: slight drag or flick immediately flips reel)
-    if (Math.abs(deltaY) > 35 || velocity > 0.35) {
-      const direction = deltaY > 0 ? 1 : -1;
-      const targetIdx = Math.max(0, Math.min(reelsCountRef.current - 1, activeIndex + direction));
-      if (targetIdx !== activeIndex) {
-        isSnappingRef.current = true;
-        el.scrollTo({ top: targetIdx * el.clientHeight, behavior: 'smooth' });
-        setTimeout(() => { isSnappingRef.current = false; }, 320);
-      }
-    }
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    const now = Date.now();
-    if (now - lastWheelTimeRef.current < 350) return;
-    if (Math.abs(e.deltaY) > 25) {
-      const el = containerRef.current;
-      if (!el) return;
-      lastWheelTimeRef.current = now;
-      const direction = e.deltaY > 0 ? 1 : -1;
-      const targetIdx = Math.max(0, Math.min(reelsCountRef.current - 1, activeIndex + direction));
-      el.scrollTo({ top: targetIdx * el.clientHeight, behavior: 'smooth' });
-    }
-  };
 
   const loadReels = useCallback(async () => {
     try {
@@ -482,7 +441,6 @@ const ReelsPage: React.FC = () => {
         if (idx >= 0) {
           setActiveIndex(idx);
           if (wantsComments) setOpenCommentsFor(targetId);
-          // jump to that reel once it is painted
           requestAnimationFrame(() => {
             const el = containerRef.current;
             if (el) el.scrollTo({ top: idx * el.clientHeight });
@@ -500,18 +458,52 @@ const ReelsPage: React.FC = () => {
 
   useEffect(() => { loadReels(); }, [loadReels]);
 
-  // Instagram jaisa: native scroll-snap — ek scroll par poori agli reel,
-  // beech me kabhi atakti nahi. Active reel scroll position se nikalte hain.
+  // Instagram-style IntersectionObserver: Active reel detection runs completely
+  // off the main thread without re-rendering while swiping.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || reels.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const idxStr = entry.target.getAttribute('data-reel-index');
+            if (idxStr !== null) {
+              const idx = parseInt(idxStr, 10);
+              if (!isNaN(idx)) {
+                setActiveIndex(idx);
+              }
+            }
+          }
+        });
+      },
+      {
+        root: el,
+        threshold: 0.6,
+      }
+    );
+
+    const items = el.querySelectorAll('[data-reel-index]');
+    items.forEach(item => observer.observe(item));
+
+    return () => observer.disconnect();
+  }, [reels.length]);
+
+  // Light scroll listener purely for bottom nav hide/reveal
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    const delta = el.scrollTop - lastScrollTopRef.current;
-    if (el.scrollTop <= 40) setNavHidden(false);
-    else if (delta > 6) setNavHidden(true);
-    else if (delta < -6) setNavHidden(false);
-    lastScrollTopRef.current = el.scrollTop;
-    const idx = Math.round(el.scrollTop / el.clientHeight);
-    setActiveIndex(prev => (prev === idx ? prev : Math.max(0, Math.min(reelsCountRef.current - 1, idx))));
+    const current = el.scrollTop;
+    const delta = current - lastScrollTopRef.current;
+    if (current <= 40) {
+      setNavHidden(false);
+    } else if (delta > 15) {
+      setNavHidden(true);
+    } else if (delta < -15) {
+      setNavHidden(false);
+    }
+    lastScrollTopRef.current = current;
   }, []);
 
   // Keyboard support for desktop
@@ -564,15 +556,16 @@ const ReelsPage: React.FC = () => {
   }
 
   return (
-    <div className="relative h-[100dvh] bg-black">
+    <div className="fixed inset-0 h-full w-full bg-black overflow-hidden">
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onWheel={handleWheel}
-        className="h-full w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar overscroll-y-contain"
-        style={{ scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
+        className="h-full w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar"
+        style={{
+          scrollSnapType: 'y mandatory',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain',
+        }}
       >
         {reels.map((reel, idx) => {
           const isActive = idx === activeIndex;
@@ -580,8 +573,15 @@ const ReelsPage: React.FC = () => {
           return (
             <div
               key={reel.id}
-              className="relative w-full snap-start"
-              style={{ height: '100dvh', scrollSnapAlign: 'start' }}
+              data-reel-index={idx}
+              className="relative w-full h-full snap-start snap-always shrink-0"
+              style={{
+                height: '100%',
+                minHeight: '100%',
+                maxHeight: '100%',
+                scrollSnapAlign: 'start',
+                scrollSnapStop: 'always',
+              }}
             >
               <ReelCard
                 reel={reel}
