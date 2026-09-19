@@ -1,7 +1,7 @@
 import { supabase } from '@/db/supabase';
 import { createNotification } from '@/services/api';
 import type { Profile } from '@/types/types';
-import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary } from '@/types/groups';
+import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary, GroupCall } from '@/types/groups';
 
 interface GroupMemberRow extends Omit<GroupMember, 'profile'> { profile?: Profile | null }
 
@@ -348,30 +348,112 @@ export async function sendGroupFileMessage(groupId: string, file: File): Promise
   return message as GroupMessage;
 }
 
+export async function getActiveGroupCall(groupId: string): Promise<GroupCall | null> {
+  const { data, error } = await supabase
+    .from('group_calls')
+    .select('*')
+    .eq('group_id', groupId)
+    .in('status', ['ringing', 'active'])
+    .is('ended_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  const startedTime = new Date(data.created_at || data.started_at).getTime();
+  if (Date.now() - startedTime > 2 * 60 * 60 * 1000) {
+    return null;
+  }
+  return data as GroupCall;
+}
+
+export async function getActiveGroupCallsForUser(groupIds: string[]): Promise<Record<string, GroupCall>> {
+  if (!groupIds.length) return {};
+  const { data, error } = await supabase
+    .from('group_calls')
+    .select('*')
+    .in('group_id', groupIds)
+    .in('status', ['ringing', 'active'])
+    .is('ended_at', null)
+    .order('created_at', { ascending: false });
+  if (error || !data) return {};
+  const result: Record<string, GroupCall> = {};
+  const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+  for (const call of data as GroupCall[]) {
+    const started = new Date(call.created_at || call.started_at).getTime();
+    if (started >= twoHoursAgo && !result[call.group_id]) {
+      result[call.group_id] = call;
+    }
+  }
+  return result;
+}
+
 export async function createGroupCall(groupId: string, kind: 'audio' | 'video'): Promise<string> {
   const auth = (await supabase.auth.getUser()).data.user;
   if (!auth) throw new Error('Not authenticated');
-  const { data, error } = await supabase.from('group_calls').insert({ group_id: groupId, started_by: auth.id, kind }).select('id').single();
+  const { data, error } = await supabase
+    .from('group_calls')
+    .insert({ group_id: groupId, started_by: auth.id, kind, status: 'ringing' })
+    .select('id')
+    .single();
   throwIfError(error);
   if (!data?.id) throw new Error('Call could not be started');
   return data.id as string;
 }
 
+export async function startOrJoinGroupCall(
+  groupId: string,
+  kind: 'audio' | 'video',
+): Promise<{ id: string; isNew: boolean; kind: 'audio' | 'video' }> {
+  const existing = await getActiveGroupCall(groupId);
+  if (existing) {
+    return { id: existing.id, isNew: false, kind: existing.kind };
+  }
+  const id = await createGroupCall(groupId, kind);
+  return { id, isNew: true, kind };
+}
+
 export async function joinGroupCall(callId: string): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Not authenticated');
-  const { error } = await supabase.from('group_call_participants').upsert({ call_id: callId, user_id: auth.user.id, left_at: null });
+  const { error } = await supabase
+    .from('group_call_participants')
+    .upsert({ call_id: callId, user_id: auth.user.id, left_at: null });
   throwIfError(error);
+  await supabase
+    .from('group_calls')
+    .update({ status: 'active' })
+    .eq('id', callId)
+    .eq('status', 'ringing');
 }
 
 export async function leaveGroupCall(callId: string): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Not authenticated');
-  const { error } = await supabase.from('group_call_participants').update({ left_at: new Date().toISOString() }).eq('call_id', callId).eq('user_id', auth.user.id);
+  const { error } = await supabase
+    .from('group_call_participants')
+    .update({ left_at: new Date().toISOString() })
+    .eq('call_id', callId)
+    .eq('user_id', auth.user.id);
   throwIfError(error);
+
+  try {
+    const { data: remaining } = await supabase
+      .from('group_call_participants')
+      .select('user_id')
+      .eq('call_id', callId)
+      .is('left_at', null);
+    if (!remaining || remaining.length === 0) {
+      await endGroupCall(callId);
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function endGroupCall(callId: string): Promise<void> {
-  const { error } = await supabase.from('group_calls').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', callId);
+  const { error } = await supabase
+    .from('group_calls')
+    .update({ status: 'ended', ended_at: new Date().toISOString() })
+    .eq('id', callId);
   throwIfError(error);
 }

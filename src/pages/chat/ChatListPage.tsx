@@ -4,10 +4,12 @@ import PullToRefresh from '@/components/common/PullToRefresh';
 import { useAuth } from '@/contexts/AuthContext';
 import { withTimeout } from '@/lib/withTimeout';
 import { getMutualFollows, getMessages, getUnreadCount, getMessagedProfiles } from '@/services/api';
-import { getMyGroups } from '@/services/groups';
+import { getMyGroups, getActiveGroupCallsForUser } from '@/services/groups';
+import { supabase } from '@/db/supabase';
+import type { GroupCall } from '@/types/groups';
 import type { Profile, Message } from '@/types/types';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageCircle, Loader2, BadgeCheck, ArrowLeft, Plus, Users } from 'lucide-react';
+import { MessageCircle, Loader2, BadgeCheck, ArrowLeft, Plus, Users, Phone } from 'lucide-react';
 
 interface ConversationItem {
   profile: Profile;
@@ -22,6 +24,7 @@ const ChatListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<Awaited<ReturnType<typeof getMyGroups>>>([]);
   const [showGroupMenu, setShowGroupMenu] = useState(false);
+  const [activeGroupCalls, setActiveGroupCalls] = useState<Record<string, GroupCall>>({});
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -33,6 +36,11 @@ const ChatListPage: React.FC = () => {
           getMyGroups(user.id).catch(() => []),
         ]), 20000);
         setGroups(groupList);
+        const groupIds = groupList.map(g => g.group.id);
+        if (groupIds.length > 0) {
+          const calls = await getActiveGroupCallsForUser(groupIds).catch(() => ({}));
+          setActiveGroupCalls(calls);
+        }
         const seen = new Set<string>();
         const combined: Profile[] = [];
         for (const p of [...mutuals, ...messaged]) {
@@ -60,6 +68,29 @@ const ChatListPage: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime subscription for group call status updates
+  useEffect(() => {
+    if (!groups.length) return;
+    const channel = supabase.channel('chat-list-group-calls');
+    channel
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'group_calls' },
+        () => {
+          const groupIds = groups.map(g => g.group.id);
+          if (groupIds.length > 0) {
+            void getActiveGroupCallsForUser(groupIds).then(setActiveGroupCalls).catch(() => {});
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void channel.unsubscribe();
+    };
+  }, [groups]);
+
+
   return (
     <MobileLayout hideHeader hideNav>
       <PullToRefresh onRefresh={load}>
@@ -78,7 +109,60 @@ const ChatListPage: React.FC = () => {
         </div>
 
 
-        {groups.length > 0 && <div className="border-b border-border">{groups.map(({ group, member_count }) => <Link key={group.id} to={'/group/' + group.id} className="flex items-center gap-3 border-b border-border/50 px-4 py-3 hover:bg-muted/60">{group.avatar_url ? <img src={group.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary"><Users className="h-5 w-5" /></div>}<div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{group.name}</p><p className="text-xs text-muted-foreground">{member_count} members</p></div></Link>)}</div>}
+        {groups.length > 0 && (
+          <div className="border-b border-border divide-y divide-border/40">
+            {groups.map(({ group, member_count }) => {
+              const activeCall = activeGroupCalls[group.id];
+              return (
+                <div
+                  key={group.id}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-muted/60 transition-colors"
+                >
+                  <Link to={'/group/' + group.id} className="relative shrink-0">
+                    {group.avatar_url ? (
+                      <img src={group.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
+                        <Users className="h-5 w-5" />
+                      </div>
+                    )}
+                    {activeCall && (
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center">
+                        <span className="h-3 w-3 rounded-full bg-emerald-500 animate-ping absolute" />
+                        <span className="h-3.5 w-3.5 rounded-full bg-emerald-600 ring-2 ring-background relative flex items-center justify-center">
+                          <Phone className="h-2 w-2 text-white" />
+                        </span>
+                      </span>
+                    )}
+                  </Link>
+
+                  <Link to={'/group/' + group.id} className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-foreground">{group.name}</p>
+                      {activeCall && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          {activeCall.kind === 'video' ? 'Video call' : 'Audio call'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{member_count} members</p>
+                  </Link>
+
+                  {activeCall && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/group/' + group.id + '?autoJoin=1&kind=' + activeCall.kind)}
+                      className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1 text-xs font-semibold shadow-sm transition-transform active:scale-95 shrink-0"
+                    >
+                      Join
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-20">

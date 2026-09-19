@@ -7,9 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { addGroupMember, getGroup, getGroupMedia, getGroupMembers, getGroupMessages, getGroupPermissions, getGroupPinnedMessages, leaveGroup, pinGroupMessage, removeGroupMember, searchGroupUsers, sendGroupFileMessage, sendGroupMessage, toggleGroupReaction, unpinGroupMessage, updateGroup, updateGroupPermissions, uploadGroupAvatar } from '@/services/groups';
+import { addGroupMember, getActiveGroupCall, getGroup, getGroupMedia, getGroupMembers, getGroupMessages, getGroupPermissions, getGroupPinnedMessages, leaveGroup, pinGroupMessage, removeGroupMember, searchGroupUsers, sendGroupFileMessage, sendGroupMessage, toggleGroupReaction, unpinGroupMessage, updateGroup, updateGroupPermissions, uploadGroupAvatar } from '@/services/groups';
 import type { Profile } from '@/types/types';
-import type { Group, GroupMedia, GroupMember, GroupMessage, GroupPermissions, GroupPinnedMessage } from '@/types/groups';
+import type { Group, GroupCall, GroupMedia, GroupMember, GroupMessage, GroupPermissions, GroupPinnedMessage } from '@/types/groups';
 import { toast } from 'sonner';
 import GroupCallPanel, { GroupCallPanelHandle } from '@/components/call/GroupCallPanel';
 
@@ -78,6 +78,7 @@ const GroupChatPage: React.FC = () => {
   const [editDescription, setEditDescription] = useState('');
   const [savingInfo, setSavingInfo] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [activeGroupCall, setActiveGroupCall] = useState<GroupCall | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const callPanelRef = useRef<GroupCallPanelHandle>(null);
   const handleBack = () => { navigate('/chat', { replace: true }); };
@@ -252,11 +253,61 @@ const GroupChatPage: React.FC = () => {
         <header className="z-20 flex shrink-0 items-center gap-1 sm:gap-2 border-b border-border bg-card/95 px-2 py-2 backdrop-blur">
           <button type="button" onClick={handleBack} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
           <button type="button" onClick={openInfo} className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-90 transition-opacity"><Avatar profile={group.avatar_url ? { avatar_url: group.avatar_url, username: group.name } as Profile : null} /><span className="min-w-0"><span className="block truncate text-sm font-semibold leading-tight">{group.name}</span><span className="block truncate text-xs text-muted-foreground">{members.length} members</span></span></button>
-          <button type="button" onClick={() => void callPanelRef.current?.startCall('audio')} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Audio call" title="Start audio call"><Phone className="h-5 w-5" /></button>
-          <button type="button" onClick={() => void callPanelRef.current?.startCall('video')} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Video call" title="Start video call"><Video className="h-5 w-5" /></button>
+          <button
+            type="button"
+            onClick={() => void callPanelRef.current?.startCall('audio')}
+            className={`rounded-full p-2 transition-all ${
+              activeGroupCall?.kind === 'audio'
+                ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
+                : 'hover:bg-muted text-foreground'
+            }`}
+            aria-label="Audio call"
+            title={activeGroupCall?.kind === 'audio' ? 'Join ongoing audio call' : 'Start audio call'}
+          >
+            <Phone className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void callPanelRef.current?.startCall('video')}
+            className={`rounded-full p-2 transition-all ${
+              activeGroupCall?.kind === 'video'
+                ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
+                : 'hover:bg-muted text-foreground'
+            }`}
+            aria-label="Video call"
+            title={activeGroupCall?.kind === 'video' ? 'Join ongoing video call' : 'Start video call'}
+          >
+            <Video className="h-5 w-5" />
+          </button>
           <button type="button" onClick={openInfo} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Group settings" title="Group settings"><Settings className="h-5 w-5" /></button>
         </header>
         <GroupCallPanel ref={callPanelRef} groupId={group.id} groupName={group.name} groupAvatarUrl={group.avatar_url} members={members} />
+
+        {activeGroupCall && (
+          <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-950/40 px-3.5 py-2 backdrop-blur text-emerald-200 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="relative flex h-3 w-3 items-center justify-center shrink-0">
+                <span className="absolute h-3 w-3 rounded-full bg-emerald-400 animate-ping opacity-75" />
+                <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-emerald-100 truncate">
+                  Group {activeGroupCall.kind === 'video' ? 'video' : 'audio'} call active
+                </p>
+                <p className="text-[11px] text-emerald-300/80 truncate">
+                  Tap Join to connect with group members
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => void callPanelRef.current?.startCall(activeGroupCall.kind)}
+              className="h-7.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 shadow-sm shadow-emerald-500/30 shrink-0"
+            >
+              Join
+            </Button>
+          </div>
+        )}
 
         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
           <div className="mx-auto max-w-sm rounded-xl bg-primary/8 px-3 py-2 text-center text-xs text-muted-foreground">Messages in this group are visible only to its members.</div>

@@ -1,8 +1,31 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Camera, CameraOff, Mic, MicOff, Monitor, Phone, PhoneOff, Users, Video, VideoOff, Volume2, VolumeX, X } from 'lucide-react';
+import {
+  Camera,
+  CameraOff,
+  ChevronDown,
+  Maximize2,
+  Mic,
+  MicOff,
+  Monitor,
+  Phone,
+  PhoneOff,
+  Users,
+  Video,
+  VideoOff,
+  Volume2,
+  VolumeX,
+  X,
+} from 'lucide-react';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { createGroupCall, endGroupCall, joinGroupCall, leaveGroupCall } from '@/services/groups';
+import {
+  createGroupCall,
+  endGroupCall,
+  getActiveGroupCall,
+  joinGroupCall,
+  leaveGroupCall,
+  startOrJoinGroupCall,
+} from '@/services/groups';
 import { createNotification } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
 import type { GroupMember } from '@/types/groups';
@@ -11,41 +34,46 @@ import { toast } from 'sonner';
 
 export type CallKind = 'audio' | 'video';
 
+export interface GroupCallPanelHandle {
+  startCall: (kind: CallKind) => Promise<void>;
+  isCallActive: () => boolean;
+}
+
+interface GroupCallPanelProps {
+  groupId: string;
+  groupName?: string;
+  groupAvatarUrl?: string | null;
+  members: GroupMember[];
+}
+
 type Signal = {
   type: 'invite' | 'join' | 'offer' | 'answer' | 'ice' | 'leave' | 'mute';
   callId: string;
   from: string;
   to?: string;
   kind?: CallKind;
-  startedAt?: number;
   offer?: RTCSessionDescriptionInit;
   answer?: RTCSessionDescriptionInit;
   candidate?: RTCIceCandidateInit;
+  startedAt?: number;
   isMuted?: boolean;
 };
 
-export type GroupCallPanelProps = {
-  groupId: string;
-  groupName?: string;
-  groupAvatarUrl?: string | null;
-  members: GroupMember[];
-};
-
-export type GroupCallPanelHandle = {
-  startCall: (kind: CallKind) => Promise<void>;
-  isCallActive: () => boolean;
-};
-
 const TILE_COLORS = [
-  'from-slate-800 via-slate-700 to-slate-900',
-  'from-rose-900 via-red-800 to-orange-900',
-  'from-violet-900 via-fuchsia-800 to-pink-900',
-  'from-emerald-900 via-teal-800 to-cyan-900',
-  'from-amber-900 via-yellow-800 to-orange-900',
-  'from-blue-900 via-indigo-800 to-violet-900',
+  'from-blue-600/80 to-indigo-900/90',
+  'from-emerald-600/80 to-teal-900/90',
+  'from-purple-600/80 to-violet-900/90',
+  'from-amber-600/80 to-rose-900/90',
 ];
 
-const initials = (name: string) => name.trim().slice(0, 1).toUpperCase() || '?';
+function initials(name: string) {
+  return (name || 'M')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(p => p[0]?.toUpperCase())
+    .join('');
+}
 
 const ParticipantTile: React.FC<{
   stream: MediaStream | null;
@@ -53,8 +81,8 @@ const ParticipantTile: React.FC<{
   avatarUrl?: string | null;
   videoMuted?: boolean;
   isMicMuted?: boolean;
-  showVideo: boolean;
-  speakerOn: boolean;
+  showVideo?: boolean;
+  speakerOn?: boolean;
   index: number;
   local?: boolean;
 }> = ({ stream, label, avatarUrl, videoMuted, isMicMuted, showVideo, speakerOn, index, local }) => {
@@ -68,44 +96,52 @@ const ParticipantTile: React.FC<{
   }, [stream, speakerOn]);
 
   return (
-    <div className="relative flex min-h-[240px] flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl bg-neutral-900 shadow-xl border border-white/10">
+    <div className="relative flex min-h-[200px] flex-1 flex-col items-center justify-center overflow-hidden rounded-2xl bg-neutral-900/90 shadow-2xl border border-white/10">
       {hasVideo ? (
         <>
-          <video ref={ref} autoPlay playsInline muted={videoMuted} className="h-full min-h-[240px] w-full object-cover" />
-          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/85 via-black/40 to-transparent px-4 pb-3.5 pt-8 text-white">
+          <video
+            ref={ref}
+            autoPlay
+            playsInline
+            muted={videoMuted}
+            className="h-full min-h-[200px] w-full object-cover"
+          />
+          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3.5 pb-3 pt-8 text-white">
             <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-semibold drop-shadow">{local ? 'You' : label}</span>
+              <span className="truncate text-xs sm:text-sm font-semibold drop-shadow">
+                {local ? 'You' : label}
+              </span>
               {isMicMuted && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow animate-in fade-in zoom-in-75">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow ring-1 ring-black/40">
                   <MicOff className="h-3 w-3" />
                 </span>
               )}
             </div>
-            <span className="rounded-full bg-black/50 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-sm border border-white/10">
+            <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm border border-white/10">
               Camera
             </span>
           </div>
         </>
       ) : (
         <>
-          {/* Messenger-style DP Background - CLEAR (NO BLUR) */}
+          {/* Background image - Clear (no blur), dimmed with dark gradient */}
           {avatarUrl ? (
             <div className="absolute inset-0 overflow-hidden">
               <img
                 src={avatarUrl}
                 alt=""
-                className="h-full w-full object-cover brightness-[0.60] select-none"
+                className="h-full w-full object-cover brightness-[0.55] select-none"
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/15 to-black/80" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/85" />
             </div>
           ) : (
             <div className={'absolute inset-0 bg-gradient-to-br ' + TILE_COLORS[index % TILE_COLORS.length]} />
           )}
 
-          {/* Center Avatar & Identity */}
-          <div className="relative z-10 flex flex-col items-center justify-center p-6 text-center select-none">
+          {/* Center Identity */}
+          <div className="relative z-10 flex flex-col items-center justify-center p-4 text-center select-none">
             <div className="relative">
-              <div className="flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center overflow-hidden rounded-full bg-white/15 text-3xl font-bold text-white ring-4 ring-white/35 shadow-2xl backdrop-blur-sm">
+              <div className="flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center overflow-hidden rounded-full bg-white/15 text-2xl sm:text-3xl font-bold text-white ring-4 ring-white/30 shadow-2xl backdrop-blur-sm">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt={label} className="h-full w-full object-cover" />
                 ) : (
@@ -113,17 +149,17 @@ const ParticipantTile: React.FC<{
                 )}
               </div>
               {isMicMuted && (
-                <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white shadow-lg ring-2 ring-black/70 animate-in fade-in zoom-in-75">
-                  <MicOff className="h-4 w-4" />
+                <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white shadow-lg ring-2 ring-black/70 animate-in fade-in zoom-in-75">
+                  <MicOff className="h-3.5 w-3.5" />
                 </span>
               )}
             </div>
 
-            <div className="mt-3.5 flex flex-col items-center">
-              <p className="max-w-[220px] truncate text-base font-bold text-white drop-shadow-md">
+            <div className="mt-3 flex flex-col items-center">
+              <p className="max-w-[180px] truncate text-sm sm:text-base font-bold text-white drop-shadow-md">
                 {local ? 'You' : label}
               </p>
-              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-0.5 text-xs font-medium text-white/90 backdrop-blur-sm border border-white/10 shadow-sm">
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-sm border border-white/10 shadow-sm">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Audio
               </span>
@@ -135,19 +171,21 @@ const ParticipantTile: React.FC<{
   );
 };
 
-/* Circular Messenger-style call control button */
+/* Circular Messenger-style Call Button */
 const RoundCallButton: React.FC<{
   label: string;
   onClick: () => void;
-  variant?: 'normal' | 'danger' | 'highlight' | 'active';
+  variant?: 'normal' | 'active' | 'danger' | 'highlight';
   disabled?: boolean;
   children: React.ReactNode;
 }> = ({ label, onClick, variant = 'normal', disabled, children }) => {
-  let styleClasses = 'bg-white/15 text-white hover:bg-white/25 border border-white/10 shadow-sm';
-  if (variant === 'danger') {
-    styleClasses = 'bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/40 border border-red-500/40';
-  } else if (variant === 'highlight' || variant === 'active') {
+  let styleClasses = 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/15';
+  if (variant === 'active') {
     styleClasses = 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/40 border border-blue-400/40';
+  } else if (variant === 'danger') {
+    styleClasses = 'bg-red-600 hover:bg-red-700 text-white shadow-xl shadow-red-600/50 border border-red-500/40';
+  } else if (variant === 'highlight') {
+    styleClasses = 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/40 border border-emerald-400/40';
   }
 
   return (
@@ -157,11 +195,13 @@ const RoundCallButton: React.FC<{
         onClick={onClick}
         disabled={disabled}
         aria-label={label}
-        className={`flex h-12 w-12 items-center justify-center rounded-full transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 ${styleClasses}`}
+        className={`flex h-13 w-13 sm:h-14 sm:w-14 items-center justify-center rounded-full transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 ${styleClasses}`}
       >
         {children}
       </button>
-      <span className="text-[11px] font-medium text-white/80 select-none text-center">{label}</span>
+      <span className="text-[11px] font-medium text-white/80 select-none text-center drop-shadow">
+        {label}
+      </span>
     </div>
   );
 };
@@ -181,12 +221,15 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
     const [kind, setKind] = useState<CallKind>('audio');
     const [incoming, setIncoming] = useState<Signal | null>(null);
     const [active, setActive] = useState(false);
+    const [minimized, setMinimized] = useState(false);
+
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [remoteLabels, setRemoteLabels] = useState<Map<string, string>>(new Map());
     const [remoteAvatars, setRemoteAvatars] = useState<Map<string, string | null>>(new Map());
     const [remoteMuted, setRemoteMuted] = useState<Map<string, boolean>>(new Map());
+
     const [muted, setMuted] = useState(false);
     const [cameraOff, setCameraOff] = useState(false);
     const [speakerOn, setSpeakerOn] = useState(true);
@@ -194,7 +237,11 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
     const [startedAt, setStartedAt] = useState<number | null>(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-    const memberFor = useCallback((userId: string) => members.find(member => member.user_id === userId)?.profile, [members]);
+    const memberFor = useCallback(
+      (userId: string) => members.find(member => member.user_id === userId)?.profile,
+      [members],
+    );
+
     const send = useCallback((signal: Signal) => {
       void channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: signal });
     }, []);
@@ -238,12 +285,15 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
           iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }],
         });
         peersRef.current.set(peerId, pc);
+
         localStreamRef.current?.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current as MediaStream));
+
         pc.onicecandidate = event => {
           if (event.candidate) {
             send({ type: 'ice', callId: activeId, from: user.id, to: peerId, candidate: event.candidate.toJSON() });
           }
         };
+
         pc.ontrack = event => {
           const stream = event.streams[0];
           if (!stream) return;
@@ -252,9 +302,11 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
           setRemoteLabels(current => new Map(current).set(peerId, person?.username || person?.full_name || 'Participant'));
           setRemoteAvatars(current => new Map(current).set(peerId, person?.avatar_url || null));
         };
+
         pc.onconnectionstatechange = () => {
           if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) closePeer(peerId);
         };
+
         if (isInitiator) {
           const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: activeKind === 'video' });
           await pc.setLocalDescription(offer);
@@ -267,16 +319,19 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
     const handleSignal = useCallback(
       async (signal: Signal) => {
         if (!user || signal.from === user.id || (signal.to && signal.to !== user.id)) return;
+
         if (signal.type === 'invite') {
           if (!active && !incoming) setIncoming(signal);
           return;
         }
+
         if (signal.type === 'join') {
-          if (starterRef.current && signal.callId === activeCallRef.current) {
+          if (active && signal.callId === activeCallRef.current) {
             await createPeer(signal.from, true, signal.callId, signal.kind || kind);
           }
           return;
         }
+
         if (signal.type === 'offer' && signal.offer) {
           if (signal.callId !== activeCallRef.current) return;
           await createPeer(signal.from, false, signal.callId, signal.kind || kind);
@@ -288,20 +343,24 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
           send({ type: 'answer', callId: signal.callId, from: user.id, to: signal.from, answer });
           return;
         }
+
         if (signal.type === 'answer' && signal.answer) {
           const pc = peersRef.current.get(signal.from);
           if (pc) await pc.setRemoteDescription(signal.answer);
           return;
         }
+
         if (signal.type === 'ice' && signal.candidate) {
           const pc = peersRef.current.get(signal.from);
           if (pc) await pc.addIceCandidate(signal.candidate);
           return;
         }
+
         if (signal.type === 'mute' && signal.from) {
           setRemoteMuted(current => new Map(current).set(signal.from, !!signal.isMuted));
           return;
         }
+
         if (signal.type === 'leave') closePeer(signal.from);
       },
       [active, closePeer, createPeer, incoming, kind, send, user],
@@ -316,6 +375,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         channelReadyRef.current = status === 'SUBSCRIBED';
       });
       channelRef.current = channel;
+
       return () => {
         channelReadyRef.current = false;
         void channel.unsubscribe();
@@ -323,7 +383,6 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
       };
     }, [groupId, handleSignal]);
 
-    
     // Push notifications for incoming and ongoing group calls
     useEffect(() => {
       if (!active) {
@@ -331,7 +390,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         return;
       }
       notifyPhone({
-        title: `${groupName || 'Group'} · Audio Call 📞`,
+        title: `${groupName || 'Group'} · ${kind === 'video' ? 'Video' : 'Audio'} Call 📞`,
         body: `Group call active · Tap to return`,
         tag: `group_call_${groupId}`,
         isCall: true,
@@ -341,7 +400,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
       return () => {
         dismissPhoneNotification(`group_call_${groupId}`);
       };
-    }, [active, groupId, groupName]);
+    }, [active, groupId, groupName, kind]);
 
     useEffect(() => {
       if (!incoming) return;
@@ -369,7 +428,10 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error('Audio/video calls need HTTPS and microphone/camera permission');
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: requestedKind === 'video' });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: requestedKind === 'video',
+      });
       localStreamRef.current = stream;
       setLocalStream(stream);
       return stream;
@@ -379,30 +441,60 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
       if (!user || active) return;
       try {
         await waitForChannel();
-        const id = await createGroupCall(groupId, requestedKind);
-        await getMedia(requestedKind);
-        await joinGroupCall(id);
+        const callInfo = await startOrJoinGroupCall(groupId, requestedKind);
+        const finalKind = callInfo.kind || requestedKind;
+
+        await getMedia(finalKind);
+        await joinGroupCall(callInfo.id);
+
         const callStarted = Date.now();
-        activeCallRef.current = id;
-        starterRef.current = true;
-        setCallId(id);
-        setKind(requestedKind);
+        activeCallRef.current = callInfo.id;
+        starterRef.current = callInfo.isNew;
+        setCallId(callInfo.id);
+        setKind(finalKind);
         setStartedAt(callStarted);
         setActive(true);
-        send({ type: 'invite', callId: id, from: user.id, kind: requestedKind, startedAt: callStarted });
-        const otherMemberIds = members.map(m => m.user_id).filter(uid => uid && uid !== user.id);
-        void Promise.allSettled(
-          otherMemberIds.map(uid =>
-            createNotification(
-              uid,
-              'group_call',
-              user.id,
-              undefined,
-              undefined,
-              `📞 Group ${requestedKind} call started in ${groupName || 'Group'}`,
-            ),
-          ),
-        );
+        setMinimized(false);
+
+        if (callInfo.isNew) {
+          send({ type: 'invite', callId: callInfo.id, from: user.id, kind: finalKind, startedAt: callStarted });
+          const otherMemberIds = members.map(m => m.user_id).filter(uid => uid && uid !== user.id);
+          void Promise.allSettled(
+            otherMemberIds.map(async uid => {
+              try {
+                const memberCallChannel = supabase.channel(`calls:${uid}`);
+                await memberCallChannel.subscribe();
+                await memberCallChannel.send({
+                  type: 'broadcast',
+                  event: 'group-call-invite',
+                  payload: {
+                    groupId,
+                    groupName: groupName || 'Group',
+                    groupAvatarUrl: groupAvatarUrl || null,
+                    callId: callInfo.id,
+                    kind: finalKind,
+                    from: user.id,
+                    fromName: profile?.username || profile?.full_name || 'Someone',
+                  },
+                });
+                setTimeout(() => memberCallChannel.unsubscribe(), 500);
+              } catch {
+                /* optional */
+              }
+
+              return createNotification(
+                uid,
+                'group_call',
+                user.id,
+                undefined,
+                undefined,
+                `📞 Group ${finalKind} call started in ${groupName || 'Group'}`,
+              );
+            }),
+          );
+        } else {
+          send({ type: 'join', callId: callInfo.id, from: user.id, kind: finalKind });
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Call start nahi hui');
       }
@@ -425,13 +517,16 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         await waitForChannel();
         await getMedia(incoming.kind || 'audio');
         await joinGroupCall(incoming.callId);
+
         activeCallRef.current = incoming.callId;
         starterRef.current = false;
         setCallId(incoming.callId);
         setKind(incoming.kind || 'audio');
         setStartedAt(incoming.startedAt || Date.now());
         setActive(true);
+        setMinimized(false);
         setIncoming(null);
+
         send({ type: 'join', callId: incoming.callId, from: user.id, to: incoming.from, kind: incoming.kind });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Call join nahi hui');
@@ -488,11 +583,11 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         send({ type: 'leave', callId: id, from: user.id });
         try {
           await leaveGroupCall(id);
-          if (starterRef.current) await endGroupCall(id);
         } catch {
-          /* cleanup continues */
+          /* cleanup */
         }
       }
+
       screenStreamRef.current?.getTracks().forEach(track => track.stop());
       peersRef.current.forEach(peer => peer.close());
       peersRef.current.clear();
@@ -501,6 +596,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
       screenStreamRef.current = null;
       activeCallRef.current = null;
       starterRef.current = false;
+
       setRemoteStreams(new Map());
       setRemoteLabels(new Map());
       setRemoteAvatars(new Map());
@@ -511,6 +607,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
       setElapsedSeconds(0);
       setScreenSharing(false);
       setActive(false);
+      setMinimized(false);
       setIncoming(null);
     };
 
@@ -550,12 +647,12 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
     const participantCount = remoteStreams.size + 1;
     const localLabel = profile?.username || profile?.full_name || user?.email?.split('@')[0] || 'You';
 
-    /* Incoming Call Notification (Messenger style floating card) */
+    /* Floating Incoming Call Banner (Messenger style) */
     if (incoming) {
       const caller = memberFor(incoming.from);
       return (
         <div className="fixed top-3 inset-x-3 z-[100] mx-auto max-w-md animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center gap-3 rounded-2xl border border-border/80 bg-card/95 p-3 shadow-2xl backdrop-blur-md">
+          <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-card/95 p-3 shadow-2xl backdrop-blur-md text-foreground">
             <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-primary/20 font-semibold text-primary shrink-0 ring-2 ring-primary/30">
               {caller?.avatar_url ? (
                 <img src={caller.avatar_url} alt="" className="h-full w-full object-cover" />
@@ -564,17 +661,28 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">{caller?.username || caller?.full_name || 'A member'}</p>
+              <p className="truncate text-sm font-semibold text-foreground">
+                {caller?.username || caller?.full_name || 'A member'}
+              </p>
               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 Incoming group {incoming.kind || 'audio'} call
               </p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <Button size="sm" onClick={() => void accept()} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-8 px-3 text-xs font-semibold shadow-sm">
+              <Button
+                size="sm"
+                onClick={() => void accept()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-8 px-3 text-xs font-semibold shadow-sm"
+              >
                 Join
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setIncoming(null)} className="rounded-xl h-8 px-2 text-xs text-muted-foreground hover:bg-muted">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setIncoming(null)}
+                className="rounded-xl h-8 px-2 text-xs text-muted-foreground hover:bg-muted"
+              >
                 Dismiss
               </Button>
             </div>
@@ -583,132 +691,210 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
       );
     }
 
-    /* When NOT active and NO incoming call, render NOTHING (no box below header!) */
     if (!active) return null;
 
-    const localPreview = screenStream || localStream;
-
-    return (
-      <div className="fixed inset-0 z-[80] flex flex-col overflow-hidden bg-[#101114] text-white select-none">
-        {/* Call Header */}
-        <header className="flex shrink-0 items-center gap-3 border-b border-white/10 bg-[#17181c] px-4 py-3 pt-[max(env(safe-area-inset-top),12px)]">
-          <button
-            type="button"
-            onClick={() => void leave()}
-            className="rounded-full p-2 text-white/80 hover:bg-white/10 transition-colors"
-            aria-label="End or close call"
-          >
-            <X className="h-5 w-5" />
-          </button>
+    /* Minimized Floating Bubble */
+    if (minimized) {
+      return (
+        <div
+          onClick={() => setMinimized(false)}
+          className="fixed bottom-24 right-4 z-[90] flex items-center gap-2.5 rounded-full bg-emerald-600/95 hover:bg-emerald-600 px-3.5 py-2 text-white shadow-2xl cursor-pointer backdrop-blur-md border border-white/20 transition-all active:scale-95 animate-in zoom-in-95"
+        >
           {groupAvatarUrl ? (
-            <img src={groupAvatarUrl} alt={groupName || 'Group'} className="h-10 w-10 rounded-full object-cover ring-2 ring-white/20 shrink-0" />
+            <img src={groupAvatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white font-bold ring-2 ring-white/20 shrink-0">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-[10px] font-bold">
               {initials(groupName || 'G')}
             </div>
           )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-semibold leading-tight">{groupName || 'Group call'}</p>
-            <p className="flex items-center gap-1.5 text-xs text-white/60 mt-0.5">
-              <Users className="h-3.5 w-3.5" />
-              {participantCount} participant{participantCount === 1 ? '' : 's'} · {formatTime(elapsedSeconds)}
-            </p>
+          <span className="text-xs font-bold">{formatTime(elapsedSeconds)}</span>
+          <Maximize2 className="h-3.5 w-3.5 opacity-80" />
+        </div>
+      );
+    }
+
+    const localPreview = screenStream || localStream;
+    const isSingleAudio = participantCount === 1 && kind === 'audio';
+
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col overflow-hidden bg-[#0d0e12] text-white select-none">
+        {/* TOP FLOATING OVERLAY (Seamlessly inside call view) */}
+        <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),16px)] pb-8 bg-gradient-to-b from-black/85 via-black/40 to-transparent pointer-events-none">
+          <button
+            type="button"
+            onClick={() => setMinimized(true)}
+            className="pointer-events-auto rounded-full p-2.5 bg-black/40 hover:bg-black/60 backdrop-blur-md border border-white/10 text-white transition-colors"
+            aria-label="Minimize call"
+            title="Minimize call"
+          >
+            <ChevronDown className="h-5 w-5" />
+          </button>
+
+          <div className="pointer-events-auto flex items-center gap-2 px-3 py-1 rounded-full bg-black/35 backdrop-blur-md border border-white/10">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-semibold text-white/90 drop-shadow truncate max-w-[160px] sm:max-w-xs">
+              {groupName || 'Group Call'} · {formatTime(elapsedSeconds)}
+            </span>
           </div>
-          <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/90 border border-white/10">
+
+          <span className="pointer-events-auto rounded-full bg-black/40 backdrop-blur-md px-3 py-1 text-[11px] font-medium text-white/90 border border-white/10">
             {kind === 'video' ? 'Video call' : 'Audio call'}
           </span>
-        </header>
+        </div>
 
-        {/* Video / Audio Grid */}
-        <main className="min-h-0 flex-1 overflow-y-auto p-2">
-          <div className="grid h-full auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
-            <ParticipantTile
-              stream={localPreview}
-              videoMuted={true}
-              isMicMuted={muted}
-              label={localLabel}
-              avatarUrl={profile?.avatar_url || groupAvatarUrl}
-              showVideo={kind === 'video' && !cameraOff}
-              speakerOn={speakerOn}
-              index={0}
-              local
-            />
-            {Array.from(remoteStreams.entries()).map(([peerId, stream], index) => {
-              const peerAvatar = remoteAvatars.get(peerId) || memberFor(peerId)?.avatar_url;
-              const peerName = remoteLabels.get(peerId) || memberFor(peerId)?.username || memberFor(peerId)?.full_name || 'Participant';
-              return (
-                <ParticipantTile
-                  key={peerId}
-                  stream={stream}
-                  label={peerName}
-                  avatarUrl={peerAvatar}
-                  showVideo={kind === 'video'}
-                  speakerOn={speakerOn}
-                  videoMuted={!speakerOn}
-                  isMicMuted={remoteMuted.get(peerId) || false}
-                  index={index + 1}
-                />
-              );
-            })}
+        {/* CENTER CONTENT */}
+        {isSingleAudio ? (
+          /* Single Participant / Waiting Screen: Full-Screen Background + Center Avatar (100% Messenger Style) */
+          <div className="relative flex flex-1 flex-col items-center justify-center overflow-hidden w-full h-full select-none">
+            {/* Full Screen Background Image (Clear, dimmed for contrast) */}
+            {groupAvatarUrl || profile?.avatar_url ? (
+              <img
+                src={groupAvatarUrl || profile?.avatar_url || ''}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover brightness-[0.38] select-none"
+              />
+            ) : null}
+            <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/25 to-black/85" />
+
+            {/* Center Avatar & Live Pulse */}
+            <div className="relative z-10 flex flex-col items-center justify-center px-6 text-center">
+              <div className="relative flex items-center justify-center">
+                {/* Breathing glow rings */}
+                <div className="absolute h-36 w-36 sm:h-44 sm:w-44 rounded-full bg-emerald-500/15 animate-ping" />
+                <div className="relative flex h-28 w-28 sm:h-36 sm:w-36 items-center justify-center overflow-hidden rounded-full bg-white/15 text-4xl sm:text-5xl font-bold text-white ring-4 ring-white/35 shadow-2xl backdrop-blur-md">
+                  {groupAvatarUrl ? (
+                    <img src={groupAvatarUrl} alt={groupName} className="h-full w-full object-cover" />
+                  ) : profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    initials(groupName || 'G')
+                  )}
+                </div>
+                {muted && (
+                  <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white shadow-lg ring-2 ring-black/70 animate-in fade-in zoom-in-75">
+                    <MicOff className="h-4 w-4" />
+                  </span>
+                )}
+              </div>
+
+              {/* Group Name & Calling Status */}
+              <h2 className="mt-5 max-w-sm truncate text-xl sm:text-2xl font-bold tracking-tight text-white drop-shadow-md">
+                {groupName || 'Group Call'}
+              </h2>
+              <div className="mt-2.5 inline-flex items-center gap-2 rounded-full bg-black/50 border border-white/10 px-3.5 py-1 text-xs font-semibold backdrop-blur-md text-emerald-400 shadow-sm">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Calling group members...</span>
+              </div>
+              <p className="mt-2 text-xs text-white/70 drop-shadow">
+                1 participant in call · Waiting for others to join
+              </p>
+            </div>
           </div>
-        </main>
+        ) : (
+          /* Multi-participant or Video Call Grid (Full Screen Edge-to-Edge) */
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-20 pb-28">
+            <div className="grid h-full auto-rows-fr grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <ParticipantTile
+                stream={localPreview}
+                videoMuted={true}
+                isMicMuted={muted}
+                label={localLabel}
+                avatarUrl={profile?.avatar_url || groupAvatarUrl}
+                showVideo={kind === 'video' && !cameraOff}
+                speakerOn={speakerOn}
+                index={0}
+                local
+              />
+              {Array.from(remoteStreams.entries()).map(([peerId, stream], index) => {
+                const peerAvatar = remoteAvatars.get(peerId) || memberFor(peerId)?.avatar_url;
+                const peerName =
+                  remoteLabels.get(peerId) ||
+                  memberFor(peerId)?.username ||
+                  memberFor(peerId)?.full_name ||
+                  'Participant';
+                return (
+                  <ParticipantTile
+                    key={peerId}
+                    stream={stream}
+                    label={peerName}
+                    avatarUrl={peerAvatar}
+                    showVideo={kind === 'video'}
+                    speakerOn={speakerOn}
+                    videoMuted={!speakerOn}
+                    isMicMuted={remoteMuted.get(peerId) || false}
+                    index={index + 1}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-        {/* Messenger-style circular bottom controls - NEVER turning white */}
-        <footer className="flex shrink-0 items-center justify-around gap-2 border-t border-white/10 bg-[#17181c] px-3 py-3.5 pb-[max(env(safe-area-inset-bottom),16px)]">
+        {/* BOTTOM FLOATING CONTROLS (Inside call view, floating directly on background) */}
+        <div className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-4 sm:gap-7 px-4 pt-12 pb-[max(env(safe-area-inset-bottom),24px)] bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none">
           {/* Mute Button */}
-          <RoundCallButton
-            label={muted ? 'Unmute' : 'Mute'}
-            onClick={toggleMute}
-            variant={muted ? 'danger' : 'normal'}
-          >
-            {muted ? <MicOff className="h-5 w-5 text-white" /> : <Mic className="h-5 w-5 text-white" />}
-          </RoundCallButton>
-
-          {/* Camera Button (Video Call Only) */}
-          {kind === 'video' && (
+          <div className="pointer-events-auto">
             <RoundCallButton
-              label={cameraOff ? 'Turn on' : 'Camera'}
-              onClick={toggleCamera}
-              variant={cameraOff ? 'danger' : 'normal'}
+              label={muted ? 'Unmute' : 'Mute'}
+              onClick={toggleMute}
+              variant={muted ? 'danger' : 'normal'}
             >
-              {cameraOff ? <CameraOff className="h-5 w-5 text-white" /> : <Camera className="h-5 w-5 text-white" />}
+              {muted ? <MicOff className="h-6 w-6 text-white" /> : <Mic className="h-6 w-6 text-white" />}
             </RoundCallButton>
+          </div>
+
+          {/* Camera Button (Video Call) */}
+          {kind === 'video' && (
+            <div className="pointer-events-auto">
+              <RoundCallButton
+                label={cameraOff ? 'Turn on' : 'Camera'}
+                onClick={toggleCamera}
+                variant={cameraOff ? 'danger' : 'normal'}
+              >
+                {cameraOff ? <CameraOff className="h-6 w-6 text-white" /> : <Camera className="h-6 w-6 text-white" />}
+              </RoundCallButton>
+            </div>
           )}
 
-          {/* Screen Share Button (Video Call Only) */}
+          {/* Screen Share Button (Video Call) */}
           {kind === 'video' && (
-            <RoundCallButton
-              label={screenSharing ? 'Stop' : 'Share'}
-              onClick={() => void toggleScreenShare()}
-              variant={screenSharing ? 'highlight' : 'normal'}
-            >
-              <Monitor className="h-5 w-5 text-white" />
-            </RoundCallButton>
+            <div className="pointer-events-auto">
+              <RoundCallButton
+                label={screenSharing ? 'Stop' : 'Share'}
+                onClick={() => void toggleScreenShare()}
+                variant={screenSharing ? 'highlight' : 'normal'}
+              >
+                <Monitor className="h-6 w-6 text-white" />
+              </RoundCallButton>
+            </div>
           )}
 
           {/* Speaker Button */}
-          <RoundCallButton
-            label={speakerOn ? 'Speaker' : 'Earpiece'}
-            onClick={() => setSpeakerOn(value => !value)}
-            variant={speakerOn ? 'active' : 'normal'}
-          >
-            {speakerOn ? <Volume2 className="h-5 w-5 text-white" /> : <VolumeX className="h-5 w-5 text-white" />}
-          </RoundCallButton>
+          <div className="pointer-events-auto">
+            <RoundCallButton
+              label={speakerOn ? 'Speaker' : 'Earpiece'}
+              onClick={() => setSpeakerOn(value => !value)}
+              variant={speakerOn ? 'active' : 'normal'}
+            >
+              {speakerOn ? <Volume2 className="h-6 w-6 text-white" /> : <VolumeX className="h-6 w-6 text-white" />}
+            </RoundCallButton>
+          </div>
 
           {/* End Call Button */}
-          <RoundCallButton
-            label="End"
-            onClick={() => void leave()}
-            variant="danger"
-          >
-            <PhoneOff className="h-5 w-5 text-white" />
-          </RoundCallButton>
-        </footer>
+          <div className="pointer-events-auto">
+            <RoundCallButton
+              label="End"
+              onClick={() => void leave()}
+              variant="danger"
+            >
+              <PhoneOff className="h-6 w-6 text-white" />
+            </RoundCallButton>
+          </div>
+        </div>
       </div>
     );
   },
 );
 
 GroupCallPanel.displayName = 'GroupCallPanel';
-
 export default GroupCallPanel;

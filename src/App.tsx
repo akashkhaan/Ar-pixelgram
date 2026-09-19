@@ -11,6 +11,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { RouteGuard } from "@/components/common/RouteGuard";
 import { CallProvider } from "@/contexts/CallContext";
 import { CallOverlay, IncomingCallModal } from "@/components/call/CallOverlay";
+import { IncomingGroupCallModal } from "@/components/call/IncomingGroupCallModal";
 import { routes } from "./routes";
 import { useVisitTracker } from "@/hooks/useVisitTracker";
 import UploadProgressOverlay from "@/components/common/UploadProgressOverlay";
@@ -40,6 +41,7 @@ const App: React.FC = () => {
                 </Routes>
               </RouteGuard>
             <IncomingCallModal />
+            <IncomingGroupCallModal />
             <CallOverlay />
             <UploadProgressOverlay />
           </CallProvider>

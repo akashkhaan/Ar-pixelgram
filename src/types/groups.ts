@@ -74,3 +74,15 @@ export interface GroupPermissions {
   start_calls: GroupPermissionMode;
   updated_at: string;
 }
+
+
+export interface GroupCall {
+  id: string;
+  group_id: string;
+  started_by: string;
+  kind: 'audio' | 'video';
+  status: 'ringing' | 'active' | 'ended';
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+}
