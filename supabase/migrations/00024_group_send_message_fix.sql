@@ -9,7 +9,7 @@ set send_messages = 'everyone'
 where send_messages is null;
 
 -- 2. Update group_can function to safely allow members to send messages if not explicitly restricted
-create or replace function public.group_can(p_group_id uuid, p_action text, p_user_id uuid default auth.uid())
+create or replace function public.group_can(p_group_id uuid, p_permission text, p_user_id uuid default auth.uid())
 returns boolean language plpgsql stable security definer set search_path = public as $$
 declare v_mode text; v_role text; v_can boolean;
 begin
@@ -17,7 +17,7 @@ begin
   if v_role is null then return false; end if;
   if v_role in ('owner','admin') then return true; end if;
 
-  select case p_action
+  select case p_permission
     when 'send_messages' then send_messages
     when 'add_members' then add_members
     when 'edit_info' then edit_info
@@ -30,11 +30,11 @@ begin
   if v_mode is null then v_mode := 'everyone'; end if;
   if v_mode <> 'everyone' then return false; end if;
 
-  if p_action = 'send_messages' then
+  if p_permission = 'send_messages' then
     return coalesce(v_can, true);
-  elsif p_action = 'add_members' or p_action = 'create_invites' then
+  elsif p_permission = 'add_members' or p_permission = 'create_invites' then
     return coalesce((select can_invite from public.group_members where group_id = p_group_id and user_id = p_user_id), true);
-  elsif p_action = 'start_calls' then
+  elsif p_permission = 'start_calls' then
     return coalesce((select can_call from public.group_members where group_id = p_group_id and user_id = p_user_id), true);
   end if;
   return true;
