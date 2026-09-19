@@ -454,20 +454,54 @@ export async function getFollowingCount(userId: string): Promise<number> {
 }
 
 // ===================== MESSAGES =====================
-export async function sendMessage(receiverId: string, content: string): Promise<void> {
-  const { error } = await supabase.from('messages').insert({ receiver_id: receiverId, content });
+export async function sendMessage(
+  arg1: string,
+  arg2: string,
+  arg3?: string
+): Promise<Message> {
+  // Support both sendMessage(receiverId, content) and sendMessage(senderId, receiverId, content)
+  const receiverId = arg3 !== undefined ? arg2 : arg1;
+  const content = (arg3 !== undefined ? arg3 : arg2) || '';
+
+  const { data: auth } = await supabase.auth.getUser();
+  const senderId = auth?.user?.id;
+
+  const payload: { receiver_id: string; content: string; sender_id?: string } = {
+    receiver_id: receiverId,
+    content,
+  };
+  if (senderId) {
+    payload.sender_id = senderId;
+  }
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert(payload)
+    .select('*')
+    .single();
+
   if (error) throw error;
+
+  const msg: Message = (data || {
+    id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    sender_id: senderId || '',
+    receiver_id: receiverId,
+    content,
+    is_seen: false,
+    created_at: new Date().toISOString(),
+  }) as Message;
 
   // Receiver ko notification + phone push (app band ho tab bhi).
   try {
-    const { data: auth } = await supabase.auth.getUser();
-    const senderId = auth?.user?.id;
-    if (!senderId || senderId === receiverId) return;
-    const preview = content.length > 80 ? `${content.slice(0, 80)}...` : content;
-    await createNotification(receiverId, 'message', senderId, undefined, undefined, preview);
+    if (senderId && senderId !== receiverId) {
+      const preview = content.length > 80 ? `${content.slice(0, 80)}...` : content;
+      await createNotification(receiverId, 'message', senderId, undefined, undefined, preview);
+    }
   } catch (e) {
     console.warn('message notification failed', e);
   }
+
+  return msg;
 }
 
 export async function getMessages(userAId: string, userBId: string): Promise<Message[]> {

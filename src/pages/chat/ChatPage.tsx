@@ -166,17 +166,32 @@ const ChatPage: React.FC = () => {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !user || !receiverId || sending || blocked || blockedByOther) return;
+    const text = content.trim();
+    if (!text || !user || !receiverId || sending || blocked || blockedByOther) return;
 
     setSending(true);
+    setContent('');
+    setShowEmoji(false);
+
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const optimisticMsg: Message = {
+      id: tempId,
+      sender_id: user.id,
+      receiver_id: receiverId,
+      content: text,
+      is_seen: false,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...(prev || []).filter(Boolean), optimisticMsg]);
+
     try {
-      const newMsg = await sendMessage(user.id, receiverId, content.trim());
-      setMessages(prev => [...prev, newMsg]);
-      setContent('');
-      setShowEmoji(false);
-      // Notify receiver
-      createNotification(receiverId, user.id, 'message', undefined, undefined, content.trim().slice(0, 50));
-    } catch {
+      const newMsg = await sendMessage(receiverId, text);
+      if (newMsg && newMsg.id) {
+        setMessages(prev => (prev || []).filter(Boolean).map(m => (m.id === tempId ? newMsg : m)));
+      }
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      setMessages(prev => (prev || []).filter(m => m && m.id !== tempId));
       toast.error('मैसेज नहीं भेजा जा सका');
     } finally {
       setSending(false);
@@ -184,14 +199,31 @@ const ChatPage: React.FC = () => {
   };
 
   const handleSendQuickEmoji = async (emojiToSend: string) => {
-    if (!user || !receiverId || sending || blocked || blockedByOther) return;
+    const text = emojiToSend.trim();
+    if (!text || !user || !receiverId || sending || blocked || blockedByOther) return;
+
     setSending(true);
+
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const optimisticMsg: Message = {
+      id: tempId,
+      sender_id: user.id,
+      receiver_id: receiverId,
+      content: text,
+      is_seen: false,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...(prev || []).filter(Boolean), optimisticMsg]);
+
     try {
-      const newMsg = await sendMessage(user.id, receiverId, emojiToSend);
-      setMessages(prev => [...prev, newMsg]);
-      createNotification(receiverId, user.id, 'message', undefined, undefined, emojiToSend);
-    } catch {
-      toast.error('Could not send emoji');
+      const newMsg = await sendMessage(receiverId, text);
+      if (newMsg && newMsg.id) {
+        setMessages(prev => (prev || []).filter(Boolean).map(m => (m.id === tempId ? newMsg : m)));
+      }
+    } catch (err) {
+      console.error('Failed to send emoji:', err);
+      setMessages(prev => (prev || []).filter(m => m && m.id !== tempId));
+      toast.error('Emoji nahi bheja ja saka');
     } finally {
       setSending(false);
     }
@@ -234,9 +266,10 @@ const ChatPage: React.FC = () => {
   const displayName = nickname || otherProfile?.username;
 
   const visibleMessages = useMemo(() => {
+    const cleanList = (messages || []).filter((m): m is Message => Boolean(m && m.id && typeof m.content === 'string'));
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return messages;
-    return messages.filter(m => m.content.toLowerCase().includes(query));
+    if (!query) return cleanList;
+    return cleanList.filter(m => m.content.toLowerCase().includes(query));
   }, [messages, searchQuery]);
 
   return (
@@ -349,9 +382,10 @@ const ChatPage: React.FC = () => {
             </div>
           )}
           {visibleMessages.map((msg, idx) => {
+            if (!msg || !msg.content) return null;
             const isMe = msg.sender_id === user?.id;
             const prevMsg = visibleMessages[idx - 1];
-            const showTime = !prevMsg || new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() > 5 * 60 * 1000;
+            const showTime = !prevMsg || (msg.created_at && prevMsg?.created_at && (new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() > 5 * 60 * 1000));
             const isSingleEmoji = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})$/u.test(msg.content.trim());
 
             return (
