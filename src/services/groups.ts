@@ -110,21 +110,60 @@ export async function getGroupPinnedMessages(groupId: string): Promise<GroupPinn
 }
 
 export async function sendGroupMessage(groupId: string, content: string, replyToId?: string | null, mentionUserIds: string[] = []): Promise<GroupMessage> {
-  const { data, error } = await supabase
-    .from('group_messages')
-    .insert({ group_id: groupId, content: content.trim(), reply_to_id: replyToId || null })
-    .select('*')
-    .single();
-  throwIfError(error);
-  const sender = (await supabase.auth.getUser()).data.user;
-  const mentionedIds = [...new Set(mentionUserIds)].filter(id => id && id !== sender?.id);
-  if (mentionedIds.length && sender) {
-    const { error: mentionError } = await supabase.from('group_message_mentions').upsert(
-      mentionedIds.map(userId => ({ message_id: data.id, group_id: groupId, user_id: userId })),
-      { onConflict: 'message_id,user_id' },
-    );
-    if (mentionError) console.warn('Group mention record failed', mentionError);
-    await Promise.allSettled(mentionedIds.map(userId => createNotification(
+  const { data: auth } = await supabase.auth.getUser();
+  const sender = auth.user;
+  if (!sender) throw new Error('Not authenticated');
+
+  const cleanContent = content.trim();
+  const mentionedIds = [...new Set(mentionUserIds)].filter(id => id && id !== sender.id);
+
+  let message: GroupMessage | null = null;
+
+  // 1. Try secure RPC first
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('send_group_message', {
+      p_group_id: groupId,
+      p_content: cleanContent,
+      p_reply_to_id: replyToId || null,
+      p_mention_user_ids: mentionedIds,
+    });
+    if (!rpcError && rpcData) {
+      message = rpcData as GroupMessage;
+    }
+  } catch (rpcErr) {
+    console.warn('send_group_message RPC not available, using direct insert', rpcErr);
+  }
+
+  // 2. Direct insert fallback with explicit sender_id
+  if (!message) {
+    const { data, error } = await supabase
+      .from('group_messages')
+      .insert({
+        group_id: groupId,
+        sender_id: sender.id,
+        content: cleanContent,
+        reply_to_id: replyToId || null,
+      })
+      .select('*')
+      .single();
+    throwIfError(error);
+    message = data as GroupMessage;
+
+    if (mentionedIds.length) {
+      try {
+        await supabase.from('group_message_mentions').upsert(
+          mentionedIds.map(userId => ({ message_id: message!.id, group_id: groupId, user_id: userId })),
+          { onConflict: 'message_id,user_id' },
+        );
+      } catch (mentionError) {
+        console.warn('Group mention record failed', mentionError);
+      }
+    }
+  }
+
+  // 3. Trigger notifications for mentioned users
+  if (mentionedIds.length && message) {
+    void Promise.allSettled(mentionedIds.map(userId => createNotification(
       userId,
       'group_mention',
       sender.id,
@@ -133,7 +172,8 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
       'You were mentioned in a group message',
     )));
   }
-  return data as GroupMessage;
+
+  return message;
 }
 
 export async function editGroupMessage(messageId: string, content: string): Promise<void> {
@@ -300,7 +340,7 @@ export async function sendGroupFileMessage(groupId: string, file: File): Promise
   }
 
   const mediaType = file.type.startsWith('image/') ? 'photo' : file.type.startsWith('video/') ? 'video' : 'file';
-  const { data: message, error: messageError } = await supabase.from('group_messages').insert({ group_id: groupId, content: '📎 ' + file.name + '\n' + publicUrl }).select('*').single();
+  const { data: message, error: messageError } = await supabase.from('group_messages').insert({ group_id: groupId, sender_id: auth.user.id, content: '📎 ' + file.name + '\n' + publicUrl }).select('*').single();
   throwIfError(messageError);
   try {
     await supabase.from('group_media').insert({ group_id: groupId, message_id: message.id, uploader_id: auth.user.id, media_type: mediaType, storage_path: storagePath, public_url: publicUrl, file_name: file.name, mime_type: file.type || null, file_size: file.size });

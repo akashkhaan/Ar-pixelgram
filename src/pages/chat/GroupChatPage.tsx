@@ -21,9 +21,38 @@ const Avatar: React.FC<{ profile?: Profile | null; size?: string }> = ({ profile
     <div className={size + ' rounded-full bg-primary/15 flex items-center justify-center text-primary font-semibold shrink-0'}>{(profile?.username?.[0] || '?').toUpperCase()}</div>
 );
 
+const renderMessageContent = (text: string, mine: boolean, myUsername?: string) => {
+  const parts = text.split(/((?:^|\s)@[A-Za-z0-9_.-]+)/g);
+  return parts.map((part, index) => {
+    const trimmed = part.trim();
+    if (trimmed.startsWith('@')) {
+      const uname = trimmed.slice(1).toLowerCase();
+      const isMe = myUsername && uname === myUsername.toLowerCase();
+      return (
+        <span
+          key={index}
+          className={
+            'inline-flex items-center rounded px-1 py-0.5 font-semibold text-xs ' +
+            (isMe
+              ? mine
+                ? 'bg-white/30 text-white font-bold ring-1 ring-white/50'
+                : 'bg-primary/25 text-primary font-bold ring-1 ring-primary/40'
+              : mine
+              ? 'bg-white/20 text-white'
+              : 'bg-blue-500/15 text-blue-600 dark:text-blue-400')
+          }
+        >
+          {part}
+        </span>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
+};
+
 const GroupChatPage: React.FC = () => {
   const { groupId } = useParams<{ groupId: string }>();
-  const { user } = useAuth();
+  const { user, profile: myProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [group, setGroup] = useState<Group | null>(null);
@@ -61,8 +90,12 @@ const GroupChatPage: React.FC = () => {
   const visibleMessages = useMemo(() => { const query = messageQuery.trim().toLowerCase(); if (!query) return messages; return messages.filter(message => message.content.toLowerCase().includes(query) || (profileMap.get(message.sender_id)?.username || '').toLowerCase().includes(query)); }, [messageQuery, messages, profileMap]);
   const mentionSuggestions = useMemo(() => {
     if (mentionQuery === null) return [];
-    return members.filter(member => (member.profile?.username || '').toLowerCase().startsWith(mentionQuery)).slice(0, 8);
-  }, [mentionQuery, members]);
+    const q = mentionQuery.toLowerCase();
+    return members
+      .filter(member => member.user_id !== user?.id)
+      .filter(member => !q || (member.profile?.username || '').toLowerCase().includes(q) || (member.profile?.full_name || '').toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [mentionQuery, members, user?.id]);
 
   const load = useCallback(async () => {
     if (!groupId) return;
@@ -237,7 +270,7 @@ const GroupChatPage: React.FC = () => {
                 {!mine && <p className="mb-0.5 px-1 text-[11px] font-medium text-primary">{sender?.username || 'Member'}</p>}
                 <div className={'rounded-2xl px-3 py-2 text-sm ' + (mine ? 'rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm bg-muted text-foreground')}>
                   {replied && <button type="button" onClick={() => document.getElementById('group-message-' + replied.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className={'mb-1 block w-full rounded border-l-2 px-2 py-1 text-left text-xs ' + (mine ? 'border-primary-foreground/60 bg-primary-foreground/10' : 'border-primary bg-background/50')}><span className="block font-medium">Reply</span><span className="block truncate opacity-75">{replied.content}</span></button>}
-                  {message.content.startsWith('📎 ') ? <a id={'group-message-' + message.id} href={message.content.split('\n')[1]} target="_blank" rel="noreferrer" className="flex items-center gap-2 break-all underline"><Paperclip className="h-4 w-4 shrink-0" />{message.content.split('\n')[0].replace('📎 ', '')}</a> : <p id={'group-message-' + message.id} className="break-words">{message.content}</p>}
+                  {message.content.startsWith('📎 ') ? <a id={'group-message-' + message.id} href={message.content.split('\n')[1]} target="_blank" rel="noreferrer" className="flex items-center gap-2 break-all underline"><Paperclip className="h-4 w-4 shrink-0" />{message.content.split('\n')[0].replace('📎 ', '')}</a> : <p id={'group-message-' + message.id} className="break-words">{renderMessageContent(message.content, mine, myProfile?.username)}</p>}
                   <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70"><span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{message.edited_at && <span>edited</span>}{mine && <Check className="h-3 w-3" />}</div>
                 </div>
                 {(message.reactions?.length || 0) > 0 && <div className="-mt-2 ml-2 flex w-fit gap-1 rounded-full border border-border bg-card px-1.5 py-0.5 text-xs">{message.reactions?.map(reaction => <span key={reaction.user_id}>{reaction.reaction}</span>)}</div>}
@@ -250,7 +283,30 @@ const GroupChatPage: React.FC = () => {
         </div>
 
         {replyTo && <div className="flex shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-2 text-xs"><Reply className="h-4 w-4 text-primary" /><div className="min-w-0 flex-1"><p className="font-medium text-primary">Replying to {profileMap.get(replyTo.sender_id)?.username || 'member'}</p><p className="truncate text-muted-foreground">{replyTo.content}</p></div><button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply"><X className="h-4 w-4" /></button></div>}
-        <form onSubmit={handleSend} className="flex shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),12px)' }}><input id="group-file-upload" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleFile} /><label htmlFor="group-file-upload" className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Attach file"><Paperclip className="h-5 w-5" /></label><button type="button" className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Emoji"><Smile className="h-5 w-5" /></button><div className="relative flex min-w-0 flex-1"><Input value={content} onChange={event => handleContentChange(event.target.value)} placeholder="Message group… Type @ to mention" maxLength={5000} className="h-10 w-full" />{mentionSuggestions.length > 0 && <div className="absolute bottom-12 left-0 right-0 z-30 max-h-56 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl">{mentionSuggestions.map(member => <button type="button" key={member.user_id} onMouseDown={event => event.preventDefault()} onClick={() => chooseMention(member.profile?.username || 'member')} className="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-muted"><Avatar profile={member.profile} size="w-7 h-7" /><span className="truncate text-sm">@{member.profile?.username || 'member'}</span></button>)}</div>}</div><Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={(!content.trim() && !uploading) || sending || uploading}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></form>
+        <form onSubmit={handleSend} className="flex shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),12px)' }}><input id="group-file-upload" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleFile} /><label htmlFor="group-file-upload" className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Attach file"><Paperclip className="h-5 w-5" /></label><button type="button" className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Emoji"><Smile className="h-5 w-5" /></button><div className="relative flex min-w-0 flex-1"><Input value={content} onChange={event => handleContentChange(event.target.value)} placeholder="Message group… Type @ to mention" maxLength={5000} className="h-10 w-full" />{mentionSuggestions.length > 0 && (
+  <div className="absolute bottom-12 left-0 right-0 z-30 max-h-60 overflow-y-auto rounded-2xl border border-border/80 bg-card p-1.5 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="px-2.5 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+      Mention member
+    </div>
+    {mentionSuggestions.map(member => (
+      <button
+        type="button"
+        key={member.user_id}
+        onMouseDown={event => event.preventDefault()}
+        onClick={() => chooseMention(member.profile?.username || 'member')}
+        className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-muted transition-colors"
+      >
+        <Avatar profile={member.profile} size="w-8 h-8" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">@{member.profile?.username || 'member'}</p>
+          {member.profile?.full_name && (
+            <p className="truncate text-xs text-muted-foreground">{member.profile.full_name}</p>
+          )}
+        </div>
+      </button>
+    ))}
+  </div>
+)}</div><Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={(!content.trim() && !uploading) || sending || uploading}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></form>
 
         {showInfo && <div className="fixed inset-0 z-40 flex justify-end bg-black/40" onClick={() => setShowInfo(false)}><aside className="h-full w-full max-w-md overflow-y-auto bg-background p-4 shadow-xl" onClick={event => event.stopPropagation()}><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Settings className="h-5 w-5 text-primary" /><h2 className="font-semibold">Group info</h2></div><button type="button" onClick={() => setShowInfo(false)} className="rounded-full p-2 hover:bg-muted"><X className="h-5 w-5" /></button></div><div className="mb-5 flex flex-col items-center text-center"><label className="group relative cursor-pointer"><Avatar profile={group.avatar_url ? { avatar_url: group.avatar_url, username: group.name } as Profile : null} size="w-20 h-20" />{canEditInfo && <><span className="absolute bottom-0 right-0 rounded-full bg-primary p-2 text-primary-foreground shadow"><Image className="h-4 w-4" /></span><input type="file" accept="image/*" className="hidden" onChange={handleGroupAvatar} /></>}</label>{editingInfo && canEditInfo ? <div className="mt-3 w-full space-y-2"><Input value={editName} onChange={event => setEditName(event.target.value)} maxLength={80} placeholder="Group name" /><Textarea value={editDescription} onChange={event => setEditDescription(event.target.value)} maxLength={500} rows={3} placeholder="Description" /><div className="flex gap-2"><Button type="button" className="flex-1" onClick={() => void handleSaveInfo()} disabled={savingInfo || !editName.trim()}>{savingInfo ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Save</Button><Button type="button" variant="outline" onClick={() => setEditingInfo(false)}>Cancel</Button></div></div> : <><h3 className="mt-2 text-lg font-semibold">{group.name}</h3><p className="text-sm text-muted-foreground">{group.description || "No description"}</p>{canEditInfo && <Button type="button" variant="outline" className="mt-3" onClick={() => setEditingInfo(true)}><Pencil className="mr-2 h-4 w-4" />Edit group info</Button>}</>}<button type="button" onClick={() => void copyInvite()} className="mt-3 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary"><Copy className="h-4 w-4" />Copy invite link</button></div><div className="mb-5 rounded-xl border border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-medium">Pinned messages ({pinnedMessages.length})</h3><Pin className="h-4 w-4 text-primary" /></div>{pinnedMessages.length === 0 ? <p className="text-xs text-muted-foreground">No pinned messages yet.</p> : <div className="space-y-2">{pinnedMessages.map(pin => <div key={pin.message_id} className="flex items-start gap-2 rounded-lg bg-muted/50 p-2"><button type="button" onClick={() => { setShowInfo(false); document.getElementById('group-message-' + pin.message_id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} className="min-w-0 flex-1 text-left"><p className="line-clamp-2 text-sm">{pin.message.content}</p><p className="mt-1 text-[11px] text-muted-foreground">{new Date(pin.pinned_at).toLocaleDateString()}</p></button>{canManage && <button type="button" onClick={() => void unpinGroupMessage(pin.message_id).then(load).catch(error => toast.error(error instanceof Error ? error.message : 'Unpin nahi hua'))} className="rounded p-1 text-muted-foreground hover:bg-background" aria-label="Unpin message"><X className="h-4 w-4" /></button>}</div>)}</div>}</div><div className="mb-5 rounded-xl border border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-medium">Shared media & files ({mediaItems.length})</h3><Paperclip className="h-4 w-4 text-primary" /></div>{mediaItems.length === 0 ? <p className="text-xs text-muted-foreground">No shared files yet.</p> : <div className="grid grid-cols-2 gap-2">{mediaItems.slice(0, 8).map(item => item.media_type === 'photo' ? <a key={item.id} href={item.public_url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-lg border border-border"><img src={item.public_url} alt={item.file_name} className="h-24 w-full object-cover" /><span className="block truncate px-2 py-1 text-xs">{item.file_name}</span></a> : item.media_type === 'video' ? <a key={item.id} href={item.public_url} target="_blank" rel="noreferrer" className="rounded-lg border border-border p-2"><video src={item.public_url} muted className="h-20 w-full rounded object-cover" /><span className="mt-1 block truncate text-xs">{item.file_name}</span></a> : <a key={item.id} href={item.public_url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 rounded-lg border border-border p-2"><Paperclip className="h-4 w-4 shrink-0 text-primary" /><span className="truncate text-xs">{item.file_name}</span></a>)}</div>}</div><div className="mb-5 rounded-xl border border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-medium">Admin permissions</h3><Shield className="h-4 w-4 text-primary" /></div>{permissions ? <div className="space-y-2">{PERMISSION_LABELS.map(permission => <label key={permission.key} className="flex items-center justify-between gap-3 text-sm"><span>{permission.label}</span><select value={permissions[permission.key]} onChange={event => void handlePermissionChange(permission.key, event.target.value as 'everyone' | 'admins')} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="everyone">Everyone</option><option value="admins">Admins only</option></select></label>)}</div> : <p className="text-xs text-muted-foreground">Permission settings unavailable until the latest group migration is applied.</p>}</div><div className="mb-5"><div className="mb-2 flex items-center justify-between"><h3 className="font-medium">Members ({members.length})</h3>{canManage && <UserPlus className="h-4 w-4 text-primary" />}</div>{canManage && <div className="relative mb-2"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={memberQuery} onChange={event => setMemberQuery(event.target.value)} placeholder="Add member" className="pl-9" />{memberResults.length > 0 && <div className="absolute left-0 right-0 top-11 z-10 divide-y divide-border rounded-xl border border-border bg-card shadow-lg">{memberResults.map(profile => <button type="button" key={profile.user_id} onClick={() => void handleAdd(profile)} className="flex w-full items-center gap-2 p-2 text-left hover:bg-muted"><Avatar profile={profile} size="w-8 h-8" /><span className="min-w-0 flex-1 truncate text-sm">{profile.username}</span><UserPlus className="h-4 w-4 text-primary" /></button>)}</div>}</div>}{members.map(member => <div key={member.user_id} className="flex items-center gap-2 py-2"><Avatar profile={member.profile} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{member.profile?.username || 'Member'}</p><p className="flex items-center gap-1 text-xs text-muted-foreground">{member.role === 'owner' ? <><Crown className="h-3 w-3" />Owner</> : member.role === 'admin' ? <><Shield className="h-3 w-3" />Admin</> : 'Member'}</p></div>{canManage && member.user_id !== user?.id && member.role !== 'owner' && <button type="button" onClick={() => void removeGroupMember(group.id, member.user_id).then(load).catch(error => toast.error(error.message))} className="rounded p-2 text-destructive hover:bg-destructive/10" aria-label="Remove member">×</button>}</div>)}</div><div className="space-y-2 border-t border-border pt-4"><button type="button" onClick={() => void handleLeave()} className="w-full rounded-lg px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10">Leave group</button><p className="text-xs text-muted-foreground">Created {new Date(group.created_at).toLocaleDateString()}</p></div></aside></div>}
       </div>

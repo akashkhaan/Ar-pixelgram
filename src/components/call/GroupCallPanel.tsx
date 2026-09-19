@@ -63,24 +63,69 @@ const ParticipantTile: React.FC<{
   }, [stream, speakerOn]);
 
   return (
-    <div className={'relative min-h-[190px] overflow-hidden rounded-2xl bg-gradient-to-br shadow-lg ' + TILE_COLORS[index % TILE_COLORS.length]}>
+    <div className="relative flex min-h-[240px] flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl bg-neutral-900 shadow-xl border border-white/10">
       {hasVideo ? (
-        <video ref={ref} autoPlay playsInline muted={muted} className="h-full min-h-[190px] w-full object-cover" />
-      ) : (
-        <div className="flex h-full min-h-[190px] items-center justify-center p-6">
-          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-white/15 text-3xl font-semibold text-white ring-4 ring-white/20 shadow-xl">
-            {avatarUrl ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" /> : initials(label)}
+        <>
+          <video ref={ref} autoPlay playsInline muted={muted} className="h-full min-h-[240px] w-full object-cover" />
+          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/85 via-black/40 to-transparent px-4 pb-3.5 pt-8 text-white">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-sm font-semibold drop-shadow">{local ? 'You' : label}</span>
+              {muted && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow">
+                  <MicOff className="h-3 w-3" />
+                </span>
+              )}
+            </div>
+            <span className="rounded-full bg-black/50 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-sm border border-white/10">
+              Camera
+            </span>
           </div>
-        </div>
+        </>
+      ) : (
+        <>
+          {/* Messenger-style DP Background */}
+          {avatarUrl ? (
+            <div className="absolute inset-0 overflow-hidden">
+              <img
+                src={avatarUrl}
+                alt=""
+                className="h-full w-full object-cover scale-110 blur-xl brightness-[0.50] select-none"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/10 to-black/80" />
+            </div>
+          ) : (
+            <div className={'absolute inset-0 bg-gradient-to-br ' + TILE_COLORS[index % TILE_COLORS.length]} />
+          )}
+
+          {/* Center Avatar & Identity */}
+          <div className="relative z-10 flex flex-col items-center justify-center p-6 text-center select-none">
+            <div className="relative">
+              <div className="flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center overflow-hidden rounded-full bg-white/15 text-3xl font-bold text-white ring-4 ring-white/35 shadow-2xl backdrop-blur-sm">
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={label} className="h-full w-full object-cover" />
+                ) : (
+                  initials(label)
+                )}
+              </div>
+              {muted && (
+                <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white shadow-lg ring-2 ring-black/70">
+                  <MicOff className="h-4 w-4" />
+                </span>
+              )}
+            </div>
+
+            <div className="mt-3.5 flex flex-col items-center">
+              <p className="max-w-[220px] truncate text-base font-bold text-white drop-shadow-md">
+                {local ? 'You' : label}
+              </p>
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-0.5 text-xs font-medium text-white/90 backdrop-blur-sm border border-white/10 shadow-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Audio
+              </span>
+            </div>
+          </div>
+        </>
       )}
-      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3.5 pb-3.5 pt-10 text-white">
-        <span className="truncate text-sm font-medium drop-shadow-sm">{local ? 'You' : label}</span>
-        {local && (
-          <span className="rounded-full bg-black/50 backdrop-blur-sm px-2.5 py-0.5 text-[11px] font-medium border border-white/10">
-            {showVideo ? 'Camera' : 'Audio'}
-          </span>
-        )}
-      </div>
     </div>
   );
 };
@@ -499,7 +544,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
 
         {/* Video / Audio Grid */}
         <main className="min-h-0 flex-1 overflow-y-auto p-2">
-          <div className="grid min-h-full grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid h-full auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
             <ParticipantTile
               stream={localPreview}
               muted

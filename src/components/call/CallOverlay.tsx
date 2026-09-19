@@ -133,13 +133,18 @@ export const CallOverlay: React.FC = () => {
         <video ref={remoteVideoRef} autoPlay playsInline
           className="absolute inset-0 w-full h-full object-cover bg-black" />
       ) : (
-        <>
-          {call.peerProfile?.avatar_url && (
-            <img src={call.peerProfile.avatar_url} alt=""
-              className="absolute inset-0 w-full h-full object-cover scale-110 blur-3xl opacity-50" />
+        <div className="absolute inset-0 overflow-hidden">
+          {call.peerProfile?.avatar_url ? (
+            <img
+              src={call.peerProfile.avatar_url}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl brightness-[0.55]"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-sky-900/80 via-neutral-950/90 to-black" />
-        </>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/15 to-black/85" />
+        </div>
       )}
       <audio ref={remoteAudioRef} autoPlay />
 
@@ -243,11 +248,19 @@ export const IncomingCallModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[101] text-white flex flex-col overflow-hidden">
-      {call.peerProfile?.avatar_url && (
-        <img src={call.peerProfile.avatar_url} alt=""
-          className="absolute inset-0 w-full h-full object-cover scale-110 blur-3xl opacity-50" />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-900/85 via-neutral-950/92 to-black" />
+      {/* Messenger-style DP Background */}
+      <div className="absolute inset-0 overflow-hidden">
+        {call.peerProfile?.avatar_url ? (
+          <img
+            src={call.peerProfile.avatar_url}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl brightness-[0.55]"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/15 to-black/85" />
+      </div>
 
       <div className="relative flex-1 flex flex-col items-center justify-center gap-5 px-8">
         <div className="relative">
