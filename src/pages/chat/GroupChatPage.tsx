@@ -1,24 +1,71 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Copy, Crown, Image, Loader2, MoreVertical, Paperclip, Pencil, Phone, Pin, Reply, Save, Search, Send, Settings, Shield, Smile, UserPlus, Users, Video, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  Info,
+  Loader2,
+  Paperclip,
+  Phone,
+  Pin,
+  Reply,
+  Search,
+  Send,
+  Smile,
+  Users,
+  Video,
+  X,
+} from 'lucide-react';
 import MobileLayout from '@/components/layouts/MobileLayout';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { addGroupMember, getActiveGroupCall, getGroup, getGroupMedia, getGroupMembers, getGroupMessages, getGroupPermissions, getGroupPinnedMessages, leaveGroup, pinGroupMessage, removeGroupMember, searchGroupUsers, sendGroupFileMessage, sendGroupMessage, toggleGroupReaction, unpinGroupMessage, updateGroup, updateGroupPermissions, uploadGroupAvatar } from '@/services/groups';
+import {
+  addGroupMember,
+  getActiveGroupCall,
+  getGroup,
+  getGroupMedia,
+  getGroupMembers,
+  getGroupMessages,
+  getGroupPermissions,
+  getGroupPinnedMessages,
+  leaveGroup,
+  pinGroupMessage,
+  removeGroupMember,
+  searchGroupUsers,
+  sendGroupFileMessage,
+  sendGroupMessage,
+  toggleGroupReaction,
+  unpinGroupMessage,
+  updateGroup,
+  updateGroupPermissions,
+  uploadGroupAvatar,
+} from '@/services/groups';
 import type { Profile } from '@/types/types';
-import type { Group, GroupCall, GroupMedia, GroupMember, GroupMessage, GroupPermissions, GroupPinnedMessage } from '@/types/groups';
+import type {
+  Group,
+  GroupCall,
+  GroupMedia,
+  GroupMember,
+  GroupMessage,
+  GroupPermissions,
+  GroupPinnedMessage,
+} from '@/types/groups';
 import { toast } from 'sonner';
 import GroupCallPanel, { GroupCallPanelHandle } from '@/components/call/GroupCallPanel';
+import MessengerGroupSettings, { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🙏'];
-const PERMISSION_LABELS: Array<{ key: keyof Pick<GroupPermissions, 'send_messages' | 'add_members' | 'edit_info' | 'create_invites' | 'pin_messages' | 'start_calls'>; label: string }> = [{ key: 'send_messages', label: 'Send messages' }, { key: 'add_members', label: 'Add members' }, { key: 'edit_info', label: 'Edit group info' }, { key: 'create_invites', label: 'Create invite links' }, { key: 'pin_messages', label: 'Pin messages' }, { key: 'start_calls', label: 'Start calls' }];
 
 const Avatar: React.FC<{ profile?: Profile | null; size?: string }> = ({ profile, size = 'w-9 h-9' }) => (
-  profile?.avatar_url ? <img src={profile.avatar_url} alt="" className={size + ' rounded-full object-cover shrink-0'} /> :
-    <div className={size + ' rounded-full bg-primary/15 flex items-center justify-center text-primary font-semibold shrink-0'}>{(profile?.username?.[0] || '?').toUpperCase()}</div>
+  profile?.avatar_url ? (
+    <img src={profile.avatar_url} alt="" className={size + ' rounded-full object-cover shrink-0'} />
+  ) : (
+    <div className={size + ' rounded-full bg-primary/15 flex items-center justify-center text-primary font-semibold shrink-0'}>
+      {(profile?.username?.[0] || '?').toUpperCase()}
+    </div>
+  )
 );
 
 const renderMessageContent = (text: string, mine: boolean, myUsername?: string) => {
@@ -46,7 +93,7 @@ const renderMessageContent = (text: string, mine: boolean, myUsername?: string) 
         </span>
       );
     }
-    return <span key={index}>{part}</span>;
+    return part;
   });
 };
 
@@ -73,61 +120,125 @@ const GroupChatPage: React.FC = () => {
   const [memberResults, setMemberResults] = useState<Profile[]>([]);
   const [reactionMessage, setReactionMessage] = useState<string | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [editingInfo, setEditingInfo] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [savingInfo, setSavingInfo] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeGroupCall, setActiveGroupCall] = useState<GroupCall | null>(null);
+
+  // Messenger customization states
+  const [groupTheme, setGroupTheme] = useState<string>(() => {
+    return (groupId && localStorage.getItem(`group_theme_${groupId}`)) || 'default';
+  });
+  const [groupEmoji, setGroupEmoji] = useState<string>(() => {
+    return (groupId && localStorage.getItem(`group_emoji_${groupId}`)) || '👍';
+  });
+  const [nicknames, setNicknames] = useState<Record<string, string>>(() => {
+    try {
+      return groupId ? JSON.parse(localStorage.getItem(`group_nicknames_${groupId}`) || '{}') : {};
+    } catch {
+      return {};
+    }
+  });
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const callPanelRef = useRef<GroupCallPanelHandle>(null);
+
   const handleBack = () => { navigate('/chat', { replace: true }); };
-  const selectedUserIds = useMemo(() => ((location.state as { selectedUserIds?: string[] } | null)?.selectedUserIds || []), [location.state]);
 
   const currentMember = useMemo(() => members.find(member => member.user_id === user?.id), [members, user]);
   const canManage = currentMember?.role === 'owner' || currentMember?.role === 'admin';
-  const canEditInfo = canManage || permissions?.edit_info === 'everyone';
   const profileMap = useMemo(() => new Map(members.map(member => [member.user_id, member.profile])), [members]);
-  const visibleMessages = useMemo(() => { const query = messageQuery.trim().toLowerCase(); if (!query) return messages; return messages.filter(message => message.content.toLowerCase().includes(query) || (profileMap.get(message.sender_id)?.username || '').toLowerCase().includes(query)); }, [messageQuery, messages, profileMap]);
+  const activeTheme = useMemo(() => MESSENGER_THEMES.find(t => t.id === groupTheme) || MESSENGER_THEMES[0], [groupTheme]);
+
+  const visibleMessages = useMemo(() => {
+    const query = messageQuery.trim().toLowerCase();
+    if (!query) return messages;
+    return messages.filter(
+      message =>
+        message.content.toLowerCase().includes(query) ||
+        (profileMap.get(message.sender_id)?.username || '').toLowerCase().includes(query)
+    );
+  }, [messageQuery, messages, profileMap]);
+
   const mentionSuggestions = useMemo(() => {
     if (mentionQuery === null) return [];
     const q = mentionQuery.toLowerCase();
     return members
       .filter(member => member.user_id !== user?.id)
-      .filter(member => !q || (member.profile?.username || '').toLowerCase().includes(q) || (member.profile?.full_name || '').toLowerCase().includes(q))
+      .filter(
+        member =>
+          !q ||
+          (member.profile?.username || '').toLowerCase().includes(q) ||
+          (member.profile?.full_name || '').toLowerCase().includes(q)
+      )
       .slice(0, 8);
   }, [mentionQuery, members, user?.id]);
 
   const load = useCallback(async () => {
     if (!groupId) return;
     try {
-      const [nextGroup, nextMembers, nextMessages] = await Promise.all([getGroup(groupId), getGroupMembers(groupId), getGroupMessages(groupId)]);
+      const [nextGroup, nextMembers, nextMessages] = await Promise.all([
+        getGroup(groupId),
+        getGroupMembers(groupId),
+        getGroupMessages(groupId),
+      ]);
       setGroup(nextGroup);
       setMembers(nextMembers);
       setMessages(nextMessages);
-      try { const [nextMedia, nextPinned] = await Promise.all([getGroupMedia(groupId), getGroupPinnedMessages(groupId)]); setMediaItems(nextMedia); setPinnedMessages(nextPinned); } catch { setMediaItems([]); setPinnedMessages([]); }
-      try { setPermissions(await getGroupPermissions(groupId)); } catch { setPermissions(null); }
+      try {
+        const [nextMedia, nextPinned] = await Promise.all([
+          getGroupMedia(groupId),
+          getGroupPinnedMessages(groupId),
+        ]);
+        setMediaItems(nextMedia);
+        setPinnedMessages(nextPinned);
+      } catch {
+        setMediaItems([]);
+        setPinnedMessages([]);
+      }
+      try {
+        setPermissions(await getGroupPermissions(groupId));
+      } catch {
+        setPermissions(null);
+      }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Group load nahi hua');
-    } finally { setLoading(false); }
+      toast.error(error instanceof Error ? error.message : 'Failed to load group');
+    } finally {
+      setLoading(false);
+    }
   }, [groupId]);
 
   useEffect(() => { void load(); }, [load]);
 
+  // Realtime call tracking
   useEffect(() => {
     if (!groupId) return;
-    const channel = supabase.channel('group-' + groupId)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_messages', filter: 'group_id=eq.' + groupId }, () => { void load(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: 'group_id=eq.' + groupId }, () => { void load(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'groups', filter: 'id=eq.' + groupId }, () => { void load(); })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_message_reactions' }, () => { void load(); })
+    void getActiveGroupCall(groupId).then(setActiveGroupCall).catch(() => {});
+    const channel = supabase
+      .channel('group-call-' + groupId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_calls', filter: 'group_id=eq.' + groupId }, () => {
+        void getActiveGroupCall(groupId).then(setActiveGroupCall).catch(() => {});
+      })
       .subscribe();
     return () => { void channel.unsubscribe(); };
-  }, [groupId, load]);
+  }, [groupId]);
 
+  // Realtime message updates
+  useEffect(() => {
+    if (!groupId) return;
+    const channel = supabase
+      .channel('group-chat-' + groupId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_messages', filter: 'group_id=eq.' + groupId }, () => {
+        void getGroupMessages(groupId).then(setMessages).catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_members', filter: 'group_id=eq.' + groupId }, () => {
+        void getGroupMembers(groupId).then(setMembers).catch(() => {});
+      })
+      .subscribe();
+    return () => { void channel.unsubscribe(); };
+  }, [groupId]);
+
+  // Auto-scroll on new messages
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
 
-  // Auto-join call if navigated from incoming call modal or chat list with autoJoin=1
+  // Auto-join call if navigated with autoJoin=1
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('autoJoin') === '1' && group && callPanelRef.current) {
@@ -137,53 +248,69 @@ const GroupChatPage: React.FC = () => {
     }
   }, [location.search, group, location.pathname, location.state, navigate]);
 
+  // Member search for adding
   useEffect(() => {
-    if (!groupId || !canManage || !selectedUserIds.length) return;
-    const addSelected = async () => {
-      for (const userId of selectedUserIds) {
-        try { await addGroupMember(groupId, userId); } catch { /* duplicate or permission failure */ }
-      }
-      navigate(location.pathname, { replace: true, state: {} });
-      await load();
-    };
-    void addSelected();
-  }, [groupId, canManage, selectedUserIds, load]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      if (!memberQuery.trim()) { setMemberResults([]); return; }
-      try {
-        const results = await searchGroupUsers(memberQuery, members.map(member => member.user_id));
-        if (!cancelled) setMemberResults(results);
-      } catch { if (!cancelled) setMemberResults([]); }
+    const query = memberQuery.trim();
+    if (!query) { setMemberResults([]); return; }
+    const timer = setTimeout(() => {
+      searchGroupUsers(query)
+        .then(results => {
+          const existingIds = new Set(members.map(member => member.user_id));
+          setMemberResults(results.filter(p => !existingIds.has(p.user_id)));
+        })
+        .catch(() => setMemberResults([]));
     }, 250);
-    return () => { cancelled = true; window.clearTimeout(timer); };
+    return () => clearTimeout(timer);
   }, [memberQuery, members]);
 
   const handleContentChange = (value: string) => {
     setContent(value);
-    const match = value.match(/(?:^|\s)@([A-Za-z0-9_.-]*)$/);
-    setMentionQuery(match ? match[1].toLowerCase() : null);
+    const atIndex = value.lastIndexOf('@');
+    if (atIndex === -1) { setMentionQuery(null); return; }
+    const prevChar = atIndex > 0 ? value[atIndex - 1] : ' ';
+    if (/\s/.test(prevChar)) {
+      const textAfter = value.slice(atIndex + 1);
+      if (!/\s/.test(textAfter)) { setMentionQuery(textAfter); return; }
+    }
+    setMentionQuery(null);
   };
 
-  const chooseMention = (username: string) => {
-    setContent(current => current.replace(/(^|\s)@[A-Za-z0-9_.-]*$/, '$1@' + username + ' '));
+  const insertMention = (profile: Profile) => {
+    const atIndex = content.lastIndexOf('@');
+    if (atIndex === -1) return;
+    setContent(content.slice(0, atIndex) + '@' + profile.username + ' ');
     setMentionQuery(null);
   };
 
   const handleSend = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!groupId || !content.trim() || sending) return;
+    const cleanContent = content.trim();
+    if ((!cleanContent && !uploading) || !groupId || sending) return;
     setSending(true);
-    const text = content.trim();
-    const mentionedNames = [...text.matchAll(/(?:^|\s)@([A-Za-z0-9_.-]+)/g)].map(match => match[1].toLowerCase());
-    const mentionedIds = members.filter(member => mentionedNames.includes((member.profile?.username || '').toLowerCase())).map(member => member.user_id);
-    setContent('');
-    setMentionQuery(null);
-    try { await sendGroupMessage(groupId, text, replyTo?.id, mentionedIds); setReplyTo(null); await load(); }
-    catch (error) { setContent(text); toast.error(error instanceof Error ? error.message : 'Message send nahi hua'); }
-    finally { setSending(false); }
+    try {
+      await sendGroupMessage(groupId, cleanContent, replyTo?.id);
+      setContent('');
+      setReplyTo(null);
+      setMentionQuery(null);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not send message');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleQuickSendEmoji = async (emojiToSend: string) => {
+    if (!groupId || sending) return;
+    setSending(true);
+    try {
+      await sendGroupMessage(groupId, emojiToSend);
+      await load();
+    } catch {
+      toast.error('Could not send reaction');
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,108 +318,190 @@ const GroupChatPage: React.FC = () => {
     event.target.value = '';
     if (!file || !groupId || uploading) return;
     setUploading(true);
-    try { await sendGroupFileMessage(groupId, file); await load(); toast.success('File shared'); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'File upload nahi hua'); }
-    finally { setUploading(false); }
-  };
-
-  const openInfo = () => { setEditName(group?.name || ''); setEditDescription(group?.description || ''); setEditingInfo(false); setShowInfo(true); };
-
-  const handleSaveInfo = async () => {
-    if (!groupId || !group || !canEditInfo || !editName.trim() || savingInfo) return;
-    setSavingInfo(true);
     try {
-      const updates = { name: editName.trim(), description: editDescription.trim() || null };
-      await updateGroup(groupId, updates);
-      setGroup(current => current ? { ...current, ...updates } : current);
-      setEditingInfo(false);
-      toast.success('Group info updated');
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Group info update nahi hua'); }
-    finally { setSavingInfo(false); }
-  };
-
-  const handleGroupAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file || !groupId || !canEditInfo || uploadingAvatar) return;
-    setUploadingAvatar(true);
-    try { const url = await uploadGroupAvatar(groupId, file); setGroup(current => current ? { ...current, avatar_url: url } : current); toast.success('Group photo updated'); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Group photo update nahi hua'); }
-    finally { setUploadingAvatar(false); }
+      await sendGroupFileMessage(groupId, file);
+      await load();
+      toast.success('File shared');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'File upload failed');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleReaction = async (message: GroupMessage, reaction: string) => {
     const mine = message.reactions?.find(item => item.user_id === user?.id);
-    try { await toggleGroupReaction(message.id, reaction, mine); setReactionMessage(null); await load(); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Reaction update nahi hua'); }
+    try {
+      await toggleGroupReaction(message.id, reaction, mine);
+      setReactionMessage(null);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Reaction update failed');
+    }
   };
 
   const handleAdd = async (profile: Profile) => {
     if (!groupId) return;
-    try { await addGroupMember(groupId, profile.user_id); setMemberQuery(''); await load(); toast.success(profile.username + ' added'); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Member add nahi hua'); }
+    try {
+      await addGroupMember(groupId, profile.user_id);
+      setMemberQuery('');
+      await load();
+      toast.success(profile.username + ' added');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not add member');
+    }
   };
 
-  const handlePermissionChange = async (key: keyof Pick<GroupPermissions, 'send_messages' | 'add_members' | 'edit_info' | 'create_invites' | 'pin_messages' | 'start_calls'>, value: 'everyone' | 'admins') => {
-    if (!groupId || !permissions) return;
+  const handlePermissionChange = async (key: keyof GroupPermissions, value: 'everyone' | 'admins') => {
+    if (!groupId || !permissions || !canManage) return;
     const previous = permissions;
-    setPermissions({ ...permissions, [key]: value });
-    try { await updateGroupPermissions(groupId, { [key]: value }); toast.success('Permission updated'); }
-    catch (error) { setPermissions(previous); toast.error(error instanceof Error ? error.message : 'Permission update nahi hua'); }
-  };
-
-  const handleLeave = async () => {
-    if (!groupId || !window.confirm('Are you sure you want to leave this group?')) return;
-    try { await leaveGroup(groupId); navigate('/chat'); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Owner ko pehle ownership transfer karni hogi'); }
+    const next = { ...permissions, [key]: value };
+    setPermissions(next);
+    try {
+      await updateGroupPermissions(groupId, { [key]: value });
+      toast.success('Permissions updated');
+    } catch (error) {
+      setPermissions(previous);
+      toast.error(error instanceof Error ? error.message : 'Could not update permissions');
+    }
   };
 
   const copyInvite = async () => {
     if (!group) return;
     const link = window.location.origin + '/group/join/' + group.invite_token;
-    try { await navigator.clipboard.writeText(link); toast.success('Invite link copied'); }
-    catch { toast.error('Invite link copy nahi hua'); }
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success('Invite link copied');
+    } catch {
+      toast.error('Could not copy invite link');
+    }
   };
 
-  if (loading) return <MobileLayout hideHeader hideNav><div className="flex min-h-[100dvh] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div></MobileLayout>;
-  if (!group || !currentMember) return <MobileLayout hideHeader hideNav><div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 p-6 text-center"><Users className="h-12 w-12 text-muted-foreground" /><p className="font-medium">Group unavailable</p><Button onClick={() => navigate('/chat')}>Back to messages</Button></div></MobileLayout>;
+  if (loading) {
+    return (
+      <MobileLayout hideHeader hideNav>
+        <div className="flex min-h-[100dvh] items-center justify-center">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+        </div>
+      </MobileLayout>
+    );
+  }
+
+  if (!group || !currentMember) {
+    return (
+      <MobileLayout hideHeader hideNav>
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 p-6 text-center">
+          <Users className="h-12 w-12 text-muted-foreground" />
+          <p className="font-medium">Group unavailable</p>
+          <Button onClick={() => navigate('/chat')}>Back to messages</Button>
+        </div>
+      </MobileLayout>
+    );
+  }
 
   return (
     <MobileLayout hideHeader hideNav>
       <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-background">
+        {/* CHAT HEADER (Messenger Style: Back, Group info button, Call 📞, Video 📹, Info ⓘ) */}
         <header className="z-20 flex shrink-0 items-center gap-1 sm:gap-2 border-b border-border bg-card/95 px-2 py-2 backdrop-blur">
-          <button type="button" onClick={handleBack} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
-          <button type="button" onClick={openInfo} className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-90 transition-opacity"><Avatar profile={group.avatar_url ? { avatar_url: group.avatar_url, username: group.name } as Profile : null} /><span className="min-w-0"><span className="block truncate text-sm font-semibold leading-tight">{group.name}</span><span className="block truncate text-xs text-muted-foreground">{members.length} members</span></span></button>
+          <button
+            type="button"
+            onClick={handleBack}
+            className="rounded-full p-2 hover:bg-muted text-foreground transition-colors"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+
+          {/* Center: Tap to open Messenger Group Details */}
+          <button
+            type="button"
+            onClick={() => setShowInfo(true)}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-90 transition-opacity"
+          >
+            <Avatar profile={group.avatar_url ? ({ avatar_url: group.avatar_url, username: group.name } as Profile) : null} />
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold leading-tight">{group.name}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {members.length} members · Active recently
+              </span>
+            </span>
+          </button>
+
+          {/* Call button 📞 */}
           <button
             type="button"
             onClick={() => void callPanelRef.current?.startCall('audio')}
             className={`rounded-full p-2 transition-all ${
               activeGroupCall?.kind === 'audio'
                 ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
-                : 'hover:bg-muted text-foreground'
+                : 'hover:bg-muted text-sky-500'
             }`}
             aria-label="Audio call"
-            title={activeGroupCall?.kind === 'audio' ? 'Join ongoing audio call' : 'Start audio call'}
+            title="Start audio call"
           >
-            <Phone className="h-5 w-5" />
+            <Phone className="h-5 w-5 fill-sky-500/20" />
           </button>
+
+          {/* Video button 📹 */}
           <button
             type="button"
             onClick={() => void callPanelRef.current?.startCall('video')}
             className={`rounded-full p-2 transition-all ${
               activeGroupCall?.kind === 'video'
                 ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
-                : 'hover:bg-muted text-foreground'
+                : 'hover:bg-muted text-sky-500'
             }`}
             aria-label="Video call"
-            title={activeGroupCall?.kind === 'video' ? 'Join ongoing video call' : 'Start video call'}
+            title="Start video call"
           >
-            <Video className="h-5 w-5" />
+            <Video className="h-5 w-5 fill-sky-500/20" />
           </button>
-          <button type="button" onClick={openInfo} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Group settings" title="Group settings"><Settings className="h-5 w-5" /></button>
-        </header>
-        <GroupCallPanel ref={callPanelRef} groupId={group.id} groupName={group.name} groupAvatarUrl={group.avatar_url} members={members} />
 
+          {/* Messenger Info Button (ⓘ) - Exact Match to Video */}
+          <button
+            type="button"
+            onClick={() => setShowInfo(true)}
+            className="rounded-full p-2 hover:bg-muted text-sky-500 transition-colors"
+            aria-label="Conversation details"
+            title="Conversation details"
+          >
+            <Info className="h-5 w-5" />
+          </button>
+        </header>
+
+        {/* IN-CONVERSATION SEARCH BAR */}
+        {showMessageSearch && (
+          <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 animate-in slide-in-from-top-2 duration-150">
+            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Input
+              autoFocus
+              value={messageQuery}
+              onChange={e => setMessageQuery(e.target.value)}
+              placeholder="Search in conversation..."
+              className="h-8 rounded-lg text-xs bg-background"
+            />
+            <button
+              type="button"
+              onClick={() => { setShowMessageSearch(false); setMessageQuery(''); }}
+              className="p-1 rounded-full hover:bg-muted text-muted-foreground"
+              aria-label="Close search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* GROUP CALL CONTROLLER */}
+        <GroupCallPanel
+          ref={callPanelRef}
+          groupId={group.id}
+          groupName={group.name}
+          groupAvatarUrl={group.avatar_url}
+          members={members}
+        />
+
+        {/* ACTIVE CALL BANNER */}
         {activeGroupCall && (
           <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-950/40 px-3.5 py-2 backdrop-blur text-emerald-200 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -319,57 +528,290 @@ const GroupChatPage: React.FC = () => {
           </div>
         )}
 
+        {/* MESSAGES LIST */}
         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
-          <div className="mx-auto max-w-sm rounded-xl bg-primary/8 px-3 py-2 text-center text-xs text-muted-foreground">Messages in this group are visible only to its members.</div>
+          <div className="mx-auto max-w-sm rounded-xl bg-primary/8 px-3 py-2 text-center text-xs text-muted-foreground">
+            Messages in this group are visible only to its members.
+          </div>
+
           {visibleMessages.map(message => {
             const mine = message.sender_id === user?.id;
             const sender = profileMap.get(message.sender_id);
             const replied = message.reply_to_id ? messages.find(item => item.id === message.reply_to_id) : null;
-            return <div key={message.id} className={'group flex items-end gap-2 ' + (mine ? 'justify-end' : 'justify-start')}>
-              {!mine && <Avatar profile={sender} size="w-7 h-7" />}
-              <div className="relative max-w-[82%]">
-                {!mine && <p className="mb-0.5 px-1 text-[11px] font-medium text-primary">{sender?.username || 'Member'}</p>}
-                <div className={'rounded-2xl px-3 py-2 text-sm ' + (mine ? 'rounded-br-sm bg-primary text-primary-foreground' : 'rounded-bl-sm bg-muted text-foreground')}>
-                  {replied && <button type="button" onClick={() => document.getElementById('group-message-' + replied.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} className={'mb-1 block w-full rounded border-l-2 px-2 py-1 text-left text-xs ' + (mine ? 'border-primary-foreground/60 bg-primary-foreground/10' : 'border-primary bg-background/50')}><span className="block font-medium">Reply</span><span className="block truncate opacity-75">{replied.content}</span></button>}
-                  {message.content.startsWith('📎 ') ? <a id={'group-message-' + message.id} href={message.content.split('\n')[1]} target="_blank" rel="noreferrer" className="flex items-center gap-2 break-all underline"><Paperclip className="h-4 w-4 shrink-0" />{message.content.split('\n')[0].replace('📎 ', '')}</a> : <p id={'group-message-' + message.id} className="break-words">{renderMessageContent(message.content, mine, myProfile?.username)}</p>}
-                  <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70"><span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>{message.edited_at && <span>edited</span>}{mine && <Check className="h-3 w-3" />}</div>
+            const displayName = nicknames[message.sender_id] || sender?.username || 'Member';
+            const isSingleEmoji = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})$/u.test(message.content.trim());
+
+            return (
+              <div key={message.id} className={'group flex items-end gap-2 ' + (mine ? 'justify-end' : 'justify-start')}>
+                {!mine && <Avatar profile={sender} size="w-7 h-7" />}
+                <div className="relative max-w-[82%]">
+                  {!mine && <p className="mb-0.5 px-1 text-[11px] font-medium text-primary">{displayName}</p>}
+
+                  {isSingleEmoji ? (
+                    <div id={'group-message-' + message.id} className="text-4xl py-1 px-2 select-none">
+                      {message.content.trim()}
+                    </div>
+                  ) : (
+                    <div
+                      className={
+                        'rounded-2xl px-3 py-2 text-sm ' +
+                        (mine ? `rounded-br-sm ${activeTheme.bubble}` : 'rounded-bl-sm bg-muted text-foreground')
+                      }
+                    >
+                      {replied && (
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById('group-message-' + replied.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                          className={
+                            'mb-1 block w-full rounded border-l-2 px-2 py-1 text-left text-xs ' +
+                            (mine ? 'border-primary-foreground/60 bg-primary-foreground/10' : 'border-primary bg-background/50')
+                          }
+                        >
+                          <span className="block font-medium">Reply</span>
+                          <span className="block truncate opacity-75">{replied.content}</span>
+                        </button>
+                      )}
+
+                      {message.content.startsWith('📎 ') ? (
+                        <a
+                          id={'group-message-' + message.id}
+                          href={message.content.split('\n')[1]}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-2 break-all underline"
+                        >
+                          <Paperclip className="h-4 w-4 shrink-0" />
+                          {message.content.split('\n')[0].replace('📎 ', '')}
+                        </a>
+                      ) : (
+                        <p id={'group-message-' + message.id} className="break-words">
+                          {renderMessageContent(message.content, mine, myProfile?.username)}
+                        </p>
+                      )}
+
+                      <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
+                        <span>
+                          {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {message.edited_at && <span>edited</span>}
+                        {mine && <Check className="h-3 w-3" />}
+                      </div>
+                    </div>
+                  )}
+
+                  {(message.reactions?.length || 0) > 0 && (
+                    <div className="-mt-2 ml-2 flex w-fit gap-1 rounded-full border border-border bg-card px-1.5 py-0.5 text-xs shadow-sm">
+                      {message.reactions?.map(reaction => (
+                        <span key={reaction.user_id}>{reaction.reaction}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {reactionMessage === message.id && (
+                    <div className="absolute bottom-full right-0 z-10 mb-1 flex gap-1 rounded-full border border-border bg-card p-1 shadow-xl animate-in zoom-in-95">
+                      {REACTIONS.map(reaction => (
+                        <button
+                          type="button"
+                          key={reaction}
+                          onClick={() => void handleReaction(message, reaction)}
+                          className="rounded-full p-1.5 text-base hover:bg-muted active:scale-125 transition-transform"
+                        >
+                          {reaction}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-0.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => setReplyTo(message)}
+                      className="rounded p-1 text-muted-foreground hover:bg-muted"
+                      aria-label="Reply"
+                    >
+                      <Reply className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReactionMessage(reactionMessage === message.id ? null : message.id)}
+                      className="rounded p-1 text-muted-foreground hover:bg-muted"
+                      aria-label="React"
+                    >
+                      <Smile className="h-3.5 w-3.5" />
+                    </button>
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => void (message.id ? pinGroupMessage(group.id, message.id).then(load).catch(error => toast.error(error.message)) : null)}
+                        className="rounded p-1 text-muted-foreground hover:bg-muted"
+                        aria-label="Pin"
+                      >
+                        <Pin className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {(message.reactions?.length || 0) > 0 && <div className="-mt-2 ml-2 flex w-fit gap-1 rounded-full border border-border bg-card px-1.5 py-0.5 text-xs">{message.reactions?.map(reaction => <span key={reaction.user_id}>{reaction.reaction}</span>)}</div>}
-                {reactionMessage === message.id && <div className="absolute bottom-full right-0 z-10 mb-1 flex gap-1 rounded-full border border-border bg-card p-1 shadow-lg">{REACTIONS.map(reaction => <button type="button" key={reaction} onClick={() => void handleReaction(message, reaction)} className="rounded-full p-1.5 text-base hover:bg-muted">{reaction}</button>)}</div>}
-                <div className="mt-0.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"><button type="button" onClick={() => setReplyTo(message)} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Reply"><Reply className="h-3.5 w-3.5" /></button><button type="button" onClick={() => setReactionMessage(reactionMessage === message.id ? null : message.id)} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="React"><Smile className="h-3.5 w-3.5" /></button>{canManage && <button type="button" onClick={() => void (message.id ? pinGroupMessage(group.id, message.id).then(load).catch(error => toast.error(error.message)) : null)} className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Pin"><Pin className="h-3.5 w-3.5" /></button>}</div>
               </div>
-            </div>;
+            );
           })}
           <div ref={bottomRef} />
         </div>
 
-        {replyTo && <div className="flex shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-2 text-xs"><Reply className="h-4 w-4 text-primary" /><div className="min-w-0 flex-1"><p className="font-medium text-primary">Replying to {profileMap.get(replyTo.sender_id)?.username || 'member'}</p><p className="truncate text-muted-foreground">{replyTo.content}</p></div><button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply"><X className="h-4 w-4" /></button></div>}
-        <form onSubmit={handleSend} className="flex shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-3" style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),12px)' }}><input id="group-file-upload" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.zip" className="hidden" onChange={handleFile} /><label htmlFor="group-file-upload" className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Attach file"><Paperclip className="h-5 w-5" /></label><button type="button" className="rounded-lg p-2 text-muted-foreground hover:bg-muted" aria-label="Emoji"><Smile className="h-5 w-5" /></button><div className="relative flex min-w-0 flex-1"><Input value={content} onChange={event => handleContentChange(event.target.value)} placeholder="Message group… Type @ to mention" maxLength={5000} className="h-10 w-full" />{mentionSuggestions.length > 0 && (
-  <div className="absolute bottom-12 left-0 right-0 z-30 max-h-60 overflow-y-auto rounded-2xl border border-border/80 bg-card p-1.5 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200">
-    <div className="px-2.5 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-      Mention member
-    </div>
-    {mentionSuggestions.map(member => (
-      <button
-        type="button"
-        key={member.user_id}
-        onMouseDown={event => event.preventDefault()}
-        onClick={() => chooseMention(member.profile?.username || 'member')}
-        className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-muted transition-colors"
-      >
-        <Avatar profile={member.profile} size="w-8 h-8" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">@{member.profile?.username || 'member'}</p>
-          {member.profile?.full_name && (
-            <p className="truncate text-xs text-muted-foreground">{member.profile.full_name}</p>
-          )}
-        </div>
-      </button>
-    ))}
-  </div>
-)}</div><Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={(!content.trim() && !uploading) || sending || uploading}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></form>
+        {/* MENTIONS SUGGESTION POPUP */}
+        {mentionSuggestions.length > 0 && (
+          <div className="z-20 border-t border-border bg-card p-2 shadow-lg">
+            <div className="flex gap-2 overflow-x-auto">
+              {mentionSuggestions.map(member => (
+                <button
+                  type="button"
+                  key={member.user_id}
+                  onClick={() => member.profile && insertMention(member.profile)}
+                  className="flex items-center gap-2 rounded-full border border-border px-3 py-1 hover:bg-muted shrink-0 text-xs font-medium"
+                >
+                  <Avatar profile={member.profile} size="w-5 h-5" />
+                  <span>@{member.profile?.username}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-        {showInfo && <div className="fixed inset-0 z-40 flex justify-end bg-black/40" onClick={() => setShowInfo(false)}><aside className="h-full w-full max-w-md overflow-y-auto bg-background p-4 shadow-xl" onClick={event => event.stopPropagation()}><div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Settings className="h-5 w-5 text-primary" /><h2 className="font-semibold">Group info</h2></div><button type="button" onClick={() => setShowInfo(false)} className="rounded-full p-2 hover:bg-muted"><X className="h-5 w-5" /></button></div><div className="mb-5 flex flex-col items-center text-center"><label className="group relative cursor-pointer"><Avatar profile={group.avatar_url ? { avatar_url: group.avatar_url, username: group.name } as Profile : null} size="w-20 h-20" />{canEditInfo && <><span className="absolute bottom-0 right-0 rounded-full bg-primary p-2 text-primary-foreground shadow"><Image className="h-4 w-4" /></span><input type="file" accept="image/*" className="hidden" onChange={handleGroupAvatar} /></>}</label>{editingInfo && canEditInfo ? <div className="mt-3 w-full space-y-2"><Input value={editName} onChange={event => setEditName(event.target.value)} maxLength={80} placeholder="Group name" /><Textarea value={editDescription} onChange={event => setEditDescription(event.target.value)} maxLength={500} rows={3} placeholder="Description" /><div className="flex gap-2"><Button type="button" className="flex-1" onClick={() => void handleSaveInfo()} disabled={savingInfo || !editName.trim()}>{savingInfo ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Save</Button><Button type="button" variant="outline" onClick={() => setEditingInfo(false)}>Cancel</Button></div></div> : <><h3 className="mt-2 text-lg font-semibold">{group.name}</h3><p className="text-sm text-muted-foreground">{group.description || "No description"}</p>{canEditInfo && <Button type="button" variant="outline" className="mt-3" onClick={() => setEditingInfo(true)}><Pencil className="mr-2 h-4 w-4" />Edit group info</Button>}</>}<button type="button" onClick={() => void copyInvite()} className="mt-3 flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary"><Copy className="h-4 w-4" />Copy invite link</button></div><div className="mb-5 rounded-xl border border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-medium">Pinned messages ({pinnedMessages.length})</h3><Pin className="h-4 w-4 text-primary" /></div>{pinnedMessages.length === 0 ? <p className="text-xs text-muted-foreground">No pinned messages yet.</p> : <div className="space-y-2">{pinnedMessages.map(pin => <div key={pin.message_id} className="flex items-start gap-2 rounded-lg bg-muted/50 p-2"><button type="button" onClick={() => { setShowInfo(false); document.getElementById('group-message-' + pin.message_id)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }} className="min-w-0 flex-1 text-left"><p className="line-clamp-2 text-sm">{pin.message.content}</p><p className="mt-1 text-[11px] text-muted-foreground">{new Date(pin.pinned_at).toLocaleDateString()}</p></button>{canManage && <button type="button" onClick={() => void unpinGroupMessage(pin.message_id).then(load).catch(error => toast.error(error instanceof Error ? error.message : 'Unpin nahi hua'))} className="rounded p-1 text-muted-foreground hover:bg-background" aria-label="Unpin message"><X className="h-4 w-4" /></button>}</div>)}</div>}</div><div className="mb-5 rounded-xl border border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-medium">Shared media & files ({mediaItems.length})</h3><Paperclip className="h-4 w-4 text-primary" /></div>{mediaItems.length === 0 ? <p className="text-xs text-muted-foreground">No shared files yet.</p> : <div className="grid grid-cols-2 gap-2">{mediaItems.slice(0, 8).map(item => item.media_type === 'photo' ? <a key={item.id} href={item.public_url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-lg border border-border"><img src={item.public_url} alt={item.file_name} className="h-24 w-full object-cover" /><span className="block truncate px-2 py-1 text-xs">{item.file_name}</span></a> : item.media_type === 'video' ? <a key={item.id} href={item.public_url} target="_blank" rel="noreferrer" className="rounded-lg border border-border p-2"><video src={item.public_url} muted className="h-20 w-full rounded object-cover" /><span className="mt-1 block truncate text-xs">{item.file_name}</span></a> : <a key={item.id} href={item.public_url} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 rounded-lg border border-border p-2"><Paperclip className="h-4 w-4 shrink-0 text-primary" /><span className="truncate text-xs">{item.file_name}</span></a>)}</div>}</div><div className="mb-5 rounded-xl border border-border p-3"><div className="mb-2 flex items-center justify-between"><h3 className="font-medium">Admin permissions</h3><Shield className="h-4 w-4 text-primary" /></div>{permissions ? <div className="space-y-2">{PERMISSION_LABELS.map(permission => <label key={permission.key} className="flex items-center justify-between gap-3 text-sm"><span>{permission.label}</span><select value={permissions[permission.key]} onChange={event => void handlePermissionChange(permission.key, event.target.value as 'everyone' | 'admins')} className="rounded-md border border-border bg-background px-2 py-1 text-xs"><option value="everyone">Everyone</option><option value="admins">Admins only</option></select></label>)}</div> : <p className="text-xs text-muted-foreground">Permission settings unavailable until the latest group migration is applied.</p>}</div><div className="mb-5"><div className="mb-2 flex items-center justify-between"><h3 className="font-medium">Members ({members.length})</h3>{canManage && <UserPlus className="h-4 w-4 text-primary" />}</div>{canManage && <div className="relative mb-2"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={memberQuery} onChange={event => setMemberQuery(event.target.value)} placeholder="Add member" className="pl-9" />{memberResults.length > 0 && <div className="absolute left-0 right-0 top-11 z-10 divide-y divide-border rounded-xl border border-border bg-card shadow-lg">{memberResults.map(profile => <button type="button" key={profile.user_id} onClick={() => void handleAdd(profile)} className="flex w-full items-center gap-2 p-2 text-left hover:bg-muted"><Avatar profile={profile} size="w-8 h-8" /><span className="min-w-0 flex-1 truncate text-sm">{profile.username}</span><UserPlus className="h-4 w-4 text-primary" /></button>)}</div>}</div>}{members.map(member => <div key={member.user_id} className="flex items-center gap-2 py-2"><Avatar profile={member.profile} /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{member.profile?.username || 'Member'}</p><p className="flex items-center gap-1 text-xs text-muted-foreground">{member.role === 'owner' ? <><Crown className="h-3 w-3" />Owner</> : member.role === 'admin' ? <><Shield className="h-3 w-3" />Admin</> : 'Member'}</p></div>{canManage && member.user_id !== user?.id && member.role !== 'owner' && <button type="button" onClick={() => void removeGroupMember(group.id, member.user_id).then(load).catch(error => toast.error(error.message))} className="rounded p-2 text-destructive hover:bg-destructive/10" aria-label="Remove member">×</button>}</div>)}</div><div className="space-y-2 border-t border-border pt-4"><button type="button" onClick={() => void handleLeave()} className="w-full rounded-lg px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10">Leave group</button><p className="text-xs text-muted-foreground">Created {new Date(group.created_at).toLocaleDateString()}</p></div></aside></div>}
+        {/* REPLY PREVIEW BAR */}
+        {replyTo && (
+          <div className="z-20 flex items-center justify-between border-t border-border bg-muted/60 px-3 py-2 text-xs">
+            <div className="min-w-0 flex-1 truncate pr-2">
+              <span className="font-semibold text-primary">
+                Replying to @{profileMap.get(replyTo.sender_id)?.username || 'Member'}:{' '}
+              </span>
+              <span className="text-muted-foreground truncate">{replyTo.content}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              className="rounded p-1 hover:bg-muted text-muted-foreground"
+              aria-label="Cancel reply"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* BOTTOM MESSAGE INPUT BAR (Messenger Style with Quick Emoji) */}
+        <form
+          onSubmit={handleSend}
+          className="z-20 flex shrink-0 items-center gap-2 border-t border-border bg-card/95 px-3 py-2 backdrop-blur"
+        >
+          <label
+            className="cursor-pointer rounded-full p-2 hover:bg-muted text-sky-500 hover:text-sky-600 transition-colors"
+            title="Attach file"
+          >
+            <Paperclip className="h-5 w-5" />
+            <input type="file" className="hidden" onChange={handleFile} disabled={uploading || sending} />
+          </label>
+
+          <div className="relative flex-1">
+            <Input
+              value={content}
+              onChange={event => handleContentChange(event.target.value)}
+              placeholder="Type a message..."
+              maxLength={2000}
+              className="h-10 rounded-full bg-muted/60 border-none px-4 text-sm focus-visible:ring-1 focus-visible:ring-primary"
+            />
+          </div>
+
+          {content.trim() || uploading ? (
+            <Button
+              type="submit"
+              size="icon"
+              className="h-10 w-10 rounded-full shrink-0 bg-sky-500 hover:bg-sky-600 text-white shadow-sm"
+              disabled={(!content.trim() && !uploading) || sending || uploading}
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleQuickSendEmoji(groupEmoji)}
+              className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted active:scale-125 transition-transform text-2xl select-none"
+              title={`Send ${groupEmoji}`}
+            >
+              {groupEmoji}
+            </button>
+          )}
+        </form>
+
+        {/* 5. MESSENGER GROUP SETTINGS MODAL / PAGE (Exact Replica of Video 00:09) */}
+        <MessengerGroupSettings
+          isOpen={showInfo}
+          onClose={() => setShowInfo(false)}
+          group={group}
+          members={members}
+          currentMember={currentMember}
+          pinnedMessages={pinnedMessages}
+          mediaItems={mediaItems}
+          permissions={permissions}
+          onStartCall={kind => void callPanelRef.current?.startCall(kind)}
+          onUpdateGroup={async updates => {
+            if (!groupId) return;
+            await updateGroup(groupId, updates);
+            setGroup(curr => (curr ? { ...curr, ...updates } : curr));
+          }}
+          onAvatarUpload={async file => {
+            if (!groupId) return;
+            const url = await uploadGroupAvatar(groupId, file);
+            setGroup(curr => (curr ? { ...curr, avatar_url: url } : curr));
+            toast.success('Group photo updated');
+          }}
+          onAddMember={handleAdd}
+          onRemoveMember={async userId => {
+            if (!groupId) return;
+            await removeGroupMember(groupId, userId);
+            await load();
+            toast.success('Member removed');
+          }}
+          onPermissionChange={handlePermissionChange}
+          onUnpinMessage={async messageId => {
+            await unpinGroupMessage(messageId);
+            await load();
+            toast.success('Message unpinned');
+          }}
+          onLeaveGroup={async () => {
+            if (!groupId) return;
+            await leaveGroup(groupId);
+            navigate('/chat');
+          }}
+          onCopyInvite={copyInvite}
+          onJumpToMessage={id => {
+            document.getElementById('group-message-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
+          onStartSearch={() => {
+            setShowMessageSearch(true);
+          }}
+          groupTheme={groupTheme}
+          onThemeChange={key => {
+            setGroupTheme(key);
+            if (groupId) localStorage.setItem(`group_theme_${groupId}`, key);
+            toast.success('Theme updated');
+          }}
+          groupEmoji={groupEmoji}
+          onEmojiChange={emoji => {
+            setGroupEmoji(emoji);
+            if (groupId) localStorage.setItem(`group_emoji_${groupId}`, emoji);
+            toast.success(`Quick reaction set to ${emoji}`);
+          }}
+          nicknames={nicknames}
+          onNicknameChange={(userId, nick) => {
+            setNicknames(prev => {
+              const updated = { ...prev, [userId]: nick };
+              if (groupId) localStorage.setItem(`group_nicknames_${groupId}`, JSON.stringify(updated));
+              return updated;
+            });
+            toast.success('Nickname updated');
+          }}
+          memberQuery={memberQuery}
+          setMemberQuery={setMemberQuery}
+          memberResults={memberResults}
+        />
       </div>
     </MobileLayout>
   );
