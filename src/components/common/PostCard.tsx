@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, BadgeCheck } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, BadgeCheck, Music2, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { likePost, unlikePost, savePost, unsavePost } from '@/services/api';
 import { createNotification } from '@/services/api';
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import CommentsSheet from '@/components/common/CommentsSheet';
 import { SmartImage } from '@/components/common/SmartMedia';
+import InstagramShareSheet from '@/components/common/InstagramShareSheet';
 
 interface PostCardProps {
   post: Post;
@@ -23,8 +24,26 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
   const [showComments, setShowComments] = useState(false);
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
   const [showMenu, setShowMenu] = useState(false);
+  const [showShareSheet, setShowShareSheet] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const isOwner = user?.id === post.user_id;
+
+  const toggleAudio = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlayingAudio) {
+      audio.pause();
+      setIsPlayingAudio(false);
+    } else {
+      if (post.music_start_ms) {
+        audio.currentTime = post.music_start_ms / 1000;
+      }
+      audio.play().then(() => setIsPlayingAudio(true)).catch(() => {});
+    }
+  };
 
   const handleLike = async () => {
     if (!user) return;
@@ -56,8 +75,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
   };
 
   const handleShare = () => {
-    navigator.clipboard.writeText(window.location.origin + `/post/${post.id}`);
-    toast.success('Link copied!');
+    setShowShareSheet(true);
   };
 
   const handleDelete = async () => {
@@ -68,6 +86,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
   const authorProfile = post.profile;
   const avatarUrl = authorProfile?.avatar_url;
   const username = authorProfile?.username || 'user';
+  const hasMusic = Boolean(post.music_title || post.music_preview_url);
 
   return (
     <article className="bg-card border-b border-border">
@@ -87,9 +106,22 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
             <span className="font-semibold text-sm text-foreground truncate">{username}</span>
             {authorProfile?.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
           </Link>
-          <p className="text-xs text-muted-foreground">
-            {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </p>
+            {hasMusic && (
+              <button
+                type="button"
+                onClick={toggleAudio}
+                className="flex items-center gap-1 text-[11px] text-foreground font-medium truncate max-w-[170px] hover:text-primary transition-colors"
+                title="Play/Pause song"
+              >
+                <Music2 className={cn("w-3 h-3 text-primary shrink-0", isPlayingAudio && "animate-spin")} />
+                <span className="truncate">{post.music_title || 'Original audio'}</span>
+              </button>
+            )}
+          </div>
         </div>
         {(isOwner || myProfile?.is_admin) && (
           <div className="relative">
@@ -114,8 +146,38 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
       </div>
 
       {/* Post image */}
-      <div className="aspect-square w-full bg-muted overflow-hidden">
+      <div className="aspect-square w-full bg-muted overflow-hidden relative">
         <SmartImage src={post.image_url} alt={post.caption || 'Post'} />
+
+        {/* Audio control floating pill on image if post has music */}
+        {post.music_preview_url && (
+          <>
+            <audio
+              ref={audioRef}
+              src={post.music_preview_url}
+              onEnded={() => setIsPlayingAudio(false)}
+              onPause={() => setIsPlayingAudio(false)}
+              onPlay={() => setIsPlayingAudio(true)}
+              preload="none"
+            />
+            <button
+              onClick={toggleAudio}
+              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white shadow-lg active:scale-95 transition-all text-xs font-semibold"
+            >
+              {isPlayingAudio ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                  <span>Pause</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-3.5 h-3.5" />
+                  <span>Audio</span>
+                </>
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Post actions */}
@@ -175,6 +237,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
           onCountChange={setCommentsCount}
         />
       )}
+
+      {/* Share sheet */}
+      <InstagramShareSheet
+        open={showShareSheet}
+        onClose={() => setShowShareSheet(false)}
+        url={`${window.location.origin}/post/${post.id}`}
+        title={`Post by @${username} on AR Pixelgram`}
+        mediaType="post"
+        thumbnailUrl={post.image_url}
+      />
     </article>
   );
 };

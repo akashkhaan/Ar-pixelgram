@@ -9,6 +9,7 @@ import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import ReelCommentsSheet from '@/components/common/ReelCommentsSheet';
+import InstagramShareSheet from '@/components/common/InstagramShareSheet';
 import BottomNav from '@/components/layouts/BottomNav';
 import { retryMediaOnError, isLegacyMediaUrl } from '@/lib/mediaUrl';
 
@@ -35,6 +36,7 @@ const ReelCard: React.FC<{
   const [likesCount, setLikesCount] = useState(reel.likes_count || 0);
   const [commentsCount, setCommentsCount] = useState(reel.comments_count || 0);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const isOwner = user?.id === reel.user_id;
   const [followStatus, setFollowStatus] = useState<'accepted' | 'pending' | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
@@ -172,16 +174,8 @@ const ReelCard: React.FC<{
     }
   };
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/reels?r=${reel.id}`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'AR Pixelgram Reel', url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success('Link copied!');
-      }
-    } catch { /* user cancelled */ }
+  const handleShare = () => {
+    setShareSheetOpen(true);
   };
 
   const handleDelete = async () => {
@@ -298,23 +292,6 @@ const ReelCard: React.FC<{
 
       {/* Right side actions */}
       <div className="absolute right-4 bottom-36 flex flex-col items-center gap-5">
-        {/* Avatar */}
-        <button onClick={() => navigate(`/profile/${profile?.user_id}`)}>
-          <div className="relative">
-            <Avatar className="w-12 h-12 border-2 border-white">
-              <AvatarImage src={profile?.avatar_url ?? undefined} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm font-bold">
-                {profile?.username?.[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            {!isOwner && followStatus !== 'accepted' && (
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-primary flex items-center justify-center border-2 border-black">
-                <Plus className="w-3 h-3 text-white" />
-              </div>
-            )}
-          </div>
-        </button>
-
         {/* Like */}
         <button onClick={handleLike} className="flex flex-col items-center gap-1">
           <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${liked ? 'scale-110' : ''}`}>
@@ -417,6 +394,14 @@ const ReelCard: React.FC<{
         onClose={() => setCommentsOpen(false)}
         onCountChange={setCommentsCount}
       />
+      <InstagramShareSheet
+        open={shareSheetOpen}
+        onClose={() => setShareSheetOpen(false)}
+        url={`${window.location.origin}/reels?r=${reel.id}`}
+        title={`Reel by @${profile?.username || 'user'} on AR Pixelgram`}
+        mediaType="reel"
+        thumbnailUrl={reel.thumbnail_url || undefined}
+      />
     </div>
   );
 };
@@ -434,6 +419,47 @@ const ReelsPage: React.FC = () => {
   const reelsCountRef = useRef(0);
   const [navHidden, setNavHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const touchStartTimeRef = useRef(0);
+  const isSnappingRef = useRef(false);
+  const lastWheelTimeRef = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartYRef.current = e.touches[0].clientY;
+    touchStartTimeRef.current = Date.now();
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const el = containerRef.current;
+    if (!el || isSnappingRef.current) return;
+    const deltaY = touchStartYRef.current - e.changedTouches[0].clientY;
+    const deltaTime = Math.max(1, Date.now() - touchStartTimeRef.current);
+    const velocity = Math.abs(deltaY) / deltaTime;
+
+    // Fast flick (Instagram feel: slight drag or flick immediately flips reel)
+    if (Math.abs(deltaY) > 35 || velocity > 0.35) {
+      const direction = deltaY > 0 ? 1 : -1;
+      const targetIdx = Math.max(0, Math.min(reelsCountRef.current - 1, activeIndex + direction));
+      if (targetIdx !== activeIndex) {
+        isSnappingRef.current = true;
+        el.scrollTo({ top: targetIdx * el.clientHeight, behavior: 'smooth' });
+        setTimeout(() => { isSnappingRef.current = false; }, 320);
+      }
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    const now = Date.now();
+    if (now - lastWheelTimeRef.current < 350) return;
+    if (Math.abs(e.deltaY) > 25) {
+      const el = containerRef.current;
+      if (!el) return;
+      lastWheelTimeRef.current = now;
+      const direction = e.deltaY > 0 ? 1 : -1;
+      const targetIdx = Math.max(0, Math.min(reelsCountRef.current - 1, activeIndex + direction));
+      el.scrollTo({ top: targetIdx * el.clientHeight, behavior: 'smooth' });
+    }
+  };
 
   const loadReels = useCallback(async () => {
     try {
@@ -542,8 +568,11 @@ const ReelsPage: React.FC = () => {
       <div
         ref={containerRef}
         onScroll={handleScroll}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel}
         className="h-full w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar overscroll-y-contain"
-        style={{ scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch' }}
+        style={{ scrollSnapType: 'y mandatory', WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}
       >
         {reels.map((reel, idx) => {
           const isActive = idx === activeIndex;
@@ -551,8 +580,8 @@ const ReelsPage: React.FC = () => {
           return (
             <div
               key={reel.id}
-              className="relative w-full snap-start snap-always"
-              style={{ height: '100dvh', scrollSnapAlign: 'start', scrollSnapStop: 'always' }}
+              className="relative w-full snap-start"
+              style={{ height: '100dvh', scrollSnapAlign: 'start' }}
             >
               <ReelCard
                 reel={reel}

@@ -1,4 +1,4 @@
-export type UploadKind = 'story' | 'reel';
+export type UploadKind = 'story' | 'reel' | 'post';
 export type UploadStatus = 'uploading' | 'complete' | 'error';
 
 export interface UploadJob {
@@ -8,6 +8,7 @@ export interface UploadJob {
   progress: number;
   status: UploadStatus;
   error?: string;
+  thumbnailUrl?: string;
 }
 
 type Listener = (jobs: UploadJob[]) => void;
@@ -72,9 +73,9 @@ export function requestUploadNotifications() {
   }
 }
 
-export function startUpload(kind: UploadKind, label: string): string {
+export function startUpload(kind: UploadKind, label: string, thumbnailUrl?: string): string {
   const id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const job: UploadJob = { id, kind, label, progress: 0, status: 'uploading' };
+  const job: UploadJob = { id, kind, label, progress: 0, status: 'uploading', thumbnailUrl };
   jobs.set(id, job);
   requestUploadNotifications();
   emit();

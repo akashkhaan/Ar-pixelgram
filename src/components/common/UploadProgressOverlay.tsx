@@ -22,13 +22,28 @@ const UploadProgressOverlay: React.FC = () => {
           role="status"
           aria-live="polite"
         >
-          <div className="flex items-center gap-2">
-            {job.status === 'complete' ? (
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
-            ) : job.status === 'error' ? (
-              <XCircle className="h-5 w-5 shrink-0 text-destructive" />
+          <div className="flex items-center gap-2.5">
+            {job.thumbnailUrl ? (
+              <div className="relative shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-border/80 bg-muted">
+                <img src={job.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                  {job.status === 'complete' ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 drop-shadow" />
+                  ) : job.status === 'error' ? (
+                    <XCircle className="h-4 w-4 text-destructive drop-shadow" />
+                  ) : (
+                    <UploadCloud className="h-4 w-4 text-white drop-shadow" />
+                  )}
+                </div>
+              </div>
             ) : (
-              <UploadCloud className="h-5 w-5 shrink-0 text-primary" />
+              job.status === 'complete' ? (
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+              ) : job.status === 'error' ? (
+                <XCircle className="h-5 w-5 shrink-0 text-destructive" />
+              ) : (
+                <UploadCloud className="h-5 w-5 shrink-0 text-primary" />
+              )
             )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-foreground">{job.label}</p>

@@ -27,6 +27,13 @@ export interface Post {
   comments_count?: number;
   is_liked?: boolean;
   is_saved?: boolean;
+  music_track_id?: string | null;
+  music_title?: string | null;
+  music_artist?: string | null;
+  music_artwork_url?: string | null;
+  music_preview_url?: string | null;
+  music_start_ms?: number | null;
+  music_duration_ms?: number | null;
 }
 
 export interface Story {

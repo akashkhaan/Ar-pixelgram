@@ -335,14 +335,6 @@ const StoriesPage: React.FC = () => {
           })}
         </div>
 
-        {groupKeys.length === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center py-8 text-center px-6">
-            <span className="text-4xl mb-2">📖</span>
-            <h3 className="font-semibold text-foreground mb-1">{t('noStoriesYet')}</h3>
-            <p className="text-sm text-muted-foreground text-pretty">Follow people or add your own story!</p>
-          </div>
-        )}
-
         {/* Posts feed — below the stories row */}
         <div className="border-t border-border pt-2 pb-24">
           {postsLoading ? (

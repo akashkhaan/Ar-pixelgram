@@ -60,12 +60,38 @@ export async function getAllProfiles(page = 0, pageSize = 20): Promise<Profile[]
 }
 
 // ===================== POSTS =====================
-export async function createPost(imageUrl: string, caption: string | null): Promise<void> {
-  const { data } = await supabase
+export async function createPost(
+  imageUrl: string,
+  caption: string | null,
+  music?: ReelMusic | null,
+): Promise<void> {
+  const row: Record<string, any> = { image_url: imageUrl, caption };
+  if (music) {
+    row.music_track_id = music.track_id;
+    row.music_title = music.title;
+    row.music_artist = music.artist;
+    row.music_artwork_url = music.artwork_url || null;
+    row.music_preview_url = music.preview_url;
+    row.music_start_ms = music.start_ms || 0;
+    row.music_duration_ms = music.duration_ms || null;
+  }
+  let { data, error } = await supabase
     .from('posts')
-    .insert({ image_url: imageUrl, caption })
+    .insert(row)
     .select('id, user_id')
     .maybeSingle();
+
+  if (error && music) {
+    console.warn('Retrying createPost without music columns:', error);
+    const retry = await supabase
+      .from('posts')
+      .insert({ image_url: imageUrl, caption })
+      .select('id, user_id')
+      .maybeSingle();
+    data = retry.data;
+    error = retry.error;
+  }
+  if (error) throw error;
   if (data?.user_id) void notifyFollowersOfNewContent(data.user_id, 'new_post', data.id, caption);
 }
 

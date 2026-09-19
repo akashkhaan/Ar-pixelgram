@@ -14,7 +14,7 @@ import type { Profile, Post } from '@/types/types';
 import type { Reel } from '@/services/api';
 import { getUserVideos, formatVideoViews, formatDuration, type AppVideo } from '@/services/videos';
 import { Button } from '@/components/ui/button';
-import { Settings, BadgeCheck, Grid3X3, Lock, Loader2, Film, Camera, Flag, Play, Heart, MessageCircle, X, Video as VideoIcon } from 'lucide-react';
+import { Settings, BadgeCheck, Grid3X3, Lock, Loader2, Film, Camera, Flag, Play, Heart, MessageCircle, X, Video as VideoIcon, ArrowLeft, Share2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import PostCard from '@/components/common/PostCard';
@@ -263,9 +263,57 @@ const ProfilePage: React.FC = () => {
   }
 
   return (
-    <MobileLayout hideHeader hideNav>
+    <MobileLayout hideHeader>
       <PullToRefresh onRefresh={load}>
-      <div className="page-transition">
+      <div className="page-transition pb-20">
+        {/* Profile Top Bar with Back Button */}
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/50 px-3 h-12 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-1.5 min-w-0">
+            {profile.is_private && <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+            <span className="font-bold text-sm text-foreground truncate max-w-[200px]">
+              {profile.username}
+            </span>
+            {profile.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
+          </div>
+
+          <div className="flex items-center gap-1">
+            {isOwnProfile ? (
+              <Link
+                to="/settings"
+                className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
+                aria-label="Settings"
+              >
+                <Settings className="w-5 h-5" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.share) {
+                    navigator.share({ title: `@${profile.username} on AR Pixelgram`, url: window.location.href });
+                  } else {
+                    navigator.clipboard.writeText(window.location.href);
+                    toast.success('Profile link copied!');
+                  }
+                }}
+                className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
+                aria-label="Share profile"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Suspended/Locked banner for other users' profiles */}
         {isSuspended && (
           <div className="mx-4 mt-3 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40">
@@ -466,14 +514,14 @@ const ProfilePage: React.FC = () => {
                 <p className="text-sm text-muted-foreground">{t('noPostsYet')}</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-0.5">
+              <div className="grid grid-cols-3 gap-[1px] bg-border">
                 {posts.map(post => (
                   <button
                     key={post.id}
                     onClick={() => setOpenPost(post)}
-                    className="aspect-square bg-muted overflow-hidden group relative text-left"
+                    className="aspect-square w-full bg-background overflow-hidden group relative text-left"
                   >
-                    <SmartImage src={post.image_url} compact className="transition-transform group-hover:scale-105" />
+                    <SmartImage src={post.image_url} compact className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100">
                       <span className="flex items-center gap-1 text-white text-sm font-semibold">
                         <Heart className="w-4 h-4 fill-white" />{post.likes_count || 0}
@@ -528,9 +576,9 @@ const ProfilePage: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-0.5">
+              <div className="grid grid-cols-3 gap-[1px] bg-border">
                 {reels.map(reel => (
-                  <div key={reel.id} className="aspect-[9/16] max-h-40 bg-black overflow-hidden group relative cursor-pointer"
+                  <div key={reel.id} className="aspect-[9/16] w-full bg-black overflow-hidden group relative cursor-pointer"
                     onClick={() => navigate(`/reels?r=${reel.id}`)}>
                     {reel.thumbnail_url ? (
                       <SmartImage src={reel.thumbnail_url} compact className="transition-transform group-hover:scale-105" />
