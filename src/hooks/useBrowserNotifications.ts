@@ -19,6 +19,9 @@ const titleFor = (n: Notification, actorName?: string): string => {
     case 'follow_request': return `${who} sent a follow request`;
     case 'follow_accepted': return `${who} accepted your follow request`;
     case 'message':      return `New message from ${who}`;
+    case 'group_mention':return `${who} mentioned you in a group 🏷️`;
+    case 'group_call':   return `📞 Group call from ${who}`;
+    case 'group_message':return `New group message from ${who} 👥`;
     case 'broadcast':    return 'AR Pixelgram';
     default:             return 'AR Pixelgram';
   }

@@ -138,7 +138,7 @@ export const CallOverlay: React.FC = () => {
             <img
               src={call.peerProfile.avatar_url}
               alt=""
-              className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl brightness-[0.55]"
+              className="absolute inset-0 w-full h-full object-cover brightness-[0.65]"
             />
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black" />
@@ -254,7 +254,7 @@ export const IncomingCallModal: React.FC = () => {
           <img
             src={call.peerProfile.avatar_url}
             alt=""
-            className="absolute inset-0 w-full h-full object-cover scale-110 blur-xl brightness-[0.55]"
+            className="absolute inset-0 w-full h-full object-cover brightness-[0.65]"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black" />

@@ -54,16 +54,37 @@ export function notifyPhone(options: NotifyPhoneOptions) {
     return;
   }
 
-  // 3. Web Notification API (Browser / PWA)
+  // 3. Web Notification API (Browser / PWA / Android Chrome)
   if (typeof window !== 'undefined' && 'Notification' in window) {
     if (Notification.permission === 'granted') {
-      try {
-        new Notification(title, {
-          body,
-          tag,
-          icon: '/images/logo/logo-icon.svg',
-        });
-      } catch { /* noop */ }
+      const showViaServiceWorker = () => {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready
+            .then(reg => {
+              reg.showNotification(title, {
+                body,
+                tag,
+                icon: '/images/logo/logo-icon.svg',
+                badge: '/images/logo/logo-icon.svg',
+                data: { url: url || '/' },
+                vibrate: isCall ? [500, 250, 500, 250, 500] : [200, 100, 200],
+              } as NotificationOptions);
+            })
+            .catch(() => {
+              try {
+                new Notification(title, { body, tag, icon: '/images/logo/logo-icon.svg' });
+              } catch { /* noop */ }
+            });
+          return true;
+        }
+        return false;
+      };
+
+      if (!showViaServiceWorker()) {
+        try {
+          new Notification(title, { body, tag, icon: '/images/logo/logo-icon.svg' });
+        } catch { /* noop */ }
+      }
     } else if (Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
@@ -76,5 +97,14 @@ export function dismissPhoneNotification(tag: string) {
     try {
       android.dismissNotification(tag);
     } catch { /* noop */ }
+  }
+
+  // Also close web notification if service worker has it
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(reg => {
+      reg.getNotifications({ tag }).then(notifications => {
+        notifications.forEach(n => n.close());
+      }).catch(() => {});
+    }).catch(() => {});
   }
 }

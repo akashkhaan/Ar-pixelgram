@@ -3,6 +3,8 @@ import { Camera, CameraOff, Mic, MicOff, Monitor, Phone, PhoneOff, Users, Video,
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { createGroupCall, endGroupCall, joinGroupCall, leaveGroupCall } from '@/services/groups';
+import { createNotification } from '@/services/api';
+import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
 import type { GroupMember } from '@/types/groups';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -10,7 +12,7 @@ import { toast } from 'sonner';
 export type CallKind = 'audio' | 'video';
 
 type Signal = {
-  type: 'invite' | 'join' | 'offer' | 'answer' | 'ice' | 'leave';
+  type: 'invite' | 'join' | 'offer' | 'answer' | 'ice' | 'leave' | 'mute';
   callId: string;
   from: string;
   to?: string;
@@ -19,11 +21,13 @@ type Signal = {
   offer?: RTCSessionDescriptionInit;
   answer?: RTCSessionDescriptionInit;
   candidate?: RTCIceCandidateInit;
+  isMuted?: boolean;
 };
 
 export type GroupCallPanelProps = {
   groupId: string;
   groupName?: string;
+  groupAvatarUrl?: string | null;
   members: GroupMember[];
 };
 
@@ -47,12 +51,13 @@ const ParticipantTile: React.FC<{
   stream: MediaStream | null;
   label: string;
   avatarUrl?: string | null;
-  muted?: boolean;
+  videoMuted?: boolean;
+  isMicMuted?: boolean;
   showVideo: boolean;
   speakerOn: boolean;
   index: number;
   local?: boolean;
-}> = ({ stream, label, avatarUrl, muted, showVideo, speakerOn, index, local }) => {
+}> = ({ stream, label, avatarUrl, videoMuted, isMicMuted, showVideo, speakerOn, index, local }) => {
   const ref = useRef<HTMLVideoElement>(null);
   const hasVideo = Boolean(stream && showVideo);
 
@@ -66,12 +71,12 @@ const ParticipantTile: React.FC<{
     <div className="relative flex min-h-[240px] flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl bg-neutral-900 shadow-xl border border-white/10">
       {hasVideo ? (
         <>
-          <video ref={ref} autoPlay playsInline muted={muted} className="h-full min-h-[240px] w-full object-cover" />
+          <video ref={ref} autoPlay playsInline muted={videoMuted} className="h-full min-h-[240px] w-full object-cover" />
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/85 via-black/40 to-transparent px-4 pb-3.5 pt-8 text-white">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-semibold drop-shadow">{local ? 'You' : label}</span>
-              {muted && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow">
+              {isMicMuted && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow animate-in fade-in zoom-in-75">
                   <MicOff className="h-3 w-3" />
                 </span>
               )}
@@ -83,15 +88,15 @@ const ParticipantTile: React.FC<{
         </>
       ) : (
         <>
-          {/* Messenger-style DP Background */}
+          {/* Messenger-style DP Background - CLEAR (NO BLUR) */}
           {avatarUrl ? (
             <div className="absolute inset-0 overflow-hidden">
               <img
                 src={avatarUrl}
                 alt=""
-                className="h-full w-full object-cover scale-110 blur-xl brightness-[0.50] select-none"
+                className="h-full w-full object-cover brightness-[0.60] select-none"
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/10 to-black/80" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/15 to-black/80" />
             </div>
           ) : (
             <div className={'absolute inset-0 bg-gradient-to-br ' + TILE_COLORS[index % TILE_COLORS.length]} />
@@ -107,8 +112,8 @@ const ParticipantTile: React.FC<{
                   initials(label)
                 )}
               </div>
-              {muted && (
-                <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white shadow-lg ring-2 ring-black/70">
+              {isMicMuted && (
+                <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white shadow-lg ring-2 ring-black/70 animate-in fade-in zoom-in-75">
                   <MicOff className="h-4 w-4" />
                 </span>
               )}
@@ -162,7 +167,7 @@ const RoundCallButton: React.FC<{
 };
 
 export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelProps>(
-  ({ groupId, groupName, members }, ref) => {
+  ({ groupId, groupName, groupAvatarUrl, members }, ref) => {
     const { user, profile } = useAuth();
     const channelRef = useRef<any>(null);
     const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -181,6 +186,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
     const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
     const [remoteLabels, setRemoteLabels] = useState<Map<string, string>>(new Map());
     const [remoteAvatars, setRemoteAvatars] = useState<Map<string, string | null>>(new Map());
+    const [remoteMuted, setRemoteMuted] = useState<Map<string, boolean>>(new Map());
     const [muted, setMuted] = useState(false);
     const [cameraOff, setCameraOff] = useState(false);
     const [speakerOn, setSpeakerOn] = useState(true);
@@ -214,6 +220,11 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         return next;
       });
       setRemoteAvatars(current => {
+        const next = new Map(current);
+        next.delete(peerId);
+        return next;
+      });
+      setRemoteMuted(current => {
         const next = new Map(current);
         next.delete(peerId);
         return next;
@@ -287,6 +298,10 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
           if (pc) await pc.addIceCandidate(signal.candidate);
           return;
         }
+        if (signal.type === 'mute' && signal.from) {
+          setRemoteMuted(current => new Map(current).set(signal.from, !!signal.isMuted));
+          return;
+        }
         if (signal.type === 'leave') closePeer(signal.from);
       },
       [active, closePeer, createPeer, incoming, kind, send, user],
@@ -307,6 +322,40 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         channelRef.current = null;
       };
     }, [groupId, handleSignal]);
+
+    
+    // Push notifications for incoming and ongoing group calls
+    useEffect(() => {
+      if (!active) {
+        dismissPhoneNotification(`group_call_${groupId}`);
+        return;
+      }
+      notifyPhone({
+        title: `${groupName || 'Group'} · Audio Call 📞`,
+        body: `Group call active · Tap to return`,
+        tag: `group_call_${groupId}`,
+        isCall: true,
+        isOngoing: true,
+        url: `/chat/group/${groupId}`,
+      });
+      return () => {
+        dismissPhoneNotification(`group_call_${groupId}`);
+      };
+    }, [active, groupId, groupName]);
+
+    useEffect(() => {
+      if (!incoming) return;
+      const caller = memberFor(incoming.from);
+      const callerName = caller?.username || caller?.full_name || 'Someone';
+      notifyPhone({
+        title: `Incoming Group Call 📞`,
+        body: `${groupName || 'Group'} — ${callerName} started a call`,
+        tag: `group_call_${groupId}`,
+        isCall: true,
+        isOngoing: false,
+        url: `/chat/group/${groupId}`,
+      });
+    }, [incoming, groupId, groupName, memberFor]);
 
     useEffect(() => {
       if (!active || !startedAt) return;
@@ -341,6 +390,19 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         setStartedAt(callStarted);
         setActive(true);
         send({ type: 'invite', callId: id, from: user.id, kind: requestedKind, startedAt: callStarted });
+        const otherMemberIds = members.map(m => m.user_id).filter(uid => uid && uid !== user.id);
+        void Promise.allSettled(
+          otherMemberIds.map(uid =>
+            createNotification(
+              uid,
+              'group_call',
+              user.id,
+              undefined,
+              undefined,
+              `📞 Group ${requestedKind} call started in ${groupName || 'Group'}`,
+            ),
+          ),
+        );
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Call start nahi hui');
       }
@@ -458,6 +520,14 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         track.enabled = !next;
       });
       setMuted(next);
+      if (activeCallRef.current && user) {
+        send({
+          type: 'mute',
+          callId: activeCallRef.current,
+          from: user.id,
+          isMuted: next,
+        });
+      }
     };
 
     const toggleCamera = () => {
@@ -530,6 +600,13 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
           >
             <X className="h-5 w-5" />
           </button>
+          {groupAvatarUrl ? (
+            <img src={groupAvatarUrl} alt={groupName || 'Group'} className="h-10 w-10 rounded-full object-cover ring-2 ring-white/20 shrink-0" />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white font-bold ring-2 ring-white/20 shrink-0">
+              {initials(groupName || 'G')}
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-semibold leading-tight">{groupName || 'Group call'}</p>
             <p className="flex items-center gap-1.5 text-xs text-white/60 mt-0.5">
@@ -547,25 +624,32 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
           <div className="grid h-full auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2">
             <ParticipantTile
               stream={localPreview}
-              muted
+              videoMuted={true}
+              isMicMuted={muted}
               label={localLabel}
-              avatarUrl={profile?.avatar_url}
+              avatarUrl={profile?.avatar_url || groupAvatarUrl}
               showVideo={kind === 'video' && !cameraOff}
               speakerOn={speakerOn}
               index={0}
               local
             />
-            {Array.from(remoteStreams.entries()).map(([peerId, stream], index) => (
-              <ParticipantTile
-                key={peerId}
-                stream={stream}
-                label={remoteLabels.get(peerId) || 'Participant'}
-                avatarUrl={remoteAvatars.get(peerId)}
-                showVideo={kind === 'video'}
-                speakerOn={speakerOn}
-                index={index + 1}
-              />
-            ))}
+            {Array.from(remoteStreams.entries()).map(([peerId, stream], index) => {
+              const peerAvatar = remoteAvatars.get(peerId) || memberFor(peerId)?.avatar_url;
+              const peerName = remoteLabels.get(peerId) || memberFor(peerId)?.username || memberFor(peerId)?.full_name || 'Participant';
+              return (
+                <ParticipantTile
+                  key={peerId}
+                  stream={stream}
+                  label={peerName}
+                  avatarUrl={peerAvatar}
+                  showVideo={kind === 'video'}
+                  speakerOn={speakerOn}
+                  videoMuted={!speakerOn}
+                  isMicMuted={remoteMuted.get(peerId) || false}
+                  index={index + 1}
+                />
+              );
+            })}
           </div>
         </main>
 

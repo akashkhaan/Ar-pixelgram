@@ -256,7 +256,7 @@ const GroupChatPage: React.FC = () => {
           <button type="button" onClick={() => void callPanelRef.current?.startCall('video')} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Video call" title="Start video call"><Video className="h-5 w-5" /></button>
           <button type="button" onClick={openInfo} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Group settings" title="Group settings"><Settings className="h-5 w-5" /></button>
         </header>
-        <GroupCallPanel ref={callPanelRef} groupId={group.id} groupName={group.name} members={members} />
+        <GroupCallPanel ref={callPanelRef} groupId={group.id} groupName={group.name} groupAvatarUrl={group.avatar_url} members={members} />
 
         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
           <div className="mx-auto max-w-sm rounded-xl bg-primary/8 px-3 py-2 text-center text-xs text-muted-foreground">Messages in this group are visible only to its members.</div>
