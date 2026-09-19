@@ -248,6 +248,22 @@ const GroupChatPage: React.FC = () => {
     }
   }, [location.search, group, location.pathname, location.state, navigate]);
 
+  const handleStartCall = useCallback(async (kind: 'audio' | 'video') => {
+    setShowInfo(false);
+    toast.loading(`Starting group ${kind} call...`, { id: 'starting-call-toast', duration: 3000 });
+    try {
+      if (callPanelRef.current) {
+        await callPanelRef.current.startCall(kind);
+        toast.dismiss('starting-call-toast');
+      } else {
+        toast.error('Call panel is connecting, please tap again in a moment.', { id: 'starting-call-toast' });
+      }
+    } catch (err: any) {
+      console.error('Call start failed:', err);
+      toast.error(err?.message || 'Call start nahi hui', { id: 'starting-call-toast' });
+    }
+  }, []);
+
   // Member search for adding
   useEffect(() => {
     const query = memberQuery.trim();
@@ -431,7 +447,7 @@ const GroupChatPage: React.FC = () => {
           {/* Call button 📞 */}
           <button
             type="button"
-            onClick={() => void callPanelRef.current?.startCall('audio')}
+            onClick={() => void handleStartCall('audio')}
             className={`rounded-full p-2 transition-all ${
               activeGroupCall?.kind === 'audio'
                 ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
@@ -446,7 +462,7 @@ const GroupChatPage: React.FC = () => {
           {/* Video button 📹 */}
           <button
             type="button"
-            onClick={() => void callPanelRef.current?.startCall('video')}
+            onClick={() => void handleStartCall('video')}
             className={`rounded-full p-2 transition-all ${
               activeGroupCall?.kind === 'video'
                 ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
@@ -520,7 +536,7 @@ const GroupChatPage: React.FC = () => {
             </div>
             <Button
               size="sm"
-              onClick={() => void callPanelRef.current?.startCall(activeGroupCall.kind)}
+              onClick={() => void handleStartCall(activeGroupCall.kind)}
               className="h-7.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 shadow-sm shadow-emerald-500/30 shrink-0"
             >
               Join
@@ -750,7 +766,7 @@ const GroupChatPage: React.FC = () => {
           pinnedMessages={pinnedMessages}
           mediaItems={mediaItems}
           permissions={permissions}
-          onStartCall={kind => void callPanelRef.current?.startCall(kind)}
+          onStartCall={handleStartCall}
           onUpdateGroup={async updates => {
             if (!groupId) return;
             await updateGroup(groupId, updates);

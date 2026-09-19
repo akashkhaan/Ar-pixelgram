@@ -1,23 +1,48 @@
 import { Capacitor } from '@capacitor/core';
 
-interface NotifyPhoneOptions {
+export interface NotifyPhoneAction {
+  action: string;
+  title: string;
+  icon?: string;
+}
+
+export interface NotifyPhoneOptions {
   title: string;
   body: string;
   tag?: string;
   url?: string;
+  icon?: string | null;
+  image?: string | null;
+  badge?: string | null;
   isCall?: boolean;
   isOngoing?: boolean;
   progress?: number;
+  actions?: NotifyPhoneAction[];
 }
 
 export function notifyPhone(options: NotifyPhoneOptions) {
-  const { title, body, tag = 'default', url, isCall, isOngoing, progress } = options;
+  const {
+    title,
+    body,
+    tag = 'default',
+    url,
+    icon,
+    image,
+    badge,
+    isCall,
+    isOngoing,
+    progress,
+    actions,
+  } = options;
+
+  const resolvedIcon = icon || '/images/logo/logo-icon.svg';
+  const resolvedBadge = badge || '/images/logo/logo-icon.svg';
 
   // 1. Direct Native Android Java Interface (Always active in our APK build)
   const android = (window as unknown as { AndroidNotification?: {
     isNativeApp?: () => boolean;
-    showNotification?: (t: string, b: string, tag: string, u: string) => void;
-    showCallNotification?: (t: string, b: string, tag: string, ongoing: boolean) => void;
+    showNotification?: (t: string, b: string, tag: string, u: string, icon?: string) => void;
+    showCallNotification?: (t: string, b: string, tag: string, ongoing: boolean, icon?: string) => void;
     showUploadNotification?: (p: number, t: string, b: string) => void;
     dismissNotification?: (tag: string) => void;
   } }).AndroidNotification;
@@ -29,10 +54,10 @@ export function notifyPhone(options: NotifyPhoneOptions) {
         return;
       }
       if (isCall) {
-        android.showCallNotification?.(title, body, tag, !!isOngoing);
+        android.showCallNotification?.(title, body, tag, !!isOngoing, resolvedIcon);
         return;
       }
-      android.showNotification?.(title, body, tag, url || '/');
+      android.showNotification?.(title, body, tag, url || '/', resolvedIcon);
       return;
     } catch (e) {
       console.warn('Native AndroidNotification failed', e);
@@ -48,6 +73,8 @@ export function notifyPhone(options: NotifyPhoneOptions) {
           title,
           body,
           extra: { url },
+          smallIcon: 'ic_stat_name',
+          largeIcon: resolvedIcon,
         }]
       }).catch(() => {});
     }).catch(() => {});
@@ -61,18 +88,32 @@ export function notifyPhone(options: NotifyPhoneOptions) {
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.ready
             .then(reg => {
-              reg.showNotification(title, {
+              const notifOpts: any = {
                 body,
                 tag,
-                icon: '/images/logo/logo-icon.svg',
-                badge: '/images/logo/logo-icon.svg',
-                data: { url: url || '/' },
-                vibrate: isCall ? [500, 250, 500, 250, 500] : [200, 100, 200],
-              } as NotificationOptions);
+                icon: resolvedIcon,
+                badge: resolvedBadge,
+                data: {
+                  url: url || '/',
+                  joinUrl: actions?.find(a => a.action === 'join_call' || a.action === 'receive_call') ? url : undefined,
+                },
+                vibrate: isCall ? [500, 250, 500, 250, 500, 250, 500] : [200, 100, 200],
+              };
+              if (image) {
+                notifOpts.image = image;
+              }
+              if (actions && actions.length > 0) {
+                notifOpts.actions = actions;
+              }
+              reg.showNotification(title, notifOpts);
             })
             .catch(() => {
               try {
-                new Notification(title, { body, tag, icon: '/images/logo/logo-icon.svg' });
+                new Notification(title, {
+                  body,
+                  tag,
+                  icon: resolvedIcon,
+                });
               } catch { /* noop */ }
             });
           return true;
@@ -82,7 +123,7 @@ export function notifyPhone(options: NotifyPhoneOptions) {
 
       if (!showViaServiceWorker()) {
         try {
-          new Notification(title, { body, tag, icon: '/images/logo/logo-icon.svg' });
+          new Notification(title, { body, tag, icon: resolvedIcon });
         } catch { /* noop */ }
       }
     } else if (Notification.permission === 'default') {
@@ -98,7 +139,6 @@ export function dismissPhoneNotification(tag: string) {
       android.dismissNotification(tag);
     } catch { /* noop */ }
   }
-
   // Also close web notification if service worker has it
   if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {

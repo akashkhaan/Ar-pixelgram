@@ -176,15 +176,31 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
 
         const { data: grp } = await supabase
           .from('groups')
-          .select('name')
+          .select('name, avatar_url')
           .eq('id', groupId)
           .maybeSingle();
+
+        const { data: senderProf } = await supabase
+          .from('profiles')
+          .select('username, full_name, avatar_url')
+          .eq('user_id', sender.id)
+          .maybeSingle();
+
         const groupTitle = grp?.name || 'Group';
-        const senderName = (sender.user_metadata?.username as string | undefined) || 'Member';
+        const groupAvatar = grp?.avatar_url || null;
+        const senderName = senderProf?.username || senderProf?.full_name || (sender.user_metadata?.username as string | undefined) || 'Member';
+        const senderAvatar = senderProf?.avatar_url || null;
         const snippet = cleanContent.length > 80 ? cleanContent.slice(0, 77) + '...' : cleanContent;
 
         for (const uid of otherMemberIds) {
           const isMention = mentionedIds.includes(uid);
+          const notifTitle = isMention
+            ? `🏷️ ${senderName} mentioned you in ${groupTitle}`
+            : `${groupTitle} · ${senderName} 💬`;
+          const notifBody = isMention
+            ? `@${senderName}: ${cleanContent}`
+            : snippet;
+
           void createNotification(
             uid,
             isMention ? 'group_mention' : 'group_message',
@@ -193,12 +209,14 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
             undefined,
             isMention ? `You were mentioned in ${groupTitle}` : `${senderName}: ${snippet}`,
           );
+
           void sendPushTo(
             uid,
-            isMention ? `🏷️ Mentioned in ${groupTitle}` : `${groupTitle} · ${senderName} 💬`,
-            isMention ? `@${senderName}: ${cleanContent}` : snippet,
+            notifTitle,
+            notifBody,
             `/group/${groupId}`,
             `group-msg-${message!.id}`,
+            groupAvatar || senderAvatar || '/images/logo/logo-icon.svg',
           );
         }
       } catch (err) {

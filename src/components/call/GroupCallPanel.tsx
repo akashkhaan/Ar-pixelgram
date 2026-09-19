@@ -26,7 +26,7 @@ import {
   leaveGroupCall,
   startOrJoinGroupCall,
 } from '@/services/groups';
-import { createNotification } from '@/services/api';
+import { createNotification, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
 import type { GroupMember } from '@/types/groups';
 import { Button } from '@/components/ui/button';
@@ -247,10 +247,18 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
     }, []);
 
     const waitForChannel = useCallback(async () => {
-      for (let attempt = 0; attempt < 30 && !channelReadyRef.current; attempt += 1) {
+      if (channelReadyRef.current) return;
+      for (let attempt = 0; attempt < 15 && !channelReadyRef.current; attempt += 1) {
         await new Promise(resolve => window.setTimeout(resolve, 100));
       }
-      if (!channelReadyRef.current) throw new Error('Call connection is still starting. Please try again.');
+      if (!channelReadyRef.current && channelRef.current) {
+        try {
+          await channelRef.current.subscribe();
+          channelReadyRef.current = true;
+        } catch {
+          // Proceed
+        }
+      }
     }, []);
 
     const closePeer = useCallback((peerId: string) => {
@@ -395,7 +403,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         tag: `group_call_${groupId}`,
         isCall: true,
         isOngoing: true,
-        url: `/chat/group/${groupId}`,
+        url: `/group/${groupId}`,
       });
       return () => {
         dismissPhoneNotification(`group_call_${groupId}`);
@@ -412,7 +420,7 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         tag: `group_call_${groupId}`,
         isCall: true,
         isOngoing: false,
-        url: `/chat/group/${groupId}`,
+        url: `/group/${groupId}`,
       });
     }, [incoming, groupId, groupName, memberFor]);
 
@@ -428,17 +436,36 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
       if (!navigator.mediaDevices?.getUserMedia) {
         throw new Error('Audio/video calls need HTTPS and microphone/camera permission');
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: requestedKind === 'video',
-      });
-      localStreamRef.current = stream;
-      setLocalStream(stream);
-      return stream;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: requestedKind === 'video',
+        });
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        return stream;
+      } catch (err) {
+        if (requestedKind === 'video') {
+          console.warn('Camera failed, falling back to audio only:', err);
+          toast.info('Camera unavailable, starting audio-only call');
+          const audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+          });
+          localStreamRef.current = audioStream;
+          setLocalStream(audioStream);
+          return audioStream;
+        }
+        throw err;
+      }
     };
 
     const start = async (requestedKind: CallKind) => {
-      if (!user || active) return;
+      if (!user) return;
+      if (active) {
+        setMinimized(false);
+        return;
+      }
       try {
         await waitForChannel();
         const callInfo = await startOrJoinGroupCall(groupId, requestedKind);
@@ -455,6 +482,9 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
         setStartedAt(callStarted);
         setActive(true);
         setMinimized(false);
+
+        const callerName = profile?.username || profile?.full_name || 'Someone';
+        const callerAvatar = profile?.avatar_url || null;
 
         if (callInfo.isNew) {
           send({ type: 'invite', callId: callInfo.id, from: user.id, kind: finalKind, startedAt: callStarted });
@@ -474,32 +504,43 @@ export const GroupCallPanel = forwardRef<GroupCallPanelHandle, GroupCallPanelPro
                     callId: callInfo.id,
                     kind: finalKind,
                     from: user.id,
-                    fromName: profile?.username || profile?.full_name || 'Someone',
+                    fromName: callerName,
+                    fromAvatar: callerAvatar,
                   },
                 });
-                setTimeout(() => memberCallChannel.unsubscribe(), 500);
+                setTimeout(() => memberCallChannel.unsubscribe(), 3000);
               } catch {
                 /* optional */
               }
+
+              void sendPushTo(
+                uid,
+                `📞 ${groupName || 'Group'} · Incoming ${finalKind === 'video' ? 'Video' : 'Audio'} Call`,
+                `${callerName} is calling the group · Tap to join`,
+                `/group/${groupId}?autoJoin=1&kind=${finalKind}`,
+                `group_call_${callInfo.id}`,
+                groupAvatarUrl || callerAvatar || '/images/logo/logo-icon.svg',
+              );
 
               return createNotification(
                 uid,
                 'group_call',
                 user.id,
+                groupId,
                 undefined,
-                undefined,
-                `📞 Group ${finalKind} call started in ${groupName || 'Group'}`,
+                `📞 Group ${finalKind} call started in ${groupName || 'Group'} by ${callerName}`,
               );
             }),
           );
         } else {
           send({ type: 'join', callId: callInfo.id, from: user.id, kind: finalKind });
         }
-      } catch (error) {
+      } catch (error: any) {
+        console.error('Call start error:', error);
         toast.error(error instanceof Error ? error.message : 'Call start nahi hui');
+        throw error;
       }
     };
-
     useImperativeHandle(
       ref,
       () => ({

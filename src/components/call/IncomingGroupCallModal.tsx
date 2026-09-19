@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Phone, PhoneOff, Video, Users } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Phone, PhoneOff, Video } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { dismissPhoneNotification } from '@/lib/notifyPhone';
+import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
 
 interface IncomingGroupCallData {
   groupId: string;
@@ -13,6 +13,7 @@ interface IncomingGroupCallData {
   kind: 'audio' | 'video';
   from: string;
   fromName: string;
+  fromAvatar?: string | null;
 }
 
 function initials(name: string) {
@@ -29,7 +30,6 @@ export const IncomingGroupCallModal: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [callData, setCallData] = useState<IncomingGroupCallData | null>(null);
-
   const audioContextRef = useRef<AudioContext | null>(null);
   const ringtoneIntervalRef = useRef<number | null>(null);
 
@@ -50,15 +50,17 @@ export const IncomingGroupCallModal: React.FC = () => {
 
   const playRingtone = useCallback(() => {
     try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
+
       const ctx = new AudioCtx();
       audioContextRef.current = ctx;
 
       const playBurst = () => {
         if (ctx.state === 'closed') return;
         const now = ctx.currentTime;
-
         // Pleasant dual-frequency telephone chime (440Hz + 480Hz)
         const osc1 = ctx.createOscillator();
         const osc2 = ctx.createOscillator();
@@ -108,11 +110,32 @@ export const IncomingGroupCallModal: React.FC = () => {
 
         setCallData(data);
         playRingtone();
+
+        // Android Phone notification with Receive & End buttons
+        notifyPhone({
+          title: `📞 ${data.groupName || 'Group'} · Incoming ${data.kind === 'video' ? 'Video' : 'Audio'} Call`,
+          body: `${data.fromName || 'A member'} is calling the group · Tap Receive or End`,
+          tag: `group_call_${data.groupId}`,
+          url: `/group/${data.groupId}?autoJoin=1&kind=${data.kind || 'audio'}`,
+          icon: data.groupAvatarUrl || data.fromAvatar || '/images/logo/logo-icon.svg',
+          isCall: true,
+          actions: [
+            { action: 'join_call', title: '📞 Receive' },
+            { action: 'decline_call', title: '❌ End' },
+          ],
+        });
       })
       .on('broadcast', { event: 'group-call-end' }, payload => {
         const endedCallId = payload.payload?.callId;
-        if (endedCallId && callData?.callId === endedCallId) {
+        const endedGroupId = payload.payload?.groupId;
+        if (
+          (endedCallId && callData?.callId === endedCallId) ||
+          (endedGroupId && callData?.groupId === endedGroupId)
+        ) {
           stopRingtone();
+          if (callData) {
+            dismissPhoneNotification(`group_call_${callData.groupId}`);
+          }
           setCallData(null);
         }
       })
@@ -122,7 +145,7 @@ export const IncomingGroupCallModal: React.FC = () => {
       stopRingtone();
       void channel.unsubscribe();
     };
-  }, [user, location.pathname, playRingtone, stopRingtone, callData?.callId]);
+  }, [user, location.pathname, playRingtone, stopRingtone, callData?.callId, callData?.groupId]);
 
   const handleDecline = () => {
     stopRingtone();
@@ -190,31 +213,31 @@ export const IncomingGroupCallModal: React.FC = () => {
         </div>
       </div>
 
-      {/* Action Buttons (Decline / Accept) */}
+      {/* Action Buttons (End / Receive) */}
       <div
         className="relative z-10 px-10 pb-12 flex items-center justify-around max-w-sm mx-auto w-full"
         style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 48px)' }}
       >
-        {/* Decline Button */}
+        {/* End / Decline Button */}
         <div className="flex flex-col items-center gap-2">
           <button
             type="button"
             onClick={handleDecline}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white shadow-2xl shadow-red-600/50 transition-all active:scale-95 border border-red-400/40"
-            aria-label="Decline call"
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-red-600 hover:bg-red-700 text-white shadow-2xl shadow-red-600/50 transition-all active:scale-95 border border-red-400/40 cursor-pointer"
+            aria-label="End call"
           >
             <PhoneOff className="h-7 w-7 text-white" />
           </button>
-          <span className="text-xs font-semibold text-white/90 drop-shadow">Decline</span>
+          <span className="text-xs font-semibold text-white/90 drop-shadow">End</span>
         </div>
 
-        {/* Accept Button */}
+        {/* Receive / Accept Button */}
         <div className="flex flex-col items-center gap-2 animate-bounce">
           <button
             type="button"
             onClick={handleAccept}
-            className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl shadow-emerald-600/50 transition-all active:scale-95 border border-emerald-400/40"
-            aria-label="Accept call"
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xl shadow-emerald-600/50 transition-all active:scale-95 border border-emerald-400/40 cursor-pointer"
+            aria-label="Receive call"
           >
             {callData.kind === 'video' ? (
               <Video className="h-7 w-7 text-white" />
@@ -222,7 +245,7 @@ export const IncomingGroupCallModal: React.FC = () => {
               <Phone className="h-7 w-7 text-white" />
             )}
           </button>
-          <span className="text-xs font-semibold text-white/90 drop-shadow">Join</span>
+          <span className="text-xs font-semibold text-white/90 drop-shadow">Receive</span>
         </div>
       </div>
     </div>

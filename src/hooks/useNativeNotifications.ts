@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/db/supabase';
-import { notifyPhone } from '@/lib/notifyPhone';
+import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
 
 type Row = {
   id: string;
@@ -10,6 +10,11 @@ type Row = {
   message: string | null;
   comment_id?: string | null;
 };
+
+interface GroupInfo {
+  name: string;
+  avatarUrl: string | null;
+}
 
 function titleFor(type: string, who: string): string {
   switch (type) {
@@ -36,7 +41,9 @@ function titleFor(type: string, who: string): string {
 
 function urlFor(row: Row): string {
   if (row.type === 'message' && row.actor_id) return `/chat/${row.actor_id}`;
-  if (row.type === 'group_mention' || row.type === 'group_call' || row.type === 'group_message') return row.post_id ? `/group/${row.post_id}` : '/chat';
+  if (row.type === 'group_mention' || row.type === 'group_call' || row.type === 'group_message') {
+    return row.post_id ? `/group/${row.post_id}` : '/chat';
+  }
   if (row.type === 'new_story' && row.actor_id) return `/stories?u=${row.actor_id}`;
   if (row.type.startsWith('reel_') || row.type === 'comment_reply') {
     return row.post_id ? `/reels?r=${row.post_id}` : '/reels';
@@ -46,7 +53,7 @@ function urlFor(row: Row): string {
 }
 
 export function useNativeNotifications(userId: string | undefined) {
-  const myGroupIdsRef = useRef<Map<string, string>>(new Map());
+  const myGroupIdsRef = useRef<Map<string, GroupInfo>>(new Map());
   const currentUsernameRef = useRef<string>('');
 
   useEffect(() => {
@@ -65,18 +72,21 @@ export function useNativeNotifications(userId: string | undefined) {
         }
       });
 
-    // Fetch user groups to filter realtime group messages
+    // Fetch user groups with name and avatar
     const refreshGroups = async () => {
       try {
         const { data } = await supabase
           .from('group_members')
-          .select('group_id, groups(name)')
+          .select('group_id, groups(name, avatar_url)')
           .eq('user_id', userId);
         if (data && !cancelled) {
-          const map = new Map<string, string>();
+          const map = new Map<string, GroupInfo>();
           data.forEach((item: any) => {
             if (item.group_id) {
-              map.set(item.group_id, item.groups?.name || 'Group');
+              map.set(item.group_id, {
+                name: item.groups?.name || 'Group',
+                avatarUrl: item.groups?.avatar_url || null,
+              });
             }
           });
           myGroupIdsRef.current = map;
@@ -87,7 +97,7 @@ export function useNativeNotifications(userId: string | undefined) {
     };
     void refreshGroups();
 
-    // 1. Listen for new notifications for this user (likes, mentions, calls)
+    // 1. Listen for new notifications in DB for this user
     const notifChannel = supabase
       .channel(`user-notif-push-${userId}`)
       .on(
@@ -97,21 +107,22 @@ export function useNativeNotifications(userId: string | undefined) {
           if (cancelled) return;
           const row = payload.new as Row;
           let who = 'Someone';
+          let actorAvatar: string | null = null;
           if (row.actor_id) {
             try {
               const { data } = await supabase
                 .from('profiles')
-                .select('username, full_name')
+                .select('username, full_name, avatar_url')
                 .eq('user_id', row.actor_id)
                 .maybeSingle();
               who = data?.username || data?.full_name || who;
+              actorAvatar = data?.avatar_url || null;
             } catch { /* noop */ }
           }
 
           const isCall =
             row.type === 'group_call' ||
             (!!row.message && (row.message.startsWith('📞') || row.message.startsWith('📵')));
-
           const title = isCall
             ? `${who} — ${row.message?.startsWith('📵') ? 'Missed call 📵' : 'Incoming call 📞'}`
             : titleFor(row.type, who);
@@ -120,15 +131,21 @@ export function useNativeNotifications(userId: string | undefined) {
           notifyPhone({
             title,
             body,
-            tag: isCall ? 'call_notif' : `notif_${row.id}`,
-            url: isCall ? '/chat' : urlFor(row),
+            tag: isCall ? `call_${row.id}` : `notif_${row.id}`,
+            url: isCall ? (row.post_id ? `/group/${row.post_id}` : '/chat') : urlFor(row),
+            icon: actorAvatar || '/images/logo/logo-icon.svg',
+            image: actorAvatar || undefined,
             isCall,
+            actions: isCall && row.post_id ? [
+              { action: 'join_call', title: '📞 Receive' },
+              { action: 'decline_call', title: '❌ End' },
+            ] : undefined,
           });
         },
       )
       .subscribe();
 
-    // 2. Listen directly to incoming direct chat messages in Realtime!
+    // 2. Listen directly to incoming direct chat messages in Realtime
     const msgChannel = supabase
       .channel(`user-direct-messages-${userId}`)
       .on(
@@ -137,29 +154,33 @@ export function useNativeNotifications(userId: string | undefined) {
         async (payload) => {
           if (cancelled) return;
           const newMsg = payload.new as { sender_id: string; content: string; id: string };
-          // Don't duplicate if call marker
           if (newMsg.content?.startsWith('📞') || newMsg.content?.startsWith('📵')) return;
+
           let senderName = 'Someone';
+          let senderAvatar: string | null = null;
           try {
             const { data } = await supabase
               .from('profiles')
-              .select('username, full_name')
+              .select('username, full_name, avatar_url')
               .eq('user_id', newMsg.sender_id)
               .maybeSingle();
             senderName = data?.username || data?.full_name || senderName;
+            senderAvatar = data?.avatar_url || null;
           } catch { /* noop */ }
 
           notifyPhone({
             title: `${senderName} 💬`,
-            body: newMsg.content || 'Sent a photo/attachment',
+            body: newMsg.content || 'Sent an attachment',
             tag: `msg_${newMsg.id}`,
             url: `/chat/${newMsg.sender_id}`,
+            icon: senderAvatar || '/images/logo/logo-icon.svg',
+            image: senderAvatar || undefined,
           });
         },
       )
       .subscribe();
 
-    // 3. Listen directly to group messages in Realtime for instant phone notification & mentions!
+    // 3. Listen directly to group messages in Realtime for all members
     const groupMsgChannel = supabase
       .channel(`user-group-messages-${userId}`)
       .on(
@@ -170,22 +191,25 @@ export function useNativeNotifications(userId: string | undefined) {
           const newMsg = payload.new as { id: string; group_id: string; sender_id: string; content: string };
           if (newMsg.sender_id === userId) return;
 
-          // If cache doesn't have it, refresh
           if (!myGroupIdsRef.current.has(newMsg.group_id)) {
             await refreshGroups();
           }
           if (!myGroupIdsRef.current.has(newMsg.group_id)) return;
 
-          const groupName = myGroupIdsRef.current.get(newMsg.group_id) || 'Group';
+          const groupInfo = myGroupIdsRef.current.get(newMsg.group_id);
+          const groupName = groupInfo?.name || 'Group';
+          const groupAvatar = groupInfo?.avatarUrl || null;
 
           let senderName = 'Member';
+          let senderAvatar: string | null = null;
           try {
             const { data } = await supabase
               .from('profiles')
-              .select('username, full_name')
+              .select('username, full_name, avatar_url')
               .eq('user_id', newMsg.sender_id)
               .maybeSingle();
             senderName = data?.username || data?.full_name || senderName;
+            senderAvatar = data?.avatar_url || null;
           } catch { /* noop */ }
 
           const content = newMsg.content || '';
@@ -195,13 +219,53 @@ export function useNativeNotifications(userId: string | undefined) {
           );
 
           notifyPhone({
-            title: isMentioned ? `🏷️ Mentioned in ${groupName}` : `${groupName} · ${senderName} 💬`,
+            title: isMentioned ? `🏷️ ${senderName} mentioned you in ${groupName}` : `${groupName} · ${senderName} 💬`,
             body: isMentioned ? `@${senderName}: ${content}` : content || 'Sent an attachment',
             tag: `group_msg_${newMsg.id}`,
             url: `/group/${newMsg.group_id}`,
+            icon: groupAvatar || senderAvatar || '/images/logo/logo-icon.svg',
+            image: senderAvatar || groupAvatar || undefined,
           });
         },
       )
+      .subscribe();
+
+    // 4. Listen directly to Realtime group call invites for instant Android notification with Receive & End buttons
+    const callSignalChannel = supabase
+      .channel(`calls:${userId}`)
+      .on('broadcast', { event: 'group-call-invite' }, (payload) => {
+        if (cancelled) return;
+        const data = payload.payload as {
+          groupId: string;
+          groupName: string;
+          groupAvatarUrl?: string | null;
+          callId: string;
+          kind: 'audio' | 'video';
+          from: string;
+          fromName: string;
+          fromAvatar?: string | null;
+        };
+        if (!data || !data.groupId || data.from === userId) return;
+
+        notifyPhone({
+          title: `📞 ${data.groupName || 'Group'} · Incoming ${data.kind === 'video' ? 'Video' : 'Audio'} Call`,
+          body: `${data.fromName || 'A member'} is calling the group · Tap Receive or End`,
+          tag: `group_call_${data.callId || data.groupId}`,
+          url: `/group/${data.groupId}?autoJoin=1&kind=${data.kind || 'audio'}`,
+          icon: data.groupAvatarUrl || data.fromAvatar || '/images/logo/logo-icon.svg',
+          isCall: true,
+          actions: [
+            { action: 'join_call', title: '📞 Receive' },
+            { action: 'decline_call', title: '❌ End' },
+          ],
+        });
+      })
+      .on('broadcast', { event: 'group-call-end' }, (payload) => {
+        const endedCallId = payload.payload?.callId;
+        const endedGroupId = payload.payload?.groupId;
+        if (endedCallId) dismissPhoneNotification(`group_call_${endedCallId}`);
+        if (endedGroupId) dismissPhoneNotification(`group_call_${endedGroupId}`);
+      })
       .subscribe();
 
     return () => {
@@ -209,6 +273,7 @@ export function useNativeNotifications(userId: string | undefined) {
       supabase.removeChannel(notifChannel);
       supabase.removeChannel(msgChannel);
       supabase.removeChannel(groupMsgChannel);
+      supabase.removeChannel(callSignalChannel);
     };
   }, [userId]);
 }

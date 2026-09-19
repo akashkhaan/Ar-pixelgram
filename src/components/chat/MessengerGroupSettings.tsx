@@ -416,7 +416,12 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           {/* 1. Audio */}
           <button
             type="button"
-            onClick={() => { onClose(); onStartCall('audio'); }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+              onStartCall('audio');
+            }}
             className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
             <div className="h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
@@ -428,7 +433,12 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           {/* 2. Video */}
           <button
             type="button"
-            onClick={() => { onClose(); onStartCall('video'); }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+              onStartCall('video');
+            }}
             className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
             <div className="h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
