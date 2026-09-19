@@ -127,6 +127,16 @@ const GroupChatPage: React.FC = () => {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
 
+  // Auto-join call if navigated from incoming call modal or chat list with autoJoin=1
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('autoJoin') === '1' && group && callPanelRef.current) {
+      const callKind = (params.get('kind') as 'audio' | 'video') || 'audio';
+      navigate(location.pathname, { replace: true, state: location.state });
+      void callPanelRef.current.startCall(callKind);
+    }
+  }, [location.search, group, location.pathname, location.state, navigate]);
+
   useEffect(() => {
     if (!groupId || !canManage || !selectedUserIds.length) return;
     const addSelected = async () => {

@@ -36,7 +36,7 @@ function titleFor(type: string, who: string): string {
 
 function urlFor(row: Row): string {
   if (row.type === 'message' && row.actor_id) return `/chat/${row.actor_id}`;
-  if (row.type === 'group_mention' || row.type === 'group_call' || row.type === 'group_message') return '/chat';
+  if (row.type === 'group_mention' || row.type === 'group_call' || row.type === 'group_message') return row.post_id ? `/group/${row.post_id}` : '/chat';
   if (row.type === 'new_story' && row.actor_id) return `/stories?u=${row.actor_id}`;
   if (row.type.startsWith('reel_') || row.type === 'comment_reply') {
     return row.post_id ? `/reels?r=${row.post_id}` : '/reels';
@@ -198,7 +198,7 @@ export function useNativeNotifications(userId: string | undefined) {
             title: isMentioned ? `🏷️ Mentioned in ${groupName}` : `${groupName} · ${senderName} 💬`,
             body: isMentioned ? `@${senderName}: ${content}` : content || 'Sent an attachment',
             tag: `group_msg_${newMsg.id}`,
-            url: `/chat/group/${newMsg.group_id}`,
+            url: `/group/${newMsg.group_id}`,
           });
         },
       )

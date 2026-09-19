@@ -1,5 +1,5 @@
 import { supabase } from '@/db/supabase';
-import { createNotification } from '@/services/api';
+import { createNotification, sendPushTo } from '@/services/api';
 import type { Profile } from '@/types/types';
 import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary, GroupCall } from '@/types/groups';
 
@@ -161,16 +161,50 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
     }
   }
 
-  // 3. Trigger notifications for mentioned users
-  if (mentionedIds.length && message) {
-    void Promise.allSettled(mentionedIds.map(userId => createNotification(
-      userId,
-      'group_mention',
-      sender.id,
-      undefined,
-      undefined,
-      'You were mentioned in a group message',
-    )));
+  // 3. Trigger notifications for group members & mentioned users
+  if (message) {
+    void (async () => {
+      try {
+        const { data: grpMembers } = await supabase
+          .from('group_members')
+          .select('user_id')
+          .eq('group_id', groupId);
+
+        const otherMemberIds = (grpMembers || [])
+          .map(m => m.user_id)
+          .filter(uid => uid && uid !== sender.id);
+
+        const { data: grp } = await supabase
+          .from('groups')
+          .select('name')
+          .eq('id', groupId)
+          .maybeSingle();
+        const groupTitle = grp?.name || 'Group';
+        const senderName = (sender.user_metadata?.username as string | undefined) || 'Member';
+        const snippet = cleanContent.length > 80 ? cleanContent.slice(0, 77) + '...' : cleanContent;
+
+        for (const uid of otherMemberIds) {
+          const isMention = mentionedIds.includes(uid);
+          void createNotification(
+            uid,
+            isMention ? 'group_mention' : 'group_message',
+            sender.id,
+            groupId,
+            undefined,
+            isMention ? `You were mentioned in ${groupTitle}` : `${senderName}: ${snippet}`,
+          );
+          void sendPushTo(
+            uid,
+            isMention ? `🏷️ Mentioned in ${groupTitle}` : `${groupTitle} · ${senderName} 💬`,
+            isMention ? `@${senderName}: ${cleanContent}` : snippet,
+            `/group/${groupId}`,
+            `group-msg-${message!.id}`,
+          );
+        }
+      } catch (err) {
+        console.warn('Group notification broadcast error', err);
+      }
+    })();
   }
 
   return message;

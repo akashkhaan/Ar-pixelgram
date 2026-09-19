@@ -597,6 +597,8 @@ export async function createNotification(
     new_reel: `${who} added a new reel`,
     new_video: `${who} uploaded a new video`,
     group_mention: `${who} mentioned you in a group`,
+    group_message: `New group message from ${who}`,
+    group_call: `📞 Group call from ${who}`,
   };
   const title = titles[type];
   if (!title || message?.startsWith('📞') || message?.startsWith('📵')) return;
@@ -614,7 +616,9 @@ export async function createNotification(
       data: {
         url: type === 'message' && actorId
           ? `/chat/${actorId}`
-          : (type === 'new_story' || type === 'story_reply') && actorId
+          : (type === 'group_message' || type === 'group_mention' || type === 'group_call')
+            ? (postId ? `/group/${postId}` : '/chat')
+            : (type === 'new_story' || type === 'story_reply') && actorId
             ? `/stories?u=${actorId}`
             : type === 'new_video'
               ? (postId ? `/videos/${postId}` : '/videos')

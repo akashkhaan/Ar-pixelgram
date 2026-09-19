@@ -105,23 +105,57 @@ export const CallOverlay: React.FC = () => {
   const connecting = call.status === 'ringing-out' || call.status === 'connecting';
   const name = call.peerProfile?.full_name || call.peerProfile?.username || 'Unknown';
 
-  // Minimized floating pill
+  // Minimized floating Messenger-style Call Head / Pill
   if (call.minimized) {
     return (
       <>
         <audio ref={remoteAudioRef} autoPlay />
-        <button
-          onClick={call.toggleMinimize}
-          className="fixed top-3 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-4 py-2 rounded-full bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-2xl ring-1 ring-white/20 backdrop-blur"
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-          </span>
-          <span className="text-sm font-medium truncate max-w-[130px]">{call.peerProfile?.username || 'Call'}</span>
-          <span className="text-sm tabular-nums opacity-90">{statusText}</span>
-          <Maximize2 className="w-4 h-4" />
-        </button>
+        <div className="fixed bottom-20 left-3 sm:left-6 z-[99] flex items-center gap-2.5 rounded-full bg-neutral-900/95 text-white p-1.5 pr-3 shadow-2xl backdrop-blur-md border border-sky-500/40 animate-in fade-in slide-in-from-bottom-3 duration-300 select-none">
+          <div onClick={call.toggleMinimize} className="relative cursor-pointer shrink-0">
+            {call.peerProfile?.avatar_url ? (
+              <img
+                src={call.peerProfile.avatar_url}
+                alt=""
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-sky-400 shadow-md"
+              />
+            ) : (
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center font-bold text-white ring-2 ring-sky-400 shadow-md text-sm">
+                {(name[0] || 'U').toUpperCase()}
+              </div>
+            )}
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center">
+              <span className="h-3 w-3 rounded-full bg-emerald-400 animate-ping absolute opacity-75" />
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 relative ring-1 ring-black" />
+            </span>
+          </div>
+          <div onClick={call.toggleMinimize} className="min-w-0 flex-1 cursor-pointer pr-1">
+            <div className="flex items-center gap-1.5">
+              <p className="truncate text-xs font-bold text-white max-w-[100px] sm:max-w-[130px]">{name}</p>
+              <span className="text-[10px] font-semibold text-sky-400 tabular-nums">{statusText}</span>
+            </div>
+            <p className="text-[10px] text-neutral-300 truncate">{call.kind === 'video' ? 'Video call' : 'Voice call'}</p>
+          </div>
+          <button
+            type="button"
+            onClick={call.toggleMute}
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+              call.muted ? 'bg-red-600 text-white' : 'bg-white/15 text-white hover:bg-white/25'
+            }`}
+            aria-label={call.muted ? 'Unmute' : 'Mute'}
+            title={call.muted ? 'Unmute' : 'Mute'}
+          >
+            {call.muted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={call.toggleMinimize}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-600 text-white hover:bg-sky-700 transition-colors"
+            aria-label="Maximize call"
+            title="Maximize call"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </>
     );
   }
