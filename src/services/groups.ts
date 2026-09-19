@@ -185,8 +185,12 @@ export async function leaveGroup(groupId: string): Promise<void> {
   throwIfError(error);
 }
 
-export async function updateGroup(groupId: string, updates: Pick<Group, 'name' | 'description' | 'avatar_url'>): Promise<void> {
-  const { error } = await supabase.from('groups').update(updates).eq('id', groupId);
+export async function updateGroup(groupId: string, updates: Partial<Pick<Group, 'name' | 'description' | 'avatar_url'>>): Promise<void> {
+  const payload: Record<string, any> = {};
+  if (updates.name !== undefined) payload.name = updates.name.trim();
+  if (updates.description !== undefined) payload.description = updates.description ? updates.description.trim() : null;
+  if (updates.avatar_url !== undefined) payload.avatar_url = updates.avatar_url;
+  const { error } = await supabase.from('groups').update(payload).eq('id', groupId);
   throwIfError(error);
 }
 
@@ -195,16 +199,40 @@ export async function uploadGroupAvatar(groupId: string, file: File): Promise<st
   if (!auth) throw new Error('Not authenticated');
   if (!file.type.startsWith('image/')) throw new Error('Group photo must be an image');
   const extension = (file.name.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg';
-  const storagePath = groupId + '/avatars/' + auth.id + '-' + crypto.randomUUID() + '.' + extension;
-  const { error: uploadError } = await supabase.storage.from('group-media').upload(storagePath, file, {
-    contentType: file.type,
-    upsert: false,
-  });
-  throwIfError(uploadError);
-  const { data } = supabase.storage.from('group-media').getPublicUrl(storagePath);
-  const { error: updateError } = await supabase.from('groups').update({ avatar_url: data.publicUrl }).eq('id', groupId);
+  const fileName = `${auth.id}-${Date.now()}.${extension}`;
+
+  const candidateBuckets = ['avatars', 'posts', 'group-media'];
+  let publicUrl = '';
+  let lastError: any = null;
+
+  for (const bucket of candidateBuckets) {
+    try {
+      const storagePath = `groups/${groupId}/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, file, {
+        contentType: file.type,
+        upsert: true,
+      });
+      if (uploadError) {
+        lastError = uploadError;
+        continue;
+      }
+      const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
+      if (data?.publicUrl) {
+        publicUrl = data.publicUrl;
+        break;
+      }
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  if (!publicUrl) {
+    throw lastError || new Error('Group photo upload failed');
+  }
+
+  const { error: updateError } = await supabase.from('groups').update({ avatar_url: publicUrl }).eq('id', groupId);
   throwIfError(updateError);
-  return data.publicUrl;
+  return publicUrl;
 }
 
 export async function rotateGroupInvite(groupId: string): Promise<string> {
@@ -238,15 +266,45 @@ export async function sendGroupFileMessage(groupId: string, file: File): Promise
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Not authenticated');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = groupId + '/' + auth.user.id + '/' + crypto.randomUUID() + '-' + safeName;
-  const { error: uploadError } = await supabase.storage.from('group-media').upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
-  throwIfError(uploadError);
-  const { data: urlData } = supabase.storage.from('group-media').getPublicUrl(storagePath);
+  const fileName = `${auth.user.id}-${Date.now()}-${safeName}`;
+  const isImage = file.type.startsWith('image/');
+  const candidateBuckets = isImage ? ['posts', 'avatars', 'group-media'] : ['posts', 'group-media', 'stories'];
+  let publicUrl = '';
+  let storagePath = '';
+  let lastError: any = null;
+
+  for (const bucket of candidateBuckets) {
+    try {
+      const path = `groups/${groupId}/${fileName}`;
+      const { error: uploadError } = await supabase.storage.from(bucket).upload(path, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: true,
+      });
+      if (uploadError) {
+        lastError = uploadError;
+        continue;
+      }
+      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+      if (urlData?.publicUrl) {
+        publicUrl = urlData.publicUrl;
+        storagePath = path;
+        break;
+      }
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  if (!publicUrl) {
+    throw lastError || new Error('File upload failed');
+  }
+
   const mediaType = file.type.startsWith('image/') ? 'photo' : file.type.startsWith('video/') ? 'video' : 'file';
-  const { data: message, error: messageError } = await supabase.from('group_messages').insert({ group_id: groupId, content: '📎 ' + file.name + '\n' + urlData.publicUrl }).select('*').single();
+  const { data: message, error: messageError } = await supabase.from('group_messages').insert({ group_id: groupId, content: '📎 ' + file.name + '\n' + publicUrl }).select('*').single();
   throwIfError(messageError);
-  const { error: mediaError } = await supabase.from('group_media').insert({ group_id: groupId, message_id: message.id, uploader_id: auth.user.id, media_type: mediaType, storage_path: storagePath, public_url: urlData.publicUrl, file_name: file.name, mime_type: file.type || null, file_size: file.size });
-  throwIfError(mediaError);
+  try {
+    await supabase.from('group_media').insert({ group_id: groupId, message_id: message.id, uploader_id: auth.user.id, media_type: mediaType, storage_path: storagePath, public_url: publicUrl, file_name: file.name, mime_type: file.type || null, file_size: file.size });
+  } catch { /* optional */ }
   return message as GroupMessage;
 }
 

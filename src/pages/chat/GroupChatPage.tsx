@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Copy, Crown, Image, Loader2, MoreVertical, Paperclip, Pencil, Pin, Reply, Save, Search, Send, Settings, Shield, Smile, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Crown, Image, Loader2, MoreVertical, Paperclip, Pencil, Phone, Pin, Reply, Save, Search, Send, Settings, Shield, Smile, UserPlus, Users, Video, X } from 'lucide-react';
 import MobileLayout from '@/components/layouts/MobileLayout';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,7 +11,7 @@ import { addGroupMember, getGroup, getGroupMedia, getGroupMembers, getGroupMessa
 import type { Profile } from '@/types/types';
 import type { Group, GroupMedia, GroupMember, GroupMessage, GroupPermissions, GroupPinnedMessage } from '@/types/groups';
 import { toast } from 'sonner';
-import GroupCallPanel from '@/components/call/GroupCallPanel';
+import GroupCallPanel, { GroupCallPanelHandle } from '@/components/call/GroupCallPanel';
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🙏'];
 const PERMISSION_LABELS: Array<{ key: keyof Pick<GroupPermissions, 'send_messages' | 'add_members' | 'edit_info' | 'create_invites' | 'pin_messages' | 'start_calls'>; label: string }> = [{ key: 'send_messages', label: 'Send messages' }, { key: 'add_members', label: 'Add members' }, { key: 'edit_info', label: 'Edit group info' }, { key: 'create_invites', label: 'Create invite links' }, { key: 'pin_messages', label: 'Pin messages' }, { key: 'start_calls', label: 'Start calls' }];
@@ -50,6 +50,8 @@ const GroupChatPage: React.FC = () => {
   const [savingInfo, setSavingInfo] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const callPanelRef = useRef<GroupCallPanelHandle>(null);
+  const handleBack = () => { navigate('/chat', { replace: true }); };
   const selectedUserIds = useMemo(() => ((location.state as { selectedUserIds?: string[] } | null)?.selectedUserIds || []), [location.state]);
 
   const currentMember = useMemo(() => members.find(member => member.user_id === user?.id), [members, user]);
@@ -97,7 +99,7 @@ const GroupChatPage: React.FC = () => {
       for (const userId of selectedUserIds) {
         try { await addGroupMember(groupId, userId); } catch { /* duplicate or permission failure */ }
       }
-      window.history.replaceState({}, document.title);
+      navigate(location.pathname, { replace: true, state: {} });
       await load();
     };
     void addSelected();
@@ -156,7 +158,7 @@ const GroupChatPage: React.FC = () => {
     if (!groupId || !group || !canEditInfo || !editName.trim() || savingInfo) return;
     setSavingInfo(true);
     try {
-      const updates = { name: editName.trim(), description: editDescription.trim() || null, avatar_url: group.avatar_url };
+      const updates = { name: editName.trim(), description: editDescription.trim() || null };
       await updateGroup(groupId, updates);
       setGroup(current => current ? { ...current, ...updates } : current);
       setEditingInfo(false);
@@ -214,12 +216,14 @@ const GroupChatPage: React.FC = () => {
   return (
     <MobileLayout hideHeader hideNav>
       <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-background">
-        <header className="z-20 flex shrink-0 items-center gap-2 border-b border-border bg-card/95 px-2 py-2 backdrop-blur">
-          <button type="button" onClick={() => navigate('/chat')} className="rounded-full p-2 hover:bg-muted" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
-          <button type="button" onClick={openInfo} className="flex min-w-0 flex-1 items-center gap-2 text-left"><Avatar profile={group.avatar_url ? { avatar_url: group.avatar_url, username: group.name } as Profile : null} /><span className="min-w-0"><span className="block truncate text-sm font-semibold">{group.name}</span><span className="block truncate text-xs text-muted-foreground">{members.length} members</span></span></button>
-          <button type="button" onClick={() => setShowMessageSearch(value => !value)} className="rounded-full p-2 hover:bg-muted" aria-label="Search messages"><Search className="h-5 w-5" /></button><button type="button" onClick={openInfo} className="rounded-full p-2 hover:bg-muted" aria-label="Group info"><MoreVertical className="h-5 w-5" /></button>
+        <header className="z-20 flex shrink-0 items-center gap-1 sm:gap-2 border-b border-border bg-card/95 px-2 py-2 backdrop-blur">
+          <button type="button" onClick={handleBack} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
+          <button type="button" onClick={openInfo} className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-90 transition-opacity"><Avatar profile={group.avatar_url ? { avatar_url: group.avatar_url, username: group.name } as Profile : null} /><span className="min-w-0"><span className="block truncate text-sm font-semibold leading-tight">{group.name}</span><span className="block truncate text-xs text-muted-foreground">{members.length} members</span></span></button>
+          <button type="button" onClick={() => void callPanelRef.current?.startCall('audio')} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Audio call" title="Start audio call"><Phone className="h-5 w-5" /></button>
+          <button type="button" onClick={() => void callPanelRef.current?.startCall('video')} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Video call" title="Start video call"><Video className="h-5 w-5" /></button>
+          <button type="button" onClick={openInfo} className="rounded-full p-2 hover:bg-muted text-foreground transition-colors" aria-label="Group settings" title="Group settings"><Settings className="h-5 w-5" /></button>
         </header>
-        <GroupCallPanel groupId={group.id} groupName={group.name} members={members} />
+        <GroupCallPanel ref={callPanelRef} groupId={group.id} groupName={group.name} members={members} />
 
         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
           <div className="mx-auto max-w-sm rounded-xl bg-primary/8 px-3 py-2 text-center text-xs text-muted-foreground">Messages in this group are visible only to its members.</div>
