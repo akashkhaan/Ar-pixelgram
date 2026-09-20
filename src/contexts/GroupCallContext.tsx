@@ -310,10 +310,9 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const android = (window as unknown as { AndroidNotification?: { setCallActive?: (a: boolean, t: string) => void } }).AndroidNotification;
     android?.setCallActive?.(true, title);
 
-    return () => {
-      dismissPhoneNotification(`group_call_ongoing`);
-      if (groupId) dismissPhoneNotification(`group_call_${groupId}`);
-    };
+    // Keep the ongoing notification alive across timer refreshes. Cleanup is
+    // handled by the inactive branch and leaveCall; dismissing here would make
+    // Android briefly remove and recreate the call notification every second.
   }, [active, groupId, groupName, groupAvatarUrl, kind, elapsedSeconds]);
 
   // Back button interception when call overlay is full-screen
