@@ -1,3 +1,4 @@
+import { MessengerCallBubble } from './MessengerCallBubble';
 import React, { useRef, useEffect } from 'react';
 import {
   Camera,
@@ -32,6 +33,22 @@ function initials(name: string) {
     .join('');
 }
 
+
+const PersistentAudioTrack: React.FC<{ stream: MediaStream; speakerOn?: boolean }> = ({ stream, speakerOn }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.srcObject = stream;
+    audioRef.current.volume = 1;
+    const el = audioRef.current as any;
+    if (typeof el.setSinkId === "function") {
+      el.setSinkId(speakerOn ? "default" : "communications").catch(() => {});
+    }
+    audioRef.current.play().catch(() => {});
+  }, [stream, speakerOn]);
+  return <audio ref={audioRef} autoPlay playsInline />;
+};
+
 const ParticipantTile: React.FC<{
   stream: MediaStream | null;
   label: string;
@@ -60,7 +77,7 @@ const ParticipantTile: React.FC<{
             ref={ref}
             autoPlay
             playsInline
-            muted={videoMuted}
+            muted={true}
             className="h-full min-h-[200px] w-full object-cover"
           />
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3.5 pb-3 pt-8 text-white">
@@ -244,66 +261,31 @@ export const GroupCallOverlay: React.FC = () => {
     );
   }
 
-  if (!active) return null;
+    if (!active) return null;
 
-  /* Minimized Messenger Floating Bubble (Persistent on any screen) */
-  if (minimized) {
-    return (
-      <div
-        className="fixed bottom-20 right-4 z-[999] flex items-center gap-2 rounded-full bg-emerald-600/95 hover:bg-emerald-600 p-1.5 pr-3 text-white shadow-2xl backdrop-blur-md border border-white/25 transition-all select-none animate-in zoom-in-95 cursor-pointer"
-        onClick={() => setMinimized(false)}
-      >
-        <div className="relative">
-          {groupAvatarUrl ? (
-            <img src={groupAvatarUrl} alt="" className="h-9 w-9 rounded-full object-cover border border-white/30" />
-          ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-xs font-bold border border-white/30">
-              {initials(groupName || 'G')}
-            </div>
-          )}
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 ring-2 ring-emerald-950">
-            <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-          </span>
-        </div>
-
-        <div className="flex flex-col min-w-0 pr-1">
-          <span className="text-xs font-bold leading-tight truncate max-w-[100px]">
-            {groupName || 'Group'}
-          </span>
-          <span className="text-[10px] text-white/90 leading-tight">
-            {formatTime(elapsedSeconds)}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setMinimized(false);
-          }}
-          className="p-1 rounded-full hover:bg-white/20 text-white/90"
-          title="Maximize"
-        >
-          <Maximize2 className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            void leaveCall();
-          }}
-          className="p-1 rounded-full bg-red-600 hover:bg-red-700 text-white ml-0.5"
-          title="End Call"
-        >
-          <PhoneOff className="h-3.5 w-3.5" />
-        </button>
-      </div>
-    );
-  }
-
-  /* Full Screen Group Call View (Messenger Style) */
   return (
+    <>
+      {/* Permanent background audio playback for all remote participants */}
+      <div className="hidden pointer-events-none" aria-hidden="true">
+        {Array.from(remoteStreams.entries()).map(([peerId, stream]) => (
+          <PersistentAudioTrack key={`audio-${peerId}`} stream={stream} speakerOn={speakerOn} />
+        ))}
+      </div>
+
+      {minimized ? (
+        <MessengerCallBubble
+          avatarUrl={groupAvatarUrl}
+          title={groupName || "Group"}
+          kind={kind}
+          elapsedSeconds={elapsedSeconds}
+          videoStream={kind === "video" ? (remoteStreams.values().next().value || localStream) : null}
+          muted={muted}
+          onToggleMute={toggleMute}
+          onMaximize={() => setMinimized(false)}
+          onEndCall={() => void leaveCall()}
+        />
+      ) : (
+        /* Full Screen Group Call View (Messenger Style) */
     <div className="fixed inset-0 z-[120] flex flex-col bg-neutral-950 select-none overflow-hidden animate-in fade-in duration-200">
       {/* BACKGROUND GRADIENT */}
       <div className="absolute inset-0 bg-radial from-neutral-900 via-neutral-950 to-black pointer-events-none" />
@@ -462,6 +444,8 @@ export const GroupCallOverlay: React.FC = () => {
         </div>
       </div>
     </div>
+      )}
+    </>
   );
 };
 

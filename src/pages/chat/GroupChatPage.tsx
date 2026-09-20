@@ -451,14 +451,20 @@ const GroupChatPage: React.FC = () => {
           {/* Call button 📞 */}
           <button
             type="button"
-            onClick={() => void handleStartCall('audio')}
+            onClick={() => {
+              if (groupCall.active && groupCall.groupId === group.id) {
+                groupCall.setMinimized(false);
+              } else {
+                void handleStartCall('audio');
+              }
+            }}
             className={`rounded-full p-2 transition-all ${
-              activeGroupCall?.kind === 'audio'
+              (groupCall.active && groupCall.groupId === group.id) || activeGroupCall?.kind === 'audio'
                 ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
                 : 'hover:bg-muted text-sky-500'
             }`}
             aria-label="Audio call"
-            title="Start audio call"
+            title={groupCall.active && groupCall.groupId === group.id ? "Return to call" : "Start audio call"}
           >
             <Phone className="h-5 w-5 fill-sky-500/20" />
           </button>
@@ -466,14 +472,20 @@ const GroupChatPage: React.FC = () => {
           {/* Video button 📹 */}
           <button
             type="button"
-            onClick={() => void handleStartCall('video')}
+            onClick={() => {
+              if (groupCall.active && groupCall.groupId === group.id) {
+                groupCall.setMinimized(false);
+              } else {
+                void handleStartCall('video');
+              }
+            }}
             className={`rounded-full p-2 transition-all ${
-              activeGroupCall?.kind === 'video'
+              (groupCall.active && groupCall.groupId === group.id && groupCall.kind === 'video') || activeGroupCall?.kind === 'video'
                 ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
                 : 'hover:bg-muted text-sky-500'
             }`}
             aria-label="Video call"
-            title="Start video call"
+            title={groupCall.active && groupCall.groupId === group.id ? "Return to call" : "Start video call"}
           >
             <Video className="h-5 w-5 fill-sky-500/20" />
           </button>
@@ -523,7 +535,10 @@ const GroupChatPage: React.FC = () => {
 
         {/* ACTIVE CALL BANNER */}
         {(groupCall.active && groupCall.groupId === group.id) ? (
-          <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-950/70 px-3.5 py-2 backdrop-blur text-emerald-200 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div
+            onClick={() => groupCall.setMinimized(false)}
+            className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-950/70 px-3.5 py-2 backdrop-blur text-emerald-200 animate-in fade-in slide-in-from-top-2 duration-200 cursor-pointer hover:bg-emerald-950/85 transition-colors"
+          >
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="relative flex h-3 w-3 items-center justify-center shrink-0">
                 <span className="absolute h-3 w-3 rounded-full bg-emerald-400 animate-ping opacity-75" />

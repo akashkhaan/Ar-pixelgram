@@ -1,3 +1,4 @@
+import { useGroupCall } from '@/contexts/GroupCallContext';
 import { ArrowLeft, BadgeCheck, Loader2, MessageCircle, Phone, Plus, Undo2, Users } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -21,6 +22,7 @@ interface ConversationItem {
 
 const ChatListPage: React.FC = () => {
   const { user } = useAuth();
+  const groupCall = useGroupCall();
   const navigate = useNavigate();
   const goBack = useGoBack("/home");
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -202,6 +204,10 @@ const ChatListPage: React.FC = () => {
                 <div className="border-b border-border divide-y divide-border/40">
                   {activeGroups.map(({ group, member_count }) => {
                     const activeCall = activeGroupCalls[group.id];
+                    const isCurrentUserInThisCall = groupCall.active && groupCall.groupId === group.id;
+                    const callKind = isCurrentUserInThisCall ? groupCall.kind : activeCall?.kind;
+                    const showCallBadge = isCurrentUserInThisCall || !!activeCall;
+
                     return (
                       <div
                         key={group.id}
@@ -215,7 +221,7 @@ const ChatListPage: React.FC = () => {
                               <Users className="h-5 w-5" />
                             </div>
                           )}
-                          {activeCall && (
+                          {showCallBadge && (
                             <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center">
                               <span className="h-3 w-3 rounded-full bg-emerald-500 animate-ping absolute" />
                               <span className="h-3.5 w-3.5 rounded-full bg-emerald-600 ring-2 ring-background relative flex items-center justify-center">
@@ -227,16 +233,33 @@ const ChatListPage: React.FC = () => {
                         <Link to={'/group/' + group.id} className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <p className="truncate text-sm font-semibold text-foreground">{group.name}</p>
-                            {activeCall && (
+                            {isCurrentUserInThisCall ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-bold text-emerald-500 animate-pulse">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                In call
+                              </span>
+                            ) : activeCall ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                 {activeCall.kind === 'video' ? 'Video call' : 'Audio call'}
                               </span>
-                            )}
+                            ) : null}
                           </div>
                           <p className="text-xs text-muted-foreground">{member_count} members</p>
                         </Link>
-                        {activeCall && (
+                        {isCurrentUserInThisCall ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              groupCall.setMinimized(false);
+                              navigate('/group/' + group.id);
+                            }}
+                            className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1 text-xs font-semibold shadow-sm transition-transform active:scale-95 shrink-0 flex items-center gap-1 ring-2 ring-emerald-400/40"
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                            Return
+                          </button>
+                        ) : activeCall ? (
                           <button
                             type="button"
                             onClick={() => navigate('/group/' + group.id + '?autoJoin=1&kind=' + activeCall.kind)}
@@ -244,7 +267,7 @@ const ChatListPage: React.FC = () => {
                           >
                             Join
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     );
                   })}
@@ -252,7 +275,7 @@ const ChatListPage: React.FC = () => {
               )}
 
               {/* Direct Conversations List */}
-              {loading ? (
+              {loading && conversations.length === 0 ? (
                 <div className="flex items-center justify-center py-20">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
