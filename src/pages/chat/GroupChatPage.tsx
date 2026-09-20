@@ -271,10 +271,10 @@ const GroupChatPage: React.FC = () => {
     const query = memberQuery.trim();
     if (!query) { setMemberResults([]); return; }
     const timer = setTimeout(() => {
-      searchGroupUsers(query)
+      const existingIds = members.map(m => m.user_id);
+      searchGroupUsers(query, existingIds)
         .then(results => {
-          const existingIds = new Set(members.map(member => member.user_id));
-          setMemberResults(results.filter(p => !existingIds.has(p.user_id)));
+          setMemberResults(results);
         })
         .catch(() => setMemberResults([]));
     }, 250);

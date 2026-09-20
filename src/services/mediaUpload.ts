@@ -1,7 +1,7 @@
 import * as tus from 'tus-js-client';
 import { supabase } from '@/db/supabase';
 
-type MediaBucket = 'stories' | 'reels';
+type MediaBucket = 'stories' | 'reels' | 'posts';
 
 /**
  * Storage-only upload helper. It changes no database rows and uses Supabase's

@@ -2,6 +2,7 @@ import { markPostDeleted, markReelDeleted, filterDeletedPosts, filterDeletedReel
 import { dropLegacyPosts, dropLegacyReels } from '@/lib/legacyCleanup';
 import { supabase } from '@/db/supabase';
 import type { Profile, Post, Story, Comment, Message, Notification, VerificationRequest, Report, BroadcastNotification, ActivityLog } from '@/types/types';
+export type { Profile, Post, Story, Comment, Message, Notification, VerificationRequest, Report, BroadcastNotification, ActivityLog };
 
 // ===================== PROFILES =====================
 export async function getProfile(userId: string): Promise<Profile | null> {

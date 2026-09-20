@@ -309,8 +309,8 @@ const ProfilePage: React.FC = () => {
                       {profile.username[0]?.toUpperCase()}
                     </div>
                   )}
-                  <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center shadow-md border-2 border-background">
-                    <Camera className="w-3.5 h-3.5 text-primary-foreground" />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-md border-2 border-background">
+                    <Camera className="w-4 h-4 text-primary-foreground" />
                   </div>
                   <input
                     type="file" accept="image/*" className="hidden"

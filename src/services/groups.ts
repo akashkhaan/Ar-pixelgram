@@ -333,7 +333,7 @@ export async function rotateGroupInvite(groupId: string): Promise<string> {
   return data as string;
 }
 
-export async function searchGroupUsers(query: string, existingIds: string[]): Promise<Profile[]> {
+export async function searchGroupUsers(query: string, existingIds: string[] = []): Promise<Profile[]> {
   if (!query.trim()) return [];
   const { data, error } = await supabase
     .from('profiles')

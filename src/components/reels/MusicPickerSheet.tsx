@@ -260,6 +260,20 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
     toast.success(`Music location set to ${name}!`);
   };
 
+  const handleSelectRegion = (reg: typeof POPULAR_REGIONS[0]) => {
+    const newLoc: MusicLocale = {
+      countryCode: reg.countryCode,
+      countryName: reg.countryName,
+      regionName: reg.regionName,
+      localTerms: reg.regionName ? [`${reg.regionName} latest songs`, `${reg.regionName} hit songs`] : [`${reg.countryName} latest songs`],
+      source: 'location',
+    };
+    setManualMusicLocale(newLoc);
+    setLocale(newLoc);
+    setShowRegionModal(false);
+    toast.success(`Music region set to ${reg.name} 🎵`);
+  };
+
   if (!open) return null;
 
   // Decide current display list

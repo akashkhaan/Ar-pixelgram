@@ -184,6 +184,40 @@ export function getCountryName(countryCode: string): string {
   }
 }
 
+export const POPULAR_REGIONS = [
+  { id: 'bihar', name: 'Bihar (Bhojpuri / Maithili)', countryCode: 'IN', countryName: 'India', regionName: 'Bihar' },
+  { id: 'up', name: 'Uttar Pradesh (Bhojpuri / Hindi)', countryCode: 'IN', countryName: 'India', regionName: 'Uttar Pradesh' },
+  { id: 'punjab', name: 'Punjab (Punjabi Hits)', countryCode: 'IN', countryName: 'India', regionName: 'Punjab' },
+  { id: 'india_all', name: 'All India (Bollywood & Pop)', countryCode: 'IN', countryName: 'India' },
+  { id: 'haryana', name: 'Haryana (Haryanvi)', countryCode: 'IN', countryName: 'India', regionName: 'Haryana' },
+  { id: 'maharashtra', name: 'Maharashtra (Marathi / Hindi)', countryCode: 'IN', countryName: 'India', regionName: 'Maharashtra' },
+  { id: 'bengal', name: 'West Bengal (Bengali)', countryCode: 'IN', countryName: 'India', regionName: 'West Bengal' },
+  { id: 'south_in', name: 'South India (Telugu / Tamil)', countryCode: 'IN', countryName: 'India', regionName: 'Telangana' },
+  { id: 'pakistan', name: 'Pakistan (Urdu / Coke Studio)', countryCode: 'PK', countryName: 'Pakistan' },
+  { id: 'nepal', name: 'Nepal (Nepali Pop)', countryCode: 'NP', countryName: 'Nepal' },
+  { id: 'global', name: 'Global Hits (English / Billboard)', countryCode: 'US', countryName: 'Global' },
+];
+
+const MANUAL_LOCALE_KEY = 'ar-pixelgram-music-manual-locale-v2';
+
+export function getManualMusicLocale(): MusicLocale | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(MANUAL_LOCALE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setManualMusicLocale(locale: MusicLocale): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(MANUAL_LOCALE_KEY, JSON.stringify(locale));
+    trendingCache.clear();
+  } catch {}
+}
+
 function localeFromBrowser(): MusicLocale {
   const language = typeof navigator !== 'undefined' ? navigator.language || 'en-IN' : 'en-IN';
   const parts = language.split('-');
@@ -231,7 +265,7 @@ function localeFromBrowser(): MusicLocale {
 }
 
 export function getDefaultMusicLocale(): MusicLocale {
-  return localeFromBrowser();
+  return getManualMusicLocale() || localeFromBrowser();
 }
 
 function readCachedLocale(): MusicLocale | null {
@@ -262,6 +296,9 @@ export function saveMusicLocale(locale: MusicLocale): void {
  * 3. Browser language/timezone fallback
  */
 export async function detectMusicLocale(): Promise<MusicLocale> {
+  const manual = getManualMusicLocale();
+  if (manual) return manual;
+
   const cached = readCachedLocale();
   if (cached) return cached;
 
@@ -384,7 +421,7 @@ async function itunes(
     term,
     media: 'music',
     entity: 'song',
-    limit: String(limit),
+    limit: String(Math.min(200, limit)),
   });
   if (countryCode) params.set('country', countryCode);
   const url = `${ITUNES}?${params.toString()}`;

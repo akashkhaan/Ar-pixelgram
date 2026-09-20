@@ -61,7 +61,7 @@ const ChatPage: React.FC = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [blockedByOther, setBlockedByOther] = useState(false);
-  const [onlineStatusState, setOnlineStatusState] = useState<{ is_online: boolean; last_seen: string | null } | null>(null);
+  const [onlineStatusState, setOnlineStatusState] = useState<{ is_online: boolean; last_seen_at?: string; last_seen?: string | null } | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
 
   // Messenger Settings & Theme States
@@ -264,7 +264,9 @@ const ChatPage: React.FC = () => {
     return d.toLocaleDateString();
   };
 
-  const statusText = onlineStatusState?.is_online ? 'Active now' : formatLastSeen(onlineStatusState?.last_seen || null);
+  const statusText = onlineStatusState?.is_online
+    ? 'Active now'
+    : formatLastSeen(onlineStatusState?.last_seen_at || onlineStatusState?.last_seen || null);
   const displayName = nickname || otherProfile?.username;
 
   const visibleMessages = useMemo(() => {
@@ -414,7 +416,7 @@ const ChatPage: React.FC = () => {
                         <span>{formatTime(msg.created_at)}</span>
                         {isMe && (
                           <span>
-                            {msg.seen ? '✓✓' : '✓'}
+                            {msg.is_seen ? '✓✓' : '✓'}
                           </span>
                         )}
                       </div>
