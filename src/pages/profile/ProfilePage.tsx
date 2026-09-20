@@ -278,23 +278,20 @@ const ProfilePage: React.FC = () => {
         )}
 
         {/* Full-display Profile Header - No separate white top bar, back button inside profile */}
-        <div className="relative px-4 pt-3 pb-4">
-          {/* Seamless gradient background from top of screen */}
-          <div className="absolute top-0 left-0 right-0 h-44 opacity-15 rounded-b-3xl pointer-events-none"
-            style={{ background: 'linear-gradient(180deg, hsl(var(--p1)), hsl(var(--p2)), transparent)' }} />
-
+        <div className="relative px-4 pt-2 pb-4">
           {/* Back button placed directly inside profile header */}
-          <div className="flex items-center mb-2 relative z-10">
+          <div className="flex items-center mb-1">
             <button
-              type='button'
+              type="button"
               onClick={goBack}
-              className="w-10 h-10 -ml-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 flex items-center justify-center transition-all text-foreground"
+              className="w-10 h-10 -ml-1 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
               aria-label="Go back"
             >
               <ArrowLeft className="w-6 h-6" />
             </button>
           </div>
 
+          <div className="flex items-start gap-4 mb-3 relative">
             {/* Avatar with story ring — own profile: tap to change photo */}
             <div className="shrink-0 mt-1 relative">
               {isOwnProfile ? (
@@ -421,7 +418,7 @@ const ProfilePage: React.FC = () => {
         </div>
 
         {/* Posts / Reels tab bar */}
-        <div className="border-t border-border sticky top-16 bg-background/90 backdrop-blur-sm z-10">
+        <div className="border-t border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
           <div className="flex">
             <button
               onClick={() => setActiveTab('posts')}
