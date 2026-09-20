@@ -267,32 +267,34 @@ const ProfilePage: React.FC = () => {
     <MobileLayout hideHeader>
       <PullToRefresh onRefresh={load}>
       <div className="page-transition pb-20">
-        {/* Profile Top Bar - Clean Back Button only (full-screen feeling) */}
-        <div className="sticky top-0 z-30 bg-background/80 backdrop-blur-md px-3 h-12 flex items-center">
-          <button
-            type="button"
-            onClick={goBack}
-            className="w-10 h-10 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-        </div>
         {/* Suspended/Locked banner for other users' profiles */}
         {isSuspended && (
-          <div className="mx-4 mt-3 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40">
+          <div className="mx-4 mt-2 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40">
             <Lock className="w-4 h-4 text-amber-600 shrink-0" />
             <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
               {profile.account_status === 'locked' ? 'यह अकाउंट समीक्षा के लिए lock है।' : 'यह अकाउंट अस्थायी रूप से suspend है।'}
             </p>
           </div>
         )}
-        <div className="relative px-4 pt-5 pb-4">
-          {/* Gradient background strip */}
-          <div className="absolute top-0 left-0 right-0 h-24 opacity-10 rounded-b-3xl pointer-events-none"
-            style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }} />
 
-          <div className="flex items-start gap-4 mb-3 relative">
+        {/* Full-display Profile Header - No separate white top bar, back button inside profile */}
+        <div className="relative px-4 pt-3 pb-4">
+          {/* Seamless gradient background from top of screen */}
+          <div className="absolute top-0 left-0 right-0 h-44 opacity-15 rounded-b-3xl pointer-events-none"
+            style={{ background: 'linear-gradient(180deg, hsl(var(--p1)), hsl(var(--p2)), transparent)' }} />
+
+          {/* Back button placed directly inside profile header */}
+          <div className="flex items-center mb-2 relative z-10">
+            <button
+              type='button'
+              onClick={goBack}
+              className="w-10 h-10 -ml-1 rounded-full hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 flex items-center justify-center transition-all text-foreground"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+          </div>
+
             {/* Avatar with story ring — own profile: tap to change photo */}
             <div className="shrink-0 mt-1 relative">
               {isOwnProfile ? (
