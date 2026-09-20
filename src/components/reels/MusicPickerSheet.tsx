@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, Bookmark, Play, Pause, Loader2, Music2, MapPin } from 'lucide-react';
+import { Search, X, Bookmark, Play, Pause, Loader2, Music2, MapPin, ChevronDown, Check } from 'lucide-react';
 import {
   searchMusic,
   getTrendingMusic,
   formatMusicDuration,
   getDefaultMusicLocale,
   detectMusicLocale,
+  setManualMusicLocale,
+  POPULAR_REGIONS,
   type MusicLocale,
   type MusicTrack,
 } from '@/services/music';
@@ -29,11 +31,12 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   const [loading, setLoading] = useState(false);
   const [locale, setLocale] = useState<MusicLocale>(() => getDefaultMusicLocale());
   const [locationLoading, setLocationLoading] = useState(false);
+  const [showRegionModal, setShowRegionModal] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Detect location once per picker session. GPS coordinates are never stored;
-  // only the country/state label and music terms are cached for 24 hours.
+  // only the country/state label and music terms are cached.
   useEffect(() => {
     if (!open) return;
     let active = true;
@@ -76,7 +79,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
         .finally(() => {
           if (!ac.signal.aborted) setLoading(false);
         });
-    }, 350);
+    }, 280);
     return () => {
       clearTimeout(t);
       ac.abort();
@@ -126,6 +129,20 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
     onSelect(track);
   };
 
+  const handleSelectRegion = (reg: typeof POPULAR_REGIONS[0]) => {
+    const newLoc: MusicLocale = {
+      countryCode: reg.countryCode,
+      countryName: reg.countryName,
+      regionName: reg.regionName,
+      localTerms: reg.regionName ? [`${reg.regionName} latest songs`, `${reg.regionName} hit songs`] : [`${reg.countryName} latest songs`],
+      source: 'location',
+    };
+    setManualMusicLocale(newLoc);
+    setLocale(newLoc);
+    setShowRegionModal(false);
+    toast.success(`Music region set to ${reg.name} 🎵`);
+  };
+
   if (!open) return null;
 
   return (
@@ -147,7 +164,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
               setQuery(e.target.value);
               setTab('discover');
             }}
-            placeholder="Search songs, artists…"
+            placeholder="Search songs, artists, singers…"
             className="w-full h-10 pl-9 pr-9 rounded-full bg-white/10 text-sm text-white placeholder:text-white/45 outline-none focus:ring-2 focus:ring-primary/40"
           />
           {query && (
@@ -160,12 +177,23 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 text-[11px] text-white/60">
-          <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-          <span className="truncate">
-            {locationLoading
-              ? 'Finding music near you…'
-              : `Latest near ${locale.regionName ? `${locale.regionName}, ` : ''}${locale.countryName}`}
+        {/* Region & Location Selector */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setShowRegionModal(true)}
+            className="flex items-center gap-1.5 text-xs text-white/80 bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-full active:scale-95 transition-all max-w-[280px]"
+          >
+            <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
+            <span className="truncate font-medium">
+              {locationLoading
+                ? 'Finding music near you…'
+                : `${locale.regionName ? `${locale.regionName}, ` : ''}${locale.countryName}`}
+            </span>
+            <ChevronDown className="w-3 h-3 text-white/50 shrink-0 ml-0.5" />
+          </button>
+
+          <span className="text-[11px] text-white/40 font-medium">
+            {query.trim() ? `${list.length} results` : 'Trending'}
           </span>
         </div>
 
@@ -178,7 +206,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                 tab === tb ? 'bg-primary text-primary-foreground' : 'bg-white/10 text-white/55'
               }`}
             >
-              {tb === 'discover' ? (query.trim() ? 'Results' : 'For you') : `Saved${saved.length ? ` · ${saved.length}` : ''}`}
+              {tb === 'discover' ? (query.trim() ? 'All Results' : 'For you') : `Saved${saved.length ? ` · ${saved.length}` : ''}`}
             </button>
           ))}
         </div>
@@ -194,13 +222,13 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
           <div className="flex flex-col items-center justify-center py-16 gap-2 text-center px-8">
             <Music2 className="w-8 h-8 text-white/55" />
             <p className="text-sm text-white/55">
-              {tab === 'saved' ? 'Abhi koi saved song nahi hai.' : 'Koi gana nahi mila. Dusra naam try karo.'}
+              {tab === 'saved' ? 'Abhi koi saved song nahi hai.' : 'Koi gana nahi mila. Dusra naam search karo.'}
             </p>
           </div>
         ) : (
           <ul className="divide-y divide-white/8">
             {list.map((track) => (
-              <li key={track.id} className="flex items-center gap-3 px-4 py-2.5">
+              <li key={track.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
                 <button
                   onClick={() => togglePreview(track)}
                   className="relative w-12 h-12 rounded-lg overflow-hidden bg-muted shrink-0"
@@ -221,7 +249,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                   </span>
                 </button>
 
-                <div className="flex-1 min-w-0" onClick={() => togglePreview(track)}>
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleAdd(track)}>
                   <p className="text-sm font-semibold text-white truncate">{track.title}</p>
                   <p className="text-xs text-white/55 truncate">
                     {track.artist} · {formatMusicDuration(track.durationMs)}
@@ -236,7 +264,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
 
                 <button
                   onClick={() => handleAdd(track)}
-                  className="shrink-0 h-8 px-4 rounded-full text-xs font-bold text-white bg-gradient-to-r from-[hsl(var(--p1))] to-[hsl(var(--p2))]"
+                  className="shrink-0 h-8 px-4 rounded-full text-xs font-bold text-white bg-gradient-to-r from-[hsl(var(--p1))] to-[hsl(var(--p2))] active:scale-95 transition-transform"
                 >
                   Add
                 </button>
@@ -245,6 +273,49 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
           </ul>
         )}
       </div>
+
+      {/* Region Selector Modal */}
+      {showRegionModal && (
+        <div
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setShowRegionModal(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-zinc-900 border-t border-white/10 rounded-t-3xl overflow-hidden p-5 space-y-4 max-h-[75vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-primary" /> Select Music Region / State
+              </h3>
+              <button onClick={() => setShowRegionModal(false)} className="p-1 rounded-full text-white/60 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-1.5 flex-1 pr-1">
+              {POPULAR_REGIONS.map((reg) => {
+                const isSelected =
+                  reg.regionName
+                    ? locale.regionName === reg.regionName
+                    : locale.countryCode === reg.countryCode && !locale.regionName;
+                return (
+                  <button
+                    key={reg.id}
+                    onClick={() => handleSelectRegion(reg)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-colors ${
+                      isSelected ? 'bg-primary/20 text-white font-semibold' : 'bg-white/5 text-white/80 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-sm">{reg.name}</span>
+                    {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

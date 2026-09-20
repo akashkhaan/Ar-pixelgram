@@ -267,52 +267,16 @@ const ProfilePage: React.FC = () => {
     <MobileLayout hideHeader>
       <PullToRefresh onRefresh={load}>
       <div className="page-transition pb-20">
-        {/* Profile Top Bar with Back Button */}
-        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/50 px-3 h-12 flex items-center justify-between">
+        {/* Profile Top Bar with Back Button only */}
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md px-3 h-12 flex items-center">
           <button
             type="button"
             onClick={goBack}
-            className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
+            className="w-10 h-10 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
             aria-label="Go back"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
-
-          <div className="flex items-center gap-1.5 min-w-0">
-            {profile.is_private && <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
-            <span className="font-bold text-sm text-foreground truncate max-w-[200px]">
-              {profile.username}
-            </span>
-            {profile.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
-          </div>
-
-          <div className="flex items-center gap-1">
-            {isOwnProfile ? (
-              <Link
-                to="/settings"
-                className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
-                aria-label="Settings"
-              >
-                <Settings className="w-5 h-5" />
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (navigator.share) {
-                    navigator.share({ title: `@${profile.username} on AR Pixelgram`, url: window.location.href });
-                  } else {
-                    navigator.clipboard.writeText(window.location.href);
-                    toast.success('Profile link copied!');
-                  }
-                }}
-                className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
-                aria-label="Share profile"
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
-            )}
-          </div>
         </div>
 
         {/* Suspended/Locked banner for other users' profiles */}
@@ -337,17 +301,17 @@ const ProfilePage: React.FC = () => {
                   {profile.avatar_url ? (
                     <div className="story-ring animate-pulse-glow">
                       <div className="story-ring-inner">
-                        <img src={profile.avatar_url} alt={profile.username} className="w-20 h-20 rounded-full object-cover" />
+                        <img src={profile.avatar_url} alt={profile.username} className="w-24 h-24 rounded-full object-cover" />
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-full flex items-center justify-center text-primary-foreground font-black text-2xl"
-                      style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))', width: 88, height: 88 }}>
+                    <div className="rounded-full flex items-center justify-center text-primary-foreground font-black text-3xl"
+                      style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))', width: 96, height: 96 }}>
                       {profile.username[0]?.toUpperCase()}
                     </div>
                   )}
-                  <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center shadow-md border-2 border-background">
-                    <Camera className="w-3.5 h-3.5 text-primary-foreground" />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-md border-2 border-background">
+                    <Camera className="w-4 h-4 text-primary-foreground" />
                   </div>
                   <input
                     type="file" accept="image/*" className="hidden"
@@ -368,12 +332,12 @@ const ProfilePage: React.FC = () => {
                 profile.avatar_url ? (
                   <div className="p-0.5 rounded-full" style={{ background: userGradient(profile.username) }}>
                     <div className="bg-background p-0.5 rounded-full">
-                      <img src={profile.avatar_url} alt={profile.username} className="w-20 h-20 rounded-full object-cover" />
+                      <img src={profile.avatar_url} alt={profile.username} className="w-24 h-24 rounded-full object-cover" />
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-full flex items-center justify-center text-white font-black text-2xl"
-                    style={{ background: userGradient(profile.username), width: 88, height: 88 }}>
+                  <div className="rounded-full flex items-center justify-center text-white font-black text-3xl"
+                    style={{ background: userGradient(profile.username), width: 96, height: 96 }}>
                     {profile.username[0]?.toUpperCase()}
                   </div>
                 )

@@ -62,37 +62,45 @@ const INDIAN_REGION_TERMS: Record<string, string[]> = {
   'Andhra Pradesh': ['telugu hits', 'telugu latest songs'],
   'Arunachal Pradesh': ['northeast india songs', 'hindi latest songs'],
   Assam: ['assamese hits', 'bihu songs'],
-  Bihar: ['bhojpuri latest songs', 'bihar songs', 'maithili songs'],
+  Bihar: [
+    'bhojpuri latest songs',
+    'bhojpuri hit songs',
+    'pawan singh songs',
+    'khesari lal songs',
+    'bhojpuri viral gana',
+    'maithili latest songs',
+    'bihar hit songs',
+  ],
   Chhattisgarh: ['chhattisgarhi songs', 'hindi latest songs'],
   Goa: ['konkani hits', 'goan songs'],
   Gujarat: ['gujarati hits', 'gujarati latest songs'],
-  Haryana: ['haryanvi hits', 'haryanvi latest songs'],
+  Haryana: ['haryanvi hits', 'haryanvi latest songs', 'sapna choudhary songs', 'diler kharkiya'],
   'Himachal Pradesh': ['pahadi songs', 'hindi latest songs'],
-  Jharkhand: ['nagpuri songs', 'bhojpuri latest songs'],
+  Jharkhand: ['nagpuri songs', 'bhojpuri latest songs', 'jharkhandi songs'],
   Karnataka: ['kannada hits', 'kannada latest songs'],
   Kerala: ['malayalam hits', 'malayalam latest songs'],
   'Madhya Pradesh': ['hindi latest songs', 'malwi songs'],
-  Maharashtra: ['marathi hits', 'marathi latest songs'],
+  Maharashtra: ['marathi hits', 'marathi latest songs', 'bollywood hits'],
   Manipur: ['manipuri songs', 'northeast india songs'],
   Meghalaya: ['northeast india songs', 'english latest hits'],
   Mizoram: ['mizo songs', 'northeast india songs'],
   Nagaland: ['naga songs', 'northeast india songs'],
   Odisha: ['odia hits', 'odia latest songs'],
-  Punjab: ['punjabi hits', 'punjabi latest songs'],
-  Rajasthan: ['rajasthani folk hits', 'rajasthani songs'],
+  Punjab: ['punjabi hits', 'punjabi latest songs', 'sidhu moose wala', 'karan aujla', 'diljit dosanjh', 'punjabi viral hits'],
+  Rajasthan: ['rajasthani folk hits', 'rajasthani songs', 'marwadi songs'],
   Sikkim: ['northeast india songs', 'hindi latest songs'],
   'Tamil Nadu': ['tamil hits', 'tamil latest songs'],
   Telangana: ['telugu hits', 'telugu latest songs'],
   Tripura: ['bengali hits', 'northeast india songs'],
-  'Uttar Pradesh': ['bhojpuri latest songs', 'hindi latest songs', 'awadhi songs'],
-  Uttarakhand: ['pahadi songs', 'garhwali songs'],
-  'West Bengal': ['bengali hits', 'bengali latest songs'],
+  'Uttar Pradesh': ['bhojpuri hit songs', 'hindi latest songs', 'awadhi songs', 'bhojpuri viral songs', 'bollywood viral hits'],
+  Uttarakhand: ['pahadi songs', 'garhwali songs', 'kumaoni songs'],
+  'West Bengal': ['bengali hits', 'bengali latest songs', 'bangla songs'],
   'Andaman and Nicobar Islands': ['hindi latest songs', 'bengali hits'],
-  Chandigarh: ['punjabi hits', 'hindi latest songs'],
+  Chandigarh: ['punjabi hits', 'punjabi latest songs', 'hindi latest songs'],
   'Dadra and Nagar Haveli and Daman and Diu': ['gujarati hits', 'hindi latest songs'],
-  Delhi: ['hindi latest songs', 'bollywood latest'],
+  Delhi: ['hindi latest songs', 'bollywood latest', 'punjabi hits'],
   'Jammu and Kashmir': ['kashmiri songs', 'hindi latest songs'],
-  Ladakh: ['hindi latest songs', 'pahadi songs'],
+  Ladakh: ['ladakhi songs', 'hindi latest songs', 'pahadi songs'],
   Lakshadweep: ['malayalam hits', 'hindi latest songs'],
   Puducherry: ['tamil hits', 'tamil latest songs'],
 };
@@ -196,6 +204,40 @@ function getCountryName(countryCode: string): string {
   }
 }
 
+export const POPULAR_REGIONS = [
+  { id: 'bihar', name: 'Bihar (Bhojpuri / Maithili)', countryCode: 'IN', countryName: 'India', regionName: 'Bihar' },
+  { id: 'up', name: 'Uttar Pradesh (Bhojpuri / Hindi)', countryCode: 'IN', countryName: 'India', regionName: 'Uttar Pradesh' },
+  { id: 'punjab', name: 'Punjab (Punjabi Hits)', countryCode: 'IN', countryName: 'India', regionName: 'Punjab' },
+  { id: 'india_all', name: 'All India (Bollywood & Pop)', countryCode: 'IN', countryName: 'India' },
+  { id: 'haryana', name: 'Haryana (Haryanvi)', countryCode: 'IN', countryName: 'India', regionName: 'Haryana' },
+  { id: 'maharashtra', name: 'Maharashtra (Marathi / Hindi)', countryCode: 'IN', countryName: 'India', regionName: 'Maharashtra' },
+  { id: 'bengal', name: 'West Bengal (Bengali)', countryCode: 'IN', countryName: 'India', regionName: 'West Bengal' },
+  { id: 'south_in', name: 'South India (Telugu / Tamil)', countryCode: 'IN', countryName: 'India', regionName: 'Telangana' },
+  { id: 'pakistan', name: 'Pakistan (Urdu / Coke Studio)', countryCode: 'PK', countryName: 'Pakistan' },
+  { id: 'nepal', name: 'Nepal (Nepali Pop)', countryCode: 'NP', countryName: 'Nepal' },
+  { id: 'global', name: 'Global Hits (English / Billboard)', countryCode: 'US', countryName: 'Global' },
+];
+
+const MANUAL_LOCALE_KEY = 'ar-pixelgram-music-manual-locale-v2';
+
+export function getManualMusicLocale(): MusicLocale | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(MANUAL_LOCALE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setManualMusicLocale(locale: MusicLocale): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(MANUAL_LOCALE_KEY, JSON.stringify(locale));
+    trendingCache.clear();
+  } catch {}
+}
+
 function localeFromBrowser(): MusicLocale {
   const language = typeof navigator !== 'undefined' ? navigator.language || 'en-IN' : 'en-IN';
   const parts = language.split('-');
@@ -228,7 +270,19 @@ function localeFromBrowser(): MusicLocale {
     'America/Sao_Paulo': 'BR',
     'America/Mexico_City': 'MX',
   };
-  const countryCode = (languageCountry || timezoneCountry[timeZone] || 'IN').toUpperCase();
+
+  // TIMEZONE is far more reliable for physical geography than browser language (which defaults to en-GB on many phones)
+  let countryCode = 'IN';
+  if (timeZone && timezoneCountry[timeZone]) {
+    countryCode = timezoneCountry[timeZone];
+  } else if (timeZone.includes('Calcutta') || timeZone.includes('Kolkata') || timeZone.includes('India')) {
+    countryCode = 'IN';
+  } else if (languageCountry && languageCountry !== 'GB' && languageCountry !== 'US') {
+    countryCode = languageCountry;
+  } else if (languageCountry) {
+    countryCode = languageCountry;
+  }
+
   const countryName = getCountryName(countryCode);
   return {
     countryCode,
@@ -242,7 +296,7 @@ function localeFromBrowser(): MusicLocale {
 }
 
 export function getDefaultMusicLocale(): MusicLocale {
-  return localeFromBrowser();
+  return getManualMusicLocale() || localeFromBrowser();
 }
 
 function localeKey(locale?: MusicLocale): string {
@@ -280,21 +334,57 @@ function getCurrentPosition(): Promise<GeolocationPosition> {
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: false,
       maximumAge: 15 * 60 * 1000,
-      timeout: 6000,
+      timeout: 5000,
     });
   });
 }
 
-/** Detect location once for music personalization; it never continuously tracks or stores coordinates. */
+/** Detect location once for music personalization; checks manual preference first, then IP/GPS, then browser fallback. */
 export async function detectMusicLocale(): Promise<MusicLocale> {
+  const manual = getManualMusicLocale();
+  if (manual) return manual;
+
   const cached = readCachedLocale();
   if (cached) return cached;
 
   const fallback = localeFromBrowser();
+
+  // Try fast IP geolocation first (does not prompt user for GPS permission)
+  try {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 3500);
+    const ipRes = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+    window.clearTimeout(timeout);
+    if (ipRes.ok) {
+      const ipData = (await ipRes.json()) as { country_code?: string; country_name?: string; region?: string };
+      if (ipData.country_code) {
+        const countryCode = ipData.country_code.toUpperCase();
+        const countryName = ipData.country_name || getCountryName(countryCode);
+        const regionName = ipData.region?.replace(/^State of\s+/i, '').trim() || undefined;
+        const locale: MusicLocale = {
+          countryCode,
+          countryName,
+          regionName,
+          localTerms: uniqueTerms([
+            ...(regionName && countryCode === 'IN' ? (INDIAN_REGION_TERMS[regionName] || []) : []),
+            ...getCountryTerms(countryCode, countryName),
+            ...fallback.localTerms,
+            ...(regionName ? [`${regionName} latest songs`] : []),
+          ]),
+          source: 'location',
+        };
+        cacheLocale(locale);
+        return locale;
+      }
+    }
+  } catch {
+    // IP lookup failed, continue to GPS
+  }
+
   try {
     const position = await getCurrentPosition();
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 5000);
+    const timeout = window.setTimeout(() => controller.abort(), 4000);
     const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&localityLanguage=en`;
     const response = await fetch(url, { signal: controller.signal });
     window.clearTimeout(timeout);
@@ -337,9 +427,9 @@ async function itunes(
     term,
     media: 'music',
     entity: 'song',
-    limit: String(limit),
+    limit: String(Math.min(200, limit)),
   });
-  if (countryCode) params.set('country', countryCode);
+  if (countryCode && countryCode !== 'ALL' && countryCode !== 'GLOBAL') params.set('country', countryCode);
   if (recent) params.set('sort', 'recent');
   const url = `${ITUNES}?${params.toString()}`;
   const res = await fetch(url, { signal });
@@ -348,7 +438,7 @@ async function itunes(
   return mapTracks(json.results || []);
 }
 
-/** Search songs by name / artist / lyrics keyword. */
+/** Search songs by name / artist / lyrics keyword. Returns extensive, unlimited results across artists and regions. */
 export async function searchMusic(
   query: string,
   signal?: AbortSignal,
@@ -358,24 +448,30 @@ export async function searchMusic(
   if (!q) return [];
   try {
     const isDiscoveryQuery = /^(song|songs|music|latest|trending|gana|gaane|hit|hits|viral|new)$/i.test(q);
-    const contextualTerms = locale
-      ? isDiscoveryQuery
-        ? [
-            `${locale.regionName || locale.countryName} ${q}`,
-            ...(locale.localTerms.slice(0, 2).map((term) => `${term} ${q}`)),
-            q,
-          ]
-        : [
-            q,
-            `${q} ${locale.regionName || ''}`.trim(),
-            `${q} ${locale.countryName}`.trim(),
-          ]
-      : [q];
-    const lists = await Promise.all(
-      uniqueTerms(contextualTerms).map((term, index) =>
-        itunes(term, index === 0 ? 30 : 15, signal, locale?.countryCode, index > 0),
-      ),
-    );
+    const searches: Promise<MusicTrack[]>[] = [];
+
+    if (isDiscoveryQuery) {
+      if (locale?.regionName) {
+        searches.push(itunes(`${locale.regionName} ${q}`, 50, signal, locale.countryCode));
+      }
+      searches.push(itunes(`${locale?.countryName || 'hindi'} ${q}`, 50, signal, locale?.countryCode));
+      searches.push(itunes(q, 50, signal));
+    } else {
+      // 1. Direct query with max results in user country
+      searches.push(itunes(q, 100, signal, locale?.countryCode));
+      // 2. Unrestricted global query so all songs/albums appear
+      searches.push(itunes(q, 100, signal));
+      // 3. Artist or regional variation if specified
+      if (locale?.regionName) {
+        searches.push(itunes(`${q} ${locale.regionName}`, 40, signal, locale.countryCode));
+      }
+      // 4. Hindi/Bollywood fallback if Indian locale
+      if (locale?.countryCode === 'IN') {
+        searches.push(itunes(`${q} song`, 60, signal, 'IN'));
+      }
+    }
+
+    const lists = await Promise.all(searches.map(p => p.catch(() => [] as MusicTrack[])));
     const merged = lists.flat();
     const seen = new Set<string>();
     return merged.filter((track) => (seen.has(track.id) ? false : (seen.add(track.id), true)));
@@ -384,25 +480,25 @@ export async function searchMusic(
   }
 }
 
-const TRENDING_TERMS = ['trending hindi songs', 'punjabi hits', 'bollywood 2025', 'top hits'];
+const TRENDING_TERMS = ['trending hindi songs', 'bhojpuri hits', 'punjabi hits', 'bollywood 2025', 'top hits'];
 const trendingCache = new Map<string, MusicTrack[]>();
 
 /** Default / trending song list shown before the user searches anything. */
 export async function getTrendingMusic(signal?: AbortSignal, locale?: MusicLocale): Promise<MusicTrack[]> {
   const key = localeKey(locale);
   const cached = trendingCache.get(key);
-  if (cached) return cached;
+  if (cached && cached.length > 0) return cached;
   try {
     const localizedTerms = locale
       ? [
           ...locale.localTerms,
-          ...(locale.regionName ? [`${locale.regionName} latest songs`] : []),
+          ...(locale.regionName ? [`${locale.regionName} latest songs`, `${locale.regionName} hit songs`] : []),
           `${locale.countryName} latest songs`,
         ]
       : TRENDING_TERMS;
     const terms = uniqueTerms([...localizedTerms, ...TRENDING_TERMS]).slice(0, 8);
     const lists = await Promise.all(
-      terms.map((term) => itunes(term, 12, signal, locale?.countryCode, true).catch(() => [] as MusicTrack[])),
+      terms.map((term) => itunes(term, 25, signal, locale?.countryCode, true).catch(() => [] as MusicTrack[])),
     );
     const merged = lists.flat();
     const seen = new Set<string>();
