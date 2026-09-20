@@ -10,8 +10,10 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { RouteGuard } from "@/components/common/RouteGuard";
 import { CallProvider } from "@/contexts/CallContext";
+import { GroupCallProvider } from "@/contexts/GroupCallContext";
 import { CallOverlay, IncomingCallModal } from "@/components/call/CallOverlay";
 import { IncomingGroupCallModal } from "@/components/call/IncomingGroupCallModal";
+import GroupCallOverlay from "@/components/call/GroupCallOverlay";
 import { routes } from "./routes";
 import { useVisitTracker } from "@/hooks/useVisitTracker";
 import UploadProgressOverlay from "@/components/common/UploadProgressOverlay";
@@ -27,7 +29,8 @@ const App: React.FC = () => {
       <Router>
         <AuthProvider>
           <CallProvider>
-            <VisitTracker />
+            <GroupCallProvider>
+              <VisitTracker />
               <RouteGuard>
                 <Routes>
                   {routes.map((route, index) => (
@@ -40,10 +43,12 @@ const App: React.FC = () => {
                   <Route path="*" element={<Navigate to="/home" replace />} />
                 </Routes>
               </RouteGuard>
-            <IncomingCallModal />
-            <IncomingGroupCallModal />
-            <CallOverlay />
-            <UploadProgressOverlay />
+              <IncomingCallModal />
+              <IncomingGroupCallModal />
+              <CallOverlay />
+              <GroupCallOverlay />
+              <UploadProgressOverlay />
+            </GroupCallProvider>
           </CallProvider>
         </AuthProvider>
         <Toaster />

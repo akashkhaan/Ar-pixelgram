@@ -45,6 +45,7 @@ export function notifyPhone(options: NotifyPhoneOptions) {
     showCallNotification?: (t: string, b: string, tag: string, ongoing: boolean, icon?: string) => void;
     showUploadNotification?: (p: number, t: string, b: string) => void;
     dismissNotification?: (tag: string) => void;
+    setCallActive?: (active: boolean, title: string) => void;
   } }).AndroidNotification;
 
   if (android) {
@@ -54,6 +55,9 @@ export function notifyPhone(options: NotifyPhoneOptions) {
         return;
       }
       if (isCall) {
+        if (isOngoing) {
+          android.setCallActive?.(true, title);
+        }
         android.showCallNotification?.(title, body, tag, !!isOngoing, resolvedIcon);
         return;
       }
@@ -133,10 +137,13 @@ export function notifyPhone(options: NotifyPhoneOptions) {
 }
 
 export function dismissPhoneNotification(tag: string) {
-  const android = (window as unknown as { AndroidNotification?: { dismissNotification?: (t: string) => void } }).AndroidNotification;
+  const android = (window as unknown as { AndroidNotification?: { dismissNotification?: (t: string) => void; setCallActive?: (active: boolean, title: string) => void; } }).AndroidNotification;
   if (android?.dismissNotification) {
     try {
       android.dismissNotification(tag);
+      if (tag.includes("call")) {
+        android.setCallActive?.(false, "");
+      }
     } catch { /* noop */ }
   }
   // Also close web notification if service worker has it

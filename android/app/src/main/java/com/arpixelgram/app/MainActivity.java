@@ -4,15 +4,20 @@ import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.PictureInPictureParams;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.util.Rational;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebSettings;
@@ -31,7 +36,10 @@ public class MainActivity extends BridgeActivity {
     public static final String CHANNEL_ALERTS = "ar_pixelgram_alerts_v2";
     public static final String CHANNEL_CALLS = "ar_pixelgram_calls_v2";
     public static final String CHANNEL_UPLOADS = "ar_pixelgram_uploads_v2";
+
     private static final AtomicInteger notifIdSeq = new AtomicInteger(100);
+    private PowerManager.WakeLock wakeLock;
+    public static volatile boolean isCallActive = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -62,31 +70,90 @@ public class MainActivity extends BridgeActivity {
         ensureRuntimePermissions();
     }
 
+    @Override
+    public void onBackPressed() {
+        if (isCallActive) {
+            // Signal WebView to minimize the active call overlay
+            runOnUiThread(() -> {
+                try {
+                    getBridge().getWebView().evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('appCallBackPressed'));",
+                        null
+                    );
+                } catch (Exception ignored) {}
+            });
+
+            // Enter Picture-in-Picture mode on Android 8.0+ if supported
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                try {
+                    PictureInPictureParams.Builder pipBuilder = new PictureInPictureParams.Builder();
+                    pipBuilder.setAspectRatio(new Rational(9, 16));
+                    enterPictureInPictureMode(pipBuilder.build());
+                    return;
+                } catch (Exception ignored) {}
+            }
+
+            // Fallback: move task to back so call audio stays alive in the background
+            moveTaskToBack(true);
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        // If user hits Home or Recent Apps during a call, enter PiP window like Messenger
+        if (isCallActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                try {
+                    PictureInPictureParams.Builder pipBuilder = new PictureInPictureParams.Builder();
+                    pipBuilder.setAspectRatio(new Rational(9, 16));
+                    enterPictureInPictureMode(pipBuilder.build());
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean isInPictureInPictureMode, Configuration newConfig) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig);
+        runOnUiThread(() -> {
+            try {
+                getBridge().getWebView().evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('pipModeChanged', { detail: { isPip: " + isInPictureInPictureMode + " } }));",
+                    null
+                );
+            } catch (Exception ignored) {}
+        });
+    }
+
     private void createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            NotificationManager nm = getSystemService(NotificationManager.class);
             if (nm == null) return;
 
-            // 1. Alerts Channel (Messages, Likes, Comments, Mentions, Follows)
+            // 1. General alerts (Messages, likes, comments)
             NotificationChannel alertsChannel = new NotificationChannel(
                 CHANNEL_ALERTS,
-                "Messages & Notifications",
+                "Alerts & Messages",
                 NotificationManager.IMPORTANCE_HIGH
             );
-            alertsChannel.setDescription("Notifications for chat messages, likes, comments, and mentions");
+            alertsChannel.setDescription("Chat messages, likes, and mentions");
             alertsChannel.enableLights(true);
             alertsChannel.setLightColor(Color.MAGENTA);
             alertsChannel.enableVibration(true);
-            alertsChannel.setVibrationPattern(new long[]{0, 250, 200, 250});
+            alertsChannel.setShowBadge(true);
             nm.createNotificationChannel(alertsChannel);
 
-            // 2. Calls Channel (Incoming & Active Calls)
+            // 2. Incoming and Ongoing Calls Channel
             NotificationChannel callsChannel = new NotificationChannel(
                 CHANNEL_CALLS,
-                "Voice & Video Calls",
+                "Audio & Video Calls",
                 NotificationManager.IMPORTANCE_HIGH
             );
-            callsChannel.setDescription("Incoming and active audio/video call notifications");
+            callsChannel.setDescription("Live audio/video call notifications");
             callsChannel.enableLights(true);
             callsChannel.setLightColor(Color.BLUE);
             callsChannel.enableVibration(true);
@@ -101,7 +168,7 @@ public class MainActivity extends BridgeActivity {
             }
             nm.createNotificationChannel(callsChannel);
 
-            // 3. Uploads Channel (Posts and Reels progress)
+            // 3. Uploads Channel
             NotificationChannel uploadsChannel = new NotificationChannel(
                 CHANNEL_UPLOADS,
                 "Media Uploads",
@@ -112,7 +179,7 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
-    public static class NativeNotificationBridge {
+    public class NativeNotificationBridge {
         private final Context context;
 
         public NativeNotificationBridge(Context context) {
@@ -122,6 +189,38 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isNativeApp() {
             return true;
+        }
+
+        @JavascriptInterface
+        public void setCallActive(boolean active, String title) {
+            MainActivity.isCallActive = active;
+            runOnUiThread(() -> {
+                try {
+                    if (active) {
+                        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        if (wakeLock == null) {
+                            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                            if (pm != null) {
+                                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ar_pixelgram:call_wake");
+                                wakeLock.acquire(4 * 60 * 60 * 1000L);
+                            }
+                        }
+                    } else {
+                        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        if (wakeLock != null && wakeLock.isHeld()) {
+                            wakeLock.release();
+                            wakeLock = null;
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public boolean getCallActive() {
+            return MainActivity.isCallActive;
         }
 
         @JavascriptInterface
@@ -230,14 +329,12 @@ public class MainActivity extends BridgeActivity {
             try {
                 NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
                 if (nm == null) return;
+
                 if (tag != null && !tag.isEmpty()) {
-                    if ("call_ongoing".equals(tag)) {
-                        nm.cancel(tag, 7777);
-                    } else if ("upload_progress".equals(tag)) {
-                        nm.cancel(tag, 8888);
-                    } else {
-                        nm.cancel(tag, Math.abs(tag.hashCode()));
-                    }
+                    nm.cancel(tag, 7777);
+                    nm.cancel(tag, 8888);
+                    nm.cancel(tag, Math.abs(tag.hashCode()));
+                    nm.cancel(7777);
                 } else {
                     nm.cancelAll();
                 }

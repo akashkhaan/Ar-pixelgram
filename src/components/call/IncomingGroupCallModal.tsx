@@ -28,6 +28,7 @@ function initials(name: string) {
 export const IncomingGroupCallModal: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const groupCall = useGroupCall();
   const location = useLocation();
   const [callData, setCallData] = useState<IncomingGroupCallData | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);

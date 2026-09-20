@@ -94,6 +94,28 @@ export const CallOverlay: React.FC = () => {
   }, [call.status, call.startedAt]);
 
   const visible = call.status === 'ringing-out' || call.status === 'connecting' || call.status === 'active' || call.status === 'ended';
+  // Intercept back button when 1-on-1 call is full screen so call stays active and minimizes into floating bubble
+  useEffect(() => {
+    if (!visible || call.minimized) return;
+
+    window.history.pushState({ in1on1Call: true }, '');
+
+    const handlePopState = () => {
+      call.toggleMinimize();
+    };
+
+    const handleNativeBack = () => {
+      call.toggleMinimize();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('appCallBackPressed', handleNativeBack);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('appCallBackPressed', handleNativeBack);
+    };
+  }, [visible, call.minimized, call.toggleMinimize]);
   if (!visible) return null;
 
   const showVideo = call.kind === 'video';

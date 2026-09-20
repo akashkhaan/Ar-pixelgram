@@ -18,6 +18,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import GroupCallPanel, { GroupCallPanelHandle } from '@/components/call/GroupCallPanel';
+import { useGroupCall } from '@/contexts/GroupCallContext';
 import MessengerGroupSettings, { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
 import MobileLayout from '@/components/layouts/MobileLayout';
 import { Button } from '@/components/ui/button';
@@ -140,6 +141,7 @@ const GroupChatPage: React.FC = () => {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const callPanelRef = useRef<GroupCallPanelHandle>(null);
+  const groupCall = useGroupCall();
 
   const goBack = useGoBack('/chat');
   const handleBack = () => { goBack(); };
@@ -243,12 +245,12 @@ const GroupChatPage: React.FC = () => {
   // Auto-join call if navigated with autoJoin=1
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get('autoJoin') === '1' && group && callPanelRef.current) {
+    if (params.get('autoJoin') === '1' && group) {
       const callKind = (params.get('kind') as 'audio' | 'video') || 'audio';
       navigate(location.pathname, { replace: true, state: location.state });
-      void callPanelRef.current.startCall(callKind);
+      void groupCall.startCall(group.id, group.name, group.avatar_url, members, callKind);
     }
-  }, [location.search, group, location.pathname, location.state, navigate]);
+  }, [location.search, group, location.pathname, location.state, navigate, groupCall, members]);
 
   const handleStartCall = useCallback(async (kind: 'audio' | 'video') => {
     setShowInfo(false);
@@ -520,7 +522,31 @@ const GroupChatPage: React.FC = () => {
         />
 
         {/* ACTIVE CALL BANNER */}
-        {activeGroupCall && (
+        {(groupCall.active && groupCall.groupId === group.id) ? (
+          <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-950/70 px-3.5 py-2 backdrop-blur text-emerald-200 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="relative flex h-3 w-3 items-center justify-center shrink-0">
+                <span className="absolute h-3 w-3 rounded-full bg-emerald-400 animate-ping opacity-75" />
+                <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-emerald-100 truncate">
+                  Group {groupCall.kind === 'video' ? 'video' : 'audio'} call active
+                </p>
+                <p className="text-[11px] text-emerald-300/80 truncate">
+                  In progress ({Math.floor(groupCall.elapsedSeconds / 60)}:{(groupCall.elapsedSeconds % 60).toString().padStart(2, '0')}) · Tap to return
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => groupCall.setMinimized(false)}
+              className="h-7.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 shadow-sm shadow-emerald-500/30 shrink-0"
+            >
+              Return to Call
+            </Button>
+          </div>
+        ) : activeGroupCall ? (
           <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-950/40 px-3.5 py-2 backdrop-blur text-emerald-200 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="relative flex h-3 w-3 items-center justify-center shrink-0">
@@ -544,7 +570,7 @@ const GroupChatPage: React.FC = () => {
               Join
             </Button>
           </div>
-        )}
+        ) : null}
 
         {/* MESSAGES LIST */}
         <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
