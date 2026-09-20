@@ -5,6 +5,7 @@ import { supabase } from '@/db/supabase';
 import type { Profile } from '@/types/types';
 import { getProfile } from '@/services/api';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
+import { useNativePush } from '@/hooks/useNativePush';
 import { useNativeNotifications } from '@/hooks/useNativeNotifications';
 import { withTimeout } from '@/lib/withTimeout';
 
@@ -35,6 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // calls & messages can wake the phone even when the app is closed/locked.
   usePushSubscription(user?.id);
   useNativeNotifications(user?.id);
+  useNativePush(user?.id);
 
   const refreshProfile = useCallback(async () => {
     try {

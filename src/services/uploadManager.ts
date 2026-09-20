@@ -53,7 +53,7 @@ function hash(value: string): number {
 
 function maybeNotify(job: UploadJob) {
   const previous = notifiedAt.get(job.id) ?? -10;
-  if (job.status === 'complete' || job.status === 'error' || job.progress - previous >= 10) {
+  if (job.status === 'complete' || job.status === 'error' || job.progress - previous >= 1) {
     notifiedAt.set(job.id, job.progress);
     void notifyOnPhone(job);
   }

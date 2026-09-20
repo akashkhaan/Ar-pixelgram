@@ -217,6 +217,13 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
             `/group/${groupId}`,
             `group-msg-${message!.id}`,
             groupAvatar || senderAvatar || '/images/logo/logo-icon.svg',
+            {
+              type: isMention ? 'group_mention' : 'group_message',
+              groupId,
+              groupName: groupTitle,
+              senderName,
+              senderAvatar: senderAvatar || undefined,
+            },
           );
         }
       } catch (err) {

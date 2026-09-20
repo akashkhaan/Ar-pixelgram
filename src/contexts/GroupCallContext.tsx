@@ -445,6 +445,15 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               `/group/${targetGroupId}?autoJoin=1&kind=${finalKind}`,
               `group_call_${callInfo.id}`,
               targetAvatarUrl || callerAvatar || '/images/logo/logo-icon.svg',
+              {
+                type: 'group_call',
+                kind: finalKind,
+                groupId: targetGroupId,
+                groupName: targetGroupName || 'Group',
+                callId: callInfo.id,
+                callerName,
+                callerAvatar: callerAvatar || undefined,
+              },
             );
             return createNotification(
               uid,
@@ -630,6 +639,23 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!incoming || !groupId) return;
     await joinCall(groupId, groupName, groupAvatarUrl, incoming.callId, incoming.kind || 'audio', incoming.startedAt);
   };
+
+  // "Join" / "Decline" tapped on the phone's group-call notification.
+  const acceptIncomingRef = useRef<(() => Promise<void>) | null>(null);
+  acceptIncomingRef.current = acceptIncoming;
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onAction = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: string; groupId?: string }>).detail || {};
+      if (detail.action === 'join') {
+        void acceptIncomingRef.current?.();
+      } else if (detail.action === 'decline') {
+        setIncoming(null);
+      }
+    };
+    window.addEventListener('appCallActionFromNotification', onAction);
+    return () => window.removeEventListener('appCallActionFromNotification', onAction);
+  }, []);
 
   return (
     <GroupCallContext.Provider

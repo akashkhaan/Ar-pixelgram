@@ -302,8 +302,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             body: `${myName} is calling you`,
             tag: `call-${user.id}`,
             data: {
+              type: 'call',
               kind,
               peerId: user.id,
+              callerName: myName,
+              callerAvatar: myAvatar,
+              url: `/chat/${user.id}`,
               icon: myAvatar,
             },
           },
@@ -363,6 +367,22 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigator.serviceWorker.addEventListener('message', onMsg);
     return () => navigator.serviceWorker.removeEventListener('message', onMsg);
   }, [state.status]);
+
+  // "Answer" / "Decline" tapped on the phone's incoming-call notification.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onAction = (event: Event) => {
+      const detail = (event as CustomEvent<{ action?: string }>).detail || {};
+      if (detail.action === 'answer') {
+        if (stateRef.current?.status === 'ringing-in') acceptCallRef.current?.();
+        else autoAcceptRef.current = true;
+      } else if (detail.action === 'decline') {
+        if (stateRef.current?.status === 'ringing-in') rejectCallRef.current?.('declined');
+      }
+    };
+    window.addEventListener('appCallActionFromNotification', onAction);
+    return () => window.removeEventListener('appCallActionFromNotification', onAction);
+  }, []);
 
   const rejectCall = useCallback((reason: 'declined' | 'no-answer' = 'declined') => {
     if (state.peerId) {

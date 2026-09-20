@@ -42,6 +42,105 @@ public class MainActivity extends BridgeActivity {
     public static volatile boolean isCallActive = false;
     private static volatile MainActivity instance;
 
+    /** Latest FCM token, queued until the WebView is ready to store it. */
+    private static volatile String pendingFcmToken;
+    private static volatile String pendingNotificationAction;
+
+    /** Hands a Firebase registration token to the web layer so it can be saved. */
+    public static void deliverFcmTokenToWeb(String token) {
+        if (token == null || token.isEmpty()) return;
+        pendingFcmToken = token;
+        final MainActivity activity = instance;
+        if (activity == null) return;
+        activity.runOnUiThread(() -> activity.flushPendingWebEvents());
+    }
+
+    private void flushPendingWebEvents() {
+        try {
+            WebView webView = getBridge().getWebView();
+            if (webView == null) return;
+            String token = pendingFcmToken;
+            if (token != null) {
+                pendingFcmToken = null;
+                webView.evaluateJavascript(
+                    "window.__arFcmToken=" + jsString(token)
+                        + ";window.dispatchEvent(new CustomEvent('appFcmToken',{detail:{token:"
+                        + jsString(token) + "}}));",
+                    null
+                );
+            }
+            String action = pendingNotificationAction;
+            if (action != null) {
+                pendingNotificationAction = null;
+                webView.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('appNotificationAction',{detail:" + action + "}));",
+                    null
+                );
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private static String jsString(String value) {
+        if (value == null) return "\"\"";
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"")
+            .replace("\n", " ").replace("\r", " ") + "\"";
+    }
+
+    /** Fetches the Firebase token (no-op when google-services.json is absent). */
+    private void initFirebaseMessaging() {
+        try {
+            String cached = getSharedPreferences("ar_pixelgram_push", MODE_PRIVATE)
+                .getString("fcm_token", null);
+            if (cached != null) pendingFcmToken = cached;
+
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        getSharedPreferences("ar_pixelgram_push", MODE_PRIVATE)
+                            .edit().putString("fcm_token", task.getResult()).apply();
+                        deliverFcmTokenToWeb(task.getResult());
+                    }
+                });
+        } catch (Throwable t) {
+            // Firebase not configured in this build — push stays off, app works.
+            android.util.Log.w("ArPixelgram", "Firebase messaging unavailable: " + t.getMessage());
+        }
+    }
+
+    /** Turns a notification tap / Answer / Decline into a web event. */
+    private void handleNotificationIntent(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getStringExtra("callAction");
+        String url = intent.getStringExtra("notifUrl");
+        if (action == null && url == null) return;
+        pendingNotificationAction = "{"
+            + "\"action\":" + jsString(action != null ? action : "open") + ","
+            + "\"url\":" + jsString(url != null ? url : "/") + ","
+            + "\"kind\":" + jsString(intent.getStringExtra("callKind")) + ","
+            + "\"peerId\":" + jsString(intent.getStringExtra("peerId")) + ","
+            + "\"groupId\":" + jsString(intent.getStringExtra("groupId")) + ","
+            + "\"callId\":" + jsString(intent.getStringExtra("callId"))
+            + "}";
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(4321);
+        } catch (Exception ignored) {}
+        runOnUiThread(this::flushPendingWebEvents);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleNotificationIntent(intent);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        flushPendingWebEvents();
+    }
+
     /** Called when the user taps "End call" on the ongoing-call notification. */
     public static void requestHangupFromNotification() {
         final MainActivity activity = instance;
@@ -84,6 +183,8 @@ public class MainActivity extends BridgeActivity {
         });
 
         ensureRuntimePermissions();
+        initFirebaseMessaging();
+        handleNotificationIntent(getIntent());
     }
 
     @Override
@@ -402,6 +503,16 @@ public class MainActivity extends BridgeActivity {
                 nm.notify("upload_progress", 8888, builder.build());
             } catch (Exception e) {
                 e.printStackTrace();
+            }
+        }
+
+        @JavascriptInterface
+        public String getFcmToken() {
+            try {
+                return context.getSharedPreferences("ar_pixelgram_push", MODE_PRIVATE)
+                    .getString("fcm_token", "");
+            } catch (Exception e) {
+                return "";
             }
         }
 

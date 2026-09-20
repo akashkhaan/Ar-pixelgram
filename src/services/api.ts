@@ -727,6 +727,7 @@ export async function sendPushTo(
   url: string,
   tag?: string,
   icon?: string | null,
+  extra?: Record<string, string | undefined>,
 ): Promise<void> {
   try {
     await supabase.functions.invoke('send-call-push', {
@@ -735,7 +736,11 @@ export async function sendPushTo(
         title,
         body,
         tag: tag || `${title}-${Date.now()}`,
-        data: { url, icon: icon || '/images/logo/logo-icon.svg' },
+        data: {
+          url,
+          icon: icon || '/images/logo/logo-icon.svg',
+          ...(extra || {}),
+        },
       },
     });
   } catch {
