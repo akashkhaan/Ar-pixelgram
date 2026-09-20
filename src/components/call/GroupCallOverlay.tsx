@@ -286,9 +286,9 @@ export const GroupCallOverlay: React.FC = () => {
         />
       ) : (
         /* Full Screen Group Call View (Messenger Style) */
-    <div className="fixed inset-0 z-[120] flex flex-col bg-neutral-950 select-none overflow-hidden animate-in fade-in duration-200">
-      {/* BACKGROUND GRADIENT */}
-      <div className="absolute inset-0 bg-radial from-neutral-900 via-neutral-950 to-black pointer-events-none" />
+    <div className="fixed inset-0 z-[120] flex flex-col select-none overflow-hidden animate-in fade-in duration-200 bg-[#0b141a]">
+      {/* BACKGROUND GRADIENT (Messenger look) */}
+      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(180deg,#1b3a4b_0%,#0f2a36_45%,#0b141a_100%)]" />
 
       {/* TOP HEADER */}
       <div className="relative z-30 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),16px)] pb-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
@@ -316,8 +316,11 @@ export const GroupCallOverlay: React.FC = () => {
           </span>
         </div>
 
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-md border border-white/15">
-          <Users className="h-5 w-5 text-white/80" />
+        <div className="flex items-center gap-1.5">
+          <div className="flex h-10 items-center gap-1.5 rounded-full bg-white/10 px-3 text-white backdrop-blur-md border border-white/15">
+            <Users className="h-4.5 w-4.5 text-white/80" />
+            <span className="text-xs font-semibold text-white/90">{participantCount}</span>
+          </div>
         </div>
       </div>
 
@@ -338,12 +341,14 @@ export const GroupCallOverlay: React.FC = () => {
             </div>
           </div>
 
-          <h3 className="mt-6 text-xl sm:text-2xl font-bold text-white tracking-tight drop-shadow">
-            Calling {groupName || 'Group'}...
+          <h3 className="mt-6 text-2xl font-bold text-white tracking-tight drop-shadow">
+            {groupName || 'Group'}
           </h3>
-          <p className="mt-2 text-sm text-emerald-400 font-medium flex items-center gap-2">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            Waiting for members to join
+          <p className="mt-2 text-sm font-medium text-white/70">
+            Ringing&hellip;
+          </p>
+          <p className="mt-1 text-xs text-white/50">
+            {kind === 'video' ? 'Group video call' : 'Group audio call'} &middot; {formatTime(elapsedSeconds)}
           </p>
         </div>
       ) : (

@@ -660,6 +660,14 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [state.status, state.kind, state.peerProfile]);
 
 
+  // "End call" tapped on the phone's ongoing-call notification
+  useEffect(() => {
+    if (state.status === 'idle' || state.status === 'ended') return;
+    const onEndRequested = () => { endCallRef.current?.(); };
+    window.addEventListener('appEndCallRequested', onEndRequested);
+    return () => window.removeEventListener('appEndCallRequested', onEndRequested);
+  }, [state.status]);
+
   // Receiver side: if an incoming call rings unanswered for 45s, auto-decline
   // and send the caller a missed-call alert.
   useEffect(() => {

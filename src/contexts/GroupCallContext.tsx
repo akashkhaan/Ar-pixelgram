@@ -92,6 +92,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [groupName, setGroupName] = useState<string>('Group Call');
   const [groupAvatarUrl, setGroupAvatarUrl] = useState<string | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
+  const leaveCallRef = useRef<(() => Promise<void>) | null>(null);
 
   const [callId, setCallId] = useState<string | null>(null);
   const [kind, setKind] = useState<CallKind>('audio');
@@ -314,6 +315,14 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // handled by the inactive branch and leaveCall; dismissing here would make
     // Android briefly remove and recreate the call notification every second.
   }, [active, groupId, groupName, groupAvatarUrl, kind, elapsedSeconds]);
+
+  // "End call" tapped on the phone's ongoing-call notification
+  useEffect(() => {
+    if (!active) return;
+    const onEndRequested = () => { void leaveCallRef.current?.(); };
+    window.addEventListener('appEndCallRequested', onEndRequested);
+    return () => window.removeEventListener('appEndCallRequested', onEndRequested);
+  }, [active]);
 
   // Back button interception when call overlay is full-screen
   useEffect(() => {
@@ -584,6 +593,8 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const android = (window as unknown as { AndroidNotification?: { setCallActive?: (a: boolean, t: string) => void } }).AndroidNotification;
     android?.setCallActive?.(false, '');
   };
+
+  leaveCallRef.current = leaveCall;
 
   const toggleMute = () => {
     const next = !muted;

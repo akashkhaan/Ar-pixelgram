@@ -40,10 +40,26 @@ public class MainActivity extends BridgeActivity {
     private static final AtomicInteger notifIdSeq = new AtomicInteger(100);
     private PowerManager.WakeLock wakeLock;
     public static volatile boolean isCallActive = false;
+    private static volatile MainActivity instance;
+
+    /** Called when the user taps "End call" on the ongoing-call notification. */
+    public static void requestHangupFromNotification() {
+        final MainActivity activity = instance;
+        if (activity == null) return;
+        activity.runOnUiThread(() -> {
+            try {
+                activity.getBridge().getWebView().evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('appEndCallRequested'));",
+                    null
+                );
+            } catch (Exception ignored) {}
+        });
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
         createNotificationChannels();
 
         WebView webView = getBridge().getWebView();
@@ -68,6 +84,46 @@ public class MainActivity extends BridgeActivity {
         });
 
         ensureRuntimePermissions();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (instance == this) instance = null;
+        try {
+            Intent stop = new Intent(this, CallForegroundService.class);
+            stop.setAction(CallForegroundService.ACTION_STOP);
+            if (!isCallActive) startService(stop);
+        } catch (Exception ignored) {}
+        super.onDestroy();
+    }
+
+    private void startOrUpdateCallService(String action, String title, String body, boolean video, long startedAt) {
+        try {
+            Intent intent = new Intent(this, CallForegroundService.class);
+            intent.setAction(action);
+            intent.putExtra(CallForegroundService.EXTRA_TITLE, title != null ? title : "Ongoing call");
+            intent.putExtra(CallForegroundService.EXTRA_BODY, body != null ? body : "Tap to return to the call");
+            intent.putExtra(CallForegroundService.EXTRA_VIDEO, video);
+            intent.putExtra(CallForegroundService.EXTRA_STARTED_AT, startedAt);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && CallForegroundService.ACTION_START.equals(action)) {
+                startForegroundService(intent);
+            } else {
+                startService(intent);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void stopCallServiceInternal() {
+        try {
+            Intent intent = new Intent(this, CallForegroundService.class);
+            intent.setAction(CallForegroundService.ACTION_STOP);
+            startService(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -194,6 +250,18 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void setCallActive(boolean active, String title) {
             MainActivity.isCallActive = active;
+            if (active) {
+                CallForegroundService.hangupRequested = false;
+                startOrUpdateCallService(
+                    CallForegroundService.ACTION_START,
+                    (title != null && !title.isEmpty()) ? title : "Ongoing call",
+                    "Tap to return to the call",
+                    title != null && title.toLowerCase().contains("video"),
+                    System.currentTimeMillis()
+                );
+            } else {
+                stopCallServiceInternal();
+            }
             runOnUiThread(() -> {
                 try {
                     if (active) {
@@ -262,6 +330,19 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void showCallNotification(String title, String body, String tag, boolean isOngoing) {
+            if (isOngoing) {
+                // Ongoing calls are owned by the foreground service so they survive
+                // back press / app backgrounding just like Messenger.
+                MainActivity.isCallActive = true;
+                startOrUpdateCallService(
+                    CallForegroundService.ACTION_UPDATE,
+                    title,
+                    body,
+                    title != null && title.toLowerCase().contains("video"),
+                    0L
+                );
+                return;
+            }
             try {
                 NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
                 if (nm == null) return;
@@ -322,6 +403,36 @@ public class MainActivity extends BridgeActivity {
             } catch (Exception e) {
                 e.printStackTrace();
             }
+        }
+
+        @JavascriptInterface
+        public void startCallService(String title, String body, boolean video, double startedAt) {
+            MainActivity.isCallActive = true;
+            CallForegroundService.hangupRequested = false;
+            long started = startedAt > 0 ? (long) startedAt : System.currentTimeMillis();
+            startOrUpdateCallService(CallForegroundService.ACTION_START, title, body, video, started);
+        }
+
+        @JavascriptInterface
+        public void updateCallService(String title, String body, boolean video, double startedAt) {
+            long started = startedAt > 0 ? (long) startedAt : System.currentTimeMillis();
+            startOrUpdateCallService(CallForegroundService.ACTION_UPDATE, title, body, video, started);
+        }
+
+        @JavascriptInterface
+        public void stopCallService() {
+            MainActivity.isCallActive = false;
+            stopCallServiceInternal();
+        }
+
+        @JavascriptInterface
+        public void showNotification(String title, String body, String tag, String url, String icon) {
+            showNotification(title, body, tag, url);
+        }
+
+        @JavascriptInterface
+        public void showCallNotification(String title, String body, String tag, boolean isOngoing, String icon) {
+            showCallNotification(title, body, tag, isOngoing);
         }
 
         @JavascriptInterface

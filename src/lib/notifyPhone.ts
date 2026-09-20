@@ -20,6 +20,65 @@ export interface NotifyPhoneOptions {
   actions?: NotifyPhoneAction[];
 }
 
+// Tracks whether the native ongoing-call foreground service is already running,
+// so per-second timer updates only refresh the notification instead of
+// restarting the service.
+let callServiceRunning = false;
+let callServiceStartedAt = 0;
+
+type AndroidBridge = {
+  isNativeApp?: () => boolean;
+  showNotification?: (t: string, b: string, tag: string, u: string, icon?: string) => void;
+  showCallNotification?: (t: string, b: string, tag: string, ongoing: boolean, icon?: string) => void;
+  showUploadNotification?: (p: number, t: string, b: string) => void;
+  dismissNotification?: (tag: string) => void;
+  setCallActive?: (active: boolean, title: string) => void;
+  startCallService?: (title: string, body: string, video: boolean, startedAt: number) => void;
+  updateCallService?: (title: string, body: string, video: boolean, startedAt: number) => void;
+  stopCallService?: () => void;
+};
+
+const getAndroidBridge = (): AndroidBridge | undefined =>
+  (window as unknown as { AndroidNotification?: AndroidBridge }).AndroidNotification;
+
+/**
+ * Starts (or refreshes) the native ongoing-call notification, backed by an
+ * Android foreground service. The call then keeps running when the user presses
+ * back or leaves the app, exactly like Messenger.
+ */
+export function startPhoneCallService(options: {
+  title: string;
+  body: string;
+  video?: boolean;
+  startedAt?: number;
+}) {
+  const android = getAndroidBridge();
+  if (!android) return;
+  const startedAt = options.startedAt || callServiceStartedAt || Date.now();
+  try {
+    if (!callServiceRunning || !android.updateCallService) {
+      android.startCallService?.(options.title, options.body, !!options.video, startedAt);
+      callServiceRunning = true;
+      callServiceStartedAt = startedAt;
+    } else {
+      android.updateCallService(options.title, options.body, !!options.video, startedAt);
+    }
+  } catch (e) {
+    console.warn('startPhoneCallService failed', e);
+  }
+}
+
+/** Removes the ongoing-call notification and stops the foreground service. */
+export function stopPhoneCallService() {
+  const android = getAndroidBridge();
+  callServiceRunning = false;
+  callServiceStartedAt = 0;
+  try {
+    android?.stopCallService?.();
+    android?.setCallActive?.(false, '');
+  } catch { /* noop */ }
+}
+
 export function notifyPhone(options: NotifyPhoneOptions) {
   const {
     title,
@@ -39,14 +98,7 @@ export function notifyPhone(options: NotifyPhoneOptions) {
   const resolvedBadge = badge || '/images/logo/logo-icon.svg';
 
   // 1. Direct Native Android Java Interface (Always active in our APK build)
-  const android = (window as unknown as { AndroidNotification?: {
-    isNativeApp?: () => boolean;
-    showNotification?: (t: string, b: string, tag: string, u: string, icon?: string) => void;
-    showCallNotification?: (t: string, b: string, tag: string, ongoing: boolean, icon?: string) => void;
-    showUploadNotification?: (p: number, t: string, b: string) => void;
-    dismissNotification?: (tag: string) => void;
-    setCallActive?: (active: boolean, title: string) => void;
-  } }).AndroidNotification;
+  const android = getAndroidBridge();
 
   if (android) {
     try {
@@ -56,9 +108,17 @@ export function notifyPhone(options: NotifyPhoneOptions) {
       }
       if (isCall) {
         if (isOngoing) {
+          // Ongoing call: keep it alive through the foreground service so the
+          // notification stays on the phone and the call survives back press.
           android.setCallActive?.(true, title);
+          startPhoneCallService({
+            title,
+            body,
+            video: /video/i.test(title) || /video/i.test(body),
+          });
+          return;
         }
-        android.showCallNotification?.(title, body, tag, !!isOngoing, resolvedIcon);
+        android.showCallNotification?.(title, body, tag, false, resolvedIcon);
         return;
       }
       android.showNotification?.(title, body, tag, url || '/', resolvedIcon);
@@ -137,12 +197,12 @@ export function notifyPhone(options: NotifyPhoneOptions) {
 }
 
 export function dismissPhoneNotification(tag: string) {
-  const android = (window as unknown as { AndroidNotification?: { dismissNotification?: (t: string) => void; setCallActive?: (active: boolean, title: string) => void; } }).AndroidNotification;
-  if (android?.dismissNotification) {
+  const android = getAndroidBridge();
+  if (android) {
     try {
-      android.dismissNotification(tag);
-      if (tag.includes("call")) {
-        android.setCallActive?.(false, "");
+      android.dismissNotification?.(tag);
+      if (tag.includes('call')) {
+        stopPhoneCallService();
       }
     } catch { /* noop */ }
   }
