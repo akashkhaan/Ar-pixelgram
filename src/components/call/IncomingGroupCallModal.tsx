@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
+import { useGroupCall } from '@/contexts/GroupCallContext';
 
 interface IncomingGroupCallData {
   groupId: string;
@@ -159,11 +160,15 @@ export const IncomingGroupCallModal: React.FC = () => {
   const handleAccept = () => {
     if (!callData) return;
     const targetGroup = callData.groupId;
-    const targetKind = callData.kind || 'audio';
+    const targetKind = callData.kind || "audio";
+    const targetCallId = callData.callId;
+    const targetName = callData.groupName;
+    const targetAvatar = callData.groupAvatarUrl;
     stopRingtone();
     dismissPhoneNotification(`group_call_${targetGroup}`);
     setCallData(null);
-    navigate(`/group/${targetGroup}?autoJoin=1&kind=${targetKind}`);
+    void groupCall.joinCall(targetGroup, targetName, targetAvatar, targetCallId, targetKind);
+    navigate(`/group/${targetGroup}`);
   };
 
   if (!callData) return null;
