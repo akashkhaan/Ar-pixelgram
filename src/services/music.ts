@@ -210,6 +210,8 @@ export function getManualMusicLocale(): MusicLocale | null {
   }
 }
 
+const trendingCache = new Map<string, MusicTrack[]>();
+
 export function setManualMusicLocale(locale: MusicLocale): void {
   if (typeof window === 'undefined') return;
   try {
