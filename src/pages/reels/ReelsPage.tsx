@@ -106,6 +106,7 @@ const ReelCard: React.FC<{
   // Reel ka gana — video ke saath play/pause aur chosen start point se loop
   useEffect(() => {
     const a = audioRef.current;
+    const v = videoRef.current;
     if (!a || !hasMusic) return;
     if (isActive) {
       a.currentTime = musicStart;
@@ -114,6 +115,16 @@ const ReelCard: React.FC<{
       a.pause();
       a.currentTime = musicStart;
     }
+
+    if (!v) return;
+    const syncAudioOnVideoLoop = () => {
+      if (v.currentTime < 0.35 && a.currentTime > musicStart + 1) {
+        a.currentTime = musicStart;
+        a.play().catch(() => {});
+      }
+    };
+    v.addEventListener('timeupdate', syncAudioOnVideoLoop);
+    return () => v.removeEventListener('timeupdate', syncAudioOnVideoLoop);
   }, [isActive, hasMusic, musicStart]);
 
   // Count a view once this reel has actually been watched for a moment

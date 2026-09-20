@@ -326,15 +326,68 @@ export async function isSaved(postId: string, userId: string): Promise<boolean> 
 }
 
 // ===================== STORIES =====================
-export async function createStory(imageUrl: string, caption: string | null): Promise<void> {
-  const { data } = await supabase
-    .from('stories')
-    .insert({ image_url: imageUrl, caption })
-    .select('id, user_id')
-    .maybeSingle();
-  if (data?.user_id) void notifyFollowersOfNewContent(data.user_id, 'new_story', data.id, caption);
+export function decodeStoryMusic(story: Story): Story {
+  if (story.music_preview_url || story.music_title) {
+    return story;
+  }
+  if (!story.caption) return story;
+  const match = story.caption.match(/<!--pixelgram_music:({.*?})-->/s);
+  if (!match) return story;
+  try {
+    const meta = JSON.parse(match[1]);
+    const cleanCaption = story.caption.replace(/<!--pixelgram_music:({.*?})-->/s, "").trim();
+    return {
+      ...story,
+      caption: cleanCaption || null,
+      music_track_id: meta.id,
+      music_title: meta.title,
+      music_artist: meta.artist,
+      music_artwork_url: meta.artwork,
+      music_preview_url: meta.previewUrl,
+      music_start_ms: meta.startMs || 0,
+      music_duration_ms: meta.durationMs,
+      mute_original: meta.muteOriginal,
+    };
+  } catch {
+    return story;
+  }
 }
 
+export async function createStory(
+  imageUrl: string,
+  caption: string | null,
+  music?: ReelMusic | null,
+): Promise<void> {
+  const finalCaption = music ? encodePostMusic(caption, music) : caption;
+  const row: Record<string, any> = { image_url: imageUrl, caption: finalCaption };
+  if (music) {
+    row.music_track_id = music.track_id;
+    row.music_title = music.title;
+    row.music_artist = music.artist;
+    row.music_artwork_url = music.artwork_url || null;
+    row.music_preview_url = music.preview_url;
+    row.music_start_ms = music.start_ms || 0;
+    row.music_duration_ms = music.duration_ms || null;
+    row.mute_original = music.mute_original;
+  }
+  let { data, error } = await supabase
+    .from("stories")
+    .insert(row)
+    .select("id, user_id")
+    .maybeSingle();
+
+  if (error && music) {
+    const retry = await supabase
+      .from("stories")
+      .insert({ image_url: imageUrl, caption: finalCaption })
+      .select("id, user_id")
+      .maybeSingle();
+    data = retry.data;
+    error = retry.error;
+  }
+  if (error) throw error;
+  if (data?.user_id) void notifyFollowersOfNewContent(data.user_id, "new_story", data.id, caption);
+}
 export async function getFeedStories(userId: string): Promise<Story[]> {
   const { data: followData } = await supabase
     .from('follows')
@@ -355,7 +408,7 @@ export async function getFeedStories(userId: string): Promise<Story[]> {
   const profileIds = [...new Set(data.map((s: { user_id: string }) => s.user_id))];
   const { data: profileData } = await supabase.from('profiles').select('*').in('user_id', profileIds);
   const profileMap = Object.fromEntries((profileData || []).map((p: Profile) => [p.user_id, p]));
-  return data.map(s => ({ ...s, profile: profileMap[s.user_id] || null }));
+  return data.map(s => decodeStoryMusic({ ...s, profile: profileMap[s.user_id] || null }));
 }
 
 export async function deleteStory(storyId: string): Promise<void> {
@@ -373,7 +426,7 @@ export async function getAllStories(page = 0, pageSize = 20): Promise<Story[]> {
   const profileIds = [...new Set(data.map((s: { user_id: string }) => s.user_id))];
   const { data: profileData } = await supabase.from('profiles').select('*').in('user_id', profileIds);
   const profileMap = Object.fromEntries((profileData || []).map((p: Profile) => [p.user_id, p]));
-  return data.map(s => ({ ...s, profile: profileMap[s.user_id] || null }));
+  return data.map(s => decodeStoryMusic({ ...s, profile: profileMap[s.user_id] || null }));
 }
 
 // ===================== FOLLOWS =====================
@@ -1227,6 +1280,33 @@ export interface Reel {
   mute_original?: boolean | null;
 }
 
+export function decodeReelMusic(reel: Reel): Reel {
+  if (reel.music_preview_url || reel.music_title) {
+    return reel;
+  }
+  if (!reel.caption) return reel;
+  const match = reel.caption.match(/<!--pixelgram_music:({.*?})-->/s);
+  if (!match) return reel;
+  try {
+    const meta = JSON.parse(match[1]);
+    const cleanCaption = reel.caption.replace(/<!--pixelgram_music:({.*?})-->/s, "").trim();
+    return {
+      ...reel,
+      caption: cleanCaption || "",
+      music_track_id: meta.id,
+      music_title: meta.title,
+      music_artist: meta.artist,
+      music_artwork_url: meta.artwork,
+      music_preview_url: meta.previewUrl,
+      music_start_ms: meta.startMs || 0,
+      music_duration_ms: meta.durationMs,
+      mute_original: meta.muteOriginal,
+    };
+  } catch {
+    return reel;
+  }
+}
+
 export async function getReelsFeed(limit = 20, offset = 0): Promise<Reel[]> {
   const { data, error } = await supabase
     .from('reels')
@@ -1238,7 +1318,7 @@ export async function getReelsFeed(limit = 20, offset = 0): Promise<Reel[]> {
   // failure/refresh ke waqt poori reels query ko fail kar deta tha, jabki reel
   // rows pehle hi aa chuki hoti thin. Local persisted session enough hai for
   // the optional is_liked lookup; RLS still protects the database query.
-  const rows = filterDeletedReels(dropLegacyReels((data || []) as Reel[]));
+  const rows = filterDeletedReels(dropLegacyReels((data || []) as Reel[])).map(decodeReelMusic);
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return rows;
   const userId = session.user.id;
@@ -1270,7 +1350,7 @@ export async function getReelById(reelId: string): Promise<Reel | null> {
   if (!session?.user) return data as Reel;
   const { data: like } = await supabase
     .from('reel_likes').select('id').eq('reel_id', reelId).eq('user_id', session.user.id).maybeSingle();
-  return { ...data, is_liked: !!like } as Reel;
+  return decodeReelMusic({ ...data, is_liked: !!like } as Reel);
 }
 
 export async function getUserReels(userId: string): Promise<Reel[]> {
@@ -1280,7 +1360,7 @@ export async function getUserReels(userId: string): Promise<Reel[]> {
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return filterDeletedReels(dropLegacyReels((data || []) as Reel[]));
+  return filterDeletedReels(dropLegacyReels((data || []) as Reel[])).map(decodeReelMusic);
 }
 
 export async function createReel(
@@ -1290,8 +1370,9 @@ export async function createReel(
   thumbnailUrl?: string,
   music?: ReelMusic | null,
 ): Promise<void> {
+  const finalCaption = music ? encodePostMusic(caption, music) : caption;
   const base = {
-    user_id: userId, video_url: videoUrl, caption, thumbnail_url: thumbnailUrl || null,
+    user_id: userId, video_url: videoUrl, caption: finalCaption, thumbnail_url: thumbnailUrl || null,
   };
   const withMusic = music
     ? {
@@ -1306,23 +1387,15 @@ export async function createReel(
         mute_original: music.mute_original,
       }
     : base;
-  const { data: created, error } = await supabase.from('reels').insert(withMusic).select('id').maybeSingle();
-  if (!error) {
-    void notifyFollowersOfNewContent(userId, 'new_reel', created?.id, caption);
-    return;
+  let { data: created, error } = await supabase.from("reels").insert(withMusic).select("id").maybeSingle();
+  if (error && music) {
+    const { data: retried, error: retryError } = await supabase.from("reels").insert(base).select("id").maybeSingle();
+    created = retried;
+    error = retryError;
   }
-  // Agar music columns abhi DB me migrate nahi hui hain, reel bina gaane ke
-  // publish ho jaye — upload waste na ho.
-  if (music) {
-    const { data: retried, error: retryError } = await supabase.from('reels').insert(base).select('id').maybeSingle();
-    if (!retryError) {
-      void notifyFollowersOfNewContent(userId, 'new_reel', retried?.id, caption);
-      return;
-    }
-  }
-  throw error;
+  if (error) throw error;
+  if (userId) void notifyFollowersOfNewContent(userId, "new_reel", created?.id, caption);
 }
-
 export async function toggleReelLike(reelId: string, userId: string, isLiked: boolean): Promise<void> {
   try {
     if (isLiked) {
@@ -1444,5 +1517,5 @@ export async function getReelsByMusic(trackId: string): Promise<Reel[]> {
     .eq('music_track_id', trackId)
     .order('created_at', { ascending: true });
   if (error) return [];
-  return filterDeletedReels(dropLegacyReels((data || []) as Reel[]));
+  return filterDeletedReels(dropLegacyReels((data || []) as Reel[])).map(decodeReelMusic);
 }

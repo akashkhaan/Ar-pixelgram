@@ -65,6 +65,19 @@ const StoriesPage: React.FC = () => {
   const [viewers, setViewers] = useState<StoryViewer[]>([]);
   const [loadingViewers, setLoadingViewers] = useState(false);
   const videoViewerRef = useRef<HTMLVideoElement>(null);
+  const storyAudioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const a = storyAudioRef.current;
+    if (!a) return;
+    if (viewerOpen && currentStory?.music_preview_url) {
+      const startSec = (currentStory.music_start_ms || 0) / 1000;
+      a.currentTime = startSec;
+      a.play().catch(() => {});
+    } else {
+      a.pause();
+    }
+  }, [viewerOpen, currentStory, storyIndex]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsPage, setPostsPage] = useState(0);
@@ -166,7 +179,8 @@ const StoriesPage: React.FC = () => {
       openViewer(uid);
     }
   }, [loading, stories]); // eslint-disable-line react-hooks/exhaustive-deps
-  const closeViewer = () => { setViewerUserId(null); setShowReply(false); setShowViewers(false); };
+  const closeViewer = () => {
+    storyAudioRef.current?.pause(); setViewerUserId(null); setShowReply(false); setShowViewers(false); };
 
   const viewerGroup = viewerUserId ? groups[viewerUserId] : null;
   const currentStory = viewerGroup?.stories[storyIndex];
@@ -242,19 +256,22 @@ const StoriesPage: React.FC = () => {
     setUploading(true);
     try {
       let fileToUpload = mediaFile;
-      if (storyTrack) {
-        toast.info('Music mix ho raha hai…');
-        fileToUpload = await composeMediaWithMusic(mediaFile, {
-          track: storyTrack,
-          startMs: musicStartMs,
-          muteOriginal,
-          mediaType,
-        });
-      }
       const url = await uploadMediaWithProgress('stories', fileToUpload, user.id, (progress) => {
         updateUpload(uploadId, progress);
       });
-      await createStory(url, caption.trim() || null);
+      const musicPayload = storyTrack
+        ? {
+            track_id: storyTrack.id,
+            title: storyTrack.title,
+            artist: storyTrack.artist,
+            artwork_url: storyTrack.artwork,
+            preview_url: storyTrack.previewUrl,
+            start_ms: musicStartMs,
+            duration_ms: storyTrack.durationMs,
+            mute_original: muteOriginal,
+          }
+        : null;
+      await createStory(url, caption.trim() || null, musicPayload);
       toast.success(t('newStory') + ' posted! ✨');
       const updated = await getFeedStories(user.id);
       setStories(updated);
@@ -395,14 +412,23 @@ const StoriesPage: React.FC = () => {
               <button onClick={() => { closeViewer(); navigate(`/profile/${viewerGroup!.profile.user_id}`); }}>
                 <p className="text-white font-semibold text-sm">{viewerGroup!.profile.username}</p>
               </button>
-              <div className="flex items-center gap-2">
-                <p className="text-white/70 text-xs">{new Date(currentStory.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
-                {currentStory.expires_at && (
-                  <span className="flex items-center gap-0.5 text-white/60 text-[10px]">
-                    <Clock className="w-2.5 h-2.5" />{getTimeLeft(currentStory.expires_at)}
+              {currentStory.music_title ? (
+                <div className="flex items-center gap-1.5 text-white/95 text-xs bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full mt-0.5 w-fit">
+                  <Music2 className="w-3 h-3 text-primary animate-pulse shrink-0" />
+                  <span className="font-semibold truncate max-w-[170px]">
+                    {currentStory.music_title} · {currentStory.music_artist}
                   </span>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="text-white/70 text-xs">{new Date(currentStory.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                  {currentStory.expires_at && (
+                    <span className="flex items-center gap-0.5 text-white/60 text-[10px]">
+                      <Clock className="w-2.5 h-2.5" />{getTimeLeft(currentStory.expires_at)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -460,11 +486,24 @@ const StoriesPage: React.FC = () => {
               autoPlay
               loop
               playsInline
-              muted={false}
+              muted={!!currentStory.music_preview_url && !!currentStory.mute_original}
               onClick={e => e.stopPropagation()}
             />
           ) : (
             <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-contain bg-black" />
+          )}
+
+          {/* Story background audio */}
+          {currentStory.music_preview_url && (
+            <audio
+              ref={storyAudioRef}
+              src={currentStory.music_preview_url}
+              autoPlay
+              loop
+              onLoadedMetadata={(e) => {
+                e.currentTarget.currentTime = (currentStory.music_start_ms || 0) / 1000;
+              }}
+            />
           )}
 
           {/* Caption */}

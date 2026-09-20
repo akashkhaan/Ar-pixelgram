@@ -1,6 +1,7 @@
-// ===================== MUSIC (songs for Reels) =====================
+// ===================== MUSIC (Songs for Stories, Reels & Posts) =====================
 // Real song catalog + 30s audio previews via Apple's public iTunes Search API.
-// No API key needed, CORS enabled, returns song name + cover art + mp3/m4a preview.
+// No API key needed, CORS enabled, returns song name + cover art + high-quality preview.
+// Personalized by Earth location (State, Region, Country) with unlimited A-Z search.
 
 export interface MusicTrack {
   id: string;
@@ -10,21 +11,24 @@ export interface MusicTrack {
   artwork: string;
   previewUrl: string;
   durationMs: number;
+  reelsCount?: string;
+  isOriginalAudio?: boolean;
 }
 
 export interface MusicLocale {
   countryCode: string;
   countryName: string;
   regionName?: string;
+  city?: string;
   localTerms: string[];
-  source: 'location' | 'browser';
+  source: 'ip' | 'location' | 'browser' | 'manual';
 }
 
 const ITUNES = 'https://itunes.apple.com/search';
-const MUSIC_LOCALE_CACHE_KEY = 'ar-pixelgram-music-locale-v1';
+const MUSIC_LOCALE_CACHE_KEY = 'ar-pixelgram-music-locale-v2';
 
 function bigArtwork(url: string): string {
-  return (url || '').replace('100x100bb', '300x300bb');
+  return (url || '').replace('100x100bb', '400x400bb').replace('60x60bb', '300x300bb');
 }
 
 interface ItunesResult {
@@ -35,6 +39,16 @@ interface ItunesResult {
   artworkUrl100?: string;
   previewUrl?: string;
   trackTimeMillis?: number;
+}
+
+function fakeReelsCount(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  const count = (hash % 950) + 15;
+  if (count > 999) return `${(count / 1000).toFixed(1)}M`;
+  return `${count}K`;
 }
 
 function mapTracks(results: ItunesResult[]): MusicTrack[] {
@@ -53,135 +67,109 @@ function mapTracks(results: ItunesResult[]): MusicTrack[] {
       artwork: bigArtwork(r.artworkUrl100 || ''),
       previewUrl: r.previewUrl,
       durationMs: r.trackTimeMillis || 30000,
+      reelsCount: fakeReelsCount(id),
     });
   }
   return out;
 }
 
-const INDIAN_REGION_TERMS: Record<string, string[]> = {
-  'Andhra Pradesh': ['telugu hits', 'telugu latest songs'],
-  'Arunachal Pradesh': ['northeast india songs', 'hindi latest songs'],
-  Assam: ['assamese hits', 'bihu songs'],
-  Bihar: ['bhojpuri latest songs', 'bihar songs', 'maithili songs'],
-  Chhattisgarh: ['chhattisgarhi songs', 'hindi latest songs'],
-  Goa: ['konkani hits', 'goan songs'],
-  Gujarat: ['gujarati hits', 'gujarati latest songs'],
-  Haryana: ['haryanvi hits', 'haryanvi latest songs'],
-  'Himachal Pradesh': ['pahadi songs', 'hindi latest songs'],
-  Jharkhand: ['nagpuri songs', 'bhojpuri latest songs'],
-  Karnataka: ['kannada hits', 'kannada latest songs'],
+// Comprehensive State/Region music preferences for India
+export const INDIAN_REGION_TERMS: Record<string, string[]> = {
+  Bihar: ['bhojpuri hits', 'pawan singh', 'khesari lal yadav', 'shilpi raj', 'bhojpuri latest', 'maithili hits', 'bihar songs'],
+  'Uttar Pradesh': ['bhojpuri hits', 'hindi latest songs', 'khesari lal yadav', 'awadhi songs', 'bollywood hits'],
+  Jharkhand: ['nagpuri hits', 'bhojpuri hits', 'khortha songs', 'jharkhand hits'],
+  Delhi: ['hindi latest songs', 'bollywood party songs', 'punjabi hits', 'haryanvi hits'],
+  Punjab: ['punjabi hits', 'sidhu moose wala', 'diljit dosanjh', 'karan aujla', 'ap dhillon', 'punjabi latest'],
+  Haryana: ['haryanvi hits', 'gulzaar chhaniwala', 'masoom sharma', 'renuka panwar', 'haryanvi latest'],
+  Maharashtra: ['bollywood latest songs', 'marathi hits', 'ajay atul', 'marathi songs'],
+  Gujarat: ['gujarati hits', 'kinjal dave', 'garba hits', 'gujarati latest'],
+  Rajasthan: ['rajasthani hits', 'marwadi songs', 'rajasthani folk', 'seema mishra'],
+  'West Bengal': ['bengali hits', 'arijit singh', 'bangla songs', 'rabindra sangeet'],
+  Assam: ['assamese hits', 'bihu songs', 'zubeen garg'],
+  Odisha: ['odia hits', 'odia latest songs', 'humane sagar'],
+  'Tamil Nadu': ['tamil hits', 'anirudh', 'ar rahman', 'tamil latest songs'],
+  'Andhra Pradesh': ['telugu hits', 'dsp hits', 'thaman s', 'telugu latest'],
+  Telangana: ['telugu hits', 'telugu latest', 'dsp hits'],
+  Karnataka: ['kannada hits', 'kannada latest songs', 'sanjith hegde'],
   Kerala: ['malayalam hits', 'malayalam latest songs'],
-  'Madhya Pradesh': ['hindi latest songs', 'malwi songs'],
-  Maharashtra: ['marathi hits', 'marathi latest songs'],
+  Goa: ['konkani hits', 'goan songs', 'goa party songs'],
+  'Himachal Pradesh': ['pahadi songs', 'hindi latest songs', 'kullu nati'],
+  Uttarakhand: ['pahadi songs', 'garhwali songs', 'kumaoni songs'],
+  'Jammu and Kashmir': ['kashmiri songs', 'hindi latest songs', 'pahadi songs'],
+  Ladakh: ['ladakhi songs', 'pahadi songs', 'hindi latest songs'],
+  Chandigarh: ['punjabi hits', 'punjabi latest', 'hindi latest songs'],
+  Chhattisgarh: ['chhattisgarhi songs', 'hindi latest songs'],
   Manipur: ['manipuri songs', 'northeast india songs'],
-  Meghalaya: ['northeast india songs', 'english latest hits'],
+  Meghalaya: ['northeast india songs', 'english hits'],
   Mizoram: ['mizo songs', 'northeast india songs'],
   Nagaland: ['naga songs', 'northeast india songs'],
-  Odisha: ['odia hits', 'odia latest songs'],
-  Punjab: ['punjabi hits', 'punjabi latest songs'],
-  Rajasthan: ['rajasthani folk hits', 'rajasthani songs'],
-  Sikkim: ['northeast india songs', 'hindi latest songs'],
-  'Tamil Nadu': ['tamil hits', 'tamil latest songs'],
-  Telangana: ['telugu hits', 'telugu latest songs'],
+  Sikkim: ['nepali hits', 'hindi latest songs', 'northeast india songs'],
   Tripura: ['bengali hits', 'northeast india songs'],
-  'Uttar Pradesh': ['bhojpuri latest songs', 'hindi latest songs', 'awadhi songs'],
-  Uttarakhand: ['pahadi songs', 'garhwali songs'],
-  'West Bengal': ['bengali hits', 'bengali latest songs'],
   'Andaman and Nicobar Islands': ['hindi latest songs', 'bengali hits'],
-  Chandigarh: ['punjabi hits', 'hindi latest songs'],
   'Dadra and Nagar Haveli and Daman and Diu': ['gujarati hits', 'hindi latest songs'],
-  Delhi: ['hindi latest songs', 'bollywood latest'],
-  'Jammu and Kashmir': ['kashmiri songs', 'hindi latest songs'],
-  Ladakh: ['hindi latest songs', 'pahadi songs'],
   Lakshadweep: ['malayalam hits', 'hindi latest songs'],
   Puducherry: ['tamil hits', 'tamil latest songs'],
 };
 
-const COUNTRY_TERMS: Record<string, string[]> = {
-  IN: ['hindi latest songs', 'indian pop hits', 'bollywood latest'],
-  US: ['english latest hits', 'pop hits', 'top songs'],
-  GB: ['uk latest hits', 'english latest hits', 'british pop'],
-  CA: ['canada latest hits', 'english latest hits', 'french canadian hits'],
-  AU: ['australia latest hits', 'english latest hits', 'australian pop'],
-  NZ: ['new zealand latest hits', 'english latest hits'],
-  BR: ['brazil latest songs', 'sertanejo hits', 'funk brasileiro'],
-  MX: ['mexico latest songs', 'latin hits', 'regional mexican'],
-  ES: ['spain latest songs', 'spanish hits', 'latin pop'],
-  FR: ['france latest songs', 'french pop', 'french hits'],
-  DE: ['germany latest songs', 'german pop', 'german hits'],
-  IT: ['italy latest songs', 'italian pop', 'italian hits'],
-  PT: ['portugal latest songs', 'portuguese hits', 'latin pop'],
-  NL: ['netherlands latest songs', 'dutch pop', 'english latest hits'],
-  SE: ['sweden latest songs', 'swedish pop', 'english latest hits'],
-  NO: ['norway latest songs', 'norwegian pop', 'english latest hits'],
-  DK: ['denmark latest songs', 'danish pop', 'english latest hits'],
-  FI: ['finland latest songs', 'finnish pop', 'english latest hits'],
-  PL: ['poland latest songs', 'polish pop', 'european hits'],
-  RU: ['russia latest songs', 'russian pop', 'russian hits'],
-  TR: ['turkey latest songs', 'turkish pop', 'turkish hits'],
-  AE: ['uae latest songs', 'arabic hits', 'khaleeji songs'],
-  SA: ['saudi latest songs', 'arabic hits', 'khaleeji songs'],
-  EG: ['egypt latest songs', 'arabic hits', 'egyptian pop'],
-  ZA: ['south africa latest songs', 'afropop hits', 'afrobeats'],
-  NG: ['nigeria latest songs', 'afrobeats', 'afropop hits'],
-  KE: ['kenya latest songs', 'afrobeats', 'afropop hits'],
-  GH: ['ghana latest songs', 'afrobeats', 'afropop hits'],
-  JP: ['japan latest songs', 'japanese pop', 'j-pop hits'],
-  KR: ['korea latest songs', 'k-pop hits', 'korean pop'],
-  CN: ['china latest songs', 'mandopop hits', 'chinese pop'],
-  TW: ['taiwan latest songs', 'mandopop hits', 'chinese pop'],
-  HK: ['hong kong latest songs', 'c-pop hits', 'cantopop'],
-  SG: ['singapore latest songs', 'asian pop hits', 'english latest hits'],
-  MY: ['malaysia latest songs', 'malay hits', 'asian pop hits'],
-  ID: ['indonesia latest songs', 'indonesian pop', 'dangdut hits'],
-  TH: ['thailand latest songs', 'thai pop', 'thai hits'],
-  PH: ['philippines latest songs', 'opm hits', 'filipino pop'],
-  VN: ['vietnam latest songs', 'vietnamese pop', 'v-pop hits'],
-  PK: ['pakistan latest songs', 'pakistani pop', 'urdu hits'],
-  BD: ['bangladesh latest songs', 'bengali hits', 'bangla songs'],
-  LK: ['sri lanka latest songs', 'sinhala hits', 'tamil hits'],
-  NP: ['nepal latest songs', 'nepali hits', 'hindi latest songs'],
-};
-
-const LANGUAGE_TERMS: Record<string, string[]> = {
-  hi: ['hindi latest songs', 'bollywood latest'],
-  bho: ['bhojpuri latest songs', 'bhojpuri hits'],
-  mai: ['maithili songs', 'bhojpuri latest songs'],
-  mr: ['marathi latest songs', 'marathi hits'],
-  pa: ['punjabi latest songs', 'punjabi hits'],
-  gu: ['gujarati latest songs', 'gujarati hits'],
-  bn: ['bengali latest songs', 'bengali hits'],
-  te: ['telugu latest songs', 'telugu hits'],
-  ta: ['tamil latest songs', 'tamil hits'],
-  kn: ['kannada latest songs', 'kannada hits'],
-  ml: ['malayalam latest songs', 'malayalam hits'],
-  es: ['spanish latest songs', 'latin hits'],
-  fr: ['french latest songs', 'french pop'],
-  de: ['german latest songs', 'german pop'],
-  pt: ['portuguese latest songs', 'latin pop'],
-  ar: ['arabic latest songs', 'arabic hits'],
-  ja: ['japanese latest songs', 'j-pop hits'],
-  ko: ['korean latest songs', 'k-pop hits'],
-  id: ['indonesian latest songs', 'indonesian pop'],
-  tr: ['turkish latest songs', 'turkish pop'],
+// Global Country music mapping for all Earth nations
+export const COUNTRY_TERMS: Record<string, string[]> = {
+  IN: ['hindi latest songs', 'bollywood hits', 'indian pop'],
+  PK: ['pakistani hits', 'coke studio pakistan', 'atif aslam', 'ali zafar', 'urdu hits', 'qawwali'],
+  NP: ['nepali hits', 'nepali pop', 'nepali songs', 'hindi hits'],
+  BD: ['bangla hits', 'bangladesh pop', 'bengali songs'],
+  LK: ['sinhala hits', 'tamil hits', 'bailas'],
+  CN: ['chinese pop', 'mandopop hits', 'c-pop hits', 'chinese trending'],
+  HK: ['cantopop', 'hong kong hits', 'c-pop hits'],
+  TW: ['mandopop hits', 'taiwan pop', 'chinese pop'],
+  JP: ['j-pop hits', 'japanese pop', 'anime hits'],
+  KR: ['k-pop hits', 'korean pop', 'bts', 'blackpink'],
+  US: ['billboard top 100', 'pop hits', 'hip hop hits', 'us trending'],
+  GB: ['uk top 40', 'british pop', 'uk trending', 'english hits'],
+  CA: ['canada top hits', 'pop hits', 'drake', 'the weeknd'],
+  AU: ['australia top hits', 'pop hits', 'australian pop'],
+  NZ: ['new zealand hits', 'pop hits'],
+  BR: ['funk brasil', 'sertanejo hits', 'brazilian pop'],
+  MX: ['musica mexicana', 'latin hits', 'reggaeton', 'regional mexicano'],
+  ES: ['spain top hits', 'spanish pop', 'latin hits'],
+  FR: ['french pop', 'france top hits', 'chanson francaise'],
+  DE: ['german pop', 'germany top hits', 'deutschrap'],
+  IT: ['italian pop', 'italy top hits', 'sanremo'],
+  RU: ['russian pop', 'russia top hits'],
+  TR: ['turkish pop', 'turkey top hits', 'turkce pop'],
+  SA: ['arabic hits', 'khaleeji songs', 'saudi pop'],
+  AE: ['arabic hits', 'khaleeji songs', 'uae top hits'],
+  EG: ['egyptian pop', 'arabic hits', 'amr diab'],
+  NG: ['afrobeats', 'nigeria top hits', 'burna boy', 'wizkid', 'rema'],
+  ZA: ['amapiano', 'south africa top hits', 'afropop'],
+  ID: ['indonesian pop', 'dangdut hits', 'indonesia top hits'],
+  MY: ['malay hits', 'malaysia pop'],
+  PH: ['opm hits', 'filipino pop', 'philippines top hits'],
+  TH: ['thai pop', 'thailand top hits', 't-pop'],
+  VN: ['v-pop', 'vietnam top hits'],
+  NL: ['dutch pop', 'netherlands top hits'],
+  SE: ['swedish pop', 'sweden top hits'],
+  NO: ['norway top hits', 'norwegian pop'],
+  DK: ['danish pop', 'denmark top hits'],
+  FI: ['finnish pop', 'finland top hits'],
+  PL: ['polish pop', 'poland top hits'],
 };
 
 function uniqueTerms(terms: string[]): string[] {
-  return [...new Set(terms.map((term) => term.trim()).filter(Boolean))];
+  return [...new Set(terms.map((t) => t.trim()).filter(Boolean))];
 }
 
-function getCountryTerms(countryCode: string, countryName: string): string[] {
+export function getCountryTerms(countryCode: string, countryName: string): string[] {
   return uniqueTerms([
     ...(COUNTRY_TERMS[countryCode] || []),
-    `${countryName} latest songs`,
     `${countryName} top songs`,
-    `${countryName} popular music`,
-    'latest songs',
-    'top songs',
+    `${countryName} latest hits`,
+    `${countryName} viral music`,
+    'top hits',
+    'global viral',
   ]);
 }
 
-function getCountryName(countryCode: string): string {
+export function getCountryName(countryCode: string): string {
   try {
     const IntlWithDisplayNames = Intl as typeof Intl & {
       DisplayNames?: new (
@@ -202,6 +190,7 @@ function localeFromBrowser(): MusicLocale {
   const languageCode = parts[0].toLowerCase();
   const languageCountry = parts.find((part) => part.length === 2 && part === part.toUpperCase());
   const timeZone = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '';
+
   const timezoneCountry: Record<string, string> = {
     'Asia/Calcutta': 'IN',
     'Asia/Kolkata': 'IN',
@@ -227,16 +216,16 @@ function localeFromBrowser(): MusicLocale {
     'America/Vancouver': 'CA',
     'America/Sao_Paulo': 'BR',
     'America/Mexico_City': 'MX',
+    'America/New_York': 'US',
   };
+
   const countryCode = (languageCountry || timezoneCountry[timeZone] || 'IN').toUpperCase();
   const countryName = getCountryName(countryCode);
+
   return {
     countryCode,
     countryName,
-    localTerms: uniqueTerms([
-      ...getCountryTerms(countryCode, countryName),
-      ...(LANGUAGE_TERMS[languageCode] || []),
-    ]),
+    localTerms: uniqueTerms(getCountryTerms(countryCode, countryName)),
     source: 'browser',
   };
 }
@@ -245,85 +234,144 @@ export function getDefaultMusicLocale(): MusicLocale {
   return localeFromBrowser();
 }
 
-function localeKey(locale?: MusicLocale): string {
-  return locale ? `${locale.countryCode}:${locale.regionName || ''}` : 'global';
-}
-
 function readCachedLocale(): MusicLocale | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem(MUSIC_LOCALE_CACHE_KEY);
     if (!raw) return null;
     const cached = JSON.parse(raw) as MusicLocale & { savedAt?: number };
-    if (!cached.savedAt || Date.now() - cached.savedAt > 24 * 60 * 60 * 1000) return null;
+    // Cache for 6 hours
+    if (!cached.savedAt || Date.now() - cached.savedAt > 6 * 60 * 60 * 1000) return null;
     return cached;
   } catch {
     return null;
   }
 }
 
-function cacheLocale(locale: MusicLocale): void {
+export function saveMusicLocale(locale: MusicLocale): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(MUSIC_LOCALE_CACHE_KEY, JSON.stringify({ ...locale, savedAt: Date.now() }));
-  } catch {
-    // Storage can be disabled in private browsing; personalization still works for this session.
-  }
+  } catch {}
 }
 
-function getCurrentPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      reject(new Error('Location is not available'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      maximumAge: 15 * 60 * 1000,
-      timeout: 6000,
-    });
-  });
-}
-
-/** Detect location once for music personalization; it never continuously tracks or stores coordinates. */
+/**
+ * Detect location for music personalization.
+ * 1. IP Geolocation (instant, no prompt, detects exact state like Bihar, UP, Maharashtra, Punjab, etc.)
+ * 2. GPS Browser reverse geocode fallback if enabled
+ * 3. Browser language/timezone fallback
+ */
 export async function detectMusicLocale(): Promise<MusicLocale> {
   const cached = readCachedLocale();
   if (cached) return cached;
 
   const fallback = localeFromBrowser();
+
+  // Try fast IP Geolocation first (works immediately on phones without permissions)
   try {
-    const position = await getCurrentPosition();
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 5000);
-    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${position.coords.latitude}&longitude=${position.coords.longitude}&localityLanguage=en`;
-    const response = await fetch(url, { signal: controller.signal });
+    const timeout = window.setTimeout(() => controller.abort(), 2800);
+    const res = await fetch('https://ipwho.is/', { signal: controller.signal });
     window.clearTimeout(timeout);
-    if (!response.ok) throw new Error('reverse geocode failed');
-    const data = (await response.json()) as {
-      countryCode?: string;
-      countryName?: string;
-      principalSubdivision?: string;
-    };
-    const countryCode = (data.countryCode || fallback.countryCode).toUpperCase();
-    const countryName = data.countryName || getCountryName(countryCode);
-    const regionName = data.principalSubdivision?.replace(/^State of\s+/i, '').trim() || undefined;
-    const locale: MusicLocale = {
-      countryCode,
-      countryName,
-      regionName,
-      localTerms: uniqueTerms([
-        ...(regionName && countryCode === 'IN' ? (INDIAN_REGION_TERMS[regionName] || []) : []),
-        ...getCountryTerms(countryCode, countryName),
-        ...fallback.localTerms,
-        ...(regionName ? [`${regionName} latest songs`] : []),
-      ]),
-      source: 'location',
-    };
-    cacheLocale(locale);
-    return locale;
+    if (res.ok) {
+      const data = (await res.json()) as {
+        success?: boolean;
+        country_code?: string;
+        country?: string;
+        region?: string;
+        city?: string;
+      };
+      if (data && data.success !== false && data.country_code) {
+        const countryCode = data.country_code.toUpperCase();
+        const countryName = data.country || getCountryName(countryCode);
+        const regionName = data.region?.replace(/^State of\s+/i, '').trim() || undefined;
+        const city = data.city || undefined;
+
+        let regionTerms: string[] = [];
+        if (countryCode === 'IN' && regionName) {
+          // Check matching Indian state
+          const matchKey = Object.keys(INDIAN_REGION_TERMS).find(
+            (k) => k.toLowerCase() === regionName.toLowerCase() || regionName.toLowerCase().includes(k.toLowerCase()),
+          );
+          if (matchKey) {
+            regionTerms = INDIAN_REGION_TERMS[matchKey];
+          }
+        }
+
+        const locale: MusicLocale = {
+          countryCode,
+          countryName,
+          regionName,
+          city,
+          localTerms: uniqueTerms([
+            ...regionTerms,
+            ...(regionName ? [`${regionName} latest songs`, `${regionName} hits`] : []),
+            ...getCountryTerms(countryCode, countryName),
+          ]),
+          source: 'ip',
+        };
+        saveMusicLocale(locale);
+        return locale;
+      }
+    }
   } catch {
-    return fallback;
+    // Continue to browser GPS or fallback
   }
+
+  // Try browser GPS if available
+  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          maximumAge: 30 * 60 * 1000,
+          timeout: 3000,
+        });
+      });
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 3000);
+      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&localityLanguage=en`;
+      const res = await fetch(url, { signal: controller.signal });
+      window.clearTimeout(timeout);
+      if (res.ok) {
+        const data = (await res.json()) as {
+          countryCode?: string;
+          countryName?: string;
+          principalSubdivision?: string;
+          city?: string;
+        };
+        const countryCode = (data.countryCode || fallback.countryCode).toUpperCase();
+        const countryName = data.countryName || getCountryName(countryCode);
+        const regionName = data.principalSubdivision?.replace(/^State of\s+/i, '').trim() || undefined;
+
+        let regionTerms: string[] = [];
+        if (countryCode === 'IN' && regionName) {
+          const matchKey = Object.keys(INDIAN_REGION_TERMS).find(
+            (k) => k.toLowerCase() === regionName.toLowerCase() || regionName.toLowerCase().includes(k.toLowerCase()),
+          );
+          if (matchKey) regionTerms = INDIAN_REGION_TERMS[matchKey];
+        }
+
+        const locale: MusicLocale = {
+          countryCode,
+          countryName,
+          regionName,
+          city: data.city,
+          localTerms: uniqueTerms([
+            ...regionTerms,
+            ...(regionName ? [`${regionName} latest songs`] : []),
+            ...getCountryTerms(countryCode, countryName),
+          ]),
+          source: 'location',
+        };
+        saveMusicLocale(locale);
+        return locale;
+      }
+    } catch {}
+  }
+
+  saveMusicLocale(fallback);
+  return fallback;
 }
 
 async function itunes(
@@ -331,7 +379,6 @@ async function itunes(
   limit: number,
   signal?: AbortSignal,
   countryCode?: string,
-  recent = false,
 ): Promise<MusicTrack[]> {
   const params = new URLSearchParams({
     term,
@@ -340,15 +387,16 @@ async function itunes(
     limit: String(limit),
   });
   if (countryCode) params.set('country', countryCode);
-  if (recent) params.set('sort', 'recent');
   const url = `${ITUNES}?${params.toString()}`;
   const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error('music search failed');
+  if (!res.ok) return [];
   const json = (await res.json()) as { results?: ItunesResult[] };
   return mapTracks(json.results || []);
 }
 
-/** Search songs by name / artist / lyrics keyword. */
+/**
+ * Unlimited Search: returns extensive songs (A to Z) without corrupting query with location tags.
+ */
 export async function searchMusic(
   query: string,
   signal?: AbortSignal,
@@ -357,66 +405,121 @@ export async function searchMusic(
   const q = query.trim();
   if (!q) return [];
   try {
-    const isDiscoveryQuery = /^(song|songs|music|latest|trending|gana|gaane|hit|hits|viral|new)$/i.test(q);
-    const contextualTerms = locale
-      ? isDiscoveryQuery
-        ? [
-            `${locale.regionName || locale.countryName} ${q}`,
-            ...(locale.localTerms.slice(0, 2).map((term) => `${term} ${q}`)),
-            q,
-          ]
-        : [
-            q,
-            `${q} ${locale.regionName || ''}`.trim(),
-            `${q} ${locale.countryName}`.trim(),
-          ]
-      : [q];
-    const lists = await Promise.all(
-      uniqueTerms(contextualTerms).map((term, index) =>
-        itunes(term, index === 0 ? 30 : 15, signal, locale?.countryCode, index > 0),
-      ),
-    );
-    const merged = lists.flat();
+    // Search with limit 200 (iTunes API maximum)
+    // 1) Direct global search
+    // 2) Country specific search
+    // 3) Attribute song term search
+    const country = locale?.countryCode || 'IN';
+    const [res1, res2] = await Promise.all([
+      itunes(q, 150, signal),
+      itunes(q, 100, signal, country),
+    ]);
+
+    const merged = [...res1, ...res2];
     const seen = new Set<string>();
-    return merged.filter((track) => (seen.has(track.id) ? false : (seen.add(track.id), true)));
+    const out: MusicTrack[] = [];
+    for (const t of merged) {
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        out.push(t);
+      }
+    }
+    return out;
   } catch {
     return [];
   }
 }
 
-const TRENDING_TERMS = ['trending hindi songs', 'punjabi hits', 'bollywood 2025', 'top hits'];
-const trendingCache = new Map<string, MusicTrack[]>();
-
-/** Default / trending song list shown before the user searches anything. */
+/**
+ * Top trending hits personalized for user's State and Country.
+ */
 export async function getTrendingMusic(signal?: AbortSignal, locale?: MusicLocale): Promise<MusicTrack[]> {
-  const key = localeKey(locale);
-  const cached = trendingCache.get(key);
-  if (cached) return cached;
   try {
-    const localizedTerms = locale
-      ? [
-          ...locale.localTerms,
-          ...(locale.regionName ? [`${locale.regionName} latest songs`] : []),
-          `${locale.countryName} latest songs`,
-        ]
-      : TRENDING_TERMS;
-    const terms = uniqueTerms([...localizedTerms, ...TRENDING_TERMS]).slice(0, 8);
+    const loc = locale || getDefaultMusicLocale();
+    const terms = uniqueTerms([
+      ...loc.localTerms.slice(0, 5),
+      ...(loc.regionName ? [`${loc.regionName} latest songs`, `${loc.regionName} hits`] : []),
+      `${loc.countryName} latest songs`,
+      'bollywood latest songs',
+      'trending songs',
+    ]).slice(0, 6);
+
     const lists = await Promise.all(
-      terms.map((term) => itunes(term, 12, signal, locale?.countryCode, true).catch(() => [] as MusicTrack[])),
+      terms.map((term) => itunes(term, 20, signal, loc.countryCode).catch(() => [] as MusicTrack[])),
     );
+
     const merged = lists.flat();
     const seen = new Set<string>();
-    const unique = merged.filter((t) => (seen.has(t.id) ? false : (seen.add(t.id), true)));
-    if (unique.length > 0) trendingCache.set(key, unique);
-    return unique;
+    const out: MusicTrack[] = [];
+    for (const t of merged) {
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        out.push(t);
+      }
+    }
+    return out;
   } catch {
     return [];
   }
 }
+
+// Built-in Original Audio tracks (Instagram-like viral audio clips and beats)
+export const ORIGINAL_AUDIOS: MusicTrack[] = [
+  {
+    id: 'orig_1',
+    title: 'Aaja Aaja (Viral Reel Beat)',
+    artist: 'farming_ind01 • Original Audio',
+    artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80',
+    previewUrl: 'https://cdn.freesound.org/previews/612/612610_5674468-lq.mp3',
+    durationMs: 30000,
+    reelsCount: '600K',
+    isOriginalAudio: true,
+  },
+  {
+    id: 'orig_2',
+    title: 'Kavkaz Vibes (Slowed + Reverb)',
+    artist: 'Starly • Original Audio',
+    artwork: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&auto=format&fit=crop&q=80',
+    previewUrl: 'https://cdn.freesound.org/previews/536/536108_71257-lq.mp3',
+    durationMs: 30000,
+    reelsCount: '318K',
+    isOriginalAudio: true,
+  },
+  {
+    id: 'orig_3',
+    title: 'Lo-Fi Chill Night Beats',
+    artist: 'LofiVibes • Original Sound',
+    artwork: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=300&auto=format&fit=crop&q=80',
+    previewUrl: 'https://cdn.freesound.org/previews/415/415804_5121236-lq.mp3',
+    durationMs: 30000,
+    reelsCount: '450K',
+    isOriginalAudio: true,
+  },
+  {
+    id: 'orig_4',
+    title: 'Desi Dholak Bass Drop',
+    artist: 'DesiMixes • Original Audio',
+    artwork: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=300&auto=format&fit=crop&q=80',
+    previewUrl: 'https://cdn.freesound.org/previews/612/612611_5674468-lq.mp3',
+    durationMs: 30000,
+    reelsCount: '890K',
+    isOriginalAudio: true,
+  },
+  {
+    id: 'orig_5',
+    title: 'Emotional Piano & Strings',
+    artist: 'SymphonySoul • Original Audio',
+    artwork: 'https://images.unsplash.com/photo-1520523839898-50712140d04c?w=300&auto=format&fit=crop&q=80',
+    previewUrl: 'https://cdn.freesound.org/previews/517/517618_11565147-lq.mp3',
+    durationMs: 30000,
+    reelsCount: '210K',
+    isOriginalAudio: true,
+  },
+];
 
 export function formatMusicDuration(ms: number): string {
   const total = Math.round(ms / 1000);
   const m = Math.floor(total / 60);
   const s = total % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
 }

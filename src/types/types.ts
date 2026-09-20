@@ -48,6 +48,14 @@ export interface Story {
   likes_count?: number;
   views_count?: number;
   media_type?: 'image' | 'video';
+  music_track_id?: string | null;
+  music_title?: string | null;
+  music_artist?: string | null;
+  music_artwork_url?: string | null;
+  music_preview_url?: string | null;
+  music_start_ms?: number | null;
+  music_duration_ms?: number | null;
+  mute_original?: boolean | null;
 }
 
 export interface Follow {
