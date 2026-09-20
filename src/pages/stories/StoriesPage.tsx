@@ -66,18 +66,6 @@ const StoriesPage: React.FC = () => {
   const [loadingViewers, setLoadingViewers] = useState(false);
   const videoViewerRef = useRef<HTMLVideoElement>(null);
   const storyAudioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    const a = storyAudioRef.current;
-    if (!a) return;
-    if (viewerOpen && currentStory?.music_preview_url) {
-      const startSec = (currentStory.music_start_ms || 0) / 1000;
-      a.currentTime = startSec;
-      a.play().catch(() => {});
-    } else {
-      a.pause();
-    }
-  }, [viewerOpen, currentStory, storyIndex]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsPage, setPostsPage] = useState(0);
@@ -184,6 +172,18 @@ const StoriesPage: React.FC = () => {
 
   const viewerGroup = viewerUserId ? groups[viewerUserId] : null;
   const currentStory = viewerGroup?.stories[storyIndex];
+
+  useEffect(() => {
+    const a = storyAudioRef.current;
+    if (!a) return;
+    if (viewerUserId && currentStory?.music_preview_url) {
+      const startSec = (currentStory.music_start_ms || 0) / 1000;
+      a.currentTime = startSec;
+      a.play().catch(() => {});
+    } else {
+      a.pause();
+    }
+  }, [viewerUserId, currentStory, storyIndex]);
 
   const nextStory = () => {
     if (!viewerGroup) return;

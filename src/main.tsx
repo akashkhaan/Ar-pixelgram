@@ -75,7 +75,26 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 void bootLiveWebsite();
 
 createRoot(document.getElementById("root")!).render(
-  <Sentry.ErrorBoundary fallback={<p>应用发生错误，请刷新页面重试</p>}>
+  <Sentry.ErrorBoundary
+    fallback={
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-background text-foreground">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4 text-3xl">
+          ⚡
+        </div>
+        <h2 className="text-lg font-bold mb-2">पेज लोड करने में समस्या आई</h2>
+        <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+          कृपया नीचे दिया गया बटन दबाकर पेज को रीफ्रेश करें।
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-95 transition-all shadow-md"
+        >
+          पेज रीफ्रेश करें
+        </button>
+      </div>
+    }
+  >
     <AppWrapper>
       <App />
     </AppWrapper>
