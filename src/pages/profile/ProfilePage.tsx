@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import MobileLayout from '@/components/layouts/MobileLayout';
-import PullToRefresh from '@/components/common/PullToRefresh';
-import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/contexts/LanguageContext';
-import {
-  getProfile, getUserPosts, getFollowStatus, getFollowersCount,
-  getFollowingCount, followUser, unfollowUser, createNotification, getUserReels,
-  uploadImage, updateProfile
-} from '@/services/api';
-import { supabase } from '@/db/supabase';
-import type { Profile, Post } from '@/types/types';
-import type { Reel } from '@/services/api';
-import { getUserVideos, formatVideoViews, formatDuration, type AppVideo } from '@/services/videos';
-import { Button } from '@/components/ui/button';
-import { Settings, BadgeCheck, Grid3X3, Lock, Loader2, Film, Camera, Flag, Play, Heart, MessageCircle, X, Video as VideoIcon, ArrowLeft, Share2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowLeft, BadgeCheck, Camera, Film, Flag, Grid3X3, Heart, Loader2, Lock, MessageCircle, Play, Settings, Share2, Video as VideoIcon, X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import PostCard from '@/components/common/PostCard';
-import { withTimeout } from '@/lib/withTimeout';
+import PullToRefresh from '@/components/common/PullToRefresh';
 import { SmartImage } from '@/components/common/SmartMedia';
+import MobileLayout from '@/components/layouts/MobileLayout';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { supabase } from '@/db/supabase';
+import useGoBack from '@/hooks/use-go-back';
 import { isLegacyMediaUrl } from '@/lib/mediaUrl';
+import { withTimeout } from '@/lib/withTimeout';
+import type { Reel } from '@/services/api';
+import {createNotification, followUser, getFollowersCount,
+  getFollowingCount, getFollowStatus, 
+  getProfile, getUserPosts, getUserReels,unfollowUser, updateProfile, 
+  uploadImage 
+} from '@/services/api';
+import { type AppVideo, formatDuration, formatVideoViews, getUserVideos } from '@/services/videos';
+import type { Post, Profile } from '@/types/types';
 
 // username से unique gradient ring color
 function userGradient(username: string) {
@@ -37,6 +37,7 @@ const ProfilePage: React.FC = () => {
   const { user, profile: myProfile } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const goBack = useGoBack("/home");
 
   const targetUserId = userId || user?.id;
   const isOwnProfile = !userId || userId === user?.id;
@@ -270,7 +271,7 @@ const ProfilePage: React.FC = () => {
         <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/50 px-3 h-12 flex items-center justify-between">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
             aria-label="Go back"
           >

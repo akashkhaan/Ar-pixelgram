@@ -1,5 +1,3 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Check,
@@ -16,11 +14,17 @@ import {
   Video,
   X,
 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import GroupCallPanel, { GroupCallPanelHandle } from '@/components/call/GroupCallPanel';
+import MessengerGroupSettings, { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
 import MobileLayout from '@/components/layouts/MobileLayout';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import useGoBack from '@/hooks/use-go-back';
 import {
   addGroupMember,
   getActiveGroupCall,
@@ -42,7 +46,6 @@ import {
   updateGroupPermissions,
   uploadGroupAvatar,
 } from '@/services/groups';
-import type { Profile } from '@/types/types';
 import type {
   Group,
   GroupCall,
@@ -52,9 +55,7 @@ import type {
   GroupPermissions,
   GroupPinnedMessage,
 } from '@/types/groups';
-import { toast } from 'sonner';
-import GroupCallPanel, { GroupCallPanelHandle } from '@/components/call/GroupCallPanel';
-import MessengerGroupSettings, { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
+import type { Profile } from '@/types/types';
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🙏'];
 
@@ -140,7 +141,8 @@ const GroupChatPage: React.FC = () => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const callPanelRef = useRef<GroupCallPanelHandle>(null);
 
-  const handleBack = () => { navigate('/chat', { replace: true }); };
+  const goBack = useGoBack('/chat');
+  const handleBack = () => { goBack(); };
 
   const currentMember = useMemo(() => members.find(member => member.user_id === user?.id), [members, user]);
   const canManage = currentMember?.role === 'owner' || currentMember?.role === 'admin';

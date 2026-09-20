@@ -1,11 +1,12 @@
+import { ArrowLeft, Bell, BellOff, BellRing, CheckCircle2, Loader2, Smartphone, XCircle } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import MobileLayout from '@/components/layouts/MobileLayout';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { ArrowLeft, Bell, BellOff, BellRing, CheckCircle2, XCircle, Loader2, Smartphone } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import useGoBack from '@/hooks/use-go-back';
 import { ensurePushSubscription } from '@/hooks/usePushSubscription';
 
 const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
@@ -15,6 +16,7 @@ type Perm = 'default' | 'granted' | 'denied' | 'unsupported';
 const NotificationSettingsPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const goBack = useGoBack("/settings");
   const [perm, setPerm] = useState<Perm>('default');
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [saved, setSaved] = useState(false);
@@ -147,7 +149,7 @@ const NotificationSettingsPage: React.FC = () => {
   return (
     <MobileLayout hideNav>
       <div className="p-4 page-transition space-y-5">
-        <button onClick={() => navigate('/settings')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={goBack} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
 

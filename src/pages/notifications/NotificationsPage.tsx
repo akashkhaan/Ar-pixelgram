@@ -1,20 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import MobileLayout from '@/components/layouts/MobileLayout';
-import PullToRefresh from '@/components/common/PullToRefresh';
-import { useAuth } from '@/contexts/AuthContext';
-import { withTimeout } from '@/lib/withTimeout';
-import {
-  getNotifications, markNotificationsRead, acceptFollowRequest,
-  rejectFollowRequest, getPendingFollowRequests, createNotification
-} from '@/services/api';
-import { supabase } from '@/db/supabase';
-import type { Notification } from '@/types/types';
-import { BadgeCheck, Heart, MessageCircle, UserPlus, Bell, Check, X, ShieldOff, Megaphone, Film, Mail, CornerDownRight, Camera } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Bell, Camera, Check, CornerDownRight, Film, Heart, Mail, Megaphone, MessageCircle, ShieldOff, UserPlus, X } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import PullToRefresh from '@/components/common/PullToRefresh';
+import MobileLayout from '@/components/layouts/MobileLayout';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/db/supabase';
+import useGoBack from '@/hooks/use-go-back';
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
+import { cn } from '@/lib/utils';
+import { withTimeout } from '@/lib/withTimeout';
+import {acceptFollowRequest,createNotification, 
+  getNotifications, getPendingFollowRequests, markNotificationsRead, 
+  rejectFollowRequest 
+} from '@/services/api';
+import type { Notification } from '@/types/types';
 
 const NotificationIcon: React.FC<{ type: Notification['type'] }> = ({ type }) => {
   switch (type) {
@@ -51,6 +52,7 @@ const SkeletonRow = () => (
 const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const goBack = useGoBack("/home");
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -165,7 +167,15 @@ const NotificationsPage: React.FC = () => {
     <MobileLayout>
       <PullToRefresh onRefresh={load}>
       <div className="page-transition">
-        <div className="px-4 py-4 border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+        <div className="px-4 py-3 border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={goBack}
+            className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-5 h-5 text-foreground" />
+          </button>
           <h2 className="text-xl font-bold text-foreground">Notifications</h2>
         </div>
 

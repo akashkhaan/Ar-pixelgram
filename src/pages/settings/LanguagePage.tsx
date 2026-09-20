@@ -1,3 +1,4 @@
+import useGoBack from '@/hooks/use-go-back';
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
 
 const LanguagePage: React.FC = () => {
   const navigate = useNavigate();
+  const goBack = useGoBack("/settings");
   const { lang, setLang, currentLanguage } = useLanguage();
   const [query, setQuery] = useState('');
 
@@ -34,7 +36,7 @@ const LanguagePage: React.FC = () => {
         <div className="sticky top-0 z-10 bg-background/90 backdrop-blur border-b border-border px-3 py-3">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted/60"
             >
               <ArrowLeft className="w-5 h-5 text-foreground" />

@@ -1,3 +1,4 @@
+import useGoBack from '@/hooks/use-go-back';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ThumbsUp, MessageCircle, Share2, Trash2, Eye, Loader2, Lock, Send } from 'lucide-react';
@@ -24,6 +25,7 @@ import {
 const WatchVideoPage: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
   const navigate = useNavigate();
+  const goBack = useGoBack("/videos");
   const { user } = useAuth();
 
   const [video, setVideo] = useState<AppVideo | null>(null);
@@ -135,7 +137,7 @@ const WatchVideoPage: React.FC = () => {
       <div className="fixed inset-0 bg-background flex flex-col items-center justify-center gap-3 px-6 text-center">
         <Lock className="w-8 h-8 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">यह video उपलब्ध नहीं है या private है।</p>
-        <button onClick={() => navigate('/videos')} className="text-sm font-bold text-primary">
+        <button onClick={goBack} className="text-sm font-bold text-primary">
           वीडियो पर वापस जाएं
         </button>
       </div>
@@ -158,7 +160,7 @@ const WatchVideoPage: React.FC = () => {
           preload="auto"
         />
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBack}
           className="absolute top-2 left-2 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center"
           aria-label="वापस"
         >

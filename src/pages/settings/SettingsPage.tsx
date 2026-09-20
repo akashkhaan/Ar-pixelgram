@@ -1,22 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import { ArrowLeft, AtSign, BadgeCheck, ChevronRight, Flag, Globe, HelpCircle, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import MobileLayout from '@/components/layouts/MobileLayout';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
+import useGoBack from '@/hooks/use-go-back';
 import { getMyVerificationRequest, submitVerificationRequest } from '@/services/api';
 import type { VerificationRequest } from '@/types/types';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { Moon, Sun, HelpCircle, Flag, Shield, LogOut, Trash2, BadgeCheck, ChevronRight, ArrowLeft, Loader2, LayoutDashboard, AtSign, Globe } from 'lucide-react';
 import ReportProblemSection from './ReportProblemSection';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 
 const SettingsPage: React.FC = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const goBack = useGoBack("/profile");
+  const handleBack = () => { if (section !== "main") setSection("main"); else goBack(); };
   const [darkMode, setDarkMode] = useState(document.documentElement.classList.contains('dark'));
   const [section, setSection] = useState<'main' | 'help' | 'report' | 'verification'>('main');
   const [verificationRequest, setVerificationRequest] = useState<VerificationRequest | null>(null);
@@ -166,7 +169,17 @@ const SettingsPage: React.FC = () => {
   return (
     <MobileLayout>
       <div className="p-4 page-transition space-y-5">
-        <h2 className="text-xl font-bold text-foreground">Settings</h2>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="w-5 h-5 text-foreground" />
+          </button>
+          <h2 className="text-xl font-bold text-foreground">Settings</h2>
+        </div>
 
         {/* Profile info */}
         <div className="flex items-center gap-3 glass-card rounded-xl p-4">

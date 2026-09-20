@@ -1,3 +1,4 @@
+import useGoBack from '@/hooks/use-go-back';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -33,6 +34,7 @@ type View = 'home' | 'personal' | 'contact' | 'password';
 
 const AccountCenterPage: React.FC = () => {
   const navigate = useNavigate();
+  const navBack = useGoBack("/settings");
   const [view, setView] = useState<View>('home');
   const [addingType, setAddingType] = useState<IdentifierType | null>(null);
   const [items, setItems] = useState<AccountIdentifier[]>([]);
@@ -65,7 +67,7 @@ const AccountCenterPage: React.FC = () => {
     }
     if (view === 'contact') setView('personal');
     else if (view === 'personal' || view === 'password') setView('home');
-    else navigate('/settings');
+    else navBack();
   };
 
   const handleSendOtp = async (type: IdentifierType) => {

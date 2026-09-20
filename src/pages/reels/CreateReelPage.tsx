@@ -1,3 +1,4 @@
+import useGoBack from '@/hooks/use-go-back';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -27,6 +28,7 @@ type Step = 'pick' | 'edit' | 'share';
 const CreateReelPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const goBack = useGoBack("/reels");
   const location = useLocation();
   const videoInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -167,7 +169,7 @@ const CreateReelPage: React.FC = () => {
       <div className="fixed inset-0 bg-black flex flex-col">
         {/* Camera-style top bar (Instagram jaisa) */}
         <div className="flex items-center gap-2 px-3 pt-3">
-          <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-95">
+          <button onClick={goBack} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-95">
             <X className="w-6 h-6 text-white" />
           </button>
           <div className="flex-1" />

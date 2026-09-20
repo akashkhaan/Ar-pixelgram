@@ -1,49 +1,50 @@
-// चैट पेज — seen status, block/unblock, online status, avatar→profile click, Messenger settings & theme
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import MobileLayout from '@/components/layouts/MobileLayout';
-import { useAuth } from '@/contexts/AuthContext';
-import {
-  getMessages,
-  sendMessage,
-  markConversationSeen,
-  getProfile,
-  blockUser,
-  unblockUser,
-  isBlocked,
-  getOnlineStatus,
-  setOnlineStatus,
-  createNotification,
-} from '@/services/api';
-import { supabase } from '@/db/supabase';
-import type { Message, Profile } from '@/types/types';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import {
   ArrowLeft,
-  Send,
   BadgeCheck,
-  Smile,
-  Phone,
-  Video,
-  MoreVertical,
   Ban,
-  ShieldOff,
   Info,
+  MoreVertical,
+  Phone,
   Search,
+  Send,
+  ShieldOff,
+  Smile,
+  Video,
   X,
 } from 'lucide-react';
+// चैट पेज — seen status, block/unblock, online status, avatar→profile click, Messenger settings & theme
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import MessengerDirectSettings from '@/components/chat/MessengerDirectSettings';
+import { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
+import MobileLayout from '@/components/layouts/MobileLayout';
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
+import { useAuth } from '@/contexts/AuthContext';
 import { useCall } from '@/contexts/CallContext';
-import MessengerDirectSettings from '@/components/chat/MessengerDirectSettings';
-import { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
+import { supabase } from '@/db/supabase';
+import useGoBack from '@/hooks/use-go-back';
+import { cn } from '@/lib/utils';
+import {
+  blockUser,
+  createNotification,
+  getMessages,
+  getOnlineStatus,
+  getProfile,
+  isBlocked,
+  markConversationSeen,
+  sendMessage,
+  setOnlineStatus,
+  unblockUser,
+} from '@/services/api';
+import type { Message, Profile } from '@/types/types';
 
 const EMOJI_LIST = ['😀', '😂', '❤️', '👍', '🎉', '😍', '🔥', '✨', '😎', '🙏', '💯', '🤔', '😭', '😘', '💪'];
 
@@ -51,6 +52,7 @@ const ChatPage: React.FC = () => {
   const { receiverId } = useParams<{ receiverId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const goBack = useGoBack("/chat");
   const { startCall } = useCall();
   const [messages, setMessages] = useState<Message[]>([]);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);
@@ -278,7 +280,7 @@ const ChatPage: React.FC = () => {
         {/* Top bar (Messenger Style) */}
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-card shrink-0">
           <button
-            onClick={() => navigate('/chat')}
+            onClick={goBack}
             className="p-1 rounded-full hover:bg-muted text-foreground transition-colors shrink-0"
             aria-label="Back"
           >

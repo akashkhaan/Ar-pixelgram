@@ -1,3 +1,4 @@
+import useGoBack from '@/hooks/use-go-back';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Film, Loader2, Lock, Globe, ImagePlus, Check } from 'lucide-react';
@@ -16,6 +17,7 @@ import { createVideo, uploadVideoFile, uploadVideoThumbnail } from '@/services/v
  */
 const UploadVideoPage: React.FC = () => {
   const navigate = useNavigate();
+  const goBack = useGoBack("/videos");
   const { user } = useAuth();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,7 +133,7 @@ const UploadVideoPage: React.FC = () => {
     return (
       <div className="fixed inset-0 bg-black flex flex-col">
         <div className="flex items-center gap-2 px-3 py-3">
-          <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
+          <button onClick={goBack} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
           <p className="text-white font-bold">Add Video Create</p>

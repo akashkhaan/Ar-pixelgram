@@ -1,14 +1,15 @@
+import { ArrowLeft, Check, Loader2, Search, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Loader2, Search, Users } from 'lucide-react';
+import { toast } from 'sonner';
 import MobileLayout from '@/components/layouts/MobileLayout';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
+import useGoBack from '@/hooks/use-go-back';
 import { createGroup, searchGroupUsers, uploadGroupAvatar } from '@/services/groups';
 import type { Profile } from '@/types/types';
-import { toast } from 'sonner';
 
 const Avatar: React.FC<{ profile?: Profile | null; size?: string }> = ({ profile, size = 'w-10 h-10' }) => (
   profile?.avatar_url ? <img src={profile.avatar_url} alt="" className={size + ' rounded-full object-cover shrink-0'} /> :
@@ -20,6 +21,7 @@ const Avatar: React.FC<{ profile?: Profile | null; size?: string }> = ({ profile
 const CreateGroupPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const goBack = useGoBack("/chat");
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -72,7 +74,7 @@ const CreateGroupPage: React.FC = () => {
     <MobileLayout hideHeader hideNav>
       <div className="min-h-[100dvh] bg-background">
         <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-card/95 backdrop-blur px-3 py-3">
-          <button type="button" onClick={() => navigate('/chat')} className="rounded-full p-2 hover:bg-muted" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
+          <button type="button" onClick={goBack} className="rounded-full p-2 hover:bg-muted" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
           <div><h1 className="font-semibold">Create group</h1><p className="text-xs text-muted-foreground">You will be the owner and first admin</p></div>
         </div>
         <form onSubmit={submit} className="space-y-5 p-4 pb-10">

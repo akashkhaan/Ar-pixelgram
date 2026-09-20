@@ -1,3 +1,4 @@
+import useGoBack from '@/hooks/use-go-back';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -12,6 +13,7 @@ import { toast } from 'sonner';
 const SongPage: React.FC = () => {
   const { trackId } = useParams<{ trackId: string }>();
   const navigate = useNavigate();
+  const goBack = useGoBack("/home");
   const [reels, setReels] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -97,7 +99,7 @@ const SongPage: React.FC = () => {
       <div className="page-transition pb-24">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border/40">
-          <button onClick={() => navigate(-1)} className="p-1.5 rounded-full hover:bg-muted/60">
+          <button onClick={goBack} className="p-1.5 rounded-full hover:bg-muted/60">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <h1 className="font-bold text-foreground">{isOriginal ? 'Original audio' : 'Audio'}</h1>

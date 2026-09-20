@@ -1,15 +1,16 @@
+import { ArrowLeft, BadgeCheck, Search } from 'lucide-react';
 // Followers / Following list — Instagram स्टाइल
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import MobileLayout from '@/components/layouts/MobileLayout';
-import { getFollowers, getFollowing, followUser, unfollowUser, getFollowStatus } from '@/services/api';
-import { useAuth } from '@/contexts/AuthContext';
-import type { Profile } from '@/types/types';
-import { BadgeCheck, ArrowLeft, Search } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import MobileLayout from '@/components/layouts/MobileLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useAuth } from '@/contexts/AuthContext';
+import useGoBack from '@/hooks/use-go-back';
+import { cn } from '@/lib/utils';
+import { followUser, getFollowers, getFollowing, getFollowStatus, unfollowUser } from '@/services/api';
+import type { Profile } from '@/types/types';
 
 // प्रत्येक username से unique gradient
 function userGradient(username: string) {
@@ -25,6 +26,7 @@ const FollowListPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const goBack = useGoBack(userId ? "/profile/" + userId : "/profile");
 
   // pathname से type derive करो (/followers/... या /following/...)
   const type: 'followers' | 'following' = location.pathname.startsWith('/following') ? 'following' : 'followers';
@@ -90,7 +92,7 @@ const FollowListPage: React.FC = () => {
       <div className="page-transition">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
-          <button onClick={() => navigate(-1)} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
+          <button onClick={goBack} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <h2 className="text-lg font-bold text-foreground flex-1">

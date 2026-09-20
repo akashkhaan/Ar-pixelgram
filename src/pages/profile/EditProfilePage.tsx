@@ -1,3 +1,4 @@
+import useGoBack from '@/hooks/use-go-back';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -14,6 +15,7 @@ import { Camera, Loader2, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react'
 const EditProfilePage: React.FC = () => {
   const { user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const goBack = useGoBack("/profile");
   const [form, setForm] = useState({
     full_name: '',
     username: '',
@@ -92,7 +94,7 @@ const EditProfilePage: React.FC = () => {
   return (
     <MobileLayout hideNav>
       <div className="p-4 page-transition">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 mb-5 text-muted-foreground hover:text-foreground transition-colors">
+        <button onClick={goBack} className="flex items-center gap-2 mb-5 text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm font-medium">Back</span>
         </button>

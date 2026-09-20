@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import MobileLayout from '@/components/layouts/MobileLayout';
-import PullToRefresh from '@/components/common/PullToRefresh';
-import { useAuth } from '@/contexts/AuthContext';
-import { withTimeout } from '@/lib/withTimeout';
-import { getMutualFollows, getMessages, getUnreadCount, getMessagedProfiles } from '@/services/api';
-import { getMyGroups, getActiveGroupCallsForUser } from '@/services/groups';
-import { supabase } from '@/db/supabase';
-import type { GroupCall } from '@/types/groups';
-import type { Profile, Message } from '@/types/types';
+import { ArrowLeft, BadgeCheck, Loader2, MessageCircle, Phone, Plus, Undo2, Users } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageCircle, Loader2, BadgeCheck, ArrowLeft, Plus, Users, Phone, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
+import PullToRefresh from '@/components/common/PullToRefresh';
+import MobileLayout from '@/components/layouts/MobileLayout';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/db/supabase';
+import useGoBack from '@/hooks/use-go-back';
+import { withTimeout } from '@/lib/withTimeout';
+import { getMessagedProfiles, getMessages, getMutualFollows, getUnreadCount } from '@/services/api';
+import { getActiveGroupCallsForUser, getMyGroups } from '@/services/groups';
+import type { GroupCall } from '@/types/groups';
+import type { Message, Profile } from '@/types/types';
 
 interface ConversationItem {
   profile: Profile;
@@ -21,6 +22,7 @@ interface ConversationItem {
 const ChatListPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const goBack = useGoBack("/home");
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<Awaited<ReturnType<typeof getMyGroups>>>([]);
@@ -150,7 +152,7 @@ const ChatListPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => navigate('/home')}
+                onClick={goBack}
                 aria-label="Back"
                 className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors"
               >

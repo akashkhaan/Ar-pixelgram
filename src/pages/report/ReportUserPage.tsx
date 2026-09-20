@@ -1,3 +1,4 @@
+import useGoBack from '@/hooks/use-go-back';
 // यूज़र रिपोर्ट पेज — community guidelines के साथ
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -22,6 +23,7 @@ const REASONS = [
 const ReportUserPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const { user } = useAuth();
+  const goBack = useGoBack(userId ? "/profile/" + userId : "/home");
   const navigate = useNavigate();
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [description, setDescription] = useState('');
@@ -48,7 +50,7 @@ const ReportUserPage: React.FC = () => {
           <p className="text-muted-foreground text-sm max-w-xs mb-8 text-pretty">
             आपकी रिपोर्ट हमारे admin panel में पहुँच गई है। हम community guidelines के अनुसार action लेंगे।
           </p>
-          <Button onClick={() => navigate(-1)} className="rounded-xl font-bold">
+          <Button onClick={goBack} className="rounded-xl font-bold">
             वापस जाएं
           </Button>
         </div>
@@ -61,7 +63,7 @@ const ReportUserPage: React.FC = () => {
       <div className="page-transition">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-4 border-b border-border sticky top-0 bg-background/90 backdrop-blur-sm z-10">
-          <button onClick={() => navigate(-1)} className="p-1 -ml-1 hover:bg-muted rounded-lg transition-colors">
+          <button onClick={goBack} className="p-1 -ml-1 hover:bg-muted rounded-lg transition-colors">
             <ArrowLeft className="w-5 h-5 text-foreground" />
           </button>
           <h2 className="font-bold text-foreground text-lg">Account Report करें</h2>
