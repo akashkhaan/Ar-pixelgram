@@ -277,52 +277,75 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* Full-display Profile Header - No separate white top bar, back button inside profile */}
-        <div className="relative px-4 pt-2 pb-4">
-          {/* Back button placed directly inside profile header */}
-          <div className="flex items-center mb-1">
+        {/* Instagram Profile Top Header Bar */}
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md px-3 h-12 flex items-center justify-between border-b border-border/40">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={goBack}
-              className="w-10 h-10 -ml-1 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
+              className="w-9 h-9 -ml-1 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground shrink-0"
               aria-label="Go back"
             >
-              <ArrowLeft className="w-6 h-6" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
+            <h1 className="font-bold text-base text-foreground truncate flex items-center gap-1.5">
+              {profile.username}
+              {profile.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
+              {profile.is_private && <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+            </h1>
           </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {isOwnProfile ? (
+              <Link to="/settings" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-foreground" aria-label="Settings">
+                <Settings className="w-5 h-5" />
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate(`/report-user/${profile.user_id}`)}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground"
+                title="रिपोर्ट करें"
+              >
+                <Flag className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
 
-          <div className="flex items-start gap-4 mb-3 relative">
+        <div className="px-4 pt-3 pb-3">
+          {/* Avatar and Stats Row (Instagram Style) */}
+          <div className="flex items-center justify-between gap-6 mb-3">
             {/* Avatar with story ring — own profile: tap to change photo */}
-            <div className="shrink-0 mt-1 relative">
+            <div className="shrink-0 relative">
               {isOwnProfile ? (
                 <label className="cursor-pointer block">
                   {profile.avatar_url ? (
                     <div className="story-ring animate-pulse-glow">
                       <div className="story-ring-inner">
-                        <img src={profile.avatar_url} alt={profile.username} className="w-24 h-24 rounded-full object-cover" />
+                        <img src={profile.avatar_url} alt={profile.username} className="w-20 h-20 rounded-full object-cover" />
                       </div>
                     </div>
                   ) : (
                     <div className="rounded-full flex items-center justify-center text-primary-foreground font-black text-2xl"
-                      style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))', width: 96, height: 96 }}>
+                      style={{ background: "linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))", width: 80, height: 80 }}>
                       {profile.username[0]?.toUpperCase()}
                     </div>
                   )}
-                  <div className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center shadow-md border-2 border-background">
-                    <Camera className="w-4 h-4 text-primary-foreground" />
+                  <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center shadow-md border-2 border-background">
+                    <Camera className="w-3.5 h-3.5 text-primary-foreground" />
                   </div>
                   <input
                     type="file" accept="image/*" className="hidden"
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file || !user) return;
-                      if (file.size > 5 * 1024 * 1024) { toast.error('5MB से बड़ी फाइल नहीं'); return; }
+                      if (file.size > 5 * 1024 * 1024) { toast.error("5MB से बड़ी फाइल नहीं"); return; }
                       try {
-                        const url = await uploadImage('avatars', file, user.id);
+                        const url = await uploadImage("avatars", file, user.id);
                         await updateProfile(user.id, { avatar_url: url } as Parameters<typeof updateProfile>[1]);
                         await load();
-                        toast.success('प्रोफाइल फोटो अपडेट हुई ✨');
-                      } catch { toast.error('फोटो अपलोड नहीं हुई'); }
+                        toast.success("प्रोफाइल फोटो अपडेट हुई ✨");
+                      } catch { toast.error("फोटो अपलोड नहीं हुई"); }
                     }}
                   />
                 </label>
@@ -330,95 +353,86 @@ const ProfilePage: React.FC = () => {
                 profile.avatar_url ? (
                   <div className="p-0.5 rounded-full" style={{ background: userGradient(profile.username) }}>
                     <div className="bg-background p-0.5 rounded-full">
-                      <img src={profile.avatar_url} alt={profile.username} className="w-24 h-24 rounded-full object-cover" />
+                      <img src={profile.avatar_url} alt={profile.username} className="w-20 h-20 rounded-full object-cover" />
                     </div>
                   </div>
                 ) : (
                   <div className="rounded-full flex items-center justify-center text-white font-black text-2xl"
-                    style={{ background: userGradient(profile.username), width: 96, height: 96 }}>
+                    style={{ background: userGradient(profile.username), width: 80, height: 80 }}>
                     {profile.username[0]?.toUpperCase()}
                   </div>
                 )
               )}
             </div>
 
-            {/* Stats */}
-            <div className="flex-1 min-w-0 pt-1">
-              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                <h2 className="font-black text-lg text-foreground truncate">{profile.username}</h2>
-                {profile.is_verified && <BadgeCheck className="w-5 h-5 text-primary shrink-0" />}
-                {profile.is_private && <Lock className="w-4 h-4 text-muted-foreground shrink-0" />}
-              </div>
-              {profile.full_name && <p className="text-xs text-muted-foreground mb-2 truncate">{profile.full_name}</p>}
-              <div className="flex items-center gap-3">
-                {[
-                  { val: posts.length, label: t('posts'), link: null },
-                  { val: followersCount, label: t('followers'), link: `/followers/${profile.user_id}` },
-                  { val: followingCount, label: t('following'), link: `/following/${profile.user_id}` },
-                ].map(({ val, label, link }) => (
-                  link ? (
-                    <button key={label} onClick={() => navigate(link)} className="text-center hover:opacity-70 transition-opacity">
-                      <p className="font-black text-base text-foreground leading-none">{val > 999 ? `${(val/1000).toFixed(1)}k` : val}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                    </button>
-                  ) : (
-                    <div key={label} className="text-center">
-                      <p className="font-black text-base text-foreground leading-none">{val > 999 ? `${(val/1000).toFixed(1)}k` : val}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                    </div>
-                  )
-                ))}
-              </div>
+            {/* Stats (Posts, Followers, Following) */}
+            <div className="flex-1 flex items-center justify-around text-center">
+              {[
+                { val: posts.length, label: t("posts"), link: null },
+                { val: followersCount, label: t("followers"), link: `/followers/${profile.user_id}` },
+                { val: followingCount, label: t("following"), link: `/following/${profile.user_id}` },
+              ].map(({ val, label, link }) => (
+                link ? (
+                  <button key={label} onClick={() => navigate(link)} className="text-center hover:opacity-70 transition-opacity">
+                    <p className="font-bold text-base text-foreground leading-none">{val > 999 ? `${(val/1000).toFixed(1)}k` : val}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                  </button>
+                ) : (
+                  <div key={label} className="text-center">
+                    <p className="font-bold text-base text-foreground leading-none">{val > 999 ? `${(val/1000).toFixed(1)}k` : val}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                  </div>
+                )
+              ))}
             </div>
           </div>
 
-          {profile.bio && <p className="text-sm text-foreground text-pretty mb-3">{profile.bio}</p>}
+          {/* Name & Bio */}
+          {profile.full_name && <p className="font-bold text-sm text-foreground leading-tight mb-0.5">{profile.full_name}</p>}
+          {profile.bio && <p className="text-sm text-foreground text-pretty mb-3 whitespace-pre-line">{profile.bio}</p>}
 
-          {/* Action buttons */}
+          {/* Action buttons (Instagram Style) */}
           <div className="flex gap-2">
             {isOwnProfile ? (
               <>
                 <Link to="/edit-profile" className="flex-1">
-                  <Button variant="secondary" className="w-full h-9 font-bold text-sm rounded-xl">{t('editProfile')}</Button>
+                  <Button variant="secondary" className="w-full h-8 font-semibold text-xs rounded-lg">{t("editProfile")}</Button>
                 </Link>
-                <Link to="/settings">
-                  <Button variant="secondary" size="icon" className="h-9 w-9 shrink-0 rounded-xl">
-                    <Settings className="w-4 h-4" />
-                  </Button>
+                <Link to="/settings" className="flex-1">
+                  <Button variant="secondary" className="w-full h-8 font-semibold text-xs rounded-lg">सेटिंग्स</Button>
                 </Link>
               </>
             ) : (
               <>
                 <Button
-                  className="flex-1 h-9 font-bold text-sm rounded-xl"
-                  variant={followStatus === 'accepted' ? 'secondary' : 'default'}
+                  className="flex-1 h-8 font-semibold text-xs rounded-lg"
+                  variant={followStatus === "accepted" ? "secondary" : "default"}
                   onClick={handleFollow}
                   disabled={followLoading}
-                  style={followStatus !== 'accepted' ? { background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))', border: 'none' } : {}}
+                  style={followStatus !== "accepted" ? { background: "linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))", border: "none" } : {}}
                 >
                   {followLoading ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                    followStatus === 'accepted' ? t('following') :
-                    followStatus === 'pending' ? 'Requested' : t('follow')}
+                    followStatus === "accepted" ? t("following") :
+                    followStatus === "pending" ? "Requested" : t("follow")}
                 </Button>
-                {followStatus === 'accepted' && (
+                {followStatus === "accepted" && (
                   <Link to={`/chat/${profile.user_id}`} className="flex-1">
-                    <Button variant="secondary" className="w-full h-9 font-bold text-sm rounded-xl">{t('chat')}</Button>
+                    <Button variant="secondary" className="w-full h-8 font-semibold text-xs rounded-lg">{t("chat")}</Button>
                   </Link>
                 )}
                 <button
                   onClick={() => navigate(`/report-user/${profile.user_id}`)}
-                  className="h-9 w-9 flex items-center justify-center rounded-xl bg-muted hover:bg-muted/80 transition-colors shrink-0"
+                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-muted hover:bg-muted/80 transition-colors shrink-0"
                   title="रिपोर्ट करें"
                 >
-                  <Flag className="w-4 h-4 text-muted-foreground" />
+                  <Flag className="w-3.5 h-3.5 text-muted-foreground" />
                 </button>
               </>
             )}
           </div>
         </div>
-
         {/* Posts / Reels tab bar */}
-        <div className="border-t border-border sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+        <div className="border-t border-border sticky top-12 bg-background/95 backdrop-blur-sm z-10">
           <div className="flex">
             <button
               onClick={() => setActiveTab('posts')}
