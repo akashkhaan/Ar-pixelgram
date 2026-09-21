@@ -1,6 +1,6 @@
-import { ArrowLeft, BadgeCheck, Camera, Film, Flag, Grid3X3, Heart, Loader2, Lock, MessageCircle, Play, Settings, Video as VideoIcon, X } from 'lucide-react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, BadgeCheck, Camera, Film, Flag, Grid3X3, Heart, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import PostCard from '@/components/common/PostCard';
 import PullToRefresh from '@/components/common/PullToRefresh';
@@ -21,6 +21,10 @@ import {createNotification, followUser, getFollowersCount,
 } from '@/services/api';
 import { type AppVideo, formatDuration, formatVideoViews, getUserVideos } from '@/services/videos';
 import type { Post, Profile } from '@/types/types';
+import { FacebookProfileBottomSheet } from '@/components/profile/FacebookProfileBottomSheet';
+import { resolveFacebookIdToUserId } from '@/lib/facebookProfileUrl';
+import { isBlocked, unblockUser } from '@/services/api';
+
 
 // username से unique gradient ring color
 function userGradient(username: string) {
@@ -34,13 +38,54 @@ function userGradient(username: string) {
 
 const ProfilePage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
+  const [searchParams] = useSearchParams();
+  const queryId = searchParams.get('id');
+
   const { user, profile: myProfile } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const goBack = useGoBack("/home");
 
-  const targetUserId = userId || user?.id;
-  const isOwnProfile = !userId || userId === user?.id;
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const [resolvingQuery, setResolvingQuery] = useState<boolean>(!!queryId);
+  const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isUserBlocked, setIsUserBlocked] = useState(false);
+
+  // Resolve Facebook-style numeric ID or query param to target user_id
+  useEffect(() => {
+    if (!queryId) {
+      setResolvedUserId(null);
+      setResolvingQuery(false);
+      return;
+    }
+    let cancelled = false;
+    setResolvingQuery(true);
+    resolveFacebookIdToUserId(queryId)
+      .then((uid) => {
+        if (cancelled) return;
+        if (uid) {
+          setResolvedUserId(uid);
+        } else {
+          setResolvedUserId(null);
+          setLoadError(true);
+        }
+        setResolvingQuery(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setResolvedUserId(null);
+        setLoadError(true);
+        setResolvingQuery(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [queryId]);
+
+  const targetUserId = queryId ? (resolvedUserId || undefined) : (userId || user?.id);
+  const isOwnProfile = !userId && !queryId ? true : (targetUserId === user?.id);
 
   // Sign out करके hard-navigate — async/await ensures signOut completes before redirect
   const signOutTo = async (dest: string) => {
@@ -62,10 +107,20 @@ const ProfilePage: React.FC = () => {
   const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
-    if (!targetUserId) return;
+    if (queryId && resolvingQuery) return;
+    if (!targetUserId) {
+      if (queryId && !resolvingQuery && !resolvedUserId) {
+        setLoadError(true);
+        setLoading(false);
+      }
+      return;
+    }
     setLoading(true);
     setLoadError(false);
     try {
+      if (!isOwnProfile && user && targetUserId) {
+        isBlocked(user.id, targetUserId).then(setIsUserBlocked).catch(() => setIsUserBlocked(false));
+      }
       // 5 second ka blind timer hata diya gaya — wo slow network par profile ko
       // galti se "User not found" bana deta tha. Ab asli timeout + retry hai.
       const [p, [fc, fgc]] = await withTimeout(Promise.all([
@@ -101,7 +156,7 @@ const ProfilePage: React.FC = () => {
       setLoadError(true);
     }
     finally { setLoading(false); }
-  }, [targetUserId, isOwnProfile, user]);
+  }, [targetUserId, isOwnProfile, user, queryId, resolvingQuery, resolvedUserId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -137,7 +192,17 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  if (loading) {
+  const filteredPosts = useMemo(() => {
+    if (!searchQuery.trim()) return posts;
+    const q = searchQuery.toLowerCase();
+    return posts.filter(
+      (p) =>
+        (p.caption && p.caption.toLowerCase().includes(q)) ||
+        (p.location && p.location.toLowerCase().includes(q))
+    );
+  }, [posts, searchQuery]);
+
+  if (loading || resolvingQuery) {
     return (
       <MobileLayout hideNav>
         <div className="px-4 py-4 space-y-4">
@@ -277,7 +342,7 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* Instagram Profile Top Header Bar */}
+        {/* Profile Top Header Bar (Instagram / Facebook Style) */}
         <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md px-3 h-12 flex items-center justify-between border-b border-border/40">
           <div className="flex items-center gap-2 min-w-0">
             <button
@@ -295,22 +360,89 @@ const ProfilePage: React.FC = () => {
             </h1>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            {isOwnProfile ? (
-              <Link to="/settings" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-foreground" aria-label="Settings">
-                <Settings className="w-5 h-5" />
-              </Link>
-            ) : (
-              <button
-                type="button"
-                onClick={() => navigate(`/report-user/${profile.user_id}`)}
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground"
-                title="रिपोर्ट करें"
-              >
-                <Flag className="w-4 h-4" />
-              </button>
-            )}
+            {/* Search Posts Button */}
+            <button
+              type="button"
+              onClick={() => setShowSearch(!showSearch)}
+              className={`w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all ${
+                showSearch ? 'bg-primary/10 text-primary' : 'text-foreground'
+              }`}
+              aria-label="Search posts"
+              title="Search posts"
+            >
+              <Search className="w-5 h-5" />
+            </button>
+
+            {/* 3-Dot Options Button (Facebook Style) */}
+            <button
+              type="button"
+              onClick={() => setBottomSheetOpen(true)}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all text-foreground"
+              aria-label="Profile options"
+              title="Profile options"
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
           </div>
         </div>
+
+        {/* Inline Search Bar */}
+        {showSearch && (
+          <div className="sticky top-12 z-20 px-4 py-2 bg-background border-b border-border/60 flex items-center gap-2 animate-in slide-in-from-top duration-150">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`Search ${profile.full_name || profile.username}'s posts...`}
+                className="w-full pl-9 pr-8 py-1.5 rounded-full bg-muted/60 border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowSearch(false);
+                setSearchQuery('');
+              }}
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground px-1"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* Blocked banner if current user blocked this profile */}
+        {isUserBlocked && (
+          <div className="mx-4 mt-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserX className="w-4 h-4 text-red-600 shrink-0" />
+              <span className="text-xs text-red-600 font-medium">You have blocked this account</span>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!user || !targetUserId) return;
+                await unblockUser(user.id, targetUserId);
+                setIsUserBlocked(false);
+                toast.success('Unblocked');
+              }}
+              className="text-xs font-bold text-red-600 hover:underline"
+            >
+              Unblock
+            </button>
+          </div>
+        )}
 
         <div className="px-4 pt-3 pb-3">
           {/* Avatar and Stats Row (Instagram Style) */}
@@ -421,11 +553,13 @@ const ProfilePage: React.FC = () => {
                   </Link>
                 )}
                 <button
-                  onClick={() => navigate(`/report-user/${profile.user_id}`)}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-muted hover:bg-muted/80 transition-colors shrink-0"
-                  title="रिपोर्ट करें"
+                  type="button"
+                  onClick={() => setBottomSheetOpen(true)}
+                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-muted hover:bg-muted/80 active:scale-95 transition-all text-foreground shrink-0"
+                  title="Profile options"
+                  aria-label="Profile options"
                 >
-                  <Flag className="w-3.5 h-3.5 text-muted-foreground" />
+                  <MoreHorizontal className="w-4 h-4" />
                 </button>
               </>
             )}
@@ -490,9 +624,15 @@ const ProfilePage: React.FC = () => {
                 <Grid3X3 className="w-12 h-12 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">{t('noPostsYet')}</p>
               </div>
+            ) : filteredPosts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                <Search className="w-10 h-10 text-muted-foreground/60 mb-2" />
+                <p className="text-sm font-semibold text-foreground">No posts found</p>
+                <p className="text-xs text-muted-foreground mt-1">No posts matching "{searchQuery}"</p>
+              </div>
             ) : (
               <div className="grid grid-cols-3 gap-[1px] bg-border">
-                {posts.map(post => (
+                {filteredPosts.map(post => (
                   <button
                     key={post.id}
                     onClick={() => setOpenPost(post)}
@@ -636,6 +776,18 @@ const ProfilePage: React.FC = () => {
         )}
       </div>
       </PullToRefresh>
+
+      {/* Facebook 3-Dot Options Bottom Sheet */}
+      {profile && (
+        <FacebookProfileBottomSheet
+          isOpen={bottomSheetOpen}
+          onClose={() => setBottomSheetOpen(false)}
+          profile={profile}
+          isOwnProfile={isOwnProfile}
+          onTriggerSearch={() => setShowSearch(true)}
+          onBlockStateChange={(blocked) => setIsUserBlocked(blocked)}
+        />
+      )}
     </MobileLayout>
   );
 };

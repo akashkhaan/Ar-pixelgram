@@ -77,6 +77,7 @@ export const routes: RouteConfig[] = [
   { name: 'Notifications', path: '/notifications', element: <NotificationsPage /> },
   { name: 'Profile', path: '/profile', element: <ProfilePage /> },
   { name: 'User Profile', path: '/profile/:userId', element: <ProfilePage /> },
+  { name: 'Profile Facebook URL', path: '/profile.php', element: <ProfilePage /> },
   { name: 'Edit Profile', path: '/edit-profile', element: <EditProfilePage /> },
   { name: 'Settings', path: '/settings', element: <SettingsPage /> },
   { name: 'Notification Settings', path: '/settings/notifications', element: <NotificationSettingsPage /> },
