@@ -1,3 +1,4 @@
+import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
 import {
   ArrowLeft,
   Check,
@@ -631,22 +632,35 @@ const GroupChatPage: React.FC = () => {
                         </button>
                       )}
 
-                      {message.content.startsWith('📎 ') ? (
-                        <a
-                          id={'group-message-' + message.id}
-                          href={message.content.split('\n')[1]}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 break-all underline"
-                        >
-                          <Paperclip className="h-4 w-4 shrink-0" />
-                          {message.content.split('\n')[0].replace('📎 ', '')}
-                        </a>
-                      ) : (
-                        <p id={'group-message-' + message.id} className="break-words">
-                          {renderMessageContent(message.content, mine, myProfile?.username)}
-                        </p>
-                      )}
+                      {(() => {
+                        const shareInfo = parseSharedContent(message.content);
+                        if (shareInfo) {
+                          return (
+                            <div id={'group-message-' + message.id} className="py-0.5">
+                              <InstagramSharedCard shareInfo={shareInfo} isMe={mine} />
+                            </div>
+                          );
+                        }
+                        if (message.content.startsWith('📎 ')) {
+                          return (
+                            <a
+                              id={'group-message-' + message.id}
+                              href={message.content.split('\n')[1]}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2 break-all underline"
+                            >
+                              <Paperclip className="h-4 w-4 shrink-0" />
+                              {message.content.split('\n')[0].replace('📎 ', '')}
+                            </a>
+                          );
+                        }
+                        return (
+                          <p id={'group-message-' + message.id} className="break-words">
+                            {renderMessageContent(message.content, mine, myProfile?.username)}
+                          </p>
+                        );
+                      })()}
 
                       <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
                         <span>

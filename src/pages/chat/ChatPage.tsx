@@ -1,3 +1,4 @@
+import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
 import {
   ArrowLeft,
   BadgeCheck,
@@ -391,6 +392,7 @@ const ChatPage: React.FC = () => {
             const prevMsg = visibleMessages[idx - 1];
             const showTime = !prevMsg || (msg.created_at && prevMsg?.created_at && (new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() > 5 * 60 * 1000));
             const isSingleEmoji = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})$/u.test(msg.content.trim());
+            const shareInfo = parseSharedContent(msg.content);
 
             return (
               <React.Fragment key={msg.id}>
@@ -401,6 +403,25 @@ const ChatPage: React.FC = () => {
                   {isSingleEmoji ? (
                     <div className="text-4xl py-1 px-2 select-none">
                       {msg.content.trim()}
+                    </div>
+                  ) : shareInfo ? (
+                    <div
+                      className={cn(
+                        'max-w-[85%] sm:max-w-[75%] p-1.5 rounded-2xl text-sm shadow-sm',
+                        isMe
+                          ? cn('rounded-br-sm text-white', activeTheme.bubble)
+                          : 'bg-muted text-foreground rounded-bl-sm'
+                      )}
+                    >
+                      <InstagramSharedCard shareInfo={shareInfo} isMe={isMe} />
+                      <div className={cn('flex items-center gap-1 justify-end px-2 pt-1 pb-0.5 text-[10px]', isMe ? 'text-white/75' : 'text-muted-foreground')}>
+                        <span>{formatTime(msg.created_at)}</span>
+                        {isMe && (
+                          <span>
+                            {msg.is_seen ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div

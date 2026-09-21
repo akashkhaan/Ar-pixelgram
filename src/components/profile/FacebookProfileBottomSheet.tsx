@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -61,6 +62,17 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
   onBlockStateChange,
 }) => {
   const { user } = useAuth();
+
+  // Lock body scroll while bottom sheet is open
+  useEffect(() => {
+    if (isOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isOpen]);
   const navigate = useNavigate();
 
   const [currentView, setCurrentView] = useState<SheetView>('menu');
@@ -227,13 +239,15 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
     }
   };
 
-  return (
+  if (!isOpen) return null;
+
+  const content = (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+      className="fixed inset-0 z-[9999] flex items-end sm:items-center sm:justify-center bg-black/70 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-t-[28px] sm:rounded-[28px] bg-background text-foreground border-t sm:border border-border/80 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in slide-in-from-bottom duration-200"
+        className="relative w-full max-w-lg rounded-t-[28px] sm:rounded-[28px] bg-background text-foreground border-t sm:border border-border/80 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col pb-safe pb-4 animate-in slide-in-from-bottom duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Pull Handle */}
@@ -839,6 +853,8 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(content, document.body) : content;
 };
 
 export default FacebookProfileBottomSheet;
