@@ -49,10 +49,10 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - uses: android-actions/setup-android@v3
-
       - name: Build signed release APK
         working-directory: android
+        env:
+          JAVA_HOME: /usr/lib/jvm/temurin-21-jdk-amd64
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
