@@ -136,7 +136,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         flushPendingWebEvents();
     }
@@ -188,7 +188,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         if (instance == this) instance = null;
         try {
             Intent stop = new Intent(this, CallForegroundService.class);
