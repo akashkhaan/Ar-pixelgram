@@ -91,6 +91,16 @@ export interface Message {
   created_at: string;
 }
 
+export interface NotificationMediaItem {
+  id: string;
+  thumbnail_url?: string | null;
+  image_url?: string | null;
+  video_url?: string | null;
+  media_type?: 'image' | 'video';
+  caption?: string | null;
+  kind?: 'post' | 'reel' | 'story';
+}
+
 export interface Notification {
   id: string;
   user_id: string;
@@ -103,6 +113,7 @@ export interface Notification {
   created_at: string;
   actor?: Profile;
   post?: Post;
+  media_item?: NotificationMediaItem;
 }
 
 export interface VerificationRequest {

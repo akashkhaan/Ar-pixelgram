@@ -210,7 +210,7 @@ const StoriesPage: React.FC = () => {
     setStories(s => s.map(st => st.id === currentStory.id ? { ...st, likes_count: (st.likes_count || 0) + (prev ? -1 : 1) } : st));
     // Notify story owner on new like
     if (!prev && currentStory.user_id !== user.id) {
-      createNotification(currentStory.user_id, 'story_like', user.id).catch(() => {});
+      createNotification(currentStory.user_id, 'story_like', user.id, currentStory.id).catch(() => {});
     }
   };
 
@@ -220,7 +220,7 @@ const StoriesPage: React.FC = () => {
     setSendingReply(true);
     await sendMessage(currentStory.user_id, `↩️ Story reply: ${replyText.trim()}`);
     if (currentStory.user_id !== user.id) {
-      createNotification(currentStory.user_id, 'story_reply', user.id, undefined, undefined, replyText.trim().slice(0, 120)).catch(() => {});
+      createNotification(currentStory.user_id, 'story_reply', user.id, currentStory.id, undefined, replyText.trim().slice(0, 120)).catch(() => {});
     }
     toast.success('Reply भेजा गया!');
     setReplyText('');

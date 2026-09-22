@@ -22,7 +22,8 @@ const ReelCard: React.FC<{
   isNear: boolean; // within render window — mount video element
   onDelete: (id: string) => void;
   autoOpenComments?: boolean;
-}> = ({ reel, isActive, isNear, onDelete, autoOpenComments }) => {
+  highlightCommentId?: string | null;
+}> = ({ reel, isActive, isNear, onDelete, autoOpenComments, highlightCommentId }) => {
   const { user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -404,6 +405,7 @@ const ReelCard: React.FC<{
         open={commentsOpen}
         onClose={() => setCommentsOpen(false)}
         onCountChange={setCommentsCount}
+        highlightCommentId={highlightCommentId}
       />
       <InstagramShareSheet
         open={shareSheetOpen}
@@ -425,6 +427,7 @@ const ReelsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
+  const [highlightCommentFor, setHighlightCommentFor] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const reelsCountRef = useRef(0);
@@ -435,6 +438,7 @@ const ReelsPage: React.FC = () => {
     try {
       const targetId = searchParams.get('r');
       const wantsComments = searchParams.get('comments') === '1';
+      const commentIdParam = searchParams.get('c');
       let data = await withTimeout(getReelsFeed(10), 10000);
 
       // Deep link from a notification/share link — if that reel isn't in the
@@ -451,7 +455,10 @@ const ReelsPage: React.FC = () => {
         const idx = data.findIndex(r => r.id === targetId);
         if (idx >= 0) {
           setActiveIndex(idx);
-          if (wantsComments) setOpenCommentsFor(targetId);
+          if (wantsComments || commentIdParam) {
+            setOpenCommentsFor(targetId);
+            if (commentIdParam) setHighlightCommentFor(commentIdParam);
+          }
           requestAnimationFrame(() => {
             const el = containerRef.current;
             if (el) el.scrollTo({ top: idx * el.clientHeight });
@@ -600,6 +607,7 @@ const ReelsPage: React.FC = () => {
                 isNear={isNear}
                 onDelete={handleDelete}
                 autoOpenComments={openCommentsFor === reel.id}
+                highlightCommentId={openCommentsFor === reel.id ? highlightCommentFor : null}
               />
             </div>
           );

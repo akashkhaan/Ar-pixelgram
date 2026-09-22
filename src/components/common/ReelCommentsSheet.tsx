@@ -19,9 +19,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onCountChange?: (count: number) => void;
+  highlightCommentId?: string | null;
 }
 
-const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose, onCountChange }) => {
+const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose, onCountChange, highlightCommentId }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [comments, setComments] = useState<ReelComment[]>([]);
@@ -81,8 +82,10 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
 
   if (!open) return null;
 
-  const Row: React.FC<{ c: ReelComment; isReply?: boolean }> = ({ c, isReply }) => (
-    <div className={cn('flex gap-3', isReply && 'ml-10 mt-2')}>
+  const Row: React.FC<{ c: ReelComment; isReply?: boolean }> = ({ c, isReply }) => {
+    const isHighlighted = highlightCommentId === c.id;
+    return (
+    <div className={cn('flex gap-3 transition-colors rounded-xl p-1.5', isReply && 'ml-10 mt-2', isHighlighted && 'bg-primary/15 ring-2 ring-primary/40')}>
       <button onClick={() => goToProfile(c.profile?.user_id)} className="shrink-0">
         {c.profile?.avatar_url ? (
           <img src={c.profile.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
@@ -116,7 +119,8 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   // Render via portal directly into document.body so the sheet is not clipped
   // or positioned relative to a transformed parent (the reels slide rail uses

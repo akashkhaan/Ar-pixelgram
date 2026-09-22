@@ -9,6 +9,7 @@ import VideosPage from './pages/videos/VideosPage';
 import WatchVideoPage from './pages/videos/WatchVideoPage';
 import UploadVideoPage from './pages/videos/UploadVideoPage';
 import CreatePostPage from './pages/post/CreatePostPage';
+import PostDetailPage from './pages/post/PostDetailPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import ChatListPage from './pages/chat/ChatListPage';
 import ChatPage from './pages/chat/ChatPage';
@@ -64,6 +65,7 @@ export const routes: RouteConfig[] = [
   { name: 'Watch Video', path: '/videos/:videoId', element: <WatchVideoPage /> },
   { name: 'Upload Video', path: '/upload-video', element: <UploadVideoPage /> },
   { name: 'Create Post', path: '/create', element: <CreatePostPage /> },
+  { name: 'Post Detail', path: '/post/:id', element: <PostDetailPage /> },
   { name: 'Stories', path: '/stories', element: <StoriesPage /> },
   { name: 'Reels', path: '/reels', element: <ReelsPage /> },
   { name: 'Create Reel', path: '/create-reel', element: <CreateReelPage /> },

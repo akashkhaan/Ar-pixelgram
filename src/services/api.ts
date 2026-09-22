@@ -634,14 +634,128 @@ export async function getNotifications(userId: string, page = 0): Promise<Notifi
     .range(page * 20, (page + 1) * 20 - 1);
   if (error) { console.error('getNotifications failed', error); return []; }
   const rows = Array.isArray(data) ? data : [];
-  const actorIds = Array.from(new Set(rows.map(n => n.actor_id).filter(Boolean))) as string[];
-  if (actorIds.length === 0) return rows as Notification[];
-  const { data: profs } = await supabase
-    .from('profiles')
-    .select('*')
-    .in('user_id', actorIds);
-  const byId = new Map((profs || []).map(pr => [pr.user_id, pr]));
-  return rows.map(n => ({ ...n, actor: n.actor_id ? byId.get(n.actor_id) : undefined })) as Notification[];
+
+  // Filter out direct message notifications — user requested chat notifications belong in the messages inbox only
+  const filteredRows = rows.filter(n => n.type !== 'message' && n.type !== 'group_message');
+
+  const actorIds = Array.from(new Set(filteredRows.map(n => n.actor_id).filter(Boolean))) as string[];
+  const postIds = Array.from(new Set(filteredRows.map(n => n.post_id).filter(Boolean))) as string[];
+
+  const [profsRes, postsRes, reelsRes, storiesRes] = await Promise.all([
+    actorIds.length > 0
+      ? supabase.from('profiles').select('*').in('user_id', actorIds)
+      : Promise.resolve({ data: [] }),
+    postIds.length > 0
+      ? supabase.from('posts').select('id, image_url, caption').in('id', postIds)
+      : Promise.resolve({ data: [] }),
+    postIds.length > 0
+      ? supabase.from('reels').select('id, video_url, thumbnail_url, caption').in('id', postIds)
+      : Promise.resolve({ data: [] }),
+    // For story notifications, post_id might be the story id or we can check stories
+    postIds.length > 0
+      ? supabase.from('stories').select('id, user_id, image_url, media_type').in('id', postIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const byActorId = new Map((profsRes.data || []).map((pr: any) => [pr.user_id, pr]));
+  const byPostId = new Map((postsRes.data || []).map((p: any) => [p.id, p]));
+  const byReelId = new Map((reelsRes.data || []).map((r: any) => [r.id, r]));
+  const byStoryId = new Map((storiesRes.data || []).map((s: any) => [s.id, s]));
+
+  // Also, for story_like notifications where post_id might not be set or if post_id wasn't found,
+  // fetch recent active story of the recipient (userId) so the thumbnail is always shown!
+  let userRecentStory: any = null;
+  const hasStoryNotifs = filteredRows.some(n => n.type === 'story_like' || n.type === 'story_reply');
+  if (hasStoryNotifs) {
+    try {
+      const { data: stData } = await supabase
+        .from('stories')
+        .select('id, user_id, image_url, media_type')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      userRecentStory = stData;
+    } catch {}
+  }
+
+  return filteredRows.map(n => {
+    const actor = n.actor_id ? byActorId.get(n.actor_id) : undefined;
+    let media_item: any = undefined;
+    let postObj: any = undefined;
+
+    if (n.post_id) {
+      if (n.type === 'reel_like' || n.type === 'reel_comment' || n.type === 'comment_reply' || n.type === 'new_reel') {
+        const reel = byReelId.get(n.post_id);
+        if (reel) {
+          media_item = {
+            id: reel.id,
+            thumbnail_url: reel.thumbnail_url || null,
+            video_url: reel.video_url || null,
+            image_url: reel.thumbnail_url || null,
+            media_type: 'video',
+            caption: reel.caption,
+            kind: 'reel',
+          };
+        }
+      } else if (n.type === 'story_like' || n.type === 'story_reply' || n.type === 'new_story') {
+        const story = byStoryId.get(n.post_id) || userRecentStory;
+        if (story) {
+          media_item = {
+            id: story.id,
+            image_url: story.image_url,
+            thumbnail_url: story.image_url,
+            media_type: story.media_type || 'image',
+            kind: 'story',
+          };
+        }
+      } else {
+        // Default to post
+        const p = byPostId.get(n.post_id);
+        if (p) {
+          postObj = p;
+          media_item = {
+            id: p.id,
+            image_url: p.image_url,
+            thumbnail_url: p.image_url,
+            caption: p.caption,
+            kind: 'post',
+          };
+        } else {
+          // Check if it was a reel
+          const r = byReelId.get(n.post_id);
+          if (r) {
+            media_item = {
+              id: r.id,
+              thumbnail_url: r.thumbnail_url,
+              video_url: r.video_url,
+              image_url: r.thumbnail_url,
+              media_type: 'video',
+              caption: r.caption,
+              kind: 'reel',
+            };
+          }
+        }
+      }
+    }
+
+    if (!media_item && (n.type === 'story_like' || n.type === 'story_reply') && userRecentStory) {
+      media_item = {
+        id: userRecentStory.id,
+        image_url: userRecentStory.image_url,
+        thumbnail_url: userRecentStory.image_url,
+        media_type: userRecentStory.media_type || 'image',
+        kind: 'story',
+      };
+    }
+
+    return {
+      ...n,
+      actor,
+      post: postObj || n.post,
+      media_item,
+    } as Notification;
+  });
 }
 
 export async function markNotificationsRead(userId: string): Promise<void> {
