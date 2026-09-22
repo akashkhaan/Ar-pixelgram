@@ -203,6 +203,7 @@ const ChatListPage: React.FC = () => {
 
   return (
     <MobileLayout hideHeader hideNav>
+      <style>{`img { max-width: 100%; }`}</style>
       <PullToRefresh onRefresh={load}>
         <div className="page-transition pb-20 bg-background min-h-screen">
           {/* Instagram-style Top Header */}
