@@ -165,7 +165,7 @@ const RoundCallButton: React.FC<{
         onClick={onClick}
         disabled={disabled}
         aria-label={label}
-        className={`flex h-13 w-13 sm:h-14 sm:w-14 items-center justify-center rounded-full transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 ${styleClasses}`}
+        className={`flex h-14 w-14 sm:h-14 sm:w-14 items-center justify-center rounded-full transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 ${styleClasses}`}
       >
         {children}
       </button>
