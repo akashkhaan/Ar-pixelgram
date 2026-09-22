@@ -5,6 +5,7 @@ import {
   Edit3,
   Loader2,
   MessageCircle,
+  Music2,
   Phone,
   Plus,
   Search,
@@ -13,7 +14,7 @@ import {
   Video,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import PullToRefresh from "@/components/common/PullToRefresh";
 import MobileLayout from "@/components/layouts/MobileLayout";
@@ -28,6 +29,12 @@ import {
   getUnreadCount,
 } from "@/services/api";
 import { getActiveGroupCallsForUser, getMyGroups } from "@/services/groups";
+import {
+  getFeedNotes,
+  type UserNote,
+} from "@/services/notes";
+import CreateNoteModal from "@/components/chat/CreateNoteModal";
+import ViewNoteModal from "@/components/chat/ViewNoteModal";
 import type { GroupCall } from "@/types/groups";
 import type { Message, Profile } from "@/types/types";
 
@@ -41,7 +48,9 @@ const ChatListPage: React.FC = () => {
   const { user, profile: myProfile } = useAuth();
   const groupCall = useGroupCall();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const goBack = useGoBack("/home");
+
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<Awaited<ReturnType<typeof getMyGroups>>>([]);
@@ -49,6 +58,12 @@ const ChatListPage: React.FC = () => {
   const [chatTab, setChatTab] = useState<"primary" | "general" | "requests">("primary");
   const [searchQuery, setSearchQuery] = useState("");
   const [showGroupMenu, setShowGroupMenu] = useState(false);
+
+  // Instagram Notes state
+  const [myNote, setMyNote] = useState<UserNote | null>(null);
+  const [friendNotes, setFriendNotes] = useState<UserNote[]>([]);
+  const [createNoteOpen, setCreateNoteOpen] = useState(false);
+  const [activeViewingNote, setActiveViewingNote] = useState<UserNote | null>(null);
 
   const [ignoredGroupIds, setIgnoredGroupIds] = useState<string[]>(() => {
     try {
@@ -67,6 +82,28 @@ const ChatListPage: React.FC = () => {
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
+
+  const loadNotes = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { myNote: mine, friendNotes: friends } = await getFeedNotes(user.id);
+      setMyNote(mine);
+      setFriendNotes(friends);
+
+      // Deep link support if opened via notification ?noteId=xyz
+      const targetNoteId = searchParams.get("noteId");
+      if (targetNoteId) {
+        if (mine && mine.id === targetNoteId) {
+          setActiveViewingNote(mine);
+        } else {
+          const found = friends.find((fn) => fn.id === targetNoteId);
+          if (found) setActiveViewingNote(found);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load notes", e);
+    }
+  }, [user, searchParams]);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -112,12 +149,15 @@ const ChatListPage: React.FC = () => {
           );
         })
       );
+
+      // Load notes
+      loadNotes();
     } catch {
       /* ignore */
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, loadNotes]);
 
   useEffect(() => {
     load();
@@ -306,61 +346,148 @@ const ChatListPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Top Horizontal Friends / Online Rail (Messenger style) */}
-          {conversations.length > 0 && !searchQuery && (
-            <div className="px-4 py-3 border-b border-border/30 overflow-x-auto no-scrollbar flex items-center gap-4">
-              {/* My note item */}
-              <div className="flex flex-col items-center gap-1 shrink-0 w-16">
-                <div className="relative">
-                  <div className="rail-avatar-container ring-2 ring-border/50 bg-muted">
-                    {myProfile?.avatar_url ? (
-                      <img
-                        src={myProfile.avatar_url}
-                        alt="You"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-primary/20 flex items-center justify-center">
-                        <span className="text-primary font-bold text-base">
-                          {myProfile?.username?.[0]?.toUpperCase() || "Y"}
-                        </span>
-                      </div>
+          {/* Instagram-Style Notes & Friends Rail */}
+          {!searchQuery && (
+            <div className="px-4 py-3 border-b border-border/30 overflow-x-auto no-scrollbar flex items-start gap-4">
+              {/* My Note Item */}
+              <div className="flex flex-col items-center shrink-0 w-18 text-center cursor-pointer group">
+                <div
+                  className="relative flex flex-col items-center"
+                  onClick={() => {
+                    if (myNote) {
+                      setActiveViewingNote(myNote);
+                    } else {
+                      setCreateNoteOpen(true);
+                    }
+                  }}
+                >
+                  {/* Thought bubble if note exists, otherwise prompt badge */}
+                  {myNote ? (
+                    <div className="relative mb-2 px-2.5 py-1 bg-card border border-border/80 rounded-2xl shadow-xs max-w-[84px] text-center">
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-card border-r border-b border-border/80 rotate-45" />
+                      {myNote.music_track && (
+                        <div className="flex items-center justify-center gap-1 text-[9px] text-primary font-bold truncate">
+                          <Music2 className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate">{myNote.music_track.title}</span>
+                        </div>
+                      )}
+                      <p className="text-[11px] font-medium text-foreground truncate max-w-[76px] leading-tight">
+                        {myNote.text}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="relative mb-2 px-2 py-0.5 rounded-full bg-card border border-border/60 text-[10px] text-muted-foreground font-medium shadow-xs truncate max-w-[76px]">
+                      Share a thought...
+                    </div>
+                  )}
+
+                  {/* Avatar */}
+                  <div className="relative">
+                    <div className="rail-avatar-container ring-2 ring-border/50 bg-muted">
+                      {myProfile?.avatar_url ? (
+                        <img
+                          src={myProfile.avatar_url}
+                          alt="You"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                          <span className="text-primary font-bold text-base">
+                            {myProfile?.username?.[0]?.toUpperCase() || "Y"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {/* Plus badge if no note */}
+                    {!myNote && (
+                      <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs ring-2 ring-background font-bold shadow-xs">
+                        +
+                      </span>
                     )}
                   </div>
-                  <span className="absolute -top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-card border border-border/60 text-[10px] text-muted-foreground font-medium shadow-xs truncate max-w-[70px]">
-                    Your note
-                  </span>
                 </div>
-                <span className="text-xs text-muted-foreground truncate w-full text-center">
+
+                <span className="text-[11px] text-muted-foreground truncate w-full mt-1">
                   Your note
                 </span>
               </div>
 
-              {/* Friend avatars */}
-              {conversations.slice(0, 8).map(({ profile }) => (
+              {/* Friend Notes (Followers / Following who have posted a note) */}
+              {friendNotes.map((note) => (
                 <div
-                  key={profile.id}
-                  onClick={() => navigate(`/chat/${profile.user_id}`)}
-                  className="flex flex-col items-center gap-1 shrink-0 w-16 cursor-pointer group"
+                  key={note.id}
+                  onClick={() => setActiveViewingNote(note)}
+                  className="flex flex-col items-center shrink-0 w-18 text-center cursor-pointer group"
                 >
-                  <div className="rail-avatar-container ring-2 ring-transparent group-hover:ring-primary/40 transition-all bg-muted">
-                    {profile.avatar_url ? (
-                      <img
-                        src={profile.avatar_url}
-                        alt={profile.username}
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-primary/20 flex items-center justify-center">
-                        <span className="text-primary font-bold text-base">
-                          {profile.username?.[0]?.toUpperCase() || "?"}
-                        </span>
-                      </div>
-                    )}
+                  <div className="relative flex flex-col items-center">
+                    {/* Note Bubble */}
+                    <div className="relative mb-2 px-2.5 py-1 bg-card border border-border/80 rounded-2xl shadow-xs max-w-[84px] text-center">
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-card border-r border-b border-border/80 rotate-45" />
+                      {note.music_track && (
+                        <div className="flex items-center justify-center gap-1 text-[9px] text-primary font-bold truncate">
+                          <Music2 className="w-2.5 h-2.5 shrink-0" />
+                          <span className="truncate">{note.music_track.title}</span>
+                        </div>
+                      )}
+                      <p className="text-[11px] font-medium text-foreground truncate max-w-[76px] leading-tight">
+                        {note.text}
+                      </p>
+                    </div>
+
+                    {/* Avatar */}
+                    <div className="rail-avatar-container ring-2 ring-primary/40 group-hover:ring-primary transition-all bg-muted">
+                      {note.profile?.avatar_url ? (
+                        <img
+                          src={note.profile.avatar_url}
+                          alt={note.profile.username}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                          <span className="text-primary font-bold text-base">
+                            {note.profile?.username?.[0]?.toUpperCase() || "?"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-xs text-foreground/80 truncate w-full text-center">
-                    {profile.username}
+
+                  <span className="text-[11px] text-foreground/80 font-medium truncate w-full mt-1">
+                    {note.profile?.username}
                   </span>
                 </div>
               ))}
+
+              {/* Regular mutual friends who haven't posted a note */}
+              {conversations
+                .filter(
+                  ({ profile }) =>
+                    !friendNotes.some((fn) => fn.user_id === profile.user_id)
+                )
+                .slice(0, 6)
+                .map(({ profile }) => (
+                  <div
+                    key={profile.id}
+                    onClick={() => navigate(`/chat/${profile.user_id}`)}
+                    className="flex flex-col items-center shrink-0 w-16 text-center cursor-pointer group mt-6"
+                  >
+                    <div className="rail-avatar-container ring-2 ring-transparent group-hover:ring-primary/40 transition-all bg-muted">
+                      {profile.avatar_url ? (
+                        <img
+                          src={profile.avatar_url}
+                          alt={profile.username}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                          <span className="text-primary font-bold text-base">
+                            {profile.username?.[0]?.toUpperCase() || "?"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs text-foreground/80 truncate w-full mt-1">
+                      {profile.username}
+                    </span>
+                  </div>
+                ))}
             </div>
           )}
 
@@ -568,7 +695,7 @@ const ChatListPage: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Camera icon to quickly send a photo/video (Instagram style) */}
+                      {/* Video action icon */}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -659,6 +786,36 @@ const ChatListPage: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Create Note Modal */}
+          {user && (
+            <CreateNoteModal
+              open={createNoteOpen}
+              onClose={() => setCreateNoteOpen(false)}
+              currentUserId={user.id}
+              myProfile={myProfile}
+              existingNote={myNote}
+              onNoteCreated={(newNote) => {
+                setMyNote(newNote);
+                loadNotes();
+              }}
+            />
+          )}
+
+          {/* View Note Modal */}
+          {user && (
+            <ViewNoteModal
+              open={!!activeViewingNote}
+              onClose={() => setActiveViewingNote(null)}
+              note={activeViewingNote}
+              currentUserId={user.id}
+              isOwnNote={activeViewingNote?.user_id === user.id}
+              onNoteDeleted={() => {
+                setMyNote(null);
+                loadNotes();
+              }}
+            />
+          )}
         </div>
       </PullToRefresh>
     </MobileLayout>

@@ -141,7 +141,13 @@ const NotificationsPage: React.FC = () => {
         return;
       case 'story_like':
       case 'story_reply':
-        if (notif.actor_id) navigate(`/profile/${notif.actor_id}`);
+        if (notif.message && notif.message.toLowerCase().includes("note")) {
+          navigate(`/chat?noteId=${notif.post_id || ""}`);
+        } else if (notif.post_id) {
+          navigate(`/stories?id=${notif.post_id}`);
+        } else if (notif.actor_id) {
+          navigate(`/profile/${notif.actor_id}`);
+        }
         return;
       case 'message':
         if (notif.actor_id) navigate(`/chat/${notif.actor_id}`);
