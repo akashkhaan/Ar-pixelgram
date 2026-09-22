@@ -258,19 +258,22 @@ const ChatListPage: React.FC = () => {
               {/* My note item */}
               <div className="flex flex-col items-center gap-1 shrink-0 w-16">
                 <div className="relative">
-                  {myProfile?.avatar_url ? (
-                    <img
-                      src={myProfile.avatar_url}
-                      alt="You"
-                      className="w-14 h-14 rounded-full object-cover ring-2 ring-border/50"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center ring-2 ring-border/50">
-                      <span className="text-primary font-bold text-base">
-                        {myProfile?.username?.[0]?.toUpperCase() || "Y"}
-                      </span>
-                    </div>
-                  )}
+                  <div className="w-14 h-14 rounded-full overflow-hidden block ring-2 ring-border/50 bg-muted">
+                    {myProfile?.avatar_url ? (
+                      <img
+                        src={myProfile.avatar_url}
+                        alt="You"
+                        className="w-14 h-14 min-w-14 max-w-14 min-h-14 max-h-14 rounded-full object-cover block"
+                        style={{ width: 56, height: 56, maxWidth: 56, maxHeight: 56, minWidth: 56, minHeight: 56 }}
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center">
+                        <span className="text-primary font-bold text-base">
+                          {myProfile?.username?.[0]?.toUpperCase() || "Y"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                   <span className="absolute -top-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-card border border-border/60 text-[10px] text-muted-foreground font-medium shadow-xs truncate max-w-[70px]">
                     Your note
                   </span>
@@ -287,15 +290,16 @@ const ChatListPage: React.FC = () => {
                   onClick={() => navigate(`/chat/${profile.user_id}`)}
                   className="flex flex-col items-center gap-1 shrink-0 w-16 cursor-pointer group"
                 >
-                  <div className="relative">
+                  <div className="relative w-14 h-14 rounded-full overflow-hidden block ring-2 ring-transparent group-hover:ring-primary/40 transition-all bg-muted">
                     {profile.avatar_url ? (
                       <img
                         src={profile.avatar_url}
                         alt={profile.username}
-                        className="w-14 h-14 rounded-full object-cover ring-2 ring-transparent group-hover:ring-primary/40 transition-all"
+                        className="w-14 h-14 min-w-14 max-w-14 min-h-14 max-h-14 rounded-full object-cover block"
+                        style={{ width: 56, height: 56, maxWidth: 56, maxHeight: 56, minWidth: 56, minHeight: 56 }}
                       />
                     ) : (
-                      <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center ring-2 ring-transparent group-hover:ring-primary/40 transition-all">
+                      <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center">
                         <span className="text-primary font-bold text-base">
                           {profile.username?.[0]?.toUpperCase() || "?"}
                         </span>
@@ -385,20 +389,21 @@ const ChatListPage: React.FC = () => {
                           key={group.id}
                           className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
                         >
-                          <Link to={"/group/" + group.id} className="relative shrink-0">
+                          <Link to={"/group/" + group.id} className="relative shrink-0 w-12 h-12 rounded-full overflow-hidden block ring-1 ring-border/40 bg-muted">
                             {group.avatar_url ? (
                               <img
                                 src={group.avatar_url}
-                                alt=""
-                                className="h-13 w-13 rounded-full object-cover ring-1 ring-border/40"
+                                alt={group.name}
+                                className="w-12 h-12 min-w-12 max-w-12 min-h-12 max-h-12 rounded-full object-cover block"
+                                style={{ width: 48, height: 48, maxWidth: 48, maxHeight: 48, minWidth: 48, minHeight: 48 }}
                               />
                             ) : (
-                              <div className="flex h-13 w-13 items-center justify-center rounded-full bg-primary/15 text-primary ring-1 ring-border/40">
-                                <Users className="h-6 w-6" />
+                              <div className="w-12 h-12 rounded-full bg-primary/15 text-primary flex items-center justify-center">
+                                <Users className="w-6 h-6" />
                               </div>
                             )}
                             {(isCurrentUserInThisCall || !!activeCall) && (
-                              <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center">
+                              <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center z-10">
                                 <span className="h-3 w-3 rounded-full bg-emerald-500 animate-ping absolute" />
                                 <span className="h-3.5 w-3.5 rounded-full bg-emerald-600 ring-2 ring-background relative flex items-center justify-center">
                                   <Phone className="h-2 w-2 text-white" />
@@ -456,15 +461,16 @@ const ChatListPage: React.FC = () => {
                       className="flex items-center gap-3.5 px-4 py-3 hover:bg-muted/40 transition-colors group"
                     >
                       {/* Avatar */}
-                      <div className="shrink-0 relative">
+                      <div className="shrink-0 relative w-12 h-12 rounded-full overflow-hidden block ring-1 ring-border/40 bg-muted">
                         {profile.avatar_url ? (
                           <img
                             src={profile.avatar_url}
                             alt={profile.username}
-                            className="w-13 h-13 rounded-full object-cover ring-1 ring-border/40"
+                            className="w-12 h-12 min-w-12 max-w-12 min-h-12 max-h-12 rounded-full object-cover block"
+                            style={{ width: 48, height: 48, maxWidth: 48, maxHeight: 48, minWidth: 48, minHeight: 48 }}
                           />
                         ) : (
-                          <div className="w-13 h-13 rounded-full bg-primary/20 flex items-center justify-center ring-1 ring-border/40">
+                          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
                             <span className="text-primary font-bold text-lg">
                               {profile.username[0]?.toUpperCase()}
                             </span>
@@ -544,16 +550,17 @@ const ChatListPage: React.FC = () => {
                     key={group.id}
                     className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
                   >
-                    <Link to={"/group/" + group.id} className="relative shrink-0">
+                    <Link to={"/group/" + group.id} className="relative shrink-0 w-12 h-12 rounded-full overflow-hidden block ring-1 ring-border/40 bg-muted">
                       {group.avatar_url ? (
                         <img
                           src={group.avatar_url}
-                          alt=""
-                          className="h-12 w-12 rounded-full object-cover"
+                          alt={group.name}
+                          className="w-12 h-12 min-w-12 max-w-12 min-h-12 max-h-12 rounded-full object-cover block"
+                          style={{ width: 48, height: 48, maxWidth: 48, maxHeight: 48, minWidth: 48, minHeight: 48 }}
                         />
                       ) : (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/15 text-primary">
-                          <Users className="h-5 w-5" />
+                        <div className="w-12 h-12 rounded-full bg-primary/15 text-primary flex items-center justify-center">
+                          <Users className="w-5 h-5" />
                         </div>
                       )}
                     </Link>
