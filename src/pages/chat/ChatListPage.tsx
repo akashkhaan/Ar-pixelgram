@@ -203,10 +203,63 @@ const ChatListPage: React.FC = () => {
 
   return (
     <MobileLayout hideHeader hideNav>
-      <style>{`img { max-width: 100%; }`}</style>
+      <style>{`
+        .msg-avatar-container {
+          width: 50px !important;
+          height: 50px !important;
+          min-width: 50px !important;
+          max-width: 50px !important;
+          min-height: 50px !important;
+          max-height: 50px !important;
+          border-radius: 9999px !important;
+          overflow: hidden !important;
+          position: relative !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          flex-shrink: 0 !important;
+        }
+        .msg-avatar-container img {
+          width: 50px !important;
+          height: 50px !important;
+          min-width: 50px !important;
+          max-width: 50px !important;
+          min-height: 50px !important;
+          max-height: 50px !important;
+          object-fit: cover !important;
+          border-radius: 9999px !important;
+          display: block !important;
+        }
+        .rail-avatar-container {
+          width: 56px !important;
+          height: 56px !important;
+          min-width: 56px !important;
+          max-width: 56px !important;
+          min-height: 56px !important;
+          max-height: 56px !important;
+          border-radius: 9999px !important;
+          overflow: hidden !important;
+          position: relative !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          flex-shrink: 0 !important;
+        }
+        .rail-avatar-container img {
+          width: 56px !important;
+          height: 56px !important;
+          min-width: 56px !important;
+          max-width: 56px !important;
+          min-height: 56px !important;
+          max-height: 56px !important;
+          object-fit: cover !important;
+          border-radius: 9999px !important;
+          display: block !important;
+        }
+      `}</style>
       <PullToRefresh onRefresh={load}>
         <div className="page-transition pb-20 bg-background min-h-screen">
-          {/* Instagram-style Top Header */}
+          {/* Top Header */}
           <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/40 px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -240,7 +293,7 @@ const ChatListPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Instagram-style Search Bar */}
+            {/* Messenger-style Search Bar */}
             <div className="mt-3 relative">
               <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -253,22 +306,20 @@ const ChatListPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Instagram-style Horizontal Notes / Online Friends Rail */}
+          {/* Top Horizontal Friends / Online Rail (Messenger style) */}
           {conversations.length > 0 && !searchQuery && (
             <div className="px-4 py-3 border-b border-border/30 overflow-x-auto no-scrollbar flex items-center gap-4">
               {/* My note item */}
               <div className="flex flex-col items-center gap-1 shrink-0 w-16">
                 <div className="relative">
-                  <div className="w-14 h-14 rounded-full overflow-hidden block ring-2 ring-border/50 bg-muted">
+                  <div className="rail-avatar-container ring-2 ring-border/50 bg-muted">
                     {myProfile?.avatar_url ? (
                       <img
                         src={myProfile.avatar_url}
                         alt="You"
-                        className="w-14 h-14 min-w-14 max-w-14 min-h-14 max-h-14 rounded-full object-cover block"
-                        style={{ width: 56, height: 56, maxWidth: 56, maxHeight: 56, minWidth: 56, minHeight: 56 }}
                       />
                     ) : (
-                      <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center">
+                      <div className="w-full h-full bg-primary/20 flex items-center justify-center">
                         <span className="text-primary font-bold text-base">
                           {myProfile?.username?.[0]?.toUpperCase() || "Y"}
                         </span>
@@ -291,16 +342,14 @@ const ChatListPage: React.FC = () => {
                   onClick={() => navigate(`/chat/${profile.user_id}`)}
                   className="flex flex-col items-center gap-1 shrink-0 w-16 cursor-pointer group"
                 >
-                  <div className="relative w-14 h-14 rounded-full overflow-hidden block ring-2 ring-transparent group-hover:ring-primary/40 transition-all bg-muted">
+                  <div className="rail-avatar-container ring-2 ring-transparent group-hover:ring-primary/40 transition-all bg-muted">
                     {profile.avatar_url ? (
                       <img
                         src={profile.avatar_url}
                         alt={profile.username}
-                        className="w-14 h-14 min-w-14 max-w-14 min-h-14 max-h-14 rounded-full object-cover block"
-                        style={{ width: 56, height: 56, maxWidth: 56, maxHeight: 56, minWidth: 56, minHeight: 56 }}
                       />
                     ) : (
-                      <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center">
+                      <div className="w-full h-full bg-primary/20 flex items-center justify-center">
                         <span className="text-primary font-bold text-base">
                           {profile.username?.[0]?.toUpperCase() || "?"}
                         </span>
@@ -315,7 +364,7 @@ const ChatListPage: React.FC = () => {
             </div>
           )}
 
-          {/* Instagram-style Tab Navigation (Primary, General, Requests) */}
+          {/* Tab Navigation (Primary, General, Requests) */}
           <div className="flex items-center justify-between px-4 border-b border-border/40 text-sm font-semibold">
             <div className="flex items-center gap-6">
               <button
@@ -327,7 +376,7 @@ const ChatListPage: React.FC = () => {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span>Primary</span>
+                <span>Chats</span>
                 {chatTab === "primary" && (
                   <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full" />
                 )}
@@ -370,10 +419,10 @@ const ChatListPage: React.FC = () => {
             )}
           </div>
 
-          {/* TAB 1 & 2: PRIMARY / GENERAL CONTENT */}
+          {/* MAIN CHATS CONTENT */}
           {chatTab !== "requests" && (
             <div>
-              {/* Active Groups Section */}
+              {/* Groups (Messenger style list item) */}
               {filteredGroups.length > 0 && (
                 <div>
                   <div className="px-4 py-2 bg-muted/20 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -390,19 +439,19 @@ const ChatListPage: React.FC = () => {
                           key={group.id}
                           className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
                         >
-                          <Link to={"/group/" + group.id} className="relative shrink-0 w-12 h-12 rounded-full overflow-hidden block ring-1 ring-border/40 bg-muted">
-                            {group.avatar_url ? (
-                              <img
-                                src={group.avatar_url}
-                                alt={group.name}
-                                className="w-12 h-12 min-w-12 max-w-12 min-h-12 max-h-12 rounded-full object-cover block"
-                                style={{ width: 48, height: 48, maxWidth: 48, maxHeight: 48, minWidth: 48, minHeight: 48 }}
-                              />
-                            ) : (
-                              <div className="w-12 h-12 rounded-full bg-primary/15 text-primary flex items-center justify-center">
-                                <Users className="w-6 h-6" />
-                              </div>
-                            )}
+                          <Link to={"/group/" + group.id} className="relative shrink-0">
+                            <div className="msg-avatar-container ring-1 ring-border/40 bg-muted">
+                              {group.avatar_url ? (
+                                <img
+                                  src={group.avatar_url}
+                                  alt={group.name}
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-primary/15 text-primary flex items-center justify-center">
+                                  <Users className="w-6 h-6" />
+                                </div>
+                              )}
+                            </div>
                             {(isCurrentUserInThisCall || !!activeCall) && (
                               <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center z-10">
                                 <span className="h-3 w-3 rounded-full bg-emerald-500 animate-ping absolute" />
@@ -462,21 +511,21 @@ const ChatListPage: React.FC = () => {
                       className="flex items-center gap-3.5 px-4 py-3 hover:bg-muted/40 transition-colors group"
                     >
                       {/* Avatar */}
-                      <div className="shrink-0 relative w-12 h-12 rounded-full overflow-hidden block ring-1 ring-border/40 bg-muted">
-                        {profile.avatar_url ? (
-                          <img
-                            src={profile.avatar_url}
-                            alt={profile.username}
-                            className="w-12 h-12 min-w-12 max-w-12 min-h-12 max-h-12 rounded-full object-cover block"
-                            style={{ width: 48, height: 48, maxWidth: 48, maxHeight: 48, minWidth: 48, minHeight: 48 }}
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                            <span className="text-primary font-bold text-lg">
-                              {profile.username[0]?.toUpperCase()}
-                            </span>
-                          </div>
-                        )}
+                      <div className="shrink-0 relative">
+                        <div className="msg-avatar-container ring-1 ring-border/40 bg-muted">
+                          {profile.avatar_url ? (
+                            <img
+                              src={profile.avatar_url}
+                              alt={profile.username}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                              <span className="text-primary font-bold text-lg">
+                                {profile.username[0]?.toUpperCase()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       {/* Info & Last Message */}
@@ -551,19 +600,19 @@ const ChatListPage: React.FC = () => {
                     key={group.id}
                     className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
                   >
-                    <Link to={"/group/" + group.id} className="relative shrink-0 w-12 h-12 rounded-full overflow-hidden block ring-1 ring-border/40 bg-muted">
-                      {group.avatar_url ? (
-                        <img
-                          src={group.avatar_url}
-                          alt={group.name}
-                          className="w-12 h-12 min-w-12 max-w-12 min-h-12 max-h-12 rounded-full object-cover block"
-                          style={{ width: 48, height: 48, maxWidth: 48, maxHeight: 48, minWidth: 48, minHeight: 48 }}
-                        />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full bg-primary/15 text-primary flex items-center justify-center">
-                          <Users className="w-5 h-5" />
-                        </div>
-                      )}
+                    <Link to={"/group/" + group.id} className="relative shrink-0">
+                      <div className="msg-avatar-container ring-1 ring-border/40 bg-muted">
+                        {group.avatar_url ? (
+                          <img
+                            src={group.avatar_url}
+                            alt={group.name}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-primary/15 text-primary flex items-center justify-center">
+                            <Users className="w-5 h-5" />
+                          </div>
+                        )}
+                      </div>
                     </Link>
                     <Link to={"/group/" + group.id} className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-foreground">
