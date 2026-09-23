@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   Undo2,
+  UserPlus,
   Users,
   Video,
 } from "lucide-react";
@@ -349,15 +350,46 @@ const ChatListPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="relative flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => navigate("/people")}
-                  aria-label="New message"
-                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors text-foreground"
+                  onClick={() => setShowGroupMenu((v) => !v)}
+                  aria-label="New chat or group"
+                  className={`w-9 h-9 flex items-center justify-center rounded-full transition-all text-foreground ${
+                    showGroupMenu
+                      ? "bg-primary/15 text-primary scale-105"
+                      : "hover:bg-muted/60 active:scale-95"
+                  }`}
                 >
                   <Edit3 className="w-5 h-5" />
                 </button>
+
+                {showGroupMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowGroupMenu(false)}
+                    />
+                    <div className="absolute top-11 right-0 w-48 rounded-2xl border border-border bg-card/95 backdrop-blur-md p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <Link
+                        to="/groups/new"
+                        onClick={() => setShowGroupMenu(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                      >
+                        <Users className="h-4 w-4 text-primary" />
+                        <span>Create group</span>
+                      </Link>
+                      <Link
+                        to="/people"
+                        onClick={() => setShowGroupMenu(false)}
+                        className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                      >
+                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                        <span>New chat</span>
+                      </Link>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -760,29 +792,7 @@ const ChatListPage: React.FC = () => {
             </div>
           )}
 
-          {/* Floating Action Button for Create Group */}
-          <div className="fixed bottom-6 right-4 z-40">
-            <button
-              type="button"
-              onClick={() => setShowGroupMenu((v) => !v)}
-              aria-label="Create group"
-              className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background hover:bg-primary/90 active:scale-95 transition-all"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
-            {showGroupMenu && (
-              <div className="absolute bottom-14 right-0 w-44 rounded-xl border border-border bg-card p-1 shadow-xl">
-                <Link
-                  to="/groups/new"
-                  onClick={() => setShowGroupMenu(false)}
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
-                >
-                  <Users className="h-4 w-4" />
-                  Create group
-                </Link>
-              </div>
-            )}
-          </div>
+
 
           {/* Create Note Modal */}
           {user && (
