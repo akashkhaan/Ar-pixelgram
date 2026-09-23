@@ -147,17 +147,15 @@ export const ViewNoteModal: React.FC<Props> = ({
   };
 
   const handleLike = async () => {
-    if (!note) return;
+    if (!note || !currentUserId) return;
     const prev = liked;
     setLiked(!prev);
     setLikesCount((c) => Math.max(0, c + (prev ? -1 : 1)));
 
     try {
       await toggleNoteLike(note, currentUserId, prev);
-    } catch {
-      setLiked(prev);
-      setLikesCount((c) => Math.max(0, c + (prev ? 1 : -1)));
-      toast.error("Like update nahi ho paya");
+    } catch (e) {
+      console.warn("Could not sync note like:", e);
     }
   };
 

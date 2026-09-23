@@ -1,5 +1,5 @@
 import { supabase } from '@/db/supabase';
-import { createNotification } from './api';
+import { createNotification, toggleStoryLike, isStoryLiked } from './api';
 import type { Profile } from '@/types/types';
 import type { MusicTrack } from './music';
 
@@ -478,21 +478,13 @@ export async function toggleNoteLike(
   userId: string,
   isLiked: boolean
 ): Promise<void> {
-  if (isLiked) {
-    await supabase.from('story_likes').delete().eq('story_id', note.id).eq('user_id', userId);
-    await supabase.rpc('decrement_story_likes', { story_id: note.id }).catch(() => {});
-  } else {
-    await supabase.from('story_likes').insert({ story_id: note.id, user_id: userId });
-    await supabase.rpc('increment_story_likes', { story_id: note.id }).catch(() => {});
-
-    if (note.user_id !== userId) {
-      createNotification({
-        recipient_id: note.user_id,
-        actor_id: userId,
-        type: 'like',
-        post_id: note.id,
-      }).catch(() => {});
+  try {
+    await toggleStoryLike(note.id, userId, isLiked);
+    if (!isLiked && note.user_id !== userId) {
+      createNotification(note.user_id, 'story_like', userId, note.id).catch(() => {});
     }
+  } catch (e) {
+    console.warn('Note like toggle fallback error:', e);
   }
 }
 
@@ -552,12 +544,9 @@ export async function getNoteViewersAndLikers(noteId: string): Promise<{
 }
 
 export async function isNoteLiked(noteId: string, userId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from('story_likes')
-    .select('id')
-    .eq('story_id', noteId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  return !!data;
+  try {
+    return await isStoryLiked(noteId, userId);
+  } catch {
+    return false;
+  }
 }
