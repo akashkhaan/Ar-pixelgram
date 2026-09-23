@@ -35,7 +35,7 @@ function titleFor(type: string, who: string): string {
     case 'new_story': return `${who} added a new story 📸`;
     case 'new_post': return `${who} shared a new post 📷`;
     case 'new_reel': return `${who} shared a new reel 🎬`;
-    default: return 'AR Pixelgram';
+    default: return 'Pixelgram';
   }
 }
 
@@ -126,7 +126,7 @@ export function useNativeNotifications(userId: string | undefined) {
           const title = isCall
             ? `${who} — ${row.message?.startsWith('📵') ? 'Missed call 📵' : 'Incoming call 📞'}`
             : titleFor(row.type, who);
-          const body = row.message || (row.type === 'message' ? 'New message received' : 'AR Pixelgram');
+          const body = row.message || (row.type === 'message' ? 'New message received' : 'Pixelgram');
 
           notifyPhone({
             title,

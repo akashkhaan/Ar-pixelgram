@@ -1,4 +1,4 @@
-/* AR Pixelgram service worker.
+/* Pixelgram service worker.
  *
  * Handles Web Push and incoming notifications with interactive actions (calls, messages).
  */
@@ -28,10 +28,10 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: 'AR Pixelgram', body: event.data ? event.data.text() : '' };
+    data = { title: 'Pixelgram', body: event.data ? event.data.text() : '' };
   }
 
-  const title = data.title || 'AR Pixelgram';
+  const title = data.title || 'Pixelgram';
   const isCall =
     data.isCall ||
     data.tag?.includes('call') ||

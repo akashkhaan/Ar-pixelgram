@@ -32,7 +32,7 @@ const AccountDeletedPage: React.FC = () => {
             WebkitTextFillColor: 'transparent',
           }}
         >
-          AR Pixelgram
+          Pixelgram
         </h1>
         <p className="text-xs text-muted-foreground tracking-widest uppercase">Social Media</p>
       </div>
@@ -101,7 +101,7 @@ const AccountDeletedPage: React.FC = () => {
       </div>
 
       {/* Brand footer */}
-      <p className="absolute bottom-8 text-xs text-muted-foreground">AR Pixelgram &copy; {new Date().getFullYear()}</p>
+      <p className="absolute bottom-8 text-xs text-muted-foreground">Pixelgram &copy; {new Date().getFullYear()}</p>
     </div>
   );
 };

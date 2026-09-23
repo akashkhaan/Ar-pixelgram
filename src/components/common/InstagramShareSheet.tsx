@@ -21,7 +21,7 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   open,
   onClose,
   url,
-  title = 'AR Pixelgram',
+  title = 'Pixelgram',
   mediaType = 'post',
   thumbnailUrl,
 }) => {
@@ -91,7 +91,7 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   const handleSendDM = async (friend: Profile) => {
     if (!user || sentMap[friend.user_id]) return;
     try {
-      const msg = `Check out this ${mediaType} on AR Pixelgram:\n${url}`;
+      const msg = `Check out this ${mediaType} on Pixelgram:\n${url}`;
       await sendMessage(friend.user_id, msg);
       setSentMap((prev) => ({ ...prev, [friend.user_id]: true }));
       toast.success(`Sent to @${friend.username}`);
@@ -105,7 +105,7 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
       try {
         await navigator.share({
           title,
-          text: `Check out this ${mediaType} on AR Pixelgram:`,
+          text: `Check out this ${mediaType} on Pixelgram:`,
           url,
         });
       } catch {
@@ -116,7 +116,7 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
     }
   };
 
-  const shareText = encodeURIComponent(`Check out this ${mediaType} on AR Pixelgram: ${url}`);
+  const shareText = encodeURIComponent(`Check out this ${mediaType} on Pixelgram: ${url}`);
   const encodedUrl = encodeURIComponent(url);
 
   const socialChannels = [
@@ -139,7 +139,7 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
       color: '#229ED9',
       iconUrl: 'https://cdn-icons-png.flaticon.com/512/2111/2111646.png',
       fallbackEmoji: '✈️',
-      action: () => window.open(`https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(`Check out this ${mediaType} on AR Pixelgram:`)}`, '_blank'),
+      action: () => window.open(`https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(`Check out this ${mediaType} on Pixelgram:`)}`, '_blank'),
     },
     {
       name: 'X (Twitter)',

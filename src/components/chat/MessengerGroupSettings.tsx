@@ -1135,7 +1135,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
             <Button
               onClick={() => {
                 setShowReportDialog(false);
-                toast.success('Report submitted. Thank you for keeping AR Pixelgram safe.');
+                toast.success('Report submitted. Thank you for keeping Pixelgram safe.');
               }}
               disabled={!reportReason.trim()}
             >

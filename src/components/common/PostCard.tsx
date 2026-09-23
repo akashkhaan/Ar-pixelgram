@@ -316,7 +316,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
         open={showShareSheet}
         onClose={() => setShowShareSheet(false)}
         url={`${window.location.origin}/post/${post.id}`}
-        title={`Post by @${username} on AR Pixelgram`}
+        title={`Post by @${username} on Pixelgram`}
         mediaType="post"
         thumbnailUrl={post.image_url}
       />

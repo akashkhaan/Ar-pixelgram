@@ -48,7 +48,7 @@ const SongPage: React.FC = () => {
   const title = isOriginal ? 'Original audio' : (first?.music_title || 'Original audio');
   const artist = isOriginal
     ? `@${ownerReel?.profile?.username || 'user'}`
-    : (first?.music_artist || 'AR Pixelgram');
+    : (first?.music_artist || 'Pixelgram');
   const owner = ownerReel?.profile;
   // Original audio ka cover uploader ka live profile photo rahega.
   const artwork = isOriginal

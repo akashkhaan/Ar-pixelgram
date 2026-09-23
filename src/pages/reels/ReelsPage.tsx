@@ -411,7 +411,7 @@ const ReelCard: React.FC<{
         open={shareSheetOpen}
         onClose={() => setShareSheetOpen(false)}
         url={`${window.location.origin}/reels?r=${reel.id}`}
-        title={`Reel by @${profile?.username || 'user'} on AR Pixelgram`}
+        title={`Reel by @${profile?.username || 'user'} on Pixelgram`}
         mediaType="reel"
         thumbnailUrl={reel.thumbnail_url || undefined}
       />

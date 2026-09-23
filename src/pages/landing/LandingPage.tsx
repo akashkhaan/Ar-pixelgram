@@ -33,7 +33,7 @@ const LandingPage: React.FC = () => {
           <div className="w-24 h-24 rounded-full overflow-hidden shadow-2xl border-4 border-white/40 bg-white">
             <img
               src={TECH_TRICKS_LOGO}
-              alt="AR Pixelgram"
+              alt="Pixelgram"
               className="w-full h-full object-cover"
               onError={e => {
                 (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -43,7 +43,7 @@ const LandingPage: React.FC = () => {
           </div>
           <div className="text-center">
             <h1 className="text-4xl font-black text-white tracking-tight drop-shadow-lg">
-              AR Pixelgram
+              Pixelgram
             </h1>
             <p className="text-white/80 text-sm mt-1 font-medium">
               अपनी दुनिया शेयर करें
@@ -96,7 +96,7 @@ const LandingPage: React.FC = () => {
       {/* Bottom info strip */}
       <div className="bg-card border-t border-border px-6 py-5 text-center space-y-1">
         <p className="text-xs text-muted-foreground">
-          AR Pixelgram पर join करके आप हमारी{' '}
+          Pixelgram पर join करके आप हमारी{' '}
           <span className="text-primary font-medium cursor-pointer">Privacy Policy</span>{' '}
           और{' '}
           <span className="text-primary font-medium cursor-pointer">Terms</span>{' '}

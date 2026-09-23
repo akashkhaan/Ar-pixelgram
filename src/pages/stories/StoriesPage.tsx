@@ -465,7 +465,7 @@ const StoriesPage: React.FC = () => {
             <button
               onClick={() => {
                 const url = window.location.origin;
-                if (navigator.share) navigator.share({ title: 'AR Pixelgram Story', url }).catch(() => {});
+                if (navigator.share) navigator.share({ title: 'Pixelgram Story', url }).catch(() => {});
                 else navigator.clipboard.writeText(url).then(() => toast.success('Link copied!')).catch(() => {});
               }}
               className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"

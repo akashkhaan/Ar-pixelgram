@@ -69,7 +69,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, hideNav = false, 
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 glass-card border-b border-border/40">
         {/* Logo with animated rainbow */}
         <Link to="/home" className="flex items-center gap-2">
-          <span className="text-xl font-black rainbow-text tracking-tight">AR Pixelgram</span>
+          <span className="text-xl font-black rainbow-text tracking-tight">Pixelgram</span>
         </Link>
 
         <div className="flex items-center gap-1">

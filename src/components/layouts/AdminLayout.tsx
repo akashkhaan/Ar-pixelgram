@@ -69,7 +69,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         {/* Sidebar header */}
         <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
           <div>
-            <p className="font-bold text-sidebar-foreground gradient-text text-lg">AR Pixelgram</p>
+            <p className="font-bold text-sidebar-foreground gradient-text text-lg">Pixelgram</p>
             <p className="text-xs text-muted-foreground">Admin Panel</p>
           </div>
           <Button

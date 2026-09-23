@@ -22,8 +22,8 @@ const titleFor = (n: Notification, actorName?: string): string => {
     case 'group_mention':return `${who} mentioned you in a group 🏷️`;
     case 'group_call':   return `📞 Group call from ${who}`;
     case 'group_message':return `New group message from ${who} 👥`;
-    case 'broadcast':    return 'AR Pixelgram';
-    default:             return 'AR Pixelgram';
+    case 'broadcast':    return 'Pixelgram';
+    default:             return 'Pixelgram';
   }
 };
 

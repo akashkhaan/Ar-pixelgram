@@ -138,9 +138,9 @@ const NotificationSettingsPage: React.FC = () => {
     if (perm !== 'granted') { toast.error('Pehle permission allow karo'); return; }
     const reg = await navigator.serviceWorker.getRegistration('/sw.js');
     if (reg) {
-      reg.showNotification('AR Pixelgram', { body: 'Test notification ✅', icon: '/images/logo/logo-icon.svg' });
+      reg.showNotification('Pixelgram', { body: 'Test notification ✅', icon: '/images/logo/logo-icon.svg' });
     } else {
-      new Notification('AR Pixelgram', { body: 'Test notification ✅' });
+      new Notification('Pixelgram', { body: 'Test notification ✅' });
     }
   };
 

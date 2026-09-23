@@ -56,7 +56,7 @@ const AdminLoginPage: React.FC = () => {
           <ShieldCheck className="w-10 h-10 text-white" />
         </div>
         <div className="text-center">
-          <h1 className="text-2xl font-black text-foreground">AR Pixelgram</h1>
+          <h1 className="text-2xl font-black text-foreground">Pixelgram</h1>
           <p className="text-sm text-muted-foreground font-medium">Admin Panel Login</p>
         </div>
       </div>

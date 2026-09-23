@@ -238,7 +238,7 @@ const RegisterPage: React.FC = () => {
             </div>
           )}
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold gradient-text">Welcome to AR Pixelgram</h1>
+            <h1 className="text-2xl font-bold gradient-text">Welcome to Pixelgram</h1>
             <p className="text-lg font-semibold text-foreground">{fullName}</p>
             <p className="text-sm text-muted-foreground">@{username}</p>
           </div>
@@ -449,7 +449,7 @@ const RegisterPage: React.FC = () => {
                 <p><strong className="text-foreground">4. Data &amp; privacy</strong> — Aapka naam, username, date of birth, email/number aur photo account chalane ke liye store hote hain. Aap kabhi bhi Settings se data delete kar sakte hain.</p>
                 <p><strong className="text-foreground">5. Verification</strong> — Blue badge sirf request review ke baad milta hai. Galat jankari dene par badge hata liya jayega.</p>
                 <p><strong className="text-foreground">6. Enforcement</strong> — Rules todne par account suspend ya permanently disable ho sakta hai. Aap appeal kar sakte hain.</p>
-                <p>“I Agree” dabane ka matlab hai ki aap AR Pixelgram ki Terms of Service, Privacy Policy aur Cookies Policy se sehmat hain.</p>
+                <p>“I Agree” dabane ka matlab hai ki aap Pixelgram ki Terms of Service, Privacy Policy aur Cookies Policy se sehmat hain.</p>
               </div>
               <Button type="button" className="w-full h-12 font-semibold" onClick={() => void createAccount()} disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Check className="w-4 h-4 mr-2" /> I Agree</>}

@@ -119,7 +119,7 @@ const LoginPage: React.FC = () => {
       <div className="w-full max-w-sm glass-card rounded-2xl p-8 space-y-6">
         {/* Logo */}
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold gradient-text">AR Pixelgram</h1>
+          <h1 className="text-3xl font-bold gradient-text">Pixelgram</h1>
           <p className="text-sm text-muted-foreground">Sign in to your account</p>
         </div>
 

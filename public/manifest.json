@@ -1,7 +1,7 @@
 {
-  "name": "AR Pixelgram",
-  "short_name": "AR Pixelgram",
-  "description": "AR Pixelgram — posts, reels, stories aur chat.",
+  "name": "Pixelgram",
+  "short_name": "Pixelgram",
+  "description": "Pixelgram — posts, reels, stories aur chat.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

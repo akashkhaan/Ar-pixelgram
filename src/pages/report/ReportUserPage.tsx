@@ -77,7 +77,7 @@ const ReportUserPage: React.FC = () => {
               <div>
                 <p className="font-semibold text-sm text-amber-800 dark:text-amber-400 mb-1">Community Guidelines</p>
                 <p className="text-xs text-amber-700 dark:text-amber-400/80 text-pretty leading-relaxed">
-                  AR Pixelgram हर user को safe रखना चाहता है। Spam, harassment, hate speech, fake accounts, violence — इनकी अनुमति नहीं है। गलत रिपोर्ट करने पर आपका account suspend हो सकता है।
+                  Pixelgram हर user को safe रखना चाहता है। Spam, harassment, hate speech, fake accounts, violence — इनकी अनुमति नहीं है। गलत रिपोर्ट करने पर आपका account suspend हो सकता है।
                 </p>
               </div>
             </div>
