@@ -552,15 +552,7 @@ const ProfilePage: React.FC = () => {
                     <Button variant="secondary" className="w-full h-8 font-semibold text-xs rounded-lg">{t("chat")}</Button>
                   </Link>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setBottomSheetOpen(true)}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg bg-muted hover:bg-muted/80 active:scale-95 transition-all text-foreground shrink-0"
-                  title="Profile options"
-                  aria-label="Profile options"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
+
               </>
             )}
           </div>
