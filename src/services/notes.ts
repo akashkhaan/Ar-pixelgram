@@ -38,7 +38,137 @@ export interface NotePayload {
 
 const NOTE_PREFIX = '<!--pixelgram_user_note:';
 const NOTE_SUFFIX = '-->';
-const NOTE_IMAGE_PLACEHOLDER = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&q=80';
+const NOTE_IMAGE_PLACEHOLDER =
+  'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&q=80';
+
+/**
+ * NoteAudioManager
+ * Manages reliable audio playback for notes across user gestures,
+ * bypassing mobile browser / Android WebView autoplay limitations.
+ */
+export class NoteAudioManager {
+  private static audio: HTMLAudioElement | null = null;
+  private static currentUrl: string | null = null;
+  private static listeners: Set<(playing: boolean) => void> = new Set();
+  private static timeListeners: Set<(currentTime: number) => void> = new Set();
+
+  static play(previewUrl: string, startMs: number = 0): HTMLAudioElement | null {
+    if (!previewUrl) return null;
+
+    if (this.audio) {
+      try {
+        this.audio.pause();
+        this.audio.src = '';
+      } catch {}
+    }
+
+    const audio = new Audio(previewUrl);
+    this.audio = audio;
+    this.currentUrl = previewUrl;
+    audio.volume = 1.0;
+    audio.preload = 'auto';
+
+    const startTime = Math.max(0, startMs / 1000);
+    audio.currentTime = startTime;
+
+    // Loop for continuous 30s playback
+    audio.onended = () => {
+      audio.currentTime = startTime;
+      audio.play().catch(() => this.notify(false));
+    };
+
+    audio.onplay = () => this.notify(true);
+    audio.onpause = () => this.notify(false);
+    audio.onerror = () => this.notify(false);
+    audio.ontimeupdate = () => {
+      this.notifyTime(audio.currentTime);
+    };
+
+    // Play synchronously within current execution
+    try {
+      const p = audio.play();
+      if (p !== undefined) {
+        p.then(() => {
+          this.notify(true);
+        }).catch((err) => {
+          console.warn('Note audio autoplay failed:', err);
+          this.notify(false);
+        });
+      }
+    } catch (err) {
+      console.warn('Note audio sync play failed:', err);
+      this.notify(false);
+    }
+
+    return audio;
+  }
+
+  static stop(): void {
+    if (this.audio) {
+      try {
+        this.audio.pause();
+        this.audio.src = '';
+      } catch {}
+      this.audio = null;
+      this.currentUrl = null;
+      this.notify(false);
+    }
+  }
+
+  static toggle(): boolean {
+    if (!this.audio) return false;
+    if (this.audio.paused) {
+      this.audio
+        .play()
+        .then(() => this.notify(true))
+        .catch(() => this.notify(false));
+      return true;
+    } else {
+      this.audio.pause();
+      this.notify(false);
+      return false;
+    }
+  }
+
+  static isPlaying(): boolean {
+    return !!(this.audio && !this.audio.paused);
+  }
+
+  static getCurrentUrl(): string | null {
+    return this.currentUrl;
+  }
+
+  static subscribe(listener: (playing: boolean) => void): () => void {
+    this.listeners.add(listener);
+    listener(this.isPlaying());
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  static subscribeTime(listener: (currentTime: number) => void): () => void {
+    this.timeListeners.add(listener);
+    return () => {
+      this.timeListeners.delete(listener);
+    };
+  }
+
+  private static notify(playing: boolean): void {
+    this.listeners.forEach((fn) => {
+      try {
+        fn(playing);
+      } catch {}
+    });
+  }
+
+  private static notifyTime(currentTime: number): void {
+    this.timeListeners.forEach((fn) => {
+      try {
+        fn(currentTime);
+      } catch {}
+    });
+  }
+}
 
 export function encodeNoteCaption(payload: NotePayload): string {
   return `${NOTE_PREFIX}${JSON.stringify(payload)}${NOTE_SUFFIX}`;
@@ -48,9 +178,14 @@ export function decodeNoteStory(story: any): UserNote | null {
   if (!story || !story.caption || !story.caption.startsWith(NOTE_PREFIX)) {
     return null;
   }
+
   try {
-    const raw = story.caption.slice(NOTE_PREFIX.length, story.caption.lastIndexOf(NOTE_SUFFIX));
+    const raw = story.caption.slice(
+      NOTE_PREFIX.length,
+      story.caption.lastIndexOf(NOTE_SUFFIX)
+    );
     const payload: NotePayload = JSON.parse(raw);
+
     return {
       id: story.id,
       user_id: story.user_id,
@@ -115,6 +250,7 @@ export async function postUserNote(
   };
 
   const caption = encodeNoteCaption(payload);
+
   const { data, error } = await supabase
     .from('stories')
     .insert({
@@ -126,8 +262,10 @@ export async function postUserNote(
     .single();
 
   if (error) throw error;
+
   const decoded = decodeNoteStory(data);
   if (!decoded) throw new Error('Failed to encode note');
+
   return decoded;
 }
 
@@ -142,7 +280,8 @@ export async function deleteUserNote(noteId: string): Promise<void> {
 /**
  * Fetch visible notes for current user:
  * 1. User's own active note
- * 2. Active notes from mutual connections (followers + following who follow back or follow each other)
+ * 2. Active notes from followers/following who have set a note
+ * Strictly returns only users who have actually created a valid active note.
  */
 export async function getFeedNotes(userId: string): Promise<{
   myNote: UserNote | null;
@@ -165,7 +304,7 @@ export async function getFeedNotes(userId: string): Promise<{
   const followerIds = new Set((followersRes.data || []).map((f: any) => f.follower_id));
   const followingIds = new Set((followingRes.data || []).map((f: any) => f.following_id));
 
-  // Eligible users: current user + mutual connections (followers and following)
+  // Eligible users: current user + followers + following
   const eligibleIds = new Set<string>([userId, ...followerIds, ...followingIds]);
   const candidateIds = Array.from(eligibleIds);
 
@@ -210,13 +349,19 @@ export async function getFeedNotes(userId: string): Promise<{
   for (const s of noteStories) {
     if (seenUsers.has(s.user_id)) continue;
     seenUsers.add(s.user_id);
+
     const decoded = decodeNoteStory({ ...s, profile: profileMap[s.user_id] || null });
-    if (decoded) {
-      notesList.push(decoded);
+    // STRICT VALIDATION: Note must have text or music, non-expired, and a valid profile
+    if (decoded && (decoded.text || decoded.music_track) && decoded.profile) {
+      const expTime = new Date(decoded.expires_at).getTime();
+      if (expTime > Date.now()) {
+        notesList.push(decoded);
+      }
     }
   }
 
   const myNote = notesList.find((n) => n.user_id === userId) || null;
+  // ONLY friends who have an active note are returned
   const friendNotes = notesList.filter((n) => n.user_id !== userId);
 
   return { myNote, friendNotes };
@@ -315,5 +460,6 @@ export async function isNoteLiked(noteId: string, userId: string): Promise<boole
     .eq('story_id', noteId)
     .eq('user_id', userId)
     .maybeSingle();
+
   return !!data;
 }

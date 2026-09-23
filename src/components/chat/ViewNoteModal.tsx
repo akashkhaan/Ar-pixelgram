@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   Heart,
@@ -8,7 +8,8 @@ import {
   Eye,
   Trash2,
   Send,
-  Sparkles,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import type { UserNote } from "@/services/notes";
 import {
@@ -17,6 +18,7 @@ import {
   recordNoteView,
   getNoteViewersAndLikers,
   deleteUserNote,
+  NoteAudioManager,
 } from "@/services/notes";
 import { sendMessage } from "@/services/api";
 import { toast } from "sonner";
@@ -49,10 +51,12 @@ export const ViewNoteModal: React.FC<Props> = ({
   const [loadingViewers, setLoadingViewers] = useState(false);
   const [showViewersSheet, setShowViewersSheet] = useState(false);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
   useEffect(() => {
-    if (!open || !note) return;
+    if (!open || !note) {
+      NoteAudioManager.stop();
+      setIsPlaying(false);
+      return;
+    }
 
     setLikesCount(note.likes_count || 0);
 
@@ -76,36 +80,47 @@ export const ViewNoteModal: React.FC<Props> = ({
         .finally(() => setLoadingViewers(false));
     }
 
-    // Audio setup
+    // Subscribe to audio manager state
+    const unsubscribe = NoteAudioManager.subscribe((playing) => {
+      setIsPlaying(playing);
+    });
+
+    // Auto-play music if attached and not already playing
     if (note.music_track?.preview_url) {
-      const audio = new Audio(note.music_track.preview_url);
-      audioRef.current = audio;
-      audio.currentTime = (note.music_track.start_ms || 0) / 1000;
-      audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-      audio.onended = () => setIsPlaying(false);
+      if (!NoteAudioManager.isPlaying() || NoteAudioManager.getCurrentUrl() !== note.music_track.preview_url) {
+        NoteAudioManager.play(
+          note.music_track.preview_url,
+          note.music_track.start_ms || 0
+        );
+      }
     } else {
-      audioRef.current = null;
-      setIsPlaying(false);
+      NoteAudioManager.stop();
     }
 
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      unsubscribe();
+      NoteAudioManager.stop();
       setIsPlaying(false);
     };
   }, [open, note, currentUserId, isOwnNote]);
 
-  const togglePlayAudio = () => {
-    if (!audioRef.current || !note?.music_track) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.currentTime = (note.music_track.start_ms || 0) / 1000;
-      audioRef.current.play().catch(() => {});
-      setIsPlaying(true);
+  const handleClose = () => {
+    NoteAudioManager.stop();
+    setIsPlaying(false);
+    onClose();
+  };
+
+  const togglePlayAudio = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!note?.music_track) return;
+
+    if (NoteAudioManager.isPlaying()) {
+      NoteAudioManager.stop();
+    } else if (note.music_track.preview_url) {
+      NoteAudioManager.play(
+        note.music_track.preview_url,
+        note.music_track.start_ms || 0
+      );
     }
   };
 
@@ -114,58 +129,74 @@ export const ViewNoteModal: React.FC<Props> = ({
     const prev = liked;
     setLiked(!prev);
     setLikesCount((c) => Math.max(0, c + (prev ? -1 : 1)));
+
     try {
       await toggleNoteLike(note, currentUserId, prev);
     } catch {
       setLiked(prev);
       setLikesCount((c) => Math.max(0, c + (prev ? 1 : -1)));
-      toast.error("Like toggle nahi ho paya");
-    }
-  };
-
-  const handleSendReply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!note || !replyText.trim()) return;
-    setSendingReply(true);
-    try {
-      await sendMessage(
-        note.user_id,
-        `💭 Replied to your note "${note.text}":\n${replyText.trim()}`
-      );
-      toast.success("Reply bheja gaya!");
-      setReplyText("");
-      onClose();
-    } catch {
-      toast.error("Reply bhejne me error aaya");
-    } finally {
-      setSendingReply(false);
+      toast.error("Like update nahi ho paya");
     }
   };
 
   const handleDelete = async () => {
     if (!note) return;
     try {
+      NoteAudioManager.stop();
       await deleteUserNote(note.id);
-      toast.success("Note delete ho gaya");
-      onNoteDeleted?.();
-      onClose();
+      toast.success("Note deleted");
+      if (onNoteDeleted) onNoteDeleted();
+      handleClose();
     } catch {
-      toast.error("Note delete nahi ho paya");
+      toast.error("Could not delete note");
+    }
+  };
+
+  const handleSendReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim() || !note) return;
+
+    setSendingReply(true);
+    try {
+      const musicInfo = note.music_track
+        ? ` 🎵 ${note.music_track.title} - ${note.music_track.artist}`
+        : "";
+      const textWithContext = `Replying to your note "${note.text}"${musicInfo}: ${replyText.trim()}`;
+
+      await sendMessage({
+        sender_id: currentUserId,
+        receiver_id: note.user_id,
+        content: textWithContext,
+      });
+
+      toast.success("Reply bheja gaya! 💬");
+      setReplyText("");
+      handleClose();
+    } catch {
+      toast.error("Reply bhejne me dikkat aayi");
+    } finally {
+      setSendingReply(false);
     }
   };
 
   if (!open || !note) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-sm rounded-3xl bg-card border border-border/80 shadow-2xl overflow-hidden flex flex-col">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-200"
+      onClick={handleClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-sm rounded-3xl bg-card border border-border/80 shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+      >
+        {/* Top Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/40 bg-card/90">
           <div
             onClick={() => {
               if (note.profile?.username) {
+                handleClose();
                 navigate(`/${note.profile.username}`);
-                onClose();
               }
             }}
             className="flex items-center gap-2.5 cursor-pointer group"
@@ -201,7 +232,7 @@ export const ViewNoteModal: React.FC<Props> = ({
             )}
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
             >
               <X className="w-5 h-5" />
@@ -210,41 +241,107 @@ export const ViewNoteModal: React.FC<Props> = ({
         </div>
 
         {/* Note Content Display (Bubble + Avatar + Music) */}
-        <div className="p-6 flex flex-col items-center justify-center bg-radial from-primary/10 via-transparent to-transparent">
-          {/* Bubble */}
-          <div className="relative mb-4 px-5 py-3.5 bg-card border border-border/80 rounded-2xl shadow-md max-w-[260px] text-center">
+        <div className="p-6 flex flex-col items-center justify-center bg-gradient-to-b from-primary/10 via-transparent to-transparent">
+          {/* Bubble (Instagram Thought Bubble style) */}
+          <div className="relative mb-5 px-5 py-3.5 bg-card border border-border/80 rounded-2xl shadow-md max-w-[260px] text-center">
+            {/* Thought tail dots */}
             <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-card border-r border-b border-border/80 rotate-45" />
 
             {/* Song pill in note bubble */}
             {note.music_track && (
               <div
                 onClick={togglePlayAudio}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 text-primary text-xs font-semibold mb-2 cursor-pointer hover:bg-primary/25 transition-all shadow-xs"
+                role="button"
+                tabIndex={0}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold mb-2.5 cursor-pointer transition-all shadow-xs select-none ${
+                  isPlaying
+                    ? "bg-primary text-primary-foreground shadow-primary/25 shadow-md"
+                    : "bg-primary/15 text-primary hover:bg-primary/25"
+                }`}
               >
-                {isPlaying ? (
-                  <Pause className="w-3.5 h-3.5 fill-current" />
-                ) : (
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                )}
-                <span className="truncate max-w-[140px]">{note.music_track.title}</span>
-                <span className="text-[10px] text-primary/80 truncate">· {note.music_track.artist}</span>
+                {/* Vinyl / Disc icon */}
+                <div
+                  className={`relative w-4 h-4 rounded-full overflow-hidden border border-current shrink-0 ${
+                    isPlaying ? "animate-spin" : ""
+                  }`}
+                  style={{ animationDuration: "3s" }}
+                >
+                  {note.music_track.artwork ? (
+                    <img
+                      src={note.music_track.artwork}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-current/20 flex items-center justify-center">
+                      <Music2 className="w-2.5 h-2.5" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 m-auto w-1 h-1 rounded-full bg-background" />
+                </div>
+
+                {/* Animated Equalizer Wave Bars */}
+                <div className="flex items-end gap-0.5 h-3 px-0.5">
+                  <span
+                    className={`w-0.5 rounded-full bg-current transition-all duration-300 ${
+                      isPlaying ? "h-3 animate-pulse" : "h-1"
+                    }`}
+                    style={{ animationDuration: "350ms" }}
+                  />
+                  <span
+                    className={`w-0.5 rounded-full bg-current transition-all duration-300 ${
+                      isPlaying ? "h-3.5 animate-pulse" : "h-1.5"
+                    }`}
+                    style={{ animationDuration: "550ms" }}
+                  />
+                  <span
+                    className={`w-0.5 rounded-full bg-current transition-all duration-300 ${
+                      isPlaying ? "h-2.5 animate-pulse" : "h-1"
+                    }`}
+                    style={{ animationDuration: "450ms" }}
+                  />
+                </div>
+
+                <span className="truncate max-w-[130px]">
+                  {note.music_track.title}
+                </span>
+                <span className="text-[10px] opacity-80 truncate max-w-[80px]">
+                  · {note.music_track.artist}
+                </span>
               </div>
             )}
 
-            <p className="text-base font-semibold text-foreground text-pretty break-words">
+            {/* Note text */}
+            <p className="text-base font-semibold text-foreground text-pretty break-words leading-snug">
               {note.text}
             </p>
           </div>
 
-          {/* Large Avatar */}
+          {/* Tap-to-play banner if autoplay was restricted by device gesture policy */}
+          {!isPlaying && note.music_track && (
+            <button
+              type="button"
+              onClick={togglePlayAudio}
+              className="mb-4 inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-md animate-bounce"
+            >
+              <Play className="w-3 h-3 fill-current" />
+              <span>Tap to play song 🎵</span>
+            </button>
+          )}
+
+          {/* Large Avatar with music pulsation ring */}
           <div
             onClick={() => {
               if (note.profile?.username) {
+                handleClose();
                 navigate(`/${note.profile.username}`);
-                onClose();
               }
             }}
-            className="relative w-20 h-20 rounded-full overflow-hidden ring-4 ring-primary/20 bg-muted flex items-center justify-center shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
+            className={`relative w-20 h-20 rounded-full overflow-hidden bg-muted flex items-center justify-center shadow-lg cursor-pointer hover:opacity-95 transition-all ${
+              isPlaying
+                ? "ring-4 ring-primary shadow-primary/30"
+                : "ring-4 ring-primary/20"
+            }`}
           >
             {note.profile?.avatar_url ? (
               <img
@@ -258,6 +355,29 @@ export const ViewNoteModal: React.FC<Props> = ({
               </span>
             )}
           </div>
+
+          {/* Audio controls indicator */}
+          {note.music_track && (
+            <div className="mt-2.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <button
+                type="button"
+                onClick={togglePlayAudio}
+                className="flex items-center gap-1 hover:text-foreground transition-colors"
+              >
+                {isPlaying ? (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-[11px] text-primary font-medium">Playing music</span>
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5" />
+                    <span className="text-[11px]">Music paused</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Like button & count for viewers */}
           <div className="mt-4 flex items-center gap-3">
@@ -303,8 +423,8 @@ export const ViewNoteModal: React.FC<Props> = ({
                   <div
                     key={i}
                     onClick={() => {
+                      handleClose();
                       navigate(`/${v.profile.username}`);
-                      onClose();
                     }}
                     className="flex items-center justify-between p-2 rounded-xl hover:bg-muted/40 transition-colors cursor-pointer"
                   >
@@ -343,7 +463,10 @@ export const ViewNoteModal: React.FC<Props> = ({
 
         {/* Reply Box if viewer is someone else */}
         {!isOwnNote && (
-          <form onSubmit={handleSendReply} className="p-3 border-t border-border/40 bg-card flex items-center gap-2">
+          <form
+            onSubmit={handleSendReply}
+            className="p-3 border-t border-border/40 bg-card flex items-center gap-2"
+          >
             <input
               type="text"
               value={replyText}

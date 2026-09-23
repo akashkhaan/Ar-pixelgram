@@ -31,6 +31,7 @@ import {
 import { getActiveGroupCallsForUser, getMyGroups } from "@/services/groups";
 import {
   getFeedNotes,
+  NoteAudioManager,
   type UserNote,
 } from "@/services/notes";
 import CreateNoteModal from "@/components/chat/CreateNoteModal";
@@ -83,6 +84,18 @@ const ChatListPage: React.FC = () => {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
+  const handleOpenNote = (note: UserNote) => {
+    if (note.music_track?.preview_url) {
+      NoteAudioManager.play(
+        note.music_track.preview_url,
+        note.music_track.start_ms || 0
+      );
+    } else {
+      NoteAudioManager.stop();
+    }
+    setActiveViewingNote(note);
+  };
+
   const loadNotes = useCallback(async () => {
     if (!user) return;
     try {
@@ -94,10 +107,10 @@ const ChatListPage: React.FC = () => {
       const targetNoteId = searchParams.get("noteId");
       if (targetNoteId) {
         if (mine && mine.id === targetNoteId) {
-          setActiveViewingNote(mine);
+          handleOpenNote(mine);
         } else {
           const found = friends.find((fn) => fn.id === targetNoteId);
-          if (found) setActiveViewingNote(found);
+          if (found) handleOpenNote(found);
         }
       }
     } catch (e) {
@@ -355,7 +368,7 @@ const ChatListPage: React.FC = () => {
                   className="relative flex flex-col items-center"
                   onClick={() => {
                     if (myNote) {
-                      setActiveViewingNote(myNote);
+                      handleOpenNote(myNote);
                     } else {
                       setCreateNoteOpen(true);
                     }
@@ -415,7 +428,7 @@ const ChatListPage: React.FC = () => {
               {friendNotes.map((note) => (
                 <div
                   key={note.id}
-                  onClick={() => setActiveViewingNote(note)}
+                  onClick={() => handleOpenNote(note)}
                   className="flex flex-col items-center shrink-0 w-18 text-center cursor-pointer group"
                 >
                   <div className="relative flex flex-col items-center">
@@ -456,38 +469,7 @@ const ChatListPage: React.FC = () => {
                 </div>
               ))}
 
-              {/* Regular mutual friends who haven't posted a note */}
-              {conversations
-                .filter(
-                  ({ profile }) =>
-                    !friendNotes.some((fn) => fn.user_id === profile.user_id)
-                )
-                .slice(0, 6)
-                .map(({ profile }) => (
-                  <div
-                    key={profile.id}
-                    onClick={() => navigate(`/chat/${profile.user_id}`)}
-                    className="flex flex-col items-center shrink-0 w-16 text-center cursor-pointer group mt-6"
-                  >
-                    <div className="rail-avatar-container ring-2 ring-transparent group-hover:ring-primary/40 transition-all bg-muted">
-                      {profile.avatar_url ? (
-                        <img
-                          src={profile.avatar_url}
-                          alt={profile.username}
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-primary/20 flex items-center justify-center">
-                          <span className="text-primary font-bold text-base">
-                            {profile.username?.[0]?.toUpperCase() || "?"}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-xs text-foreground/80 truncate w-full mt-1">
-                      {profile.username}
-                    </span>
-                  </div>
-                ))}
+
             </div>
           )}
 
@@ -806,11 +788,16 @@ const ChatListPage: React.FC = () => {
           {user && (
             <ViewNoteModal
               open={!!activeViewingNote}
-              onClose={() => setActiveViewingNote(null)}
+              onClose={() => {
+                NoteAudioManager.stop();
+                setActiveViewingNote(null);
+              }}
               note={activeViewingNote}
               currentUserId={user.id}
               isOwnNote={activeViewingNote?.user_id === user.id}
               onNoteDeleted={() => {
+                NoteAudioManager.stop();
+                setActiveViewingNote(null);
                 setMyNote(null);
                 loadNotes();
               }}
