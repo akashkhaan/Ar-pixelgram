@@ -20,6 +20,7 @@ import {
   type AppVideo,
   type AppVideoComment,
 } from '@/services/videos';
+import { firstFrameSrc } from '@/lib/mediaUrl';
 
 /** YouTube jaisa watch page — player, views, like, comment, description, related. */
 const WatchVideoPage: React.FC = () => {
@@ -300,7 +301,7 @@ const WatchVideoPage: React.FC = () => {
                     {r.thumbnail_url ? (
                       <img src={r.thumbnail_url} alt={r.title} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
                     ) : (
-                      <video src={r.video_url} className="absolute inset-0 w-full h-full object-cover" muted preload="metadata" />
+                      <video src={firstFrameSrc(r.video_url)} className="absolute inset-0 w-full h-full object-cover" muted playsInline preload="metadata" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">

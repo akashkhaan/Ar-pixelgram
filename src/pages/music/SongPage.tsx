@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Music2, Play, Pause, Bookmark, Eye, Film } from 'lu
 import { getSavedSongs, saveSong, unsaveSong } from '@/services/savedSongs';
 import type { MusicTrack } from '@/services/music';
 import { toast } from 'sonner';
+import { firstFrameSrc } from '@/lib/mediaUrl';
 
 /** Instagram jaisa "song page" — gaane ka cover, kitne reels bane, original owner. */
 const SongPage: React.FC = () => {
@@ -196,7 +197,7 @@ const SongPage: React.FC = () => {
                     {reel.thumbnail_url ? (
                       <img src={reel.thumbnail_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <video src={reel.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                      <video src={firstFrameSrc(reel.video_url)} className="w-full h-full object-cover" muted playsInline preload="metadata" />
                     )}
                     <span className="absolute bottom-1 left-1 text-white text-[10px] font-semibold drop-shadow">
                       ▶ {reel.views_count || 0}

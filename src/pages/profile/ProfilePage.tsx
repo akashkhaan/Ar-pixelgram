@@ -11,7 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/db/supabase';
 import useGoBack from '@/hooks/use-go-back';
-import { isLegacyMediaUrl } from '@/lib/mediaUrl';
+import { isLegacyMediaUrl, firstFrameSrc } from '@/lib/mediaUrl';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Reel } from '@/services/api';
 import {createNotification, followUser, getFollowersCount,
@@ -703,7 +703,7 @@ const ProfilePage: React.FC = () => {
                       isLegacyMediaUrl(reel.video_url) ? (
                       <SmartImage src={null} compact />
                     ) : (
-                      <video src={reel.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                      <video src={firstFrameSrc(reel.video_url)} className="w-full h-full object-cover" muted playsInline preload="metadata" />
                     )
                     )}
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center">
@@ -753,7 +753,7 @@ const ProfilePage: React.FC = () => {
                       {v.thumbnail_url ? (
                         <img src={v.thumbnail_url} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
                       ) : (
-                        <video src={v.video_url} className="absolute inset-0 w-full h-full object-cover" muted playsInline preload="metadata" />
+                        <video src={firstFrameSrc(v.video_url)} className="absolute inset-0 w-full h-full object-cover" muted playsInline preload="metadata" />
                       )}
                       {formatDuration(v.duration_sec) && (
                         <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-white text-[10px] font-semibold">

@@ -173,6 +173,16 @@ public class MainActivity extends BridgeActivity {
         webView.addJavascriptInterface(new NativeNotificationBridge(this), "AndroidNotification");
 
         webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
+            // Android WebView bina poster wali video par apna grey "play"
+            // icon dikhata hai (website me nahi aata). Transparent poster
+            // dene se wo icon kabhi nahi dikhega — seedha video ka frame aayega.
+            @Override
+            public android.graphics.Bitmap getDefaultVideoPoster() {
+                android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888);
+                b.eraseColor(Color.TRANSPARENT);
+                return b;
+            }
+
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> {

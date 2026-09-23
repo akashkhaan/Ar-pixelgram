@@ -75,3 +75,13 @@ export function retryMediaOnError(
     })
     .catch(() => {});
 }
+
+/**
+ * Thumbnail ke liye video src — "#t=0.1" lagane se mobile/APK me video ka
+ * pehla frame dikh jata hai (website jaisa), khali/grey box nahi.
+ */
+export function firstFrameSrc(url?: string | null): string | undefined {
+  if (!url) return undefined;
+  if (url.includes('#')) return url;
+  return `${url}#t=0.1`;
+}

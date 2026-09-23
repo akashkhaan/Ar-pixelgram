@@ -60,6 +60,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { firstFrameSrc } from '@/lib/mediaUrl';
 
 export const MESSENGER_THEMES = [
   { id: 'default', name: 'Messenger Blue', preview: 'from-[#0084FF] to-[#00C6FF]', bubble: 'bg-[#0084FF] text-white', accent: '#0084FF' },
@@ -1064,7 +1065,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
                       {item.media_type === 'photo' ? (
                         <img src={item.public_url} alt="" className="w-full h-full object-cover" />
                       ) : item.media_type === 'video' ? (
-                        <video src={item.public_url} className="w-full h-full object-cover" />
+                        <video src={firstFrameSrc(item.public_url)} className="w-full h-full object-cover" muted playsInline preload="metadata" />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center">
                           <Paperclip className="h-6 w-6 text-primary mb-1" />
