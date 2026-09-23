@@ -41,6 +41,59 @@ const NOTE_SUFFIX = '-->';
 const NOTE_IMAGE_PLACEHOLDER =
   'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100&q=80';
 
+// Global cache for resolved song preview URLs
+const trackPreviewCache = new Map<string, { previewUrl: string; artwork: string | null }>();
+
+/**
+ * Resolve iTunes audio preview if missing from payload
+ */
+export async function resolveNoteTrackPreview(music: {
+  id?: string;
+  title?: string;
+  artist?: string;
+  preview_url?: string;
+  artwork?: string | null;
+}): Promise<{ previewUrl: string; artwork: string | null }> {
+  if (music.preview_url && music.preview_url.startsWith('http')) {
+    return { previewUrl: music.preview_url, artwork: music.artwork || null };
+  }
+  const key = `${music.id || ''}_${music.title || ''}`.trim();
+  if (trackPreviewCache.has(key)) {
+    return trackPreviewCache.get(key)!;
+  }
+
+  try {
+    let url = '';
+    if (music.id && /^\d+$/.test(music.id)) {
+      url = `https://itunes.apple.com/lookup?id=${music.id}`;
+    } else if (music.title) {
+      url = `https://itunes.apple.com/search?term=${encodeURIComponent(
+        `${music.title} ${music.artist || ''}`.trim()
+      )}&entity=song&limit=1`;
+    }
+
+    if (url) {
+      const res = await fetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        const r = json.results?.[0];
+        if (r && r.previewUrl) {
+          const result = {
+            previewUrl: r.previewUrl,
+            artwork: r.artworkUrl100 ? r.artworkUrl100.replace('100x100bb', '400x400bb') : null,
+          };
+          trackPreviewCache.set(key, result);
+          return result;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Could not resolve note track preview', e);
+  }
+
+  return { previewUrl: '', artwork: null };
+}
+
 /**
  * NoteAudioManager
  * Manages reliable audio playback for notes across user gestures,
@@ -55,23 +108,34 @@ export class NoteAudioManager {
   static play(previewUrl: string, startMs: number = 0): HTMLAudioElement | null {
     if (!previewUrl) return null;
 
-    if (this.audio) {
-      try {
-        this.audio.pause();
-        this.audio.src = '';
-      } catch {}
+    if (this.audio && this.currentUrl === previewUrl && !this.audio.paused) {
+      this.notify(true);
+      return this.audio;
     }
 
-    const audio = new Audio(previewUrl);
-    this.audio = audio;
+    if (!this.audio) {
+      this.audio = new Audio();
+    }
+
+    const audio = this.audio;
     this.currentUrl = previewUrl;
+
+    try {
+      audio.pause();
+    } catch {}
+
+    audio.src = previewUrl;
     audio.volume = 1.0;
+    audio.muted = false;
     audio.preload = 'auto';
+    audio.loop = true;
+    (audio as any).playsInline = true;
 
     const startTime = Math.max(0, startMs / 1000);
-    audio.currentTime = startTime;
+    try {
+      audio.currentTime = startTime;
+    } catch {}
 
-    // Loop for continuous 30s playback
     audio.onended = () => {
       audio.currentTime = startTime;
       audio.play().catch(() => this.notify(false));
@@ -84,7 +148,6 @@ export class NoteAudioManager {
       this.notifyTime(audio.currentTime);
     };
 
-    // Play synchronously within current execution
     try {
       const p = audio.play();
       if (p !== undefined) {
@@ -107,16 +170,21 @@ export class NoteAudioManager {
     if (this.audio) {
       try {
         this.audio.pause();
-        this.audio.src = '';
+        this.audio.currentTime = 0;
       } catch {}
-      this.audio = null;
       this.currentUrl = null;
       this.notify(false);
     }
   }
 
-  static toggle(): boolean {
-    if (!this.audio) return false;
+  static toggle(previewUrl?: string, startMs: number = 0): boolean {
+    if (!this.audio) {
+      if (previewUrl) {
+        this.play(previewUrl, startMs);
+        return true;
+      }
+      return false;
+    }
     if (this.audio.paused) {
       this.audio
         .play()
@@ -185,6 +253,19 @@ export function decodeNoteStory(story: any): UserNote | null {
       story.caption.lastIndexOf(NOTE_SUFFIX)
     );
     const payload: NotePayload = JSON.parse(raw);
+    const m = (payload.music || (payload as any).music_track) as any;
+
+    const musicTrack = m
+      ? {
+          id: String(m.id || ''),
+          title: m.title || '',
+          artist: m.artist || '',
+          artwork: m.artwork || m.artwork_url || m.artworkUrl || null,
+          preview_url: m.preview_url || m.previewUrl || m.preview || '',
+          start_ms: m.start_ms || m.startMs || 0,
+          duration_ms: m.duration_ms || m.durationMs || 30000,
+        }
+      : null;
 
     return {
       id: story.id,
@@ -193,7 +274,7 @@ export function decodeNoteStory(story: any): UserNote | null {
       created_at: story.created_at,
       expires_at: story.expires_at,
       profile: story.profile || null,
-      music_track: payload.music || null,
+      music_track: musicTrack,
       likes_count: story.likes_count || 0,
       views_count: story.views_count || 0,
     };
@@ -214,7 +295,6 @@ export async function postUserNote(
     startMs: number;
   } | null
 ): Promise<UserNote> {
-  // First, find and delete any existing active note by this user
   try {
     const { data: oldNotes } = await supabase
       .from('stories')
@@ -234,15 +314,28 @@ export async function postUserNote(
     console.warn('Could not clean old notes', e);
   }
 
+  const rawTrack = musicTrack?.track as any;
+  const previewUrl =
+    rawTrack?.preview_url ||
+    rawTrack?.previewUrl ||
+    rawTrack?.preview ||
+    '';
+  const artwork =
+    rawTrack?.artwork ||
+    rawTrack?.artwork_url ||
+    rawTrack?.artworkUrl ||
+    rawTrack?.artworkUrl100 ||
+    null;
+
   const payload: NotePayload = {
     text: text.trim(),
     music: musicTrack
       ? {
-          id: musicTrack.track.id,
-          title: musicTrack.track.title,
-          artist: musicTrack.track.artist,
-          artwork: musicTrack.track.artwork_url || null,
-          preview_url: musicTrack.track.preview_url,
+          id: String(rawTrack.id || ''),
+          title: rawTrack.title || '',
+          artist: rawTrack.artist || '',
+          artwork: artwork,
+          preview_url: previewUrl,
           start_ms: musicTrack.startMs || 0,
           duration_ms: 30000,
         }
@@ -265,7 +358,6 @@ export async function postUserNote(
 
   const decoded = decodeNoteStory(data);
   if (!decoded) throw new Error('Failed to encode note');
-
   return decoded;
 }
 
@@ -287,18 +379,11 @@ export async function getFeedNotes(userId: string): Promise<{
   myNote: UserNote | null;
   friendNotes: UserNote[];
 }> {
-  // Get users who follow current user OR whom current user follows
+  const now = new Date().toISOString();
+
   const [followersRes, followingRes] = await Promise.all([
-    supabase
-      .from('follows')
-      .select('follower_id')
-      .eq('following_id', userId)
-      .eq('status', 'accepted'),
-    supabase
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', userId)
-      .eq('status', 'accepted'),
+    supabase.from('follows').select('follower_id').eq('following_id', userId),
+    supabase.from('follows').select('following_id').eq('follower_id', userId),
   ]);
 
   const followerIds = new Set((followersRes.data || []).map((f: any) => f.follower_id));
@@ -314,9 +399,9 @@ export async function getFeedNotes(userId: string): Promise<{
 
   const { data: storiesData } = await supabase
     .from('stories')
-    .select('*')
+    .select('id, user_id, caption, created_at, expires_at, likes_count, views_count')
     .in('user_id', candidateIds)
-    .gt('expires_at', new Date().toISOString())
+    .gt('expires_at', now)
     .order('created_at', { ascending: false });
 
   if (!storiesData || storiesData.length === 0) {
@@ -351,6 +436,7 @@ export async function getFeedNotes(userId: string): Promise<{
     seenUsers.add(s.user_id);
 
     const decoded = decodeNoteStory({ ...s, profile: profileMap[s.user_id] || null });
+
     // STRICT VALIDATION: Note must have text or music, non-expired, and a valid profile
     if (decoded && (decoded.text || decoded.music_track) && decoded.profile) {
       const expTime = new Date(decoded.expires_at).getTime();
@@ -359,6 +445,23 @@ export async function getFeedNotes(userId: string): Promise<{
       }
     }
   }
+
+  // Auto-resolve any missing preview URLs in the background / feed load
+  await Promise.all(
+    notesList.map(async (n) => {
+      if (n.music_track && (!n.music_track.preview_url || !n.music_track.artwork)) {
+        try {
+          const resolved = await resolveNoteTrackPreview(n.music_track);
+          if (resolved.previewUrl && !n.music_track.preview_url) {
+            n.music_track.preview_url = resolved.previewUrl;
+          }
+          if (resolved.artwork && !n.music_track.artwork) {
+            n.music_track.artwork = resolved.artwork;
+          }
+        } catch {}
+      }
+    })
+  );
 
   const myNote = notesList.find((n) => n.user_id === userId) || null;
   // ONLY friends who have an active note are returned
@@ -379,80 +482,75 @@ export async function toggleNoteLike(
     await supabase.from('story_likes').delete().eq('story_id', note.id).eq('user_id', userId);
     await supabase.rpc('decrement_story_likes', { story_id: note.id }).catch(() => {});
   } else {
-    await supabase.from('story_likes').upsert({ story_id: note.id, user_id: userId });
+    await supabase.from('story_likes').insert({ story_id: note.id, user_id: userId });
     await supabase.rpc('increment_story_likes', { story_id: note.id }).catch(() => {});
 
-    // Notify owner about the like
     if (note.user_id !== userId) {
-      try {
-        const snippet = note.text.length > 50 ? `${note.text.slice(0, 50)}...` : note.text;
-        await createNotification(
-          note.user_id,
-          'story_like',
-          userId,
-          note.id,
-          undefined,
-          `liked your note: "${snippet}"`
-        );
-      } catch (e) {
-        console.warn('Note like notification error:', e);
-      }
+      createNotification({
+        recipient_id: note.user_id,
+        actor_id: userId,
+        type: 'like',
+        post_id: note.id,
+      }).catch(() => {});
     }
   }
 }
 
-/**
- * Record view on a note
- */
 export async function recordNoteView(noteId: string, viewerId: string): Promise<void> {
-  const { error } = await supabase
+  const { data: existing } = await supabase
     .from('story_views')
-    .upsert({ story_id: noteId, viewer_id: viewerId });
-  if (!error) {
-    await supabase.rpc('increment_story_views', { story_id: noteId }).catch(() => {});
-  }
+    .select('id')
+    .eq('story_id', noteId)
+    .eq('viewer_id', viewerId)
+    .maybeSingle();
+
+  if (existing) return;
+
+  await supabase.from('story_views').insert({
+    story_id: noteId,
+    viewer_id: viewerId,
+  });
+  await supabase.rpc('increment_story_views', { story_id: noteId }).catch(() => {});
 }
 
-/**
- * Fetch viewers and likers of a note (Instagram "Seen by" sheet)
- */
 export async function getNoteViewersAndLikers(noteId: string): Promise<{
-  viewers: { profile: Profile; viewed_at: string; liked: boolean }[];
+  viewers: Array<{ viewer_id: string; viewed_at: string; profile: Profile }>;
   likesCount: number;
-  viewsCount: number;
 }> {
-  const [viewsRes, likesRes] = await Promise.all([
+  const [{ data: views }, { data: story }] = await Promise.all([
     supabase
       .from('story_views')
-      .select('created_at, profiles!story_views_viewer_id_fkey(*)')
+      .select('viewer_id, viewed_at')
       .eq('story_id', noteId)
-      .order('created_at', { ascending: false }),
-    supabase.from('story_likes').select('user_id').eq('story_id', noteId),
+      .order('viewed_at', { ascending: false }),
+    supabase.from('stories').select('likes_count').eq('id', noteId).single(),
   ]);
 
-  const likedSet = new Set(
-    ((likesRes.data as { user_id: string }[] | null) || []).map((l) => l.user_id)
-  );
+  const viewersList = views || [];
+  if (viewersList.length === 0) {
+    return { viewers: [], likesCount: story?.likes_count || 0 };
+  }
 
-  const rawViews = (viewsRes.data as any[] | null) || [];
-  const viewers = rawViews
-    .map((r) => ({
-      profile: r.profiles as Profile,
-      viewed_at: r.created_at as string,
-      liked: likedSet.has(r.profiles?.user_id),
-    }))
-    .filter((v) => !!v.profile);
+  const userIds = viewersList.map((v: any) => v.viewer_id);
+  const { data: profiles } = await supabase.from('profiles').select('*').in('user_id', userIds);
+
+  const pMap: Record<string, Profile> = {};
+  (profiles || []).forEach((p: Profile) => {
+    pMap[p.user_id] = p;
+  });
+
+  const fullViewers = viewersList.map((v: any) => ({
+    viewer_id: v.viewer_id,
+    viewed_at: v.viewed_at,
+    profile: pMap[v.viewer_id] || ({ username: 'user', full_name: 'User' } as Profile),
+  }));
 
   return {
-    viewers,
-    likesCount: likedSet.size,
-    viewsCount: viewers.length,
+    viewers: fullViewers,
+    likesCount: story?.likes_count || 0,
   };
 }
 
-/**
- * Check if a specific note is liked by user
- */
 export async function isNoteLiked(noteId: string, userId: string): Promise<boolean> {
   const { data } = await supabase
     .from('story_likes')

@@ -32,6 +32,7 @@ import { getActiveGroupCallsForUser, getMyGroups } from "@/services/groups";
 import {
   getFeedNotes,
   NoteAudioManager,
+  resolveNoteTrackPreview,
   type UserNote,
 } from "@/services/notes";
 import CreateNoteModal from "@/components/chat/CreateNoteModal";
@@ -85,15 +86,29 @@ const ChatListPage: React.FC = () => {
   }, []);
 
   const handleOpenNote = (note: UserNote) => {
-    if (note.music_track?.preview_url) {
-      NoteAudioManager.play(
-        note.music_track.preview_url,
-        note.music_track.start_ms || 0
-      );
+    setActiveViewingNote(note);
+    if (note.music_track) {
+      if (note.music_track.preview_url) {
+        NoteAudioManager.play(
+          note.music_track.preview_url,
+          note.music_track.start_ms || 0
+        );
+      } else {
+        // Resolve immediately and start playback
+        resolveNoteTrackPreview(note.music_track).then((res) => {
+          if (res.previewUrl) {
+            note.music_track!.preview_url = res.previewUrl;
+            if (res.artwork) note.music_track!.artwork = res.artwork;
+            NoteAudioManager.play(
+              res.previewUrl,
+              note.music_track?.start_ms || 0
+            );
+          }
+        });
+      }
     } else {
       NoteAudioManager.stop();
     }
-    setActiveViewingNote(note);
   };
 
   const loadNotes = useCallback(async () => {

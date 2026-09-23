@@ -330,12 +330,20 @@ export const CreateNoteModal: React.FC<Props> = ({
       {trimTrack && (
         <MusicTrimmer
           track={trimTrack}
-          videoUrl={trimTrack.preview_url}
+          videoUrl={trimTrack.previewUrl || (trimTrack as any).preview_url}
           mediaType="video"
           initialStartMs={musicStartMs}
           onBack={() => setTrimTrack(null)}
           onDone={({ startMs }) => {
-            setSelectedTrack(trimTrack);
+            const pUrl = trimTrack.previewUrl || (trimTrack as any).preview_url || "";
+            const art = (trimTrack as any).artwork || (trimTrack as any).artwork_url || "";
+            setSelectedTrack({
+              ...trimTrack,
+              preview_url: pUrl,
+              previewUrl: pUrl,
+              artwork_url: art,
+              artwork: art,
+            });
             setMusicStartMs(startMs);
             setTrimTrack(null);
             toast.success("Gaana select ho gaya! 🎵");
