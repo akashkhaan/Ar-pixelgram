@@ -78,12 +78,12 @@ function toggleSaveVideoLocal(id: string): boolean {
 
 /**
  * YouTube-style Watch Page — Complete with:
- * - Video Player (Clean overlay, back button, no autoplay)
- * - Tapping title opens YouTube Description Drawer
- * - Creator row with Follow / Following toggle & real follower count (adds to followers list)
+ * - Clean Video Player (Back button, no autoplay toggle)
+ * - Compact Title & Creator Row (Close together, tap title to open description)
+ * - Real Follow/Following toggle connected to user followers list
  * - Action Bar: Like / Dislike, Share (InstagramShareSheet), Download, Save, Remix, Report
- * - YouTube-style Comments preview & full Comments Bottom Sheet
- * - YouTube-style Up Next / Recommended videos feed with category chips and instant play
+ * - Comments preview card & Comments Bottom Sheet
+ * - Recommended videos feed
  */
 const WatchVideoPage: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
@@ -94,7 +94,6 @@ const WatchVideoPage: React.FC = () => {
   const [video, setVideo] = useState<AppVideo | null>(null);
   const [loading, setLoading] = useState(true);
   const [related, setRelated] = useState<AppVideo[]>([]);
-  const [activeChip, setActiveChip] = useState<'all' | 'channel' | 'related'>('all');
   const [comments, setComments] = useState<AppVideoComment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [posting, setPosting] = useState(false);
@@ -253,7 +252,7 @@ const WatchVideoPage: React.FC = () => {
         await unfollowUser(video.user_id, user.id);
         toast.info(`@${video.profile?.username || 'user'} को अनफॉलो किया`);
       }
-    } catch (e) {
+    } catch {
       setIsFollowing(wasFollowing);
       setIsRequested(false);
       setFollowersCount((c) => (wasFollowing ? c + 1 : Math.max(0, c - 1)));
@@ -341,15 +340,6 @@ const WatchVideoPage: React.FC = () => {
     }
   };
 
-  // Filtered recommended videos based on chip
-  const displayedRelated = useMemo(() => {
-    if (activeChip === 'channel' && video) {
-      const fromChannel = related.filter((r) => r.user_id === video.user_id);
-      return fromChannel.length > 0 ? fromChannel : related;
-    }
-    return related;
-  }, [activeChip, related, video]);
-
   // Sorted comments
   const displayedComments = useMemo(() => {
     if (commentsSort === 'top') {
@@ -387,7 +377,7 @@ const WatchVideoPage: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-background flex flex-col select-none overflow-hidden">
-      {/* 1. YOUTUBE VIDEO PLAYER (Clean overlay, back button, no autoplay toggle) */}
+      {/* 1. VIDEO PLAYER */}
       <div className="relative w-full bg-black shrink-0 z-30 shadow-md" style={{ aspectRatio: '16 / 9' }}>
         <video
           ref={videoRef}
@@ -401,7 +391,7 @@ const WatchVideoPage: React.FC = () => {
           preload="auto"
         />
 
-        {/* Top Floating Controls - Back Button only (Autoplay removed) */}
+        {/* Top Floating Controls - Back Button only */}
         <div className="absolute top-2 inset-x-2 flex items-center justify-between pointer-events-none z-20">
           <button
             onClick={goBack}
@@ -414,23 +404,23 @@ const WatchVideoPage: React.FC = () => {
       </div>
 
       {/* 2. SCROLLABLE DETAILS & UP NEXT FEED */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3.5 py-3 space-y-3.5">
-        {/* Title & Description Trigger (Clicking title or info opens YouTube description drawer) */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3.5 py-2.5 space-y-2.5">
+        {/* Title Block (Tapping title or '...more' opens YouTube description drawer) */}
         <div
           onClick={() => setDescSheetOpen(true)}
-          className="cursor-pointer group active:opacity-85 transition-opacity rounded-xl p-2 -mx-1 hover:bg-muted/40"
+          className="cursor-pointer active:opacity-75 transition-opacity"
           role="button"
           tabIndex={0}
           title="Click to view description"
         >
-          <div className="flex items-start justify-between gap-2">
-            <h1 className="text-base font-bold text-foreground leading-snug tracking-tight flex-1">
+          <div className="flex items-start justify-between gap-1.5">
+            <h1 className="text-[15px] font-bold text-foreground leading-snug tracking-tight flex-1">
               {video.title}
             </h1>
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 flex-wrap">
             <Eye className="w-3.5 h-3.5" />
             <span>{formatVideoViews(video.views_count)} views</span>
             <span>•</span>
@@ -444,24 +434,18 @@ const WatchVideoPage: React.FC = () => {
             {video.visibility === 'private' && (
               <span className="text-destructive font-semibold">• Private</span>
             )}
-            <span className="text-xs font-bold text-foreground hover:underline ml-1">
+            <span className="text-xs font-semibold text-foreground hover:underline ml-0.5">
               ...more
             </span>
           </div>
-
-          {video.description && (
-            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
-              {video.description}
-            </p>
-          )}
         </div>
 
-        {/* 3. CREATOR ROW (Follow / Following toggle & real follower count) */}
-        <div className="flex items-center justify-between gap-3 py-1">
+        {/* 3. CREATOR ROW - Closer to Title (Follow / Following toggle & real follower count) */}
+        <div className="flex items-center justify-between gap-3 pt-0.5 pb-0.5">
           <Link to={`/profile/${video.user_id}`} className="flex items-center gap-2.5 min-w-0">
-            <Avatar className="w-10 h-10 border border-border">
+            <Avatar className="w-9 h-9 border border-border">
               <AvatarImage src={authorAvatar || undefined} />
-              <AvatarFallback className="font-bold text-sm bg-primary/20 text-primary">
+              <AvatarFallback className="font-bold text-xs bg-primary/20 text-primary">
                 {authorName.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
@@ -626,50 +610,15 @@ const WatchVideoPage: React.FC = () => {
           )}
         </div>
 
-        {/* 6. YOUTUBE-STYLE "UP NEXT" / RECOMMENDED VIDEOS FEED */}
-        <div className="pt-2 space-y-3 pb-8">
-          {/* Category Filter Chips */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-            <button
-              onClick={() => setActiveChip('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                activeChip === 'all'
-                  ? 'bg-foreground text-background'
-                  : 'bg-muted/70 text-foreground hover:bg-muted'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => setActiveChip('channel')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                activeChip === 'channel'
-                  ? 'bg-foreground text-background'
-                  : 'bg-muted/70 text-foreground hover:bg-muted'
-              }`}
-            >
-              From @{authorName}
-            </button>
-            <button
-              onClick={() => setActiveChip('related')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
-                activeChip === 'related'
-                  ? 'bg-foreground text-background'
-                  : 'bg-muted/70 text-foreground hover:bg-muted'
-              }`}
-            >
-              Related
-            </button>
-          </div>
-
-          {/* Recommended Videos List */}
-          {displayedRelated.length === 0 ? (
+        {/* 6. RECOMMENDED VIDEOS FEED (Directly below comments, chips removed) */}
+        <div className="pt-1 space-y-3 pb-8">
+          {related.length === 0 ? (
             <div className="text-center py-8 text-xs text-muted-foreground">
               Aur video upload hone par yahan show honge
             </div>
           ) : (
             <div className="space-y-4">
-              {displayedRelated.map((r) => (
+              {related.map((r) => (
                 <div key={r.id} className="group flex flex-col gap-2">
                   {/* Thumbnail */}
                   <div
