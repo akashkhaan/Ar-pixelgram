@@ -15,7 +15,9 @@ import {
   Download,
   Bookmark,
   BookmarkCheck,
-  BellRing,
+  UserPlus,
+  UserCheck,
+  ChevronRight,
   X,
   ChevronDown,
   MoreVertical,
@@ -46,6 +48,7 @@ import {
   unfollowUser,
   getFollowStatus,
   getFollowersCount,
+  createNotification,
 } from '@/services/api';
 import { firstFrameSrc } from '@/lib/mediaUrl';
 import InstagramShareSheet from '@/components/common/InstagramShareSheet';
@@ -75,10 +78,10 @@ function toggleSaveVideoLocal(id: string): boolean {
 
 /**
  * YouTube-style Watch Page — Complete with:
- * - Video Player with Autoplay next
- * - YouTube channel row with Subscribe / Follow toggle & live subscriber count
+ * - Video Player (Clean overlay, back button, no autoplay)
+ * - Tapping title opens YouTube Description Drawer
+ * - Creator row with Follow / Following toggle & real follower count (adds to followers list)
  * - Action Bar: Like / Dislike, Share (InstagramShareSheet), Download, Save, Remix, Report
- * - YouTube-style Description drawer with view count, date, hashtags
  * - YouTube-style Comments preview & full Comments Bottom Sheet
  * - YouTube-style Up Next / Recommended videos feed with category chips and instant play
  */
@@ -104,16 +107,16 @@ const WatchVideoPage: React.FC = () => {
   const [isSaved, setIsSaved] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Channel & follow state
+  // Channel & follow state (real Follow system linked to Supabase follows table)
   const [isFollowing, setIsFollowing] = useState(false);
-  const [subscribersCount, setSubscribersCount] = useState(0);
+  const [isRequested, setIsRequested] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
   const [togglingFollow, setTogglingFollow] = useState(false);
 
   // Sheets & modals
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [descSheetOpen, setDescSheetOpen] = useState(false);
   const [commentsSheetOpen, setCommentsSheetOpen] = useState(false);
-  const [autoplayNext, setAutoplayNext] = useState(true);
 
   // 3-dots action menu for recommended video
   const [recommendedMenuVideo, setRecommendedMenuVideo] = useState<AppVideo | null>(null);
@@ -128,13 +131,14 @@ const WatchVideoPage: React.FC = () => {
     try {
       const v = await getVideoById(videoId);
       setVideo(v);
+
       if (v) {
         setLiked(!!v.is_liked);
         setLikesCount(v.likes_count || 0);
         setIsSaved(isVideoSavedLocal(v.id));
 
-        // Load comments, channel subscriber count, follow status, and related feed
-        const [cs, feed, followersCount, followStatus] = await Promise.all([
+        // Load comments, channel follower count, follow status, and related feed
+        const [cs, feed, count, followStatus] = await Promise.all([
           getVideoComments(v.id),
           getVideosFeed(35, 0),
           getFollowersCount(v.user_id).catch(() => 0),
@@ -143,8 +147,9 @@ const WatchVideoPage: React.FC = () => {
 
         setComments(cs);
         setRelated(feed.filter((r) => r.id !== v.id));
-        setSubscribersCount(followersCount);
+        setFollowersCount(count);
         setIsFollowing(followStatus === 'accepted');
+        setIsRequested(followStatus === 'pending');
       }
     } catch (e) {
       console.error('watch load failed', e);
@@ -202,33 +207,56 @@ const WatchVideoPage: React.FC = () => {
     setDisliked((d) => !d);
   };
 
-  // Follow / Subscribe channel toggle
+  // Follow / Unfollow creator toggle (stores in database, adds to followers list)
   const handleFollowToggle = async () => {
     if (!user || !video) {
-      toast.error('Channel subscribe karne ke liye login karein');
+      toast.error('Follow karne ke liye login karein');
       return;
     }
     if (user.id === video.user_id) {
-      toast.info('Yeh aapka hi channel hai');
+      toast.info('Yeh aapka hi account hai');
       return;
     }
 
     setTogglingFollow(true);
-    const willFollow = !isFollowing;
-    setIsFollowing(willFollow);
-    setSubscribersCount((c) => (willFollow ? c + 1 : Math.max(0, c - 1)));
+    const wasFollowing = isFollowing || isRequested;
+    const willFollow = !wasFollowing;
+
+    if (willFollow) {
+      const isPrivate = !!video.profile?.is_private;
+      if (isPrivate) {
+        setIsRequested(true);
+        setIsFollowing(false);
+      } else {
+        setIsFollowing(true);
+        setIsRequested(false);
+        setFollowersCount((c) => c + 1);
+      }
+    } else {
+      setIsFollowing(false);
+      setIsRequested(false);
+      setFollowersCount((c) => Math.max(0, c - 1));
+    }
 
     try {
       if (willFollow) {
-        await followUser(video.user_id, false);
-        toast.success(`Subscribed to @${video.profile?.username || 'user'}`);
+        const isPrivate = !!video.profile?.is_private;
+        await followUser(video.user_id, isPrivate);
+        if (isPrivate) {
+          await createNotification(video.user_id, 'follow_request', user.id).catch(() => {});
+          toast.success('Follow request sent');
+        } else {
+          await createNotification(video.user_id, 'follow', user.id).catch(() => {});
+          toast.success(`@${video.profile?.username || 'user'} को फॉलो किया`);
+        }
       } else {
         await unfollowUser(video.user_id, user.id);
-        toast.info(`Unsubscribed from @${video.profile?.username || 'user'}`);
+        toast.info(`@${video.profile?.username || 'user'} को अनफॉलो किया`);
       }
-    } catch {
-      setIsFollowing(!willFollow);
-      setSubscribersCount((c) => (willFollow ? Math.max(0, c - 1) : c + 1));
+    } catch (e) {
+      setIsFollowing(wasFollowing);
+      setIsRequested(false);
+      setFollowersCount((c) => (wasFollowing ? c + 1 : Math.max(0, c - 1)));
       toast.error('Action failed, please try again');
     } finally {
       setTogglingFollow(false);
@@ -302,15 +330,6 @@ const WatchVideoPage: React.FC = () => {
     }
   };
 
-  // Autoplay next video when current video ends
-  const handleVideoEnded = () => {
-    if (autoplayNext && related.length > 0) {
-      const nextVideo = related[0];
-      toast.info(`Next: "${nextVideo.title.slice(0, 25)}..." play ho raha hai`, { duration: 2500 });
-      navigate(`/videos/${nextVideo.id}`);
-    }
-  };
-
   const handleDelete = async () => {
     if (!video) return;
     try {
@@ -368,7 +387,7 @@ const WatchVideoPage: React.FC = () => {
 
   return (
     <div className="fixed inset-0 bg-background flex flex-col select-none overflow-hidden">
-      {/* 1. YOUTUBE VIDEO PLAYER */}
+      {/* 1. YOUTUBE VIDEO PLAYER (Clean overlay, back button, no autoplay toggle) */}
       <div className="relative w-full bg-black shrink-0 z-30 shadow-md" style={{ aspectRatio: '16 / 9' }}>
         <video
           ref={videoRef}
@@ -380,9 +399,9 @@ const WatchVideoPage: React.FC = () => {
           autoPlay
           playsInline
           preload="auto"
-          onEnded={handleVideoEnded}
         />
-        {/* Top Floating Controls */}
+
+        {/* Top Floating Controls - Back Button only (Autoplay removed) */}
         <div className="absolute top-2 inset-x-2 flex items-center justify-between pointer-events-none z-20">
           <button
             onClick={goBack}
@@ -391,34 +410,27 @@ const WatchVideoPage: React.FC = () => {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-1.5 pointer-events-auto">
-            <button
-              onClick={() => {
-                setAutoplayNext((prev) => {
-                  const n = !prev;
-                  toast.info(n ? 'Autoplay ON' : 'Autoplay OFF', { duration: 1500 });
-                  return n;
-                });
-              }}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-bold backdrop-blur-md flex items-center gap-1 transition-all ${
-                autoplayNext ? 'bg-white text-black shadow' : 'bg-black/60 text-white/80'
-              }`}
-            >
-              <span>Autoplay</span>
-              <span className={`w-2 h-2 rounded-full ${autoplayNext ? 'bg-red-600' : 'bg-white/40'}`} />
-            </button>
-          </div>
         </div>
       </div>
 
       {/* 2. SCROLLABLE DETAILS & UP NEXT FEED */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3.5 py-3 space-y-3.5">
-        {/* Title */}
-        <div>
-          <h1 className="text-base font-bold text-foreground leading-snug tracking-tight">
-            {video.title}
-          </h1>
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+        {/* Title & Description Trigger (Clicking title or info opens YouTube description drawer) */}
+        <div
+          onClick={() => setDescSheetOpen(true)}
+          className="cursor-pointer group active:opacity-85 transition-opacity rounded-xl p-2 -mx-1 hover:bg-muted/40"
+          role="button"
+          tabIndex={0}
+          title="Click to view description"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <h1 className="text-base font-bold text-foreground leading-snug tracking-tight flex-1">
+              {video.title}
+            </h1>
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 mt-1 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 flex-wrap">
             <Eye className="w-3.5 h-3.5" />
             <span>{formatVideoViews(video.views_count)} views</span>
             <span>•</span>
@@ -432,10 +444,19 @@ const WatchVideoPage: React.FC = () => {
             {video.visibility === 'private' && (
               <span className="text-destructive font-semibold">• Private</span>
             )}
-          </p>
+            <span className="text-xs font-bold text-foreground hover:underline ml-1">
+              ...more
+            </span>
+          </div>
+
+          {video.description && (
+            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
+              {video.description}
+            </p>
+          )}
         </div>
 
-        {/* 3. YOUTUBE CHANNEL / CREATOR ROW */}
+        {/* 3. CREATOR ROW (Follow / Following toggle & real follower count) */}
         <div className="flex items-center justify-between gap-3 py-1">
           <Link to={`/profile/${video.user_id}`} className="flex items-center gap-2.5 min-w-0">
             <Avatar className="w-10 h-10 border border-border">
@@ -450,7 +471,7 @@ const WatchVideoPage: React.FC = () => {
               </p>
               <p className="text-[11px] text-muted-foreground truncate">
                 @{authorName}
-                {subscribersCount > 0 && ` • ${formatVideoViews(subscribersCount)} subscribers`}
+                {followersCount > 0 && ` • ${formatVideoViews(followersCount)} followers`}
               </p>
             </div>
           </Link>
@@ -459,19 +480,26 @@ const WatchVideoPage: React.FC = () => {
             <button
               onClick={handleFollowToggle}
               disabled={togglingFollow}
-              className={`shrink-0 text-xs font-bold px-4 py-2 rounded-full transition-transform active:scale-95 flex items-center gap-1.5 ${
+              className={`shrink-0 text-xs font-bold px-4 py-1.5 rounded-full transition-transform active:scale-95 flex items-center gap-1.5 ${
                 isFollowing
-                  ? 'bg-muted text-foreground hover:bg-muted/80'
-                  : 'bg-foreground text-background hover:opacity-90 shadow-sm'
+                  ? 'bg-muted text-foreground hover:bg-muted/80 border border-border/40'
+                  : isRequested
+                  ? 'bg-muted/80 text-muted-foreground border border-border/40'
+                  : 'bg-primary text-primary-foreground hover:opacity-90 shadow-sm'
               }`}
             >
               {isFollowing ? (
                 <>
-                  <BellRing className="w-3.5 h-3.5 fill-current" />
-                  <span>Subscribed</span>
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Following</span>
                 </>
+              ) : isRequested ? (
+                <span>Requested</span>
               ) : (
-                <span>Subscribe</span>
+                <>
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Follow</span>
+                </>
               )}
             </button>
           ) : (
@@ -558,32 +586,14 @@ const WatchVideoPage: React.FC = () => {
           {/* Report */}
           <button
             onClick={() => toast.success('Video report ho gaya. Review team ise check karegi.')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground text-xs font-bold border border-border/40 shrink-0 active:scale-95 transition-transform"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-muted/80 hover:bg-muted text-muted-foreground text-xs font-bold border border-border/40 shrink-0 active:scale-95 transition-transform"
           >
             <Flag className="w-3.5 h-3.5" />
             <span>Report</span>
           </button>
         </div>
 
-        {/* 5. YOUTUBE-STYLE DESCRIPTION CARD */}
-        <div
-          onClick={() => setDescSheetOpen(true)}
-          className="rounded-2xl bg-muted/60 hover:bg-muted/80 p-3 cursor-pointer transition-colors border border-border/30 text-left"
-        >
-          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-            <span>{formatVideoViews(video.views_count)} views</span>
-            <span>{timeAgoHi(video.created_at)}</span>
-            <span className="text-primary font-medium">#Pixelgram #Video</span>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
-            {video.description || 'No description provided. Click for more details.'}
-          </p>
-          <span className="text-xs font-bold text-foreground mt-1 inline-block">
-            ...more
-          </span>
-        </div>
-
-        {/* 6. YOUTUBE-STYLE COMMENTS PREVIEW BOX */}
+        {/* 5. YOUTUBE-STYLE COMMENTS PREVIEW BOX */}
         <div
           onClick={() => setCommentsSheetOpen(true)}
           className="rounded-2xl bg-muted/60 hover:bg-muted/80 p-3 cursor-pointer transition-colors border border-border/30 space-y-2"
@@ -616,7 +626,7 @@ const WatchVideoPage: React.FC = () => {
           )}
         </div>
 
-        {/* 7. YOUTUBE-STYLE "UP NEXT" / RECOMMENDED VIDEOS FEED */}
+        {/* 6. YOUTUBE-STYLE "UP NEXT" / RECOMMENDED VIDEOS FEED */}
         <div className="pt-2 space-y-3 pb-8">
           {/* Category Filter Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
@@ -710,7 +720,6 @@ const WatchVideoPage: React.FC = () => {
                         </AvatarFallback>
                       </Avatar>
                     </Link>
-
                     <div
                       onClick={() => navigate(`/videos/${r.id}`)}
                       className="flex-1 min-w-0 cursor-pointer"
@@ -741,7 +750,7 @@ const WatchVideoPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 8. YOUTUBE-STYLE DESCRIPTION BOTTOM DRAWER */}
+      {/* 7. YOUTUBE-STYLE DESCRIPTION BOTTOM DRAWER (Opened on tapping title) */}
       {descSheetOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div
@@ -807,7 +816,7 @@ const WatchVideoPage: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-foreground truncate">{authorFullName}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    @{authorName} • {formatVideoViews(subscribersCount)} subscribers
+                    @{authorName} • {formatVideoViews(followersCount)} followers
                   </p>
                 </div>
               </Link>
@@ -816,7 +825,7 @@ const WatchVideoPage: React.FC = () => {
         </div>
       )}
 
-      {/* 9. YOUTUBE-STYLE COMMENTS BOTTOM SHEET */}
+      {/* 8. YOUTUBE-STYLE COMMENTS BOTTOM SHEET */}
       {commentsSheetOpen && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div
@@ -911,7 +920,6 @@ const WatchVideoPage: React.FC = () => {
                   </button>
                 ))}
               </div>
-
               <div className="flex items-center gap-2">
                 <Avatar className="w-8 h-8 shrink-0">
                   <AvatarImage src={user?.user_metadata?.avatar_url || undefined} />
@@ -946,7 +954,7 @@ const WatchVideoPage: React.FC = () => {
         </div>
       )}
 
-      {/* 10. RECOMMENDED VIDEO 3-DOTS MENU MODAL */}
+      {/* 9. RECOMMENDED VIDEO 3-DOTS MENU MODAL */}
       {recommendedMenuVideo && (
         <div
           onClick={() => setRecommendedMenuVideo(null)}
@@ -964,6 +972,7 @@ const WatchVideoPage: React.FC = () => {
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
+
             <button
               onClick={() => {
                 navigate(`/videos/${recommendedMenuVideo.id}`);
@@ -974,6 +983,7 @@ const WatchVideoPage: React.FC = () => {
               <Play className="w-4 h-4 text-primary fill-primary" />
               <span>Play video</span>
             </button>
+
             <button
               onClick={() => {
                 setRecommendedMenuVideo(null);
@@ -984,6 +994,7 @@ const WatchVideoPage: React.FC = () => {
               <Share2 className="w-4 h-4 text-foreground" />
               <span>Share video</span>
             </button>
+
             <button
               onClick={() => {
                 toggleSaveVideoLocal(recommendedMenuVideo.id);
@@ -999,7 +1010,7 @@ const WatchVideoPage: React.FC = () => {
         </div>
       )}
 
-      {/* 11. REELS-STYLE INSTAGRAM SHARE SHEET (for Videos!) */}
+      {/* 10. REELS-STYLE INSTAGRAM SHARE SHEET (for Videos!) */}
       <InstagramShareSheet
         open={shareSheetOpen}
         onClose={() => setShareSheetOpen(false)}
