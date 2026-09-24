@@ -1,10 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  X, Search, Copy, Check, Send, Share2, MessageSquare, ExternalLink,
-  Loader2
+  X,
+  Search,
+  Copy,
+  Check,
+  Send,
+  Share2,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { getMessagedProfiles, getMutualFollows, sendMessage, type Profile } from '@/services/api';
+import { getMessagedProfiles, sendMessage, type Profile } from '@/services/api';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 
@@ -27,55 +32,100 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
 }) => {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
-  const [friends, setFriends] = useState<Profile[]>([]);
+  const [messagedFriends, setMessagedFriends] = useState<Profile[]>([]);
+  const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [loadingFriends, setLoadingFriends] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
 
+  // Fetch ONLY users with whom the current user has chatted/messaged
   useEffect(() => {
     if (!open || !user) return;
     setLoadingFriends(true);
-    // Fetch messaged profiles + mutual follows or following list
+    setQuery('');
+    setSearchResults([]);
+    setSentMap({});
+
     (async () => {
       try {
-        const [messaged, mutuals] = await Promise.all([
-          getMessagedProfiles(user.id).catch(() => [] as Profile[]),
-          getMutualFollows(user.id).catch(() => [] as Profile[]),
-        ]);
-
-        const map = new Map<string, Profile>();
-        messaged.forEach((p) => { if (p && p.user_id !== user.id) map.set(p.user_id, p); });
-        mutuals.forEach((p) => { if (p && p.user_id !== user.id) map.set(p.user_id, p); });
-
-        // If list is small, fetch other active users to make sharing useful
-        if (map.size < 6) {
-          const { data: popular } = await supabase
-            .from('profiles')
-            .select('*')
-            .neq('user_id', user.id)
-            .limit(10);
-          (popular || []).forEach((p: Profile) => { if (p && !map.has(p.user_id)) map.set(p.user_id, p); });
-        }
-
-        setFriends(Array.from(map.values()));
+        const messaged = await getMessagedProfiles(user.id);
+        const valid = (messaged || []).filter((p) => p && p.user_id !== user.id);
+        setMessagedFriends(valid);
       } catch (err) {
-        console.error('Failed to load friends for share:', err);
+        console.error('Failed to load messaged friends for share:', err);
       } finally {
         setLoadingFriends(false);
       }
     })();
   }, [open, user]);
 
-  if (!open) return null;
+  // Debounced remote search for any accounts when search query is entered
+  useEffect(() => {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed || !user) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
 
-  const filteredFriends = friends.filter((f) => {
-    if (!query.trim()) return true;
-    const q = query.toLowerCase();
-    return (
-      f.username?.toLowerCase().includes(q) ||
-      f.full_name?.toLowerCase().includes(q)
-    );
-  });
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const { data: remoteProfiles, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .neq('user_id', user.id)
+          .or(`username.ilike.%${trimmed}%,full_name.ilike.%${trimmed}%`)
+          .limit(25);
+
+        if (!error && remoteProfiles) {
+          setSearchResults(remoteProfiles as Profile[]);
+        }
+      } catch (err) {
+        console.error('Failed to search profiles for share:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [query, user]);
+
+  // Default view: ONLY messaged accounts
+  // When searching: matching messaged accounts FIRST, followed by any other searched accounts
+  const displayedFriends = useMemo(() => {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+      return messagedFriends;
+    }
+
+    const seen = new Set<string>();
+    const list: Profile[] = [];
+
+    // 1. Matches from already messaged contacts
+    for (const f of messagedFriends) {
+      if (
+        f.username?.toLowerCase().includes(trimmed) ||
+        f.full_name?.toLowerCase().includes(trimmed)
+      ) {
+        seen.add(f.user_id);
+        list.push(f);
+      }
+    }
+
+    // 2. Additional matches from search
+    for (const f of searchResults) {
+      if (!seen.has(f.user_id)) {
+        seen.add(f.user_id);
+        list.push(f);
+      }
+    }
+
+    return list;
+  }, [query, messagedFriends, searchResults]);
+
+  if (!open) return null;
 
   const handleCopyLink = async () => {
     try {
@@ -91,9 +141,17 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   const handleSendDM = async (friend: Profile) => {
     if (!user || sentMap[friend.user_id]) return;
     try {
-      const msg = `Check out this ${mediaType} on Pixelgram:\n${url}`;
+      const msg = `Check out this ${mediaType} on Pixelgram:
+${url}`;
       await sendMessage(friend.user_id, msg);
       setSentMap((prev) => ({ ...prev, [friend.user_id]: true }));
+
+      // Add to messaged list if not present so it stays in recent list
+      setMessagedFriends((prev) => {
+        if (prev.some((p) => p.user_id === friend.user_id)) return prev;
+        return [friend, ...prev];
+      });
+
       toast.success(`Sent to @${friend.username}`);
     } catch {
       toast.error('Failed to send message');
@@ -196,8 +254,14 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
               onChange={(e) => setQuery(e.target.value)}
               className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
+            {searching && (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground mr-1.5 shrink-0" />
+            )}
             {query && (
-              <button onClick={() => setQuery('')} className="p-0.5 text-muted-foreground hover:text-foreground">
+              <button
+                onClick={() => setQuery('')}
+                className="p-0.5 text-muted-foreground hover:text-foreground"
+              >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
@@ -211,15 +275,20 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
               <Loader2 className="w-5 h-5 animate-spin text-primary" />
               <span className="text-xs">Loading contacts…</span>
             </div>
-          ) : filteredFriends.length === 0 ? (
-            <div className="py-6 text-center text-muted-foreground text-xs">
-              No users found. You can still share via social apps below.
+          ) : displayedFriends.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground text-xs px-4">
+              {query.trim()
+                ? `No accounts found for "${query.trim()}". You can still share via social apps below.`
+                : 'No recent chats found. Search people above to send in DM, or share via apps below.'}
             </div>
           ) : (
-            filteredFriends.map((f) => {
+            displayedFriends.map((f) => {
               const isSent = sentMap[f.user_id];
               return (
-                <div key={f.user_id} className="flex items-center justify-between gap-3 p-1.5 rounded-xl hover:bg-muted/40 transition-colors">
+                <div
+                  key={f.user_id}
+                  className="flex items-center justify-between gap-3 p-1.5 rounded-xl hover:bg-muted/40 transition-colors"
+                >
                   <div className="flex items-center gap-3 min-w-0">
                     {f.avatar_url ? (
                       <img
@@ -234,7 +303,9 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
                     )}
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground truncate">{f.username}</p>
-                      <p className="text-xs text-muted-foreground truncate">{f.full_name || `@${f.username}`}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {f.full_name || `@${f.username}`}
+                      </p>
                     </div>
                   </div>
 

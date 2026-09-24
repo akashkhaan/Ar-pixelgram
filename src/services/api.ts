@@ -597,6 +597,7 @@ export async function getMessagedProfiles(userId: string): Promise<Profile[]> {
     .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
     .order('created_at', { ascending: false })
     .limit(500);
+
   const otherIds = Array.from(
     new Set(
       (msgs || [])
@@ -606,12 +607,17 @@ export async function getMessagedProfiles(userId: string): Promise<Profile[]> {
         .filter((id: string) => id && id !== userId),
     ),
   );
+
   if (otherIds.length === 0) return [];
+
   const { data: profiles } = await supabase
     .from('profiles')
     .select('*')
     .in('user_id', otherIds);
-  return Array.isArray(profiles) ? (profiles as Profile[]) : [];
+
+  if (!profiles || !Array.isArray(profiles)) return [];
+  const map = new Map<string, Profile>(profiles.map((p: Profile) => [p.user_id, p]));
+  return otherIds.map((id) => map.get(id)).filter(Boolean) as Profile[];
 }
 
 export async function getUnreadCount(receiverId: string, senderId: string): Promise<number> {
