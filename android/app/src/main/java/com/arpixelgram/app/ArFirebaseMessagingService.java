@@ -128,16 +128,17 @@ public class ArFirebaseMessagingService extends FirebaseMessagingService {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
+            .setAutoCancel(false)
             .setOngoing(true)
-            .setContentIntent(open)
+            .setContentIntent(answer)
             .setFullScreenIntent(open, true)
             .setDefaults(Notification.DEFAULT_ALL)
             .addAction(R.mipmap.ic_launcher, isGroupCall ? "Join" : "Answer", answer)
             .addAction(R.mipmap.ic_launcher, "Decline", decline);
 
+        if (avatar == null) avatar = initialsBitmap(isGroupCall ? contentTitle : who);
         if (avatar != null) {
-            builder.setLargeIcon(avatar);
+            builder.setLargeIcon(circle(avatar));
             try {
                 Person caller = new Person.Builder()
                     .setName(who)
@@ -231,6 +232,26 @@ public class ArFirebaseMessagingService extends FirebaseMessagingService {
     private static String value(Map<String, String> data, String key, String fallback) {
         String v = data.get(key);
         return (v == null || v.isEmpty()) ? fallback : v;
+    }
+
+    private Bitmap initialsBitmap(String name) {
+        try {
+            int size = 256;
+            Bitmap bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas c = new android.graphics.Canvas(bmp);
+            android.graphics.Paint bg = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            bg.setColor(0xFF0A7CFF);
+            c.drawCircle(size / 2f, size / 2f, size / 2f, bg);
+            String letter = TextUtils.isEmpty(name) ? "?" : name.trim().substring(0, 1).toUpperCase();
+            android.graphics.Paint tp = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            tp.setColor(0xFFFFFFFF);
+            tp.setTextSize(120f);
+            tp.setTextAlign(android.graphics.Paint.Align.CENTER);
+            tp.setFakeBoldText(true);
+            float y = size / 2f - (tp.descent() + tp.ascent()) / 2f;
+            c.drawText(letter, size / 2f, y, tp);
+            return bmp;
+        } catch (Exception e) { return null; }
     }
 
     private Bitmap loadBitmap(String src) {

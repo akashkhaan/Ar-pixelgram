@@ -121,7 +121,8 @@ public class MainActivity extends BridgeActivity {
             + "\"groupId\":" + jsString(intent.getStringExtra("groupId")) + ","
             + "\"callId\":" + jsString(intent.getStringExtra("callId"))
             + "}";
-        try {
+        boolean ringingOpen = (action == null || "open".equals(action)) && intent.getStringExtra("callId") != null;
+        if (!ringingOpen) try {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (nm != null) nm.cancel(4321);
         } catch (Exception ignored) {}

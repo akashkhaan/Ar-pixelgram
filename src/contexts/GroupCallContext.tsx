@@ -414,9 +414,34 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       if (callInfo.isNew) {
         send({ type: 'invite', callId: callInfo.id, from: user.id, kind: finalKind, startedAt: callStarted });
-        const otherMemberIds = targetMembers.map(m => m.user_id).filter(uid => uid && uid !== user.id);
+        let memberIds = targetMembers.map(m => m.user_id);
+        try {
+          const { data: fresh } = await supabase
+            .from('group_members')
+            .select('user_id')
+            .eq('group_id', targetGroupId);
+          if (fresh && fresh.length) memberIds = Array.from(new Set([...memberIds, ...fresh.map((r: { user_id: string }) => r.user_id)]));
+        } catch { /* use passed members */ }
+        const otherMemberIds = memberIds.filter(uid => uid && uid !== user.id);
         void Promise.allSettled(
           otherMemberIds.map(async uid => {
+            void sendPushTo(
+              uid,
+              `📞 ${targetGroupName || 'Group'} · Incoming ${finalKind === 'video' ? 'Video' : 'Audio'} Call`,
+              `${callerName} is calling the group · Tap to join`,
+              `/group/${targetGroupId}?autoJoin=1&kind=${finalKind}`,
+              `group_call_${callInfo.id}`,
+              targetAvatarUrl || callerAvatar || '/images/logo/logo-icon.svg',
+              {
+                type: 'group_call',
+                kind: finalKind,
+                groupId: targetGroupId,
+                groupName: targetGroupName || 'Group',
+                callId: callInfo.id,
+                callerName,
+                callerAvatar: callerAvatar || undefined,
+              },
+            );
             try {
               const memberCallChannel = supabase.channel(`calls:${uid}`);
               await memberCallChannel.subscribe();
@@ -438,23 +463,6 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             } catch {
               /* optional */
             }
-            void sendPushTo(
-              uid,
-              `📞 ${targetGroupName || 'Group'} · Incoming ${finalKind === 'video' ? 'Video' : 'Audio'} Call`,
-              `${callerName} is calling the group · Tap to join`,
-              `/group/${targetGroupId}?autoJoin=1&kind=${finalKind}`,
-              `group_call_${callInfo.id}`,
-              targetAvatarUrl || callerAvatar || '/images/logo/logo-icon.svg',
-              {
-                type: 'group_call',
-                kind: finalKind,
-                groupId: targetGroupId,
-                groupName: targetGroupName || 'Group',
-                callId: callInfo.id,
-                callerName,
-                callerAvatar: callerAvatar || undefined,
-              },
-            );
             return createNotification(
               uid,
               'group_call',
