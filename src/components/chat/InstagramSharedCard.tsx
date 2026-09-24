@@ -1,18 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Film, BadgeCheck, ExternalLink, User, Loader2 } from 'lucide-react';
+import { Play, Film, BadgeCheck, ExternalLink, User, Loader2, Tv } from 'lucide-react';
 import { getReelById, getProfile, type Reel, type Profile } from '@/services/api';
 import { resolveFacebookIdToUserId } from '@/lib/facebookProfileUrl';
 import { supabase } from '@/db/supabase';
+import {
+  getVideoById,
+  formatDuration,
+  formatVideoViews,
+  timeAgoHi,
+  type AppVideo,
+} from '@/services/videos';
 
 // In-memory caches to prevent repetitive fetching across messages
 const reelCache = new Map<string, Reel>();
 const profileCache = new Map<string, Profile>();
 const postCache = new Map<string, any>();
+const videoCache = new Map<string, AppVideo>();
 
 export interface ParsedShareInfo {
   isShare: boolean;
-  type: 'reel' | 'profile' | 'post';
+  type: 'reel' | 'profile' | 'post' | 'video';
   id: string;
   isNumericProfileId?: boolean;
   customText?: string;
@@ -91,6 +99,22 @@ export function parseSharedContent(content: string): ParsedShareInfo | null {
     };
   }
 
+  // 5. Video URL: /videos/UUID or /videos?v=UUID or /video/UUID
+  const videoMatch = content.match(/(?:https?:\/\/[^\s/]+)?\/(?:videos(?:\?v=|\/)|video\/)([a-zA-Z0-9_\-]+)/i);
+  if (videoMatch) {
+    const rawUrl = videoMatch[0];
+    const videoId = videoMatch[1];
+    let cleanText = content.replace(rawUrl, '').trim();
+    cleanText = cleanText.replace(/Check out this (video|reel) on [^:\n]+:?/gi, '').trim();
+    return {
+      isShare: true,
+      type: 'video',
+      id: videoId,
+      customText: cleanText || undefined,
+      rawUrl,
+    };
+  }
+
   return null;
 }
 
@@ -114,8 +138,11 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
   const [post, setPost] = useState<any | null>(() => {
     return shareInfo.type === 'post' ? postCache.get(shareInfo.id) || null : null;
   });
+  const [video, setVideo] = useState<AppVideo | null>(() => {
+    return shareInfo.type === 'video' ? videoCache.get(shareInfo.id) || null : null;
+  });
 
-  const [loading, setLoading] = useState(!reel && !profile && !post);
+  const [loading, setLoading] = useState(!reel && !profile && !post && !video);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
@@ -186,6 +213,27 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
           if (data) {
             postCache.set(shareInfo.id, data);
             setPost(data);
+          } else {
+            setLoadError(true);
+          }
+        } catch {
+          if (!isCancelled) setLoadError(true);
+        } finally {
+          if (!isCancelled) setLoading(false);
+        }
+      } else if (shareInfo.type === 'video') {
+        if (videoCache.has(shareInfo.id)) {
+          setVideo(videoCache.get(shareInfo.id)!);
+          setLoading(false);
+          return;
+        }
+        try {
+          setLoading(true);
+          const data = await getVideoById(shareInfo.id);
+          if (isCancelled) return;
+          if (data) {
+            videoCache.set(shareInfo.id, data);
+            setVideo(data);
           } else {
             setLoadError(true);
           }
@@ -484,6 +532,126 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
           <div className="px-3 py-2 bg-muted/40 border-t border-border/60 flex items-center justify-between text-xs font-semibold text-primary">
             <span>View post</span>
             <ExternalLink className="w-3.5 h-3.5" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 4. VIDEO PREVIEW CARD (YouTube / Video Style)
+  // ==========================================
+  if (shareInfo.type === 'video') {
+    const handleVideoClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigate(`/videos/${shareInfo.id}`);
+    };
+
+    const author = video?.profile;
+    const authorName = author?.username || 'user';
+    const authorAvatar = author?.avatar_url;
+    const authorVerified = author?.is_verified;
+
+    return (
+      <div className="space-y-1.5">
+        {shareInfo.customText && (
+          <p className="break-words text-sm font-medium px-1">{shareInfo.customText}</p>
+        )}
+
+        <div
+          onClick={handleVideoClick}
+          className="group relative w-64 sm:w-72 rounded-2xl overflow-hidden bg-card border border-border/80 shadow-md text-foreground cursor-pointer select-none transition-transform active:scale-[0.98] hover:border-primary/50"
+        >
+          {/* Top creator bar */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-muted/40">
+            <div className="flex items-center gap-2 min-w-0">
+              {authorAvatar ? (
+                <img
+                  src={authorAvatar}
+                  alt=""
+                  className="w-5 h-5 rounded-full object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold shrink-0">
+                  {authorName[0]?.toUpperCase()}
+                </div>
+              )}
+              <span className="text-xs font-semibold truncate text-foreground">
+                @{authorName}
+              </span>
+              {authorVerified && (
+                <BadgeCheck className="w-3.5 h-3.5 text-sky-500 shrink-0 fill-sky-500/20" />
+              )}
+            </div>
+            <div className="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">
+              <Tv className="w-3 h-3" />
+              <span>Video</span>
+            </div>
+          </div>
+
+          {/* 16:9 Thumbnail / Preview */}
+          <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="text-xs">Loading video...</span>
+              </div>
+            ) : video?.thumbnail_url ? (
+              <img
+                src={video.thumbnail_url}
+                alt={video.title || 'Video'}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : video?.video_url ? (
+              <video
+                src={video.video_url}
+                preload="metadata"
+                muted
+                playsInline
+                className="w-full h-full object-cover pointer-events-none"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <Tv className="w-8 h-8 text-muted-foreground/60" />
+                <span className="text-xs font-medium">Video</span>
+              </div>
+            )}
+
+            {/* Play Button Overlay */}
+            {!loading && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-black/25">
+                <div className="w-12 h-12 rounded-full bg-red-600/95 text-white flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                  <Play className="w-6 h-6 ml-0.5 fill-white text-white drop-shadow" />
+                </div>
+              </div>
+            )}
+
+            {/* Duration badge */}
+            {video?.duration_sec && (
+              <span className="absolute bottom-2 right-2 z-20 px-1.5 py-0.5 rounded bg-black/85 text-white text-[10px] font-semibold">
+                {formatDuration(video.duration_sec)}
+              </span>
+            )}
+          </div>
+
+          {/* Video Title & Meta */}
+          <div className="p-3 space-y-1">
+            <h4 className="text-xs font-bold text-foreground line-clamp-2 leading-snug">
+              {video?.title || 'Pixelgram Video'}
+            </h4>
+            <p className="text-[11px] text-muted-foreground">
+              {video?.views_count != null && `${formatVideoViews(video.views_count)} views · `}
+              {video?.created_at && timeAgoHi(video.created_at)}
+            </p>
+          </div>
+
+          {/* Footer Action */}
+          <div className="px-3 py-2 bg-muted/40 border-t border-border/50 flex items-center justify-between text-xs font-semibold text-primary">
+            <span>Watch on Pixelgram</span>
+            <div className="flex items-center gap-1">
+              <span>Play</span>
+              <Play className="w-3 h-3 fill-current" />
+            </div>
           </div>
         </div>
       </div>

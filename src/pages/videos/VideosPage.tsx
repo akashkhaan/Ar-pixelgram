@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
 import { Input } from '@/components/ui/input';
-import { Search, Mic, Loader2, Plus, Lock, Eye } from 'lucide-react';
+import { Search, Mic, Loader2, Plus, Lock, Eye, Share2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useDebounce } from '@/hooks/useDebounce';
+import InstagramShareSheet from '@/components/common/InstagramShareSheet';
 import {
   getVideosFeed,
   searchVideos,
@@ -34,6 +35,7 @@ const VideosPage: React.FC = () => {
   const [videos, setVideos] = useState<AppVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [listening, setListening] = useState(false);
+  const [sharingVideo, setSharingVideo] = useState<AppVideo | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const load = useCallback(async (q: string) => {
@@ -170,25 +172,51 @@ const VideosPage: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <div className="flex gap-3 px-1 py-2">
-                  <Avatar className="w-9 h-9 shrink-0">
-                    <AvatarImage src={v.profile?.avatar_url || undefined} />
-                    <AvatarFallback>{(v.profile?.username || '?').slice(0, 2).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground line-clamp-2">{v.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {v.profile?.username || 'user'}
-                    </p>
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Eye className="w-3 h-3" />
-                      {formatVideoViews(v.views_count)} views · {timeAgoHi(v.created_at)}
-                    </p>
+                <div className="flex items-start justify-between gap-3 px-1 py-2">
+                  <div className="flex gap-3 flex-1 min-w-0">
+                    <Avatar className="w-9 h-9 shrink-0">
+                      <AvatarImage src={v.profile?.avatar_url || undefined} />
+                      <AvatarFallback>{(v.profile?.username || '?').slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground line-clamp-2">{v.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {v.profile?.username || 'user'}
+                      </p>
+                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Eye className="w-3 h-3" />
+                        {formatVideoViews(v.views_count)} views · {timeAgoHi(v.created_at)}
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSharingVideo(v);
+                    }}
+                    className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 active:scale-90 transition-transform"
+                    title="Share video"
+                    aria-label="Share video"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
                 </div>
               </button>
             ))}
           </div>
+        )}
+
+        {/* Video Share Sheet */}
+        {sharingVideo && (
+          <InstagramShareSheet
+            open={!!sharingVideo}
+            onClose={() => setSharingVideo(null)}
+            url={`${window.location.origin}/videos/${sharingVideo.id}`}
+            title={`Video by @${sharingVideo.profile?.username || 'user'} on Pixelgram: ${sharingVideo.title}`}
+            mediaType="video"
+            thumbnailUrl={sharingVideo.thumbnail_url || undefined}
+          />
         )}
       </div>
     </MobileLayout>
