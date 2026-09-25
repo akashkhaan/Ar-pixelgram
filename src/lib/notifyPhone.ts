@@ -161,7 +161,9 @@ export function notifyPhone(options: NotifyPhoneOptions) {
                   url: url || '/',
                   joinUrl: actions?.find(a => a.action === 'join_call' || a.action === 'receive_call') ? url : undefined,
                 },
-                vibrate: isCall ? [500, 250, 500, 250, 500, 250, 500] : [200, 100, 200],
+                vibrate: isCall ? [500, 250, 500, 250, 500, 250, 500] : (progress !== undefined && progress < 100 ? undefined : [200, 100, 200]),
+                renotify: progress !== undefined && progress < 100 ? false : true,
+                silent: progress !== undefined && progress < 100,
               };
               if (image) {
                 notifOpts.image = image;

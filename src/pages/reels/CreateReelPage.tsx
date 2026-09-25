@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
-import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
+import { finishUpload, startUpload, updateUpload, runBackgroundUpload, requestUploadNotifications } from '@/services/uploadManager';
 import {
   sendBrowserPushNotification,
   requestNotificationPermission,
@@ -450,7 +450,7 @@ const CreateReelPage: React.FC = () => {
     setTrimTrack(null);
   };
 
-  // Upload and Share
+  // Upload and Share (Background resilient upload)
   const handlePublish = async () => {
     if (!user) {
       toast.error('Pehle login karein');
@@ -461,113 +461,114 @@ const CreateReelPage: React.FC = () => {
       return;
     }
 
+    if (activeMode === 'video' && !videoTitle.trim()) {
+      toast.error('Video ka title likhein');
+      return;
+    }
+
+    // Proactively request browser push notifications on user tap
+    void requestUploadNotifications();
+
     setUploading(true);
     setUploadPercent(0);
 
-    const uploadId = startUpload(
-      activeMode,
-      `${activeMode.toUpperCase()} upload`,
-      mediaPreview || undefined
-    );
+    const modeLabel = activeMode.toUpperCase();
+    const currentMode = activeMode;
+    const currentFile = mediaFile;
+    const currentCoverBlob = coverBlob;
+    const currentCaption = caption;
+    const currentTitle = videoTitle;
+    const currentDesc = videoDescription;
+    const currentVis = videoVisibility;
+    const currentDur = videoDuration;
+    const currentTrack = track;
+    const currentStartMs = startMs;
+    const currentMute = muteOriginal;
+    const currentUserId = user.id;
 
-    try {
-      const musicPayload: ReelMusic | null = track
-        ? {
-            track_id: track.id,
-            title: track.title,
-            artist: track.artist,
-            artwork_url: track.artwork,
-            preview_url: track.previewUrl,
-            start_ms: startMs,
-            duration_ms: track.durationMs,
-            mute_original: muteOriginal,
-          }
-        : null;
-
-      if (activeMode === 'reel') {
-        const videoUrl = await uploadMediaWithProgress('reels', mediaFile, user.id, (p) => {
-          setUploadPercent(p);
-          updateUpload(uploadId, p);
-        });
-
-        let coverUrl: string | null = null;
-        if (coverBlob) {
-          try {
-            const coverFile = new File([coverBlob], `cover_${Date.now()}.jpg`, { type: 'image/jpeg' });
-            coverUrl = await uploadImage('posts', coverFile, user.id);
-          } catch {
-            coverUrl = null;
-          }
+    const musicPayload: ReelMusic | null = currentTrack
+      ? {
+          track_id: currentTrack.id,
+          title: currentTrack.title,
+          artist: currentTrack.artist,
+          artwork_url: currentTrack.artwork,
+          preview_url: currentTrack.previewUrl,
+          start_ms: currentStartMs,
+          duration_ms: currentTrack.durationMs,
+          mute_original: currentMute,
         }
+      : null;
 
-        await createReel(user.id, videoUrl, caption.trim() || '', coverUrl || undefined, musicPayload);
-        finishUpload(uploadId);
-        toast.success('Reel share ho gayi! 🎬✨');
-        void sendBrowserPushNotification('Pixelgram', 'Aapka Reel successfully share ho gaya! 🎬');
-        navigate('/reels');
-      } else if (activeMode === 'story') {
-        const mediaUrl = await uploadMediaWithProgress('stories', mediaFile, user.id, (p) => {
-          setUploadPercent(p);
-          updateUpload(uploadId, p);
-        });
-        await createStory(mediaUrl, caption.trim() || null, musicPayload);
-        finishUpload(uploadId);
-        toast.success('Story share ho gayi! 🌟✨');
-        void sendBrowserPushNotification('Pixelgram', 'Aapki Story successfully add ho gayi! 🌟');
-        navigate('/stories');
-      } else if (activeMode === 'post') {
-        const mediaUrl = await uploadMediaWithProgress('posts', mediaFile, user.id, (p) => {
-          setUploadPercent(p);
-          updateUpload(uploadId, p);
-        });
-        await createPost(mediaUrl, caption.trim() || null, musicPayload);
-        finishUpload(uploadId);
-        toast.success('Post share ho gaya! 📷✨');
-        void sendBrowserPushNotification('Pixelgram', 'Aapka Post successfully share ho gaya! 📷');
-        navigate('/stories');
-      } else if (activeMode === 'video') {
-        if (!videoTitle.trim()) {
-          toast.error('Video ka title likhein');
-          setUploading(false);
-          return;
-        }
+    runBackgroundUpload({
+      kind: currentMode,
+      label: `${modeLabel} Upload`,
+      thumbnailUrl: coverPreview || mediaPreview || undefined,
+      task: async (updateProgress) => {
+        if (currentMode === 'reel') {
+          const videoUrl = await uploadMediaWithProgress('reels', currentFile, currentUserId, (p) => {
+            setUploadPercent(p);
+            updateProgress(p);
+          });
 
-        const videoUrl = await uploadVideoFile(mediaFile, user.id, (p) => {
-          setUploadPercent(p);
-          updateUpload(uploadId, p);
-        });
-
-        let thumbUrl: string | null = null;
-        if (coverBlob) {
-          try {
-            thumbUrl = await uploadVideoThumbnail(coverBlob, user.id);
-          } catch {
-            thumbUrl = null;
+          let coverUrl: string | null = null;
+          if (currentCoverBlob) {
+            try {
+              const coverFile = new File([currentCoverBlob], `cover_${Date.now()}.jpg`, { type: 'image/jpeg' });
+              coverUrl = await uploadImage('posts', coverFile, currentUserId);
+            } catch {
+              coverUrl = null;
+            }
           }
+
+          await createReel(currentUserId, videoUrl, currentCaption.trim() || '', coverUrl || undefined, musicPayload);
+        } else if (currentMode === 'story') {
+          const mediaUrl = await uploadMediaWithProgress('stories', currentFile, currentUserId, (p) => {
+            setUploadPercent(p);
+            updateProgress(p);
+          });
+          await createStory(mediaUrl, currentCaption.trim() || null, musicPayload);
+        } else if (currentMode === 'post') {
+          const mediaUrl = await uploadMediaWithProgress('posts', currentFile, currentUserId, (p) => {
+            setUploadPercent(p);
+            updateProgress(p);
+          });
+          await createPost(mediaUrl, currentCaption.trim() || null, musicPayload);
+        } else if (currentMode === 'video') {
+          const videoUrl = await uploadVideoFile(currentFile, currentUserId, (p) => {
+            setUploadPercent(p);
+            updateProgress(p);
+          });
+
+          let thumbUrl: string | null = null;
+          if (currentCoverBlob) {
+            try {
+              thumbUrl = await uploadVideoThumbnail(currentCoverBlob, currentUserId);
+            } catch {
+              thumbUrl = null;
+            }
+          }
+
+          await createVideo({
+            userId: currentUserId,
+            title: currentTitle.trim(),
+            description: currentDesc.trim() || undefined,
+            videoUrl,
+            thumbnailUrl: thumbUrl,
+            durationSec: currentDur ? Math.round(currentDur) : null,
+            visibility: currentVis,
+          });
         }
-
-        await createVideo({
-          userId: user.id,
-          title: videoTitle.trim(),
-          description: videoDescription.trim() || undefined,
-          videoUrl,
-          thumbnailUrl: thumbUrl,
-          durationSec: videoDuration ? Math.round(videoDuration) : null,
-          visibility: videoVisibility,
-        });
-
-        finishUpload(uploadId);
-        toast.success('Video upload ho gaya! 🎥✨');
-        void sendBrowserPushNotification('Pixelgram', 'Aapka Video successfully upload ho gaya! 🎥');
-        navigate('/videos');
-      }
-    } catch (err) {
-      console.error('Publish failed:', err);
-      finishUpload(uploadId, 'Upload failed');
-      toast.error('Upload fail ho gaya. Kripya dobara try karein.');
-    } finally {
-      setUploading(false);
-    }
+      },
+      onSuccess: () => {
+        toast.success(`${modeLabel} successfully upload ho gaya! 🎉`);
+        setUploading(false);
+        navigate(currentMode === 'video' ? '/videos' : currentMode === 'reel' ? '/reels' : '/stories');
+      },
+      onError: (err) => {
+        toast.error('Upload fail ho gaya. Kripya dobara try karein.');
+        setUploading(false);
+      },
+    });
   };
 
   return (
@@ -1015,8 +1016,15 @@ const CreateReelPage: React.FC = () => {
           <div className="sticky top-0 z-20 flex items-center justify-between p-4 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800">
             <button
               type="button"
-              onClick={() => setStep('edit')}
-              className="w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center text-white"
+              onClick={() => {
+                if (uploading) {
+                  toast.info('Upload background me jari hai 🚀 (Neeche progress bar dekhein)');
+                  navigate(activeMode === 'video' ? '/videos' : activeMode === 'reel' ? '/reels' : '/stories');
+                } else {
+                  setStep('edit');
+                }
+              }}
+              className="w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center text-white active:scale-90 transition-transform"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -1129,6 +1137,72 @@ const CreateReelPage: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* Live Background Upload Progress Overlay */}
+          {uploading && (
+            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-5 animate-in fade-in">
+              <div className="relative w-28 h-28 flex items-center justify-center">
+                {/* Outer SVG Circular Progress */}
+                <svg className="w-28 h-28 -rotate-90">
+                  <circle cx="56" cy="56" r="48" stroke="rgba(255,255,255,0.15)" strokeWidth="6" fill="none" />
+                  <circle
+                    cx="56"
+                    cy="56"
+                    r="48"
+                    stroke="url(#uploadGradient)"
+                    strokeWidth="6"
+                    fill="none"
+                    strokeDasharray={2 * Math.PI * 48}
+                    strokeDashoffset={2 * Math.PI * 48 * (1 - uploadPercent / 100)}
+                    className="transition-all duration-200 ease-out"
+                  />
+                  <defs>
+                    <linearGradient id="uploadGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="hsl(var(--p1))" />
+                      <stop offset="100%" stopColor="hsl(var(--p2))" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div className="absolute flex flex-col items-center">
+                  <span className="text-2xl font-black text-white tabular-nums tracking-tight">
+                    {uploadPercent}%
+                  </span>
+                  <span className="text-[10px] text-primary font-bold uppercase tracking-wider">
+                    {uploadPercent === 100 ? 'Saving' : 'Processing'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 max-w-xs">
+                <h3 className="text-base font-bold text-white">
+                  {uploadPercent === 100 ? 'Bas kuch pal… 🎉' : `${activeMode.toUpperCase()} Upload ho raha hai`}
+                </h3>
+                <p className="text-xs text-white/70 leading-relaxed">
+                  {uploadPercent === 100
+                    ? 'Aapka upload database me publish ho raha hai…'
+                    : 'Aap back ja kar website browse kar sakte hain, upload background me chalta rahega!'}
+                </p>
+              </div>
+
+              <div className="pt-2 w-full max-w-xs space-y-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    toast.info('Upload background me jari hai 🚀 (Neeche progress bar dekhein)');
+                    navigate(activeMode === 'video' ? '/videos' : activeMode === 'reel' ? '/reels' : '/stories');
+                  }}
+                  className="w-full h-11 rounded-xl border-white/20 bg-white/10 text-white font-semibold text-xs hover:bg-white/20 active:scale-95"
+                >
+                  Website browse karein (Background me chalne dein)
+                </Button>
+
+                <p className="text-[11px] text-amber-400/90 font-medium">
+                  ⚠️ Dhyan rahe: Website ya tab poori tarah band na karein.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Bottom Share Button */}
           <div className="p-4 bg-zinc-950 border-t border-zinc-800 max-w-lg mx-auto w-full">
