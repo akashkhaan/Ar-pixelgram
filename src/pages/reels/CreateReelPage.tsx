@@ -6,29 +6,18 @@ import {
   Loader2,
   ArrowLeft,
   Music2,
-  VolumeX,
-  Volume2,
-  Pencil,
   Image as ImageIcon,
   Play,
   Pause,
-  Check,
   ChevronRight,
   Sparkles,
   Camera,
   RotateCw,
-  Film,
   Scissors,
-  SlidersHorizontal,
-  Flame,
-  Zap,
-  Sun,
-  Video as VideoIcon,
   ImagePlus,
-  Plus,
   Clock,
   Send,
-  UploadCloud,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { createReel, createPost, createStory, uploadImage, type ReelMusic } from '@/services/api';
@@ -54,20 +43,19 @@ interface CameraEffect {
   id: string;
   name: string;
   filter: string;
-  iconBg: string;
   badge: string;
+  gradient: string;
 }
 
 const EFFECTS: CameraEffect[] = [
-  { id: 'none', name: 'Normal', filter: 'none', iconBg: 'bg-zinc-800', badge: '⚪' },
-  { id: 'film_burn', name: 'Film burn II', filter: 'contrast(125%) saturate(145%) sepia(30%) hue-rotate(-10deg)', iconBg: 'bg-amber-600', badge: '🔥' },
-  { id: 'lovit', name: 'Lovit ✨', filter: 'brightness(110%) contrast(108%) saturate(140%)', iconBg: 'bg-pink-600', badge: '💖' },
-  { id: 'bw_glitch', name: 'B&W GLITCH', filter: 'grayscale(100%) contrast(170%) brightness(105%)', iconBg: 'bg-black border border-white', badge: '🏁' },
-  { id: 'police_light', name: 'Police Light', filter: 'hue-rotate(185deg) saturate(220%)', iconBg: 'bg-blue-600', badge: '🚨' },
-  { id: 'golden_hour', name: 'Golden Hour', filter: 'sepia(45%) saturate(175%) brightness(108%) contrast(110%)', iconBg: 'bg-yellow-500', badge: '🌅' },
-  { id: 'vhs', name: 'VHS 90s', filter: 'contrast(120%) saturate(85%) sepia(20%)', iconBg: 'bg-purple-600', badge: '📼' },
-  { id: 'cyberpunk', name: 'Cyberpunk', filter: 'hue-rotate(245deg) saturate(230%) contrast(120%)', iconBg: 'bg-cyan-600', badge: '⚡' },
-  { id: 'noir', name: 'Noir 📽️', filter: 'grayscale(100%) contrast(210%) brightness(88%)', iconBg: 'bg-zinc-900 border border-zinc-500', badge: '🎬' },
+  { id: 'none', name: 'Normal', filter: 'none', badge: '⚪', gradient: 'from-zinc-700 to-zinc-900' },
+  { id: 'film_burn', name: 'Film Burn', filter: 'contrast(125%) saturate(145%) sepia(30%) hue-rotate(-10deg)', badge: '🔥', gradient: 'from-amber-500 to-red-600' },
+  { id: 'lovit', name: 'Lovit Glow', filter: 'brightness(112%) contrast(108%) saturate(140%)', badge: '💖', gradient: 'from-pink-500 to-rose-600' },
+  { id: 'bw_glitch', name: 'Noir B&W', filter: 'grayscale(100%) contrast(180%) brightness(105%)', badge: '🏁', gradient: 'from-zinc-400 to-black' },
+  { id: 'golden_hour', name: 'Golden Hour', filter: 'sepia(40%) saturate(170%) brightness(108%) contrast(110%)', badge: '🌅', gradient: 'from-yellow-400 to-amber-600' },
+  { id: 'vhs', name: '90s VHS', filter: 'contrast(120%) saturate(85%) sepia(25%)', badge: '📼', gradient: 'from-purple-500 to-indigo-700' },
+  { id: 'cyberpunk', name: 'Cyberpunk', filter: 'hue-rotate(245deg) saturate(230%) contrast(120%)', badge: '⚡', gradient: 'from-cyan-400 to-blue-600' },
+  { id: 'vintage_sepia', name: 'Sepia Vintage', filter: 'sepia(80%) contrast(115%) brightness(95%)', badge: '📜', gradient: 'from-amber-700 to-amber-950' },
 ];
 
 const CreateReelPage: React.FC = () => {
@@ -89,11 +77,21 @@ const CreateReelPage: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [frontCamera, setFrontCamera] = useState(true);
+
+  // Effects & Filters Shelf toggle
+  const [showEffectsShelf, setShowEffectsShelf] = useState(false);
   const [selectedEffect, setSelectedEffect] = useState<CameraEffect>(EFFECTS[0]);
+
+  // Recording
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
   const [maxRecordDuration, setMaxRecordDuration] = useState(30); // 15, 30, 60s
   const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isHoldingShutterRef = useRef(false);
+
+  // Countdown timer (0, 3, 10s)
+  const [countdownTimer, setCountdownTimer] = useState(0);
+  const [countdownActive, setCountdownActive] = useState<number | null>(null);
 
   // Gallery inputs
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -213,11 +211,13 @@ const CreateReelPage: React.FC = () => {
     try {
       const options = mimeType ? { mimeType } : undefined;
       const recorder = new MediaRecorder(streamRef.current, options);
+
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
           recordedChunksRef.current.push(e.data);
         }
       };
+
       recorder.onstop = () => {
         const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/mp4' });
         const file = new File([blob], `recording_${Date.now()}.mp4`, { type: blob.type || 'video/mp4' });
@@ -239,7 +239,7 @@ const CreateReelPage: React.FC = () => {
       }, 100);
     } catch (err) {
       console.error('Failed to start MediaRecorder:', err);
-      toast.error('Recording start nahi ho paayi. Gallery se video select karein.');
+      toast.error('Recording shuru nahi ho paayi. Gallery se select karein.');
     }
   };
 
@@ -259,6 +259,59 @@ const CreateReelPage: React.FC = () => {
     setFrontCamera((prev) => !prev);
   };
 
+  // Shutter press / hold logic
+  const handlePointerDown = () => {
+    isHoldingShutterRef.current = true;
+    if (countdownTimer > 0) {
+      let count = countdownTimer;
+      setCountdownActive(count);
+      const timer = setInterval(() => {
+        count -= 1;
+        if (count > 0) {
+          setCountdownActive(count);
+        } else {
+          clearInterval(timer);
+          setCountdownActive(null);
+          startRecording();
+        }
+      }, 1000);
+    } else {
+      startRecording();
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (isHoldingShutterRef.current) {
+      isHoldingShutterRef.current = false;
+      if (isRecording) {
+        stopRecording();
+      }
+    }
+  };
+
+  const handleShutterClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else if (!isHoldingShutterRef.current) {
+      if (countdownTimer > 0) {
+        let count = countdownTimer;
+        setCountdownActive(count);
+        const timer = setInterval(() => {
+          count -= 1;
+          if (count > 0) {
+            setCountdownActive(count);
+          } else {
+            clearInterval(timer);
+            setCountdownActive(null);
+            startRecording();
+          }
+        }, 1000);
+      } else {
+        startRecording();
+      }
+    }
+  };
+
   // Media loaded from Camera or Gallery
   const handleMediaLoaded = (file: File, type: 'image' | 'video') => {
     if (mediaPreview) URL.revokeObjectURL(mediaPreview);
@@ -268,7 +321,6 @@ const CreateReelPage: React.FC = () => {
     setMediaPreview(url);
 
     if (type === 'video') {
-      // Create temporary video element to read duration
       const tempV = document.createElement('video');
       tempV.src = url;
       tempV.onloadedmetadata = () => {
@@ -276,7 +328,6 @@ const CreateReelPage: React.FC = () => {
         setVideoDuration(d);
         setTrimStart(0);
         setTrimEnd(d);
-        // Default cover at 0.5s
         captureCoverFromTime(tempV, Math.min(0.5, d));
       };
       setStep('edit');
@@ -323,6 +374,7 @@ const CreateReelPage: React.FC = () => {
         if (isPlayingPreview) void v.play().catch(() => {});
       }
     };
+
     v.addEventListener('timeupdate', handleTimeUpdate);
     return () => v.removeEventListener('timeupdate', handleTimeUpdate);
   }, [trimStart, trimEnd, isPlayingPreview, mediaType]);
@@ -433,13 +485,11 @@ const CreateReelPage: React.FC = () => {
         : null;
 
       if (activeMode === 'reel') {
-        // Upload video file
         const videoUrl = await uploadMediaWithProgress('reels', mediaFile, user.id, (p) => {
           setUploadPercent(p);
           updateUpload(uploadId, p);
         });
 
-        // Upload cover if captured
         let coverUrl: string | null = null;
         if (coverBlob) {
           try {
@@ -481,6 +531,7 @@ const CreateReelPage: React.FC = () => {
           setUploading(false);
           return;
         }
+
         const videoUrl = await uploadVideoFile(mediaFile, user.id, (p) => {
           setUploadPercent(p);
           updateUpload(uploadId, p);
@@ -522,25 +573,26 @@ const CreateReelPage: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-black text-white select-none overflow-hidden flex flex-col z-[100]">
       {/* ========================================================================= */}
-      {/* 1. CAMERA VIEW (Shutter, Effects Wheel, Gallery, Mode Switcher) */}
+      {/* 1. CAMERA VIEW (Authentic Instagram Reels Camera Layout) */}
       {/* ========================================================================= */}
       {step === 'camera' && (
-        <div className="relative w-full h-full flex flex-col justify-between">
-          {/* Viewfinder Video */}
-          <div className="absolute inset-0 overflow-hidden bg-zinc-950 flex items-center justify-center">
+        <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-black">
+          {/* Live Viewfinder */}
+          <div className="absolute inset-0 bg-zinc-950 flex items-center justify-center overflow-hidden">
             {hasCameraPermission === false ? (
-              <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 max-w-xs">
+              <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 max-w-xs z-10">
                 <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-white/80">
                   <Camera className="w-8 h-8" />
                 </div>
-                <p className="text-sm font-semibold text-white">Camera access nahi mila ya available nahi hai</p>
+                <p className="text-sm font-semibold text-white">Camera access nahi mila ya band hai</p>
                 <p className="text-xs text-white/60">Aap device gallery se video/photo select karke direct upload kar sakte hain.</p>
                 <button
                   type="button"
                   onClick={handleGalleryClick}
-                  className="px-5 py-2.5 rounded-full bg-primary text-white text-xs font-bold shadow-lg active:scale-95 transition-all"
+                  className="px-5 py-2.5 rounded-full bg-primary text-white text-xs font-bold shadow-lg active:scale-95 transition-all flex items-center gap-2"
                 >
-                  Gallery se select karein 📁
+                  <ImageIcon className="w-4 h-4" />
+                  <span>Gallery se select karein</span>
                 </button>
               </div>
             ) : (
@@ -556,58 +608,98 @@ const CreateReelPage: React.FC = () => {
                 }}
               />
             )}
+
+            {/* Red recording pulse border */}
+            {isRecording && (
+              <div className="absolute inset-0 border-4 border-red-500 pointer-events-none animate-pulse z-10" />
+            )}
+
+            {/* Countdown overlay */}
+            {countdownActive !== null && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-40">
+                <span className="text-8xl font-black text-white animate-ping">
+                  {countdownActive}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* Top Bar: Close, Sound/Audio pill, Duration, Flip */}
-          <div className="relative z-20 flex items-center justify-between p-4 pt-6 bg-gradient-to-b from-black/80 via-black/30 to-transparent">
+          {/* TOP BAR: Close, Audio pill, Duration toggle */}
+          <div className="relative z-30 flex items-center justify-between p-4 pt-5 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+            {/* Close / Back button */}
             <button
+              type="button"
               onClick={goBack}
-              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 active:scale-90"
+              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-transform"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {/* Add Audio Pill */}
+            {/* Instagram-style Add Audio Pill */}
             <button
+              type="button"
               onClick={() => setPickerOpen(true)}
-              className="px-4 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center gap-2 text-xs font-semibold hover:bg-black/70 active:scale-95"
+              className="px-4 py-2 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center gap-2 text-xs font-semibold text-white shadow-md active:scale-95 transition-transform"
             >
               <Music2 className="w-3.5 h-3.5 text-primary" />
-              <span className="truncate max-w-[130px]">
+              <span className="truncate max-w-[130px] font-medium">
                 {track ? track.title : 'Add audio'}
               </span>
             </button>
 
-            {/* Max Duration Toggle (15s / 30s / 60s) */}
+            {/* Duration pill (15s, 30s, 60s) */}
             <button
+              type="button"
               onClick={() => setMaxRecordDuration((prev) => (prev === 15 ? 30 : prev === 30 ? 60 : 15))}
-              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-xs font-bold text-white hover:bg-black/60 active:scale-90"
-              title="Change duration limit"
+              className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/10 flex items-center justify-center text-xs font-bold text-white hover:bg-black/70 active:scale-90 transition-transform shadow-md"
+              title="Duration limit"
             >
               {maxRecordDuration}s
             </button>
           </div>
 
-          {/* Left Side Floating Tools */}
-          <div className="relative z-20 flex flex-col gap-4 pl-4 pointer-events-auto">
+          {/* LEFT SIDE TOOLBAR (Authentic Instagram tools drawer) */}
+          <div className="relative z-30 flex flex-col gap-3.5 pl-4 w-12 pointer-events-auto">
+            {/* Effects Toggle button */}
             <button
-              onClick={toggleCameraFlip}
-              className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/70 active:scale-95"
-              title="Flip camera"
+              type="button"
+              onClick={() => setShowEffectsShelf((prev) => !prev)}
+              className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all ${
+                showEffectsShelf || selectedEffect.id !== 'none'
+                  ? 'bg-primary text-white shadow-lg ring-2 ring-white/40 scale-105'
+                  : 'bg-black/50 text-white hover:bg-black/70 active:scale-90 border border-white/10'
+              }`}
+              title="Effects / Filters"
             >
-              <RotateCw className="w-5 h-5" />
+              <Sparkles className="w-5 h-5" />
+            </button>
+
+            {/* Countdown timer toggle (0s, 3s, 10s) */}
+            <button
+              type="button"
+              onClick={() => setCountdownTimer((prev) => (prev === 0 ? 3 : prev === 3 ? 10 : 0))}
+              className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center text-xs font-bold transition-all ${
+                countdownTimer > 0
+                  ? 'bg-primary text-white ring-2 ring-white/40 shadow-lg scale-105'
+                  : 'bg-black/50 text-white hover:bg-black/70 active:scale-90 border border-white/10'
+              }`}
+              title="Countdown Timer"
+            >
+              {countdownTimer > 0 ? `${countdownTimer}s` : <Clock className="w-5 h-5" />}
             </button>
           </div>
 
-          {/* Bottom Area: Active Effect Badge, Effects Carousel & Shutter, Mode Tabs */}
-          <div className="relative z-20 flex flex-col items-center pb-6 bg-gradient-to-t from-black/95 via-black/60 to-transparent pt-6 space-y-4">
-            {/* Selected Effect Badge Pill */}
+          {/* BOTTOM CONTROLS & INSTAGRAM SHUTTER DOCK */}
+          <div className="relative z-30 flex flex-col items-center pb-5 pt-3 bg-gradient-to-t from-black/95 via-black/70 to-transparent space-y-4">
+            
+            {/* Selected Effect Badge Pill (if an effect is chosen) */}
             {selectedEffect.id !== 'none' && (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-xs font-bold text-white shadow animate-in fade-in">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-xs font-semibold text-white shadow-md animate-in fade-in">
                 <span>{selectedEffect.badge}</span>
                 <span>{selectedEffect.name}</span>
                 <button
+                  type="button"
                   onClick={() => setSelectedEffect(EFFECTS[0])}
                   className="ml-1 text-white/60 hover:text-white"
                 >
@@ -616,96 +708,146 @@ const CreateReelPage: React.FC = () => {
               </div>
             )}
 
-            {/* Shutter & Effects Wheel Container */}
-            <div className="w-full flex items-center justify-between px-6">
-              {/* Bottom-left: Gallery picker icon */}
+            {/* HORIZONTAL EFFECTS WHEEL / SHELF (Opens when ✨ is tapped) */}
+            {showEffectsShelf && (
+              <div className="w-full flex items-center justify-center px-4 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex items-center gap-3 overflow-x-auto px-2 py-1 no-scrollbar max-w-full">
+                  {EFFECTS.map((eff) => {
+                    const isSelected = selectedEffect.id === eff.id;
+                    return (
+                      <button
+                        key={eff.id}
+                        type="button"
+                        onClick={() => setSelectedEffect(eff)}
+                        className="flex flex-col items-center gap-1 shrink-0 group transition-transform active:scale-95"
+                      >
+                        <div
+                          className={`w-13 h-13 rounded-full flex items-center justify-center bg-gradient-to-br transition-all ${
+                            isSelected
+                              ? 'ring-3 ring-primary shadow-lg shadow-primary/40 scale-105'
+                              : 'ring-1 ring-white/30 opacity-70 group-hover:opacity-100'
+                          } ${eff.gradient}`}
+                          style={{ width: '48px', height: '48px' }}
+                        >
+                          <span className="text-lg">{eff.badge}</span>
+                        </div>
+                        <span
+                          className={`text-[10px] max-w-[55px] truncate text-center ${
+                            isSelected ? 'text-primary font-bold' : 'text-white/70'
+                          }`}
+                        >
+                          {eff.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* REAL INSTAGRAM SHUTTER ROW: Gallery on Left, Shutter in DEAD CENTER, Flip on Right */}
+            <div className="w-full max-w-sm px-6 flex items-center justify-between">
+              {/* 1. Gallery Button (Bottom Left) */}
               <button
                 type="button"
                 onClick={handleGalleryClick}
-                className="w-12 h-12 rounded-2xl border-2 border-white/80 overflow-hidden bg-zinc-800 flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg group"
+                className="w-12 h-12 rounded-2xl border-2 border-white/80 bg-zinc-900/80 backdrop-blur-md overflow-hidden flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg group"
                 title="Open Gallery"
               >
-                <ImageIcon className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                <ImageIcon className="w-6 h-6 group-hover:scale-110 transition-transform text-white/90" />
               </button>
 
-              {/* Center: Instagram-Style Shutter Button with Effects Wheel */}
-              <div className="flex items-center gap-3 overflow-x-auto max-w-[220px] no-scrollbar py-1">
-                {EFFECTS.map((eff) => {
-                  const isSelected = selectedEffect.id === eff.id;
+              {/* 2. Instagram Shutter Button (DEAD CENTER, 80px ring + inner red recording dot) */}
+              <div className="relative flex items-center justify-center">
+                {/* SVG Circular Progress Bar while recording */}
+                {isRecording && (
+                  <svg className="absolute -inset-2 w-[88px] h-[88px] -rotate-90 pointer-events-none">
+                    <circle
+                      cx="44"
+                      cy="44"
+                      r="39"
+                      stroke="#ef4444"
+                      strokeWidth="4"
+                      fill="none"
+                      strokeDasharray={2 * Math.PI * 39}
+                      strokeDashoffset={2 * Math.PI * 39 * (1 - recordDuration / maxRecordDuration)}
+                      className="transition-all duration-100 ease-linear"
+                    />
+                  </svg>
+                )}
+
+                <button
+                  type="button"
+                  onPointerDown={handlePointerDown}
+                  onPointerUp={handlePointerUp}
+                  onClick={handleShutterClick}
+                  className={`relative w-18 h-18 rounded-full border-4 border-white flex items-center justify-center transition-transform active:scale-95 shadow-2xl ${
+                    isRecording ? 'scale-110 ring-2 ring-red-500/50' : ''
+                  }`}
+                  style={{
+                    width: '74px',
+                    height: '74px',
+                    background: isRecording ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                  }}
+                >
+                  {/* Center Dot */}
+                  <div
+                    className={`transition-all duration-200 ${
+                      isRecording
+                        ? 'w-7 h-7 bg-red-600 rounded-md scale-95 shadow-md'
+                        : 'w-14 h-14 bg-red-500 rounded-full'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* 3. Flip Camera Button (Bottom Right) */}
+              <button
+                type="button"
+                onClick={toggleCameraFlip}
+                className="w-12 h-12 rounded-full border border-white/20 bg-black/50 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg hover:bg-black/70"
+                title="Flip Camera"
+              >
+                <RotateCw className="w-5 h-5 text-white/90" />
+              </button>
+            </div>
+
+            {/* Recording duration timer indicator */}
+            {isRecording ? (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                <span>REC {recordDuration.toFixed(1)}s / {maxRecordDuration}s</span>
+              </div>
+            ) : (
+              <p className="text-[11px] text-white/60 tracking-tight">
+                Hold karke ya tap karke video banayein
+              </p>
+            )}
+
+            {/* BOTTOM 4 MODES CAROUSEL: POST | STORY | REELS | VIDEO */}
+            <div className="w-full flex items-center justify-center pt-1">
+              <div className="flex items-center gap-7 text-xs font-bold tracking-widest uppercase">
+                {(['post', 'story', 'reel', 'video'] as Mode[]).map((m) => {
+                  const isActive = activeMode === m;
                   return (
                     <button
-                      key={eff.id}
+                      key={m}
                       type="button"
-                      onClick={() => setSelectedEffect(eff)}
-                      className={`relative shrink-0 rounded-full transition-all duration-200 flex items-center justify-center ${
-                        isSelected
-                          ? 'w-18 h-18 ring-4 ring-white shadow-2xl scale-105'
-                          : 'w-12 h-12 opacity-70 hover:opacity-100 ring-1 ring-white/30'
-                      } ${eff.iconBg}`}
+                      onClick={() => setActiveMode(m)}
+                      className={`relative py-1.5 transition-all duration-200 flex flex-col items-center ${
+                        isActive
+                          ? 'text-white font-extrabold scale-110'
+                          : 'text-white/40 hover:text-white/70'
+                      }`}
                     >
-                      {/* Center Shutter Ring for selected effect */}
-                      {isSelected ? (
-                        <div
-                          onPointerDown={startRecording}
-                          onPointerUp={stopRecording}
-                          onClick={() => {
-                            if (isRecording) stopRecording();
-                            else startRecording();
-                          }}
-                          className="w-14 h-14 rounded-full bg-white flex items-center justify-center cursor-pointer active:scale-90 transition-transform"
-                        >
-                          <div
-                            className={`w-6 h-6 rounded-full transition-all ${
-                              isRecording ? 'bg-red-600 rounded-sm scale-90' : 'bg-red-500'
-                            }`}
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-xs">{eff.badge}</span>
+                      <span>{m === 'reel' ? 'REELS' : m}</span>
+                      {isActive && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-white mt-1 shadow-sm" />
                       )}
                     </button>
                   );
                 })}
               </div>
-
-              {/* Bottom-right: Flip Camera icon */}
-              <button
-                type="button"
-                onClick={toggleCameraFlip}
-                className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg"
-                title="Flip Camera"
-              >
-                <RotateCw className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Recording Timer Indicator */}
-            {isRecording && (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/90 text-white text-xs font-bold animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                <span>REC {recordDuration.toFixed(1)}s / {maxRecordDuration}s</span>
-              </div>
-            )}
-
-            {/* Bottom 4 Modes Switcher: POST | STORY | REEL | VIDEO */}
-            <div className="flex items-center justify-center gap-6 pt-2 text-xs font-bold tracking-wider">
-              {(['post', 'story', 'reel', 'video'] as Mode[]).map((m) => {
-                const isActive = activeMode === m;
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setActiveMode(m)}
-                    className={`uppercase transition-all duration-200 py-1 px-2.5 rounded-full ${
-                      isActive
-                        ? 'text-white bg-white/20 shadow-sm font-extrabold scale-110'
-                        : 'text-white/50 hover:text-white/80'
-                    }`}
-                  >
-                    {m}
-                  </button>
-                );
-              })}
             </div>
           </div>
 
@@ -728,25 +870,28 @@ const CreateReelPage: React.FC = () => {
           {/* Top Bar: Back, Add Music, Continue/Next */}
           <div className="relative z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
             <button
+              type="button"
               onClick={() => setStep('camera')}
-              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white"
+              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-transform"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
 
             {/* Music Button */}
             <button
+              type="button"
               onClick={() => setPickerOpen(true)}
-              className="px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center gap-1.5 text-xs font-bold text-white hover:bg-black/80"
+              className="px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center gap-1.5 text-xs font-bold text-white hover:bg-black/80 active:scale-95 transition-transform"
             >
               <Music2 className="w-3.5 h-3.5 text-primary" />
-              <span>{track ? track.title : 'Add Music'}</span>
+              <span className="truncate max-w-[140px]">{track ? track.title : 'Add Music'}</span>
             </button>
 
             {/* Next / Continue */}
             <button
+              type="button"
               onClick={() => setStep('details')}
-              className="px-4 py-1.5 rounded-full bg-primary text-white text-xs font-bold flex items-center gap-1 shadow-lg active:scale-95"
+              className="px-5 py-2 rounded-full bg-primary text-white text-xs font-bold flex items-center gap-1 shadow-lg active:scale-95 transition-transform"
             >
               <span>Next</span>
               <ChevronRight className="w-4 h-4" />
@@ -785,10 +930,10 @@ const CreateReelPage: React.FC = () => {
             ) : null}
           </div>
 
-          {/* Video Trimmer & Controls ("video ko edit karke chhota kar sakein") */}
+          {/* Video Trimmer & Controls */}
           <div className="p-4 bg-zinc-950 border-t border-zinc-800 space-y-3">
             {mediaType === 'video' && videoDuration > 0 && (
-              <div className="space-y-1.5 bg-zinc-900 p-3 rounded-2xl border border-zinc-800">
+              <div className="space-y-1.5 bg-zinc-900 p-3.5 rounded-2xl border border-zinc-800">
                 <div className="flex items-center justify-between text-xs font-semibold text-zinc-300">
                   <span className="flex items-center gap-1.5">
                     <Scissors className="w-3.5 h-3.5 text-primary" />
@@ -839,16 +984,17 @@ const CreateReelPage: React.FC = () => {
 
             {/* Music Preview Pill */}
             {track && (
-              <div className="flex items-center justify-between bg-zinc-900 px-3 py-2 rounded-xl border border-zinc-800 text-xs">
-                <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center justify-between bg-zinc-900 px-3.5 py-2.5 rounded-xl border border-zinc-800 text-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
                   {track.artwork ? (
-                    <img src={track.artwork} alt="" className="w-7 h-7 rounded-lg object-cover" />
+                    <img src={track.artwork} alt="" className="w-8 h-8 rounded-lg object-cover" />
                   ) : (
                     <Music2 className="w-4 h-4 text-primary" />
                   )}
                   <span className="font-semibold truncate max-w-[150px]">{track.title}</span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setTrimTrack(track)}
                   className="text-primary font-bold hover:underline"
                 >
@@ -868,6 +1014,7 @@ const CreateReelPage: React.FC = () => {
           {/* Header */}
           <div className="sticky top-0 z-20 flex items-center justify-between p-4 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800">
             <button
+              type="button"
               onClick={() => setStep('edit')}
               className="w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center text-white"
             >
@@ -893,7 +1040,6 @@ const CreateReelPage: React.FC = () => {
                     className="bg-zinc-900 border-zinc-800 text-white mt-1 h-11 rounded-xl"
                   />
                 </div>
-
                 <div>
                   <label className="text-xs font-bold text-zinc-300">Description</label>
                   <Textarea
@@ -904,7 +1050,6 @@ const CreateReelPage: React.FC = () => {
                     className="bg-zinc-900 border-zinc-800 text-white mt-1 rounded-xl resize-none"
                   />
                 </div>
-
                 <div>
                   <label className="text-xs font-bold text-zinc-300">Visibility</label>
                   <div className="grid grid-cols-2 gap-2 mt-1">
@@ -961,7 +1106,6 @@ const CreateReelPage: React.FC = () => {
                     <span>Upload photo</span>
                   </button>
                 </div>
-
                 <div className="flex items-center gap-3">
                   <div className="w-16 h-24 rounded-xl overflow-hidden bg-black border border-zinc-700 shrink-0 flex items-center justify-center">
                     {coverPreview ? (
@@ -971,11 +1115,10 @@ const CreateReelPage: React.FC = () => {
                     )}
                   </div>
                   <div className="flex-1 text-xs text-zinc-400 space-y-1">
-                    <p className="font-semibold text-zinc-300">Default frame captured</p>
+                    <p className="font-semibold text-zinc-300">Frame captured</p>
                     <p className="text-[11px]">Aap gallery se custom thumbnail photo bhi upload kar sakte hain.</p>
                   </div>
                 </div>
-
                 <input
                   ref={coverInputRef}
                   type="file"
