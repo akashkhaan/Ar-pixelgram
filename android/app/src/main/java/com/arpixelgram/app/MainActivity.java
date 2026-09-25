@@ -58,6 +58,7 @@ public class MainActivity extends BridgeActivity {
     private void flushPendingWebEvents() {
         try {
             WebView webView = getBridge().getWebView();
+        webView.setBackgroundColor(android.graphics.Color.parseColor("#0B0B0F"));
             if (webView == null) return;
             String token = pendingFcmToken;
             if (token != null) {
@@ -158,6 +159,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        androidx.core.splashscreen.SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         instance = this;
         createNotificationChannels();
