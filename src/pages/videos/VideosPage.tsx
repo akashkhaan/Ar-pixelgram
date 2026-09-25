@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
 import { Input } from '@/components/ui/input';
-import { Search, Mic, Loader2, Plus, Lock, Eye, Share2 } from 'lucide-react';
+import { Search, Mic, Loader2, Lock, Eye, Share2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -112,16 +112,7 @@ const VideosPage: React.FC = () => {
               <Mic className={`w-4 h-4 ${listening ? 'text-white' : 'text-muted-foreground'}`} />
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => navigate('/upload-video')}
-            aria-label="Add video"
-            title="Add video"
-            className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-white active:scale-95 transition-transform"
-            style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }}
-          >
-            <Plus className="w-5 h-5" />
-          </button>
+
         </div>
 
         {loading ? (
