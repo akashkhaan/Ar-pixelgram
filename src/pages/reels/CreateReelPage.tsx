@@ -470,9 +470,6 @@ const CreateReelPage: React.FC = () => {
     // Proactively request browser push notifications on user tap
     void requestUploadNotifications();
 
-    setUploading(true);
-    setUploadPercent(0);
-
     const modeLabel = activeMode.toUpperCase();
     const currentMode = activeMode;
     const currentFile = mediaFile;
@@ -521,6 +518,9 @@ const CreateReelPage: React.FC = () => {
       status: 'uploading',
       createdAt: Date.now(),
     });
+
+    toast.success(`${modeLabel} upload shuru ho gaya... (Notification me progress check karein) 🚀`);
+    navigate(currentMode === 'video' ? '/videos' : currentMode === 'reel' ? '/reels' : '/stories');
 
     runBackgroundUpload({
       kind: currentMode,
@@ -590,13 +590,10 @@ const CreateReelPage: React.FC = () => {
         unmarkJobActive(persistentJobId);
         void deletePersistentJob(persistentJobId);
         toast.success(`${modeLabel} successfully upload ho gaya! 🎉`);
-        setUploading(false);
-        navigate(currentMode === 'video' ? '/videos' : currentMode === 'reel' ? '/reels' : '/stories');
       },
       onError: (err) => {
         unmarkJobActive(persistentJobId);
         toast.error('Upload fail ho gaya. Kripya dobara try karein.');
-        setUploading(false);
       },
     });
   };
@@ -1168,71 +1165,7 @@ const CreateReelPage: React.FC = () => {
             )}
           </div>
 
-          {/* Live Background Upload Progress Overlay */}
-          {uploading && (
-            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center space-y-5 animate-in fade-in">
-              <div className="relative w-28 h-28 flex items-center justify-center">
-                {/* Outer SVG Circular Progress */}
-                <svg className="w-28 h-28 -rotate-90">
-                  <circle cx="56" cy="56" r="48" stroke="rgba(255,255,255,0.15)" strokeWidth="6" fill="none" />
-                  <circle
-                    cx="56"
-                    cy="56"
-                    r="48"
-                    stroke="url(#uploadGradient)"
-                    strokeWidth="6"
-                    fill="none"
-                    strokeDasharray={2 * Math.PI * 48}
-                    strokeDashoffset={2 * Math.PI * 48 * (1 - uploadPercent / 100)}
-                    className="transition-all duration-200 ease-out"
-                  />
-                  <defs>
-                    <linearGradient id="uploadGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="hsl(var(--p1))" />
-                      <stop offset="100%" stopColor="hsl(var(--p2))" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="absolute flex flex-col items-center">
-                  <span className="text-2xl font-black text-white tabular-nums tracking-tight">
-                    {uploadPercent}%
-                  </span>
-                  <span className="text-[10px] text-primary font-bold uppercase tracking-wider">
-                    {uploadPercent === 100 ? 'Saving' : 'Processing'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 max-w-xs">
-                <h3 className="text-base font-bold text-white">
-                  {uploadPercent === 100 ? 'Bas kuch pal… 🎉' : `${activeMode.toUpperCase()} Upload ho raha hai`}
-                </h3>
-                <p className="text-xs text-white/70 leading-relaxed">
-                  {uploadPercent === 100
-                    ? 'Aapka upload database me publish ho raha hai…'
-                    : 'Aap back ja kar website browse kar sakte hain, upload background me chalta rahega!'}
-                </p>
-              </div>
-
-              <div className="pt-2 w-full max-w-xs space-y-2.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    toast.info('Upload background me jari hai 🚀 (Neeche progress bar dekhein)');
-                    navigate(activeMode === 'video' ? '/videos' : activeMode === 'reel' ? '/reels' : '/stories');
-                  }}
-                  className="w-full h-11 rounded-xl border-white/20 bg-white/10 text-white font-semibold text-xs hover:bg-white/20 active:scale-95"
-                >
-                  Website browse karein (Background me chalne dein)
-                </Button>
-
-                <p className="text-[11px] text-amber-400/90 font-medium">
-                  ⚠️ Dhyan rahe: Website ya tab poori tarah band na karein.
-                </p>
-              </div>
-            </div>
-          )}
+          
 
           {/* Bottom Share Button */}
           <div className="p-4 bg-zinc-950 border-t border-zinc-800 max-w-lg mx-auto w-full">

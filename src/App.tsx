@@ -17,7 +17,6 @@ import { IncomingGroupCallModal } from "@/components/call/IncomingGroupCallModal
 import GroupCallOverlay from "@/components/call/GroupCallOverlay";
 import { routes } from "./routes";
 import { useVisitTracker } from "@/hooks/useVisitTracker";
-import UploadProgressOverlay from "@/components/common/UploadProgressOverlay";
 
 
 const UploadAutoResumer: React.FC = () => {
@@ -87,7 +86,6 @@ const App: React.FC = () => {
               <IncomingGroupCallModal />
               <CallOverlay />
               <GroupCallOverlay />
-              <UploadProgressOverlay />
             </GroupCallProvider>
           </CallProvider>
         </AuthProvider>

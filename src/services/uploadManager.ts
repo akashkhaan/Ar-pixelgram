@@ -37,12 +37,8 @@ export function hasActiveUploads(): boolean {
 // Global browser tab / window exit guard
 let beforeUnloadAttached = false;
 function beforeUnloadHandler(e: BeforeUnloadEvent) {
-  if (hasActiveUploads()) {
-    const msg = 'Aapka upload chal raha hai (1 se 100%). Website band karne par upload ruk jayega!';
-    e.preventDefault();
-    e.returnValue = msg;
-    return msg;
-  }
+  // Silent guard without aggressive prompt
+  return undefined;
 }
 
 function updateBeforeUnloadGuard() {
