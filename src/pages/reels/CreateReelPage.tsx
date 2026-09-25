@@ -30,6 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress } from '@/services/persistentUploadQueue';
 import { finishUpload, startUpload, updateUpload, runBackgroundUpload, requestUploadNotifications } from '@/services/uploadManager';
 import {
   sendBrowserPushNotification,
@@ -499,6 +500,27 @@ const CreateReelPage: React.FC = () => {
         }
       : null;
 
+    const persistentJobId = `upload_${currentMode}_${Date.now()}`;
+    void savePersistentJob({
+      id: persistentJobId,
+      kind: currentMode,
+      label: `${modeLabel} Upload`,
+      fileBlob: currentFile,
+      fileName: currentFile.name,
+      fileType: currentFile.type,
+      coverBlob: currentCoverBlob,
+      userId: currentUserId,
+      caption: currentCaption,
+      videoTitle: currentTitle,
+      videoDescription: currentDesc,
+      videoVisibility: currentVis,
+      videoDuration: currentDur,
+      musicPayload,
+      progress: 0,
+      status: 'uploading',
+      createdAt: Date.now(),
+    });
+
     runBackgroundUpload({
       kind: currentMode,
       label: `${modeLabel} Upload`,
@@ -508,6 +530,7 @@ const CreateReelPage: React.FC = () => {
           const videoUrl = await uploadMediaWithProgress('reels', currentFile, currentUserId, (p) => {
             setUploadPercent(p);
             updateProgress(p);
+            void updatePersistentJobProgress(persistentJobId, p);
           });
 
           let coverUrl: string | null = null;
@@ -525,18 +548,21 @@ const CreateReelPage: React.FC = () => {
           const mediaUrl = await uploadMediaWithProgress('stories', currentFile, currentUserId, (p) => {
             setUploadPercent(p);
             updateProgress(p);
+            void updatePersistentJobProgress(persistentJobId, p);
           });
           await createStory(mediaUrl, currentCaption.trim() || null, musicPayload);
         } else if (currentMode === 'post') {
           const mediaUrl = await uploadMediaWithProgress('posts', currentFile, currentUserId, (p) => {
             setUploadPercent(p);
             updateProgress(p);
+            void updatePersistentJobProgress(persistentJobId, p);
           });
           await createPost(mediaUrl, currentCaption.trim() || null, musicPayload);
         } else if (currentMode === 'video') {
           const videoUrl = await uploadVideoFile(currentFile, currentUserId, (p) => {
             setUploadPercent(p);
             updateProgress(p);
+            void updatePersistentJobProgress(persistentJobId, p);
           });
 
           let thumbUrl: string | null = null;
@@ -560,6 +586,7 @@ const CreateReelPage: React.FC = () => {
         }
       },
       onSuccess: () => {
+        void deletePersistentJob(persistentJobId);
         toast.success(`${modeLabel} successfully upload ho gaya! 🎉`);
         setUploading(false);
         navigate(currentMode === 'video' ? '/videos' : currentMode === 'reel' ? '/reels' : '/stories');

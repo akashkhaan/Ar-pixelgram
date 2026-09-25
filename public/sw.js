@@ -104,3 +104,48 @@ self.addEventListener('notificationclick', (event) => {
     })(),
   );
 });
+
+
+// ==========================================
+// BACKGROUND UPLOAD SYNC & NOTIFICATIONS
+// Keeps uploads alive and resumes if website is closed
+// ==========================================
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'pixelgram-upload-sync') {
+    event.waitUntil(
+      self.registration.showNotification('Pixelgram • Upload in progress', {
+        body: 'Aapka upload background me process ho raha hai... (Website band hone par bhi)',
+        icon: '/images/logo/logo-icon.svg',
+        badge: '/images/logo/logo-icon.svg',
+        tag: 'pixelgram_bg_sync',
+        renotify: false,
+        silent: true,
+      })
+    );
+  }
+});
+
+self.addEventListener('backgroundfetchsuccess', (event) => {
+  const bgFetch = event.registration;
+  event.waitUntil(
+    self.registration.showNotification('Pixelgram • Upload Complete! 🎉', {
+      body: 'Aapka media background me successfully upload ho gaya! ✅',
+      icon: '/images/logo/logo-icon.svg',
+      badge: '/images/logo/logo-icon.svg',
+      tag: `upload_${bgFetch.id}`,
+    })
+  );
+});
+
+self.addEventListener('backgroundfetchfail', (event) => {
+  const bgFetch = event.registration;
+  event.waitUntil(
+    self.registration.showNotification('Pixelgram • Upload Paused ⚠️', {
+      body: 'Network disconnect hone par upload pause hua hai. Website kholte hi continue hoga.',
+      icon: '/images/logo/logo-icon.svg',
+      badge: '/images/logo/logo-icon.svg',
+      tag: `upload_${bgFetch.id}`,
+    })
+  );
+});

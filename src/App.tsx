@@ -1,3 +1,4 @@
+import { resumeAllPendingUploads } from '@/services/persistentUploadQueue';
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -18,6 +19,31 @@ import { routes } from "./routes";
 import { useVisitTracker } from "@/hooks/useVisitTracker";
 import UploadProgressOverlay from "@/components/common/UploadProgressOverlay";
 
+
+const UploadAutoResumer: React.FC = () => {
+  useEffect(() => {
+    // Resume any pending upload when app opens
+    void resumeAllPendingUploads();
+
+    const handleOnline = () => void resumeAllPendingUploads();
+    window.addEventListener('online', handleOnline);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void resumeAllPendingUploads();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  return null;
+};
+
 const VisitTracker: React.FC = () => {
   useVisitTracker();
   return null;
@@ -31,6 +57,7 @@ const App: React.FC = () => {
           <CallProvider>
             <GroupCallProvider>
               <VisitTracker />
+              <UploadAutoResumer />
               <RouteGuard>
                 <Routes>
                   {routes.map((route, index) => (
