@@ -512,12 +512,23 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
 
           {/* Media preview */}
           {post?.image_url && (
-            <div className="w-full h-56 bg-muted overflow-hidden">
-              <img
-                src={post.image_url}
-                alt=""
-                className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-200"
-              />
+            <div className="w-full h-56 bg-muted overflow-hidden flex items-center justify-center">
+              {post.image_url.match(/\.(mp4|mov|webm|avi|m4v)(\?|$)/i) ? (
+                <video
+                  src={post.image_url}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={post.image_url}
+                  alt=""
+                  className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-200"
+                />
+              )}
             </div>
           )}
 

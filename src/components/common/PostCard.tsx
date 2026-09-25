@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, BadgeCheck, Music2, Volume2, VolumeX } from 'lucide-react';
+import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, BadgeCheck, Music2, Volume2, VolumeX, Film } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { likePost, unlikePost, savePost, unsavePost } from '@/services/api';
 import { createNotification } from '@/services/api';
@@ -28,11 +28,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const cardRef = useRef<HTMLElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isVideoMuted, setIsVideoMuted] = useState(true);
   const lastTapRef = useRef(0);
   const [showHeartAnim, setShowHeartAnim] = useState(false);
 
   const isOwner = user?.id === post.user_id;
   const hasMusic = Boolean(post.music_preview_url || post.music_title);
+  const isVideo = Boolean(post.image_url?.match(/\.(mp4|mov|webm|avi|m4v)(\?|$)/i));
 
   // Toggle audio play/pause (Instagram mute / unmute)
   const toggleAudio = (e?: React.SyntheticEvent) => {
@@ -66,16 +69,25 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
     return () => window.removeEventListener('pixelgram_play_audio', handleOtherPlay);
   }, [post.id, isPlayingAudio]);
 
-  // Pause audio automatically when post is scrolled out of viewport
+  // Pause audio & video automatically when post is scrolled out of viewport
   useEffect(() => {
     const el = cardRef.current;
-    if (!el || !post.music_preview_url) return;
+    if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach(entry => {
-          if (!entry.isIntersecting && isPlayingAudio) {
-            audioRef.current?.pause();
-            setIsPlayingAudio(false);
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) {
+            if (isPlayingAudio) {
+              audioRef.current?.pause();
+              setIsPlayingAudio(false);
+            }
+            if (videoRef.current && !videoRef.current.paused) {
+              videoRef.current.pause();
+            }
+          } else {
+            if (videoRef.current && isVideo) {
+              videoRef.current.play().catch(() => {});
+            }
           }
         });
       },
@@ -83,9 +95,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [post.music_preview_url, isPlayingAudio]);
+  }, [post.music_preview_url, isPlayingAudio, isVideo]);
 
-  const handleImageClick = (e: React.MouseEvent) => {
+  const handleMediaClick = (e: React.MouseEvent) => {
     const now = Date.now();
     if (now - lastTapRef.current < 320) {
       // Double tap -> Instagram like
@@ -93,9 +105,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
       setShowHeartAnim(true);
       setTimeout(() => setShowHeartAnim(false), 900);
     } else {
-      // Single tap -> toggle music if post has audio
+      // Single tap: toggle music or video mute
       if (hasMusic) {
         toggleAudio(e);
+      } else if (isVideo) {
+        setIsVideoMuted((m) => !m);
       }
     }
     lastTapRef.current = now;
@@ -200,12 +214,32 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
         )}
       </div>
 
-      {/* Post image */}
+      {/* Post media (image or video) */}
       <div
-        className="aspect-square w-full bg-muted overflow-hidden relative cursor-pointer select-none"
-        onClick={handleImageClick}
+        className="aspect-square w-full bg-black overflow-hidden relative cursor-pointer select-none flex items-center justify-center"
+        onClick={handleMediaClick}
       >
-        <SmartImage src={post.image_url} alt={post.caption || 'Post'} />
+        {isVideo ? (
+          <video
+            ref={videoRef}
+            src={post.image_url}
+            className="w-full h-full object-contain bg-black"
+            loop
+            playsInline
+            autoPlay
+            muted={hasMusic ? true : isVideoMuted}
+          />
+        ) : (
+          <SmartImage src={post.image_url} alt={post.caption || 'Post'} />
+        )}
+
+        {/* Video badge in top-left */}
+        {isVideo && (
+          <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[11px] font-medium flex items-center gap-1 z-10 shadow">
+            <Film className="w-3 h-3 text-primary" />
+            <span>Video</span>
+          </div>
+        )}
 
         {/* Double-tap animated heart */}
         {showHeartAnim && (
@@ -214,8 +248,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
           </div>
         )}
 
-        {/* Audio control floating pill on image if post has music */}
-        {post.music_preview_url && (
+        {/* Audio control floating pill */}
+        {post.music_preview_url ? (
           <>
             <audio
               ref={audioRef}
@@ -250,7 +284,29 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
               )}
             </button>
           </>
-        )}
+        ) : isVideo ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsVideoMuted((m) => !m);
+            }}
+            className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/70 hover:bg-black/85 backdrop-blur-md text-white shadow-xl active:scale-95 transition-all text-xs font-semibold z-10"
+            aria-label={isVideoMuted ? "Unmute video" : "Mute video"}
+          >
+            {!isVideoMuted ? (
+              <>
+                <Volume2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-[11px] font-medium text-emerald-300">Mute</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="w-4 h-4 text-white/90 shrink-0" />
+                <span className="text-[11px] font-medium text-white/90">Unmute</span>
+              </>
+            )}
+          </button>
+        ) : null}
       </div>
 
       {/* Post actions */}
