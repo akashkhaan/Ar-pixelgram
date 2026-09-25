@@ -1,5 +1,5 @@
+import React, { useEffect } from "react";
 import { resumeAllPendingUploads } from '@/services/persistentUploadQueue';
-import React from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -22,15 +22,28 @@ import UploadProgressOverlay from "@/components/common/UploadProgressOverlay";
 
 const UploadAutoResumer: React.FC = () => {
   useEffect(() => {
-    // Resume any pending upload when app opens
-    void resumeAllPendingUploads();
+    try {
+      void resumeAllPendingUploads();
+    } catch (e) {
+      console.warn('Upload resume error:', e);
+    }
 
-    const handleOnline = () => void resumeAllPendingUploads();
+    const handleOnline = () => {
+      try {
+        void resumeAllPendingUploads();
+      } catch (e) {
+        console.warn('Online resume error:', e);
+      }
+    };
     window.addEventListener('online', handleOnline);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        void resumeAllPendingUploads();
+        try {
+          void resumeAllPendingUploads();
+        } catch (e) {
+          console.warn('Visibility resume error:', e);
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);

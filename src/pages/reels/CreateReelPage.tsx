@@ -30,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
-import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress } from '@/services/persistentUploadQueue';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
 import { finishUpload, startUpload, updateUpload, runBackgroundUpload, requestUploadNotifications } from '@/services/uploadManager';
 import {
   sendBrowserPushNotification,
@@ -501,6 +501,7 @@ const CreateReelPage: React.FC = () => {
       : null;
 
     const persistentJobId = `upload_${currentMode}_${Date.now()}`;
+    markJobActive(persistentJobId);
     void savePersistentJob({
       id: persistentJobId,
       kind: currentMode,
@@ -586,12 +587,14 @@ const CreateReelPage: React.FC = () => {
         }
       },
       onSuccess: () => {
+        unmarkJobActive(persistentJobId);
         void deletePersistentJob(persistentJobId);
         toast.success(`${modeLabel} successfully upload ho gaya! 🎉`);
         setUploading(false);
         navigate(currentMode === 'video' ? '/videos' : currentMode === 'reel' ? '/reels' : '/stories');
       },
       onError: (err) => {
+        unmarkJobActive(persistentJobId);
         toast.error('Upload fail ho gaya. Kripya dobara try karein.');
         setUploading(false);
       },

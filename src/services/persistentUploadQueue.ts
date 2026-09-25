@@ -137,6 +137,14 @@ export function registerBackgroundSync() {
 // Active in-memory workers to prevent duplicate runs
 const activeResumingIds = new Set<string>();
 
+export function markJobActive(id: string) {
+  activeResumingIds.add(id);
+}
+
+export function unmarkJobActive(id: string) {
+  activeResumingIds.delete(id);
+}
+
 /**
  * Resumes and executes a persistent upload job.
  */
@@ -230,7 +238,15 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
 export async function resumeAllPendingUploads(): Promise<void> {
   try {
     const jobs = await getPersistentJobs();
-    const pending = jobs.filter((j) => j.status !== 'completed');
+    const now = Date.now();
+    for (const j of jobs) {
+      if (now - (j.createdAt || 0) > 24 * 60 * 60 * 1000) {
+        void deletePersistentJob(j.id);
+      }
+    }
+    const pending = jobs.filter(
+      (j) => j.status !== 'completed' && now - (j.createdAt || 0) <= 24 * 60 * 60 * 1000 && !activeResumingIds.has(j.id)
+    );
     if (pending.length > 0) {
       toast.info(`Adhoore upload resume ho rahe hain (${pending.length}) 🚀`);
       for (const job of pending) {
