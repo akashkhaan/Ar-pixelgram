@@ -280,11 +280,11 @@ const ChatPage: React.FC = () => {
   return (
     <MobileLayout hideHeader hideNav>
       <div className="flex flex-col h-[100dvh] bg-background">
-        {/* Top bar (Messenger Style) */}
-        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-card shrink-0">
+        {/* Top bar (Glassmorphic & Modern Instagram Style) */}
+        <div className="sticky top-0 z-30 flex items-center gap-2 px-3 py-2.5 border-b border-border/50 bg-background/85 backdrop-blur-xl shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
           <button
             onClick={goBack}
-            className="p-1 rounded-full hover:bg-muted text-foreground transition-colors shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 active:scale-95 text-foreground transition-all shrink-0"
             aria-label="Back"
           >
             <ArrowLeft className="w-5 h-5 text-foreground" />
@@ -293,53 +293,72 @@ const ChatPage: React.FC = () => {
           {/* Avatar & Name — click opens details */}
           <button
             onClick={() => setShowDetails(true)}
-            className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:opacity-90 transition-opacity"
+            className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:opacity-90 active:scale-[0.99] transition-all"
           >
-            {otherProfile?.avatar_url ? (
-              <img src={otherProfile.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                <span className="text-primary font-bold text-sm">
-                  {otherProfile?.username?.[0]?.toUpperCase()}
-                </span>
-              </div>
-            )}
+            <div className="relative shrink-0">
+              {otherProfile?.avatar_url ? (
+                <img
+                  src={otherProfile.avatar_url}
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover ring-1 ring-border/50 shadow-xs"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center ring-1 ring-border/50">
+                  <span className="text-primary font-bold text-sm">
+                    {otherProfile?.username?.[0]?.toUpperCase()}
+                  </span>
+                </div>
+              )}
+              {onlineStatusState?.is_online && (
+                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-background shadow-xs" />
+              )}
+            </div>
+
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1">
-                <span className="font-semibold text-sm text-foreground truncate">{displayName}</span>
-                {otherProfile?.is_verified && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0" />}
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-sm text-foreground truncate">{displayName}</span>
+                {otherProfile?.is_verified && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0 fill-sky-500/20" />}
               </div>
-              <p className="text-[11px] text-muted-foreground truncate">
-                {otherTyping ? 'Typing…' : statusText}
-              </p>
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
+                {otherTyping ? (
+                  <span className="text-primary font-semibold animate-pulse">Typing…</span>
+                ) : onlineStatusState?.is_online ? (
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Active now
+                  </span>
+                ) : (
+                  <span>{statusText}</span>
+                )}
+              </div>
             </div>
           </button>
 
           {/* Audio Call button 📞 */}
           <button
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-sky-500 shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-foreground/80 hover:text-sky-500 active:scale-95 transition-all shrink-0"
             onClick={() => { if (receiverId) startCall(receiverId, 'audio'); }}
             disabled={blocked || blockedByOther}
             title="Audio call"
             aria-label="Audio call"
           >
-            <Phone className="w-4.5 h-4.5 fill-sky-500/20" />
+            <Phone className="w-4.5 h-4.5" />
           </button>
 
           {/* Video Call button 📹 */}
           <button
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-sky-500 shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-foreground/80 hover:text-sky-500 active:scale-95 transition-all shrink-0"
             onClick={() => { if (receiverId) startCall(receiverId, 'video'); }}
             disabled={blocked || blockedByOther}
             title="Video call"
             aria-label="Video call"
           >
-            <Video className="w-4.5 h-4.5 fill-sky-500/20" />
+            <Video className="w-4.5 h-4.5" />
           </button>
 
-          {/* Messenger Info button ⓘ */}
+          {/* Conversation Info button ⓘ */}
           <button
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted text-sky-500 transition-colors shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-foreground/80 hover:text-primary active:scale-95 transition-all shrink-0"
             onClick={() => setShowDetails(true)}
             title="Conversation details"
             aria-label="Conversation details"
@@ -350,19 +369,19 @@ const ChatPage: React.FC = () => {
 
         {/* IN-CONVERSATION SEARCH BAR */}
         {showSearch && (
-          <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 animate-in slide-in-from-top-2 duration-150 shrink-0">
+          <div className="flex items-center gap-2 border-b border-border/60 bg-muted/40 backdrop-blur-md px-3 py-2 animate-in slide-in-from-top-2 duration-150 shrink-0">
             <Search className="h-4 w-4 text-muted-foreground shrink-0" />
             <Input
               autoFocus
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search in conversation..."
-              className="h-8 rounded-lg text-xs bg-background"
+              className="h-8.5 rounded-xl text-xs bg-background/80 focus-visible:ring-1 focus-visible:ring-primary"
             />
             <button
               type="button"
               onClick={() => { setShowSearch(false); setSearchQuery(''); }}
-              className="p-1 rounded-full hover:bg-muted text-muted-foreground"
+              className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
               aria-label="Close search"
             >
               <X className="h-4 w-4" />
@@ -372,52 +391,98 @@ const ChatPage: React.FC = () => {
 
         {/* Blocked banner */}
         {(blocked || blockedByOther) && (
-          <div className="shrink-0 bg-destructive/10 text-destructive text-sm text-center py-2 px-4">
+          <div className="shrink-0 bg-destructive/15 text-destructive font-medium text-xs text-center py-2 px-4 border-b border-destructive/20">
             {blocked ? `You have blocked ${otherProfile?.username}` : 'You cannot message this user'}
           </div>
         )}
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
+        {/* Messages Canvas */}
+        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-2.5 min-h-0 bg-background/50">
           {visibleMessages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <p className="text-muted-foreground text-sm">
-                {searchQuery ? 'No matching messages found' : `Say hi to ${displayName}!`}
-              </p>
+            <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
+              {searchQuery ? (
+                <p className="text-muted-foreground text-sm">No matching messages found</p>
+              ) : (
+                <div className="flex flex-col items-center max-w-xs animate-in fade-in duration-300">
+                  <div className="relative mb-3">
+                    {otherProfile?.avatar_url ? (
+                      <img
+                        src={otherProfile.avatar_url}
+                        alt=""
+                        className="w-20 h-20 rounded-full object-cover ring-2 ring-primary/30 shadow-md"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-violet-500/25 to-pink-500/25 flex items-center justify-center ring-2 ring-primary/30 shadow-md">
+                        <span className="text-primary font-bold text-2xl">
+                          {otherProfile?.username?.[0]?.toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-base text-foreground mb-0.5">{displayName}</h3>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    {otherProfile?.full_name ? `${otherProfile.full_name} · ` : ''}Pixelgram
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void handleSendQuickEmoji('👋')}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-muted/70 hover:bg-muted font-medium text-xs text-foreground transition-all active:scale-95 shadow-2xs border border-border/40"
+                  >
+                    <span>Wave 👋 to start chatting</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
+
           {visibleMessages.map((msg, idx) => {
             if (!msg || !msg.content) return null;
             const isMe = msg.sender_id === user?.id;
             const prevMsg = visibleMessages[idx - 1];
-            const showTime = !prevMsg || (msg.created_at && prevMsg?.created_at && (new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() > 5 * 60 * 1000));
-            const isSingleEmoji = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})$/u.test(msg.content.trim());
+            const showTime =
+              !prevMsg ||
+              (msg.created_at &&
+                prevMsg?.created_at &&
+                new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() >
+                  5 * 60 * 1000);
+            const isSingleEmoji = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})$/u.test(
+              msg.content.trim()
+            );
             const shareInfo = parseSharedContent(msg.content);
 
             return (
               <React.Fragment key={msg.id}>
                 {showTime && (
-                  <p className="text-center text-xs text-muted-foreground my-2">{formatTime(msg.created_at)}</p>
+                  <div className="flex items-center justify-center my-3">
+                    <span className="text-[11px] font-medium text-muted-foreground/80 px-2.5 py-0.5 rounded-full bg-muted/40">
+                      {formatTime(msg.created_at)}
+                    </span>
+                  </div>
                 )}
-                <div className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
+                <div className={cn('flex items-end gap-1.5', isMe ? 'justify-end' : 'justify-start')}>
                   {isSingleEmoji ? (
-                    <div className="text-4xl py-1 px-2 select-none">
+                    <div className="text-5xl py-1 px-2 select-none hover:scale-110 active:scale-125 transition-transform">
                       {msg.content.trim()}
                     </div>
                   ) : shareInfo ? (
                     <div
                       className={cn(
-                        'max-w-[85%] sm:max-w-[75%] p-1.5 rounded-2xl text-sm shadow-sm',
+                        'max-w-[85%] sm:max-w-[75%] p-1.5 rounded-[22px] text-sm shadow-sm transition-all',
                         isMe
-                          ? cn('rounded-br-sm text-white', activeTheme.bubble)
-                          : 'bg-muted text-foreground rounded-bl-sm'
+                          ? cn('rounded-br-[5px] text-white', activeTheme.bubble)
+                          : 'bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40'
                       )}
                     >
                       <InstagramSharedCard shareInfo={shareInfo} isMe={isMe} />
-                      <div className={cn('flex items-center gap-1 justify-end px-2 pt-1 pb-0.5 text-[10px]', isMe ? 'text-white/75' : 'text-muted-foreground')}>
+                      <div
+                        className={cn(
+                          'flex items-center gap-1 justify-end px-2 pt-1 pb-0.5 text-[10px]',
+                          isMe ? 'text-white/80' : 'text-muted-foreground'
+                        )}
+                      >
                         <span>{formatTime(msg.created_at)}</span>
                         {isMe && (
-                          <span>
+                          <span className={cn('font-bold', msg.is_seen ? 'text-sky-300' : 'text-white/70')}>
                             {msg.is_seen ? '✓✓' : '✓'}
                           </span>
                         )}
@@ -426,17 +491,22 @@ const ChatPage: React.FC = () => {
                   ) : (
                     <div
                       className={cn(
-                        'max-w-[75%] px-3.5 py-2 rounded-2xl text-sm shadow-sm',
+                        'max-w-[78%] px-4 py-2.5 rounded-[22px] text-sm shadow-sm transition-all break-words',
                         isMe
-                          ? cn('rounded-br-sm text-white', activeTheme.bubble)
-                          : 'bg-muted text-foreground rounded-bl-sm'
+                          ? cn('rounded-br-[5px] text-white', activeTheme.bubble)
+                          : 'bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40'
                       )}
                     >
-                      <p className="break-words">{msg.content}</p>
-                      <div className={cn('flex items-center gap-1 justify-end mt-0.5 text-[10px]', isMe ? 'text-white/75' : 'text-muted-foreground')}>
+                      <p className="leading-relaxed">{msg.content}</p>
+                      <div
+                        className={cn(
+                          'flex items-center gap-1 justify-end mt-1 text-[10px]',
+                          isMe ? 'text-white/80' : 'text-muted-foreground'
+                        )}
+                      >
                         <span>{formatTime(msg.created_at)}</span>
                         {isMe && (
-                          <span>
+                          <span className={cn('font-bold', msg.is_seen ? 'text-sky-300' : 'text-white/70')}>
                             {msg.is_seen ? '✓✓' : '✓'}
                           </span>
                         )}
@@ -447,13 +517,14 @@ const ChatPage: React.FC = () => {
               </React.Fragment>
             );
           })}
+
           {otherTyping && (
-            <div className="flex justify-start">
-              <div className="bg-muted px-4 py-2 rounded-2xl rounded-bl-sm">
-                <div className="flex gap-1 items-center h-4">
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
+            <div className="flex justify-start items-center gap-2">
+              <div className="bg-muted/80 dark:bg-zinc-800/80 border border-border/40 px-4 py-2.5 rounded-[20px] rounded-bl-[4px] shadow-2xs">
+                <div className="flex gap-1.5 items-center h-3.5">
+                  <span className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce [animation-delay:0ms]" />
+                  <span className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce [animation-delay:150ms]" />
+                  <span className="w-2 h-2 rounded-full bg-muted-foreground/70 animate-bounce [animation-delay:300ms]" />
                 </div>
               </div>
             </div>
@@ -463,13 +534,14 @@ const ChatPage: React.FC = () => {
 
         {/* Emoji picker drawer */}
         {showEmoji && (
-          <div className="shrink-0 border-t border-border bg-card px-4 py-3">
-            <div className="flex flex-wrap gap-3">
+          <div className="shrink-0 border-t border-border/50 bg-card/95 backdrop-blur-xl px-4 py-3 shadow-lg animate-in slide-in-from-bottom-2 duration-150">
+            <div className="flex flex-wrap gap-3.5 justify-center">
               {EMOJI_LIST.map(emoji => (
                 <button
                   key={emoji}
+                  type="button"
                   onClick={() => { setContent(p => p + emoji); setShowEmoji(false); }}
-                  className="text-2xl hover:scale-125 transition-transform"
+                  className="text-2xl hover:scale-125 active:scale-140 transition-transform p-1"
                 >
                   {emoji}
                 </button>
@@ -478,25 +550,26 @@ const ChatPage: React.FC = () => {
           </div>
         )}
 
-        {/* Input Bar (Messenger Style) */}
+        {/* Input Bar (Modern Messenger / Instagram Style) */}
         <form
           onSubmit={handleSend}
-          className="flex shrink-0 items-center gap-2 px-3 py-2.5 border-t border-border bg-card"
+          className="sticky bottom-0 z-20 flex shrink-0 items-center gap-2 px-3 py-2.5 border-t border-border/50 bg-background/90 backdrop-blur-xl"
           style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),10px)' }}
         >
           <button
             type="button"
             onClick={() => setShowEmoji(!showEmoji)}
-            className="p-2 rounded-full hover:bg-muted text-sky-500 transition-colors shrink-0"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-sky-500 active:scale-95 transition-all shrink-0"
+            title="Emoji"
           >
-            <Smile className={cn('w-5 h-5 transition-colors', showEmoji ? 'text-sky-600' : 'text-sky-500')} />
+            <Smile className={cn('w-5 h-5 transition-transform', showEmoji ? 'text-sky-600 scale-110' : 'text-sky-500')} />
           </button>
 
           <Input
             placeholder={blocked || blockedByOther ? 'Message unavailable' : 'Message…'}
             value={content}
             onChange={e => { setContent(e.target.value); handleTyping(); }}
-            className="flex-1 h-10 rounded-full bg-muted/60 border-none px-4 text-sm focus-visible:ring-1 focus-visible:ring-sky-500"
+            className="flex-1 h-10 rounded-full bg-muted/50 hover:bg-muted/70 focus:bg-card border border-border/40 focus-visible:ring-2 focus-visible:ring-primary/25 px-4 text-sm transition-all"
             maxLength={500}
             disabled={blocked || blockedByOther}
           />
@@ -505,7 +578,7 @@ const ChatPage: React.FC = () => {
             <Button
               type="submit"
               size="icon"
-              className="h-10 w-10 rounded-full shrink-0 bg-sky-500 hover:bg-sky-600 text-white shadow-sm"
+              className="h-10 w-10 rounded-full shrink-0 bg-gradient-to-tr from-violet-600 to-pink-500 hover:from-violet-700 hover:to-pink-600 text-white shadow-md shadow-primary/20 active:scale-90 transition-all"
               disabled={!content.trim() || sending || blocked || blockedByOther}
             >
               <Send className="w-4 h-4" />
@@ -514,7 +587,7 @@ const ChatPage: React.FC = () => {
             <button
               type="button"
               onClick={() => void handleSendQuickEmoji(chatEmoji)}
-              className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted active:scale-125 transition-transform text-2xl select-none shrink-0"
+              className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted/80 active:scale-130 transition-transform text-2xl select-none shrink-0"
               title={`Send ${chatEmoji}`}
               disabled={blocked || blockedByOther}
             >

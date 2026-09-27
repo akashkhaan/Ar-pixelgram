@@ -13,6 +13,7 @@ import {
   UserPlus,
   Users,
   Video,
+  X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -274,12 +275,12 @@ const ChatListPage: React.FC = () => {
     <MobileLayout hideHeader hideNav>
       <style>{`
         .msg-avatar-container {
-          width: 50px !important;
-          height: 50px !important;
-          min-width: 50px !important;
-          max-width: 50px !important;
-          min-height: 50px !important;
-          max-height: 50px !important;
+          width: 52px !important;
+          height: 52px !important;
+          min-width: 52px !important;
+          max-width: 52px !important;
+          min-height: 52px !important;
+          max-height: 52px !important;
           border-radius: 9999px !important;
           overflow: hidden !important;
           position: relative !important;
@@ -289,12 +290,12 @@ const ChatListPage: React.FC = () => {
           flex-shrink: 0 !important;
         }
         .msg-avatar-container img {
-          width: 50px !important;
-          height: 50px !important;
-          min-width: 50px !important;
-          max-width: 50px !important;
-          min-height: 50px !important;
-          max-height: 50px !important;
+          width: 52px !important;
+          height: 52px !important;
+          min-width: 52px !important;
+          max-width: 52px !important;
+          min-height: 52px !important;
+          max-height: 52px !important;
           object-fit: cover !important;
           border-radius: 9999px !important;
           display: block !important;
@@ -327,25 +328,25 @@ const ChatListPage: React.FC = () => {
         }
       `}</style>
       <PullToRefresh onRefresh={load}>
-        <div className="page-transition pb-20 bg-background min-h-screen">
-          {/* Top Header */}
-          <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/40 px-4 py-3">
+        <div className="page-transition pb-24 bg-background min-h-screen">
+          {/* Top Header (Glassmorphic & Sleek) */}
+          <div className="sticky top-0 z-30 bg-background/85 backdrop-blur-xl border-b border-border/40 px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={goBack}
                   aria-label="Back"
-                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors text-foreground"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 active:scale-95 transition-all text-foreground"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <h1 className="text-xl font-bold tracking-tight text-foreground">
                     {myProfile?.username || "Messages"}
                   </h1>
                   {myProfile?.is_verified && (
-                    <BadgeCheck className="w-4 h-4 text-primary fill-primary/20" />
+                    <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500/20" />
                   )}
                 </div>
               </div>
@@ -357,35 +358,38 @@ const ChatListPage: React.FC = () => {
                   aria-label="New chat or group"
                   className={`w-9 h-9 flex items-center justify-center rounded-full transition-all text-foreground ${
                     showGroupMenu
-                      ? "bg-primary/15 text-primary scale-105"
-                      : "hover:bg-muted/60 active:scale-95"
+                      ? "bg-primary/20 text-primary scale-105 shadow-xs"
+                      : "hover:bg-muted/80 active:scale-95"
                   }`}
                 >
                   <Edit3 className="w-5 h-5" />
                 </button>
-
                 {showGroupMenu && (
                   <>
                     <div
                       className="fixed inset-0 z-40"
                       onClick={() => setShowGroupMenu(false)}
                     />
-                    <div className="absolute top-11 right-0 w-48 rounded-2xl border border-border bg-card/95 backdrop-blur-md p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
-                      <Link
-                        to="/groups/new"
-                        onClick={() => setShowGroupMenu(false)}
-                        className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-                      >
-                        <Users className="h-4 w-4 text-primary" />
-                        <span>Create group</span>
-                      </Link>
+                    <div className="absolute top-11 right-0 w-52 rounded-2xl border border-border/70 bg-card/95 backdrop-blur-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
                       <Link
                         to="/people"
                         onClick={() => setShowGroupMenu(false)}
-                        className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
                       >
-                        <UserPlus className="h-4 w-4 text-muted-foreground" />
+                        <div className="w-7 h-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                          <UserPlus className="h-4 w-4" />
+                        </div>
                         <span>New chat</span>
+                      </Link>
+                      <Link
+                        to="/groups/new"
+                        onClick={() => setShowGroupMenu(false)}
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-500 flex items-center justify-center shrink-0">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <span>Create group</span>
                       </Link>
                     </div>
                   </>
@@ -393,24 +397,34 @@ const ChatListPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Messenger-style Search Bar */}
-            <div className="mt-3 relative">
-              <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2" />
+            {/* Modern Search Bar */}
+            <div className="mt-3 relative flex items-center bg-muted/50 hover:bg-muted/70 focus-within:bg-card focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/40 border border-border/40 rounded-2xl transition-all duration-200">
+              <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search"
-                className="w-full h-9 pl-10 pr-4 rounded-xl bg-muted/60 hover:bg-muted/80 focus:bg-muted/90 text-sm text-foreground placeholder:text-muted-foreground transition-all outline-none focus:ring-1 focus:ring-border"
+                placeholder="Search messages or friends..."
+                className="w-full h-9.5 pl-10 pr-9 rounded-2xl bg-transparent text-sm text-foreground placeholder:text-muted-foreground/80 outline-none"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full bg-muted/80 flex items-center justify-center text-muted-foreground hover:text-foreground text-xs transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
             </div>
           </div>
 
           {/* Instagram-Style Notes & Friends Rail */}
           {!searchQuery && (
-            <div className="px-4 py-3 border-b border-border/30 overflow-x-auto no-scrollbar flex items-start gap-4">
+            <div className="px-4 py-3.5 border-b border-border/30 overflow-x-auto no-scrollbar flex items-start gap-4 bg-muted/10">
               {/* My Note Item */}
-              <div className="flex flex-col items-center shrink-0 w-18 text-center cursor-pointer group">
+              <div className="flex flex-col items-center shrink-0 w-[78px] text-center cursor-pointer group">
                 <div
                   className="relative flex flex-col items-center"
                   onClick={() => {
@@ -423,12 +437,12 @@ const ChatListPage: React.FC = () => {
                 >
                   {/* Thought bubble if note exists, otherwise prompt badge */}
                   {myNote ? (
-                    <div className="relative mb-2 px-2.5 py-1 bg-card border border-border/80 rounded-2xl shadow-xs max-w-[84px] text-center">
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-card border-r border-b border-border/80 rotate-45" />
+                    <div className="relative mb-2.5 px-3 py-1.5 bg-card/95 backdrop-blur-md border border-border/70 rounded-[18px] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] max-w-[88px] text-center transform transition-transform group-hover:scale-105">
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-card border-r border-b border-border/70 rotate-45" />
                       {myNote.music_track && (
-                        <div className="flex items-center justify-center gap-1 text-[9px] text-primary font-bold truncate">
-                          <Music2 className="w-2.5 h-2.5 shrink-0" />
-                          <span className="truncate">{myNote.music_track.title}</span>
+                        <div className="flex items-center justify-center gap-1 text-[9px] text-primary font-bold truncate mb-0.5">
+                          <Music2 className="w-2.5 h-2.5 shrink-0 animate-pulse text-pink-500" />
+                          <span className="truncate max-w-[62px]">{myNote.music_track.title}</span>
                         </div>
                       )}
                       <p className="text-[11px] font-medium text-foreground truncate max-w-[76px] leading-tight">
@@ -436,21 +450,20 @@ const ChatListPage: React.FC = () => {
                       </p>
                     </div>
                   ) : (
-                    <div className="relative mb-2 px-2 py-0.5 rounded-full bg-card border border-border/60 text-[10px] text-muted-foreground font-medium shadow-xs truncate max-w-[76px]">
+                    <div className="relative mb-2.5 px-2.5 py-1 rounded-full bg-card/90 backdrop-blur-xs border border-border/60 text-[10px] text-muted-foreground font-medium shadow-2xs truncate max-w-[84px] group-hover:border-primary/50 transition-colors">
                       Share a thought...
                     </div>
                   )}
-
                   {/* Avatar */}
                   <div className="relative">
-                    <div className="rail-avatar-container ring-2 ring-border/50 bg-muted">
+                    <div className="rail-avatar-container ring-2 ring-border/50 group-hover:ring-primary/60 transition-all bg-muted shadow-xs">
                       {myProfile?.avatar_url ? (
                         <img
                           src={myProfile.avatar_url}
                           alt="You"
                         />
                       ) : (
-                        <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                        <div className="w-full h-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center">
                           <span className="text-primary font-bold text-base">
                             {myProfile?.username?.[0]?.toUpperCase() || "Y"}
                           </span>
@@ -459,144 +472,128 @@ const ChatListPage: React.FC = () => {
                     </div>
                     {/* Plus badge if no note */}
                     {!myNote && (
-                      <span className="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs ring-2 ring-background font-bold shadow-xs">
+                      <span className="absolute bottom-0 right-0 w-4.5 h-4.5 rounded-full bg-gradient-to-tr from-violet-600 to-pink-500 text-white flex items-center justify-center text-xs ring-2 ring-background font-bold shadow-xs">
                         +
                       </span>
                     )}
                   </div>
                 </div>
-
-                <span className="text-[11px] text-muted-foreground truncate w-full mt-1">
+                <span className="text-[11px] text-muted-foreground truncate w-full mt-1.5 font-medium">
                   Your note
                 </span>
               </div>
 
-              {/* Friend Notes (Followers / Following who have posted a note) */}
+              {/* Friend Notes */}
               {friendNotes.map((note) => (
                 <div
                   key={note.id}
                   onClick={() => handleOpenNote(note)}
-                  className="flex flex-col items-center shrink-0 w-18 text-center cursor-pointer group"
+                  className="flex flex-col items-center shrink-0 w-[78px] text-center cursor-pointer group"
                 >
                   <div className="relative flex flex-col items-center">
                     {/* Note Bubble */}
-                    <div className="relative mb-2 px-2.5 py-1 bg-card border border-border/80 rounded-2xl shadow-xs max-w-[84px] text-center">
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-card border-r border-b border-border/80 rotate-45" />
+                    <div className="relative mb-2.5 px-3 py-1.5 bg-card/95 backdrop-blur-md border border-border/70 rounded-[18px] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_rgba(0,0,0,0.3)] max-w-[88px] text-center transform transition-transform group-hover:scale-105">
+                      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-card border-r border-b border-border/70 rotate-45" />
                       {note.music_track && (
-                        <div className="flex items-center justify-center gap-1 text-[9px] text-primary font-bold truncate">
-                          <Music2 className="w-2.5 h-2.5 shrink-0" />
-                          <span className="truncate">{note.music_track.title}</span>
+                        <div className="flex items-center justify-center gap-1 text-[9px] text-primary font-bold truncate mb-0.5">
+                          <Music2 className="w-2.5 h-2.5 shrink-0 animate-pulse text-pink-500" />
+                          <span className="truncate max-w-[62px]">{note.music_track.title}</span>
                         </div>
                       )}
                       <p className="text-[11px] font-medium text-foreground truncate max-w-[76px] leading-tight">
                         {note.text}
                       </p>
                     </div>
-
-                    {/* Avatar */}
-                    <div className="rail-avatar-container ring-2 ring-primary/40 group-hover:ring-primary transition-all bg-muted">
+                    {/* Avatar with Story gradient ring */}
+                    <div className="rail-avatar-container ring-2 ring-primary/40 group-hover:ring-primary transition-all bg-muted shadow-xs">
                       {note.profile?.avatar_url ? (
                         <img
                           src={note.profile.avatar_url}
-                          alt={note.profile.username}
+                          alt={note.profile?.username || "Friend"}
                         />
                       ) : (
-                        <div className="w-full h-full bg-primary/20 flex items-center justify-center">
+                        <div className="w-full h-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center">
                           <span className="text-primary font-bold text-base">
-                            {note.profile?.username?.[0]?.toUpperCase() || "?"}
+                            {note.profile?.username?.[0]?.toUpperCase()}
                           </span>
                         </div>
                       )}
                     </div>
                   </div>
-
-                  <span className="text-[11px] text-foreground/80 font-medium truncate w-full mt-1">
+                  <span className="text-[11px] text-foreground font-medium truncate w-full mt-1.5">
                     {note.profile?.username}
                   </span>
                 </div>
               ))}
-
-
             </div>
           )}
 
-          {/* Tab Navigation (Primary, General, Requests) */}
-          <div className="flex items-center justify-between px-4 border-b border-border/40 text-sm font-semibold">
-            <div className="flex items-center gap-6">
+          {/* Segmented Pill Navigation Tabs */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/30 text-sm font-semibold">
+            <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-2xl">
               <button
                 type="button"
                 onClick={() => setChatTab("primary")}
-                className={`py-3 relative transition-colors ${
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   chatTab === "primary"
-                    ? "text-foreground font-bold"
+                    ? "bg-card text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span>Chats</span>
-                {chatTab === "primary" && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full" />
-                )}
+                Chats
               </button>
-
               <button
                 type="button"
                 onClick={() => setChatTab("general")}
-                className={`py-3 relative transition-colors ${
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
                   chatTab === "general"
-                    ? "text-foreground font-bold"
+                    ? "bg-card text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span>General</span>
-                {chatTab === "general" && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full" />
-                )}
+                General
               </button>
             </div>
-
             {requestedGroups.length > 0 && (
               <button
                 type="button"
                 onClick={() => setChatTab("requests")}
-                className={`py-3 relative transition-colors flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                   chatTab === "requests"
-                    ? "text-foreground font-bold"
+                    ? "bg-card text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <span>Requests</span>
-                <span className="rounded-full bg-primary text-primary-foreground px-1.5 py-0.2 text-[10px] font-bold">
+                <span className="rounded-full bg-gradient-to-r from-violet-600 to-pink-500 text-white px-1.5 py-0.2 text-[10px] font-bold shadow-xs">
                   {requestedGroups.length}
                 </span>
-                {chatTab === "requests" && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground rounded-full" />
-                )}
               </button>
             )}
           </div>
 
           {/* MAIN CHATS CONTENT */}
           {chatTab !== "requests" && (
-            <div>
-              {/* Groups (Messenger style list item) */}
+            <div className="pt-1">
+              {/* Groups List */}
               {filteredGroups.length > 0 && (
-                <div>
-                  <div className="px-4 py-2 bg-muted/20 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Groups
+                <div className="mb-2">
+                  <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-primary" />
+                    <span>Groups</span>
                   </div>
-                  <div className="divide-y divide-border/30">
+                  <div className="space-y-1">
                     {filteredGroups.map(({ group, member_count }) => {
                       const activeCall = activeGroupCalls[group.id];
                       const isCurrentUserInThisCall =
                         groupCall.active && groupCall.groupId === group.id;
-
                       return (
                         <div
                           key={group.id}
-                          className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
+                          className="flex items-center gap-3.5 px-4 py-3 mx-2 rounded-2xl hover:bg-muted/50 active:bg-muted/70 transition-all duration-150 group"
                         >
                           <Link to={"/group/" + group.id} className="relative shrink-0">
-                            <div className="msg-avatar-container ring-1 ring-border/40 bg-muted">
+                            <div className="msg-avatar-container ring-1 ring-border/50 bg-muted shadow-xs">
                               {group.avatar_url ? (
                                 <img
                                   src={group.avatar_url}
@@ -647,36 +644,46 @@ const ChatListPage: React.FC = () => {
 
               {/* Direct Messages List */}
               {loading && filteredConversations.length === 0 ? (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <div className="flex flex-col items-center justify-center py-24 gap-3">
+                  <div className="w-10 h-10 rounded-full border-3 border-primary/30 border-t-primary animate-spin" />
+                  <span className="text-xs text-muted-foreground font-medium">Loading messages...</span>
                 </div>
               ) : filteredConversations.length === 0 && filteredGroups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-                  <MessageCircle className="w-16 h-16 text-muted-foreground/60 mb-3" />
-                  <h3 className="font-semibold text-foreground mb-1">No messages yet</h3>
-                  <p className="text-sm text-muted-foreground text-pretty max-w-xs">
-                    Search for friends or tap the edit icon above to start chatting.
+                  <div className="w-18 h-18 rounded-3xl bg-gradient-to-tr from-violet-500/15 via-primary/10 to-pink-500/15 flex items-center justify-center mb-4 text-primary shadow-sm border border-primary/20">
+                    <MessageCircle className="w-9 h-9" />
+                  </div>
+                  <h3 className="font-bold text-base text-foreground mb-1">No messages yet</h3>
+                  <p className="text-sm text-muted-foreground text-pretty max-w-xs mb-5">
+                    Start a conversation with your friends, share reels, photos, or audio notes.
                   </p>
+                  <Link
+                    to="/people"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-600 to-pink-500 text-white font-semibold text-sm shadow-md shadow-primary/25 hover:opacity-95 active:scale-95 transition-all"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Find friends</span>
+                  </Link>
                 </div>
               ) : (
-                <div className="divide-y divide-border/30">
+                <div className="space-y-0.5">
                   {filteredConversations.map(({ profile, lastMessage, unreadCount }) => (
                     <Link
                       key={profile.id}
                       to={`/chat/${profile.user_id}`}
-                      className="flex items-center gap-3.5 px-4 py-3 hover:bg-muted/40 transition-colors group"
+                      className="flex items-center gap-3.5 px-4 py-3 mx-2 rounded-2xl hover:bg-muted/50 active:bg-muted/70 transition-all duration-150 group"
                     >
                       {/* Avatar */}
                       <div className="shrink-0 relative">
-                        <div className="msg-avatar-container ring-1 ring-border/40 bg-muted">
+                        <div className="msg-avatar-container ring-1 ring-border/50 bg-muted shadow-xs">
                           {profile.avatar_url ? (
                             <img
                               src={profile.avatar_url}
                               alt={profile.username}
                             />
                           ) : (
-                            <div className="w-full h-full bg-primary/20 flex items-center justify-center">
-                              <span className="text-primary font-bold text-lg">
+                            <div className="w-full h-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center">
+                              <span className="text-primary font-bold text-base">
                                 {profile.username[0]?.toUpperCase()}
                               </span>
                             </div>
@@ -692,49 +699,48 @@ const ChatListPage: React.FC = () => {
                               className={`text-sm truncate ${
                                 unreadCount > 0
                                   ? "font-bold text-foreground"
-                                  : "font-semibold text-foreground"
+                                  : "font-semibold text-foreground/95"
                               }`}
                             >
                               {profile.full_name || profile.username}
                             </span>
                             {profile.is_verified && (
-                              <BadgeCheck className="w-3.5 h-3.5 text-primary shrink-0 fill-primary/20" />
+                              <BadgeCheck className="w-3.5 h-3.5 text-sky-500 shrink-0 fill-sky-500/20" />
                             )}
                           </div>
                           {lastMessage && (
-                            <span className="text-xs text-muted-foreground shrink-0">
+                            <span className="text-[11px] text-muted-foreground/80 shrink-0 font-medium">
                               {formatMessageTime(lastMessage.created_at)}
                             </span>
                           )}
                         </div>
-
                         <div className="flex items-center justify-between gap-2">
                           <p
                             className={`text-xs truncate flex-1 min-w-0 ${
                               unreadCount > 0
-                                ? "font-semibold text-foreground"
+                                ? "font-bold text-foreground"
                                 : "text-muted-foreground"
                             }`}
                           >
                             {lastMessage ? lastMessage.content : "Sent a message"}
                           </p>
                           {unreadCount > 0 && (
-                            <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-primary" />
+                            <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 shadow-xs shadow-primary/40" />
                           )}
                         </div>
                       </div>
 
-                      {/* Video action icon */}
+                      {/* Camera / Video action icon */}
                       <button
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           navigate(`/chat/${profile.user_id}`);
                         }}
-                        className="text-muted-foreground/70 hover:text-foreground shrink-0 p-2 rounded-full hover:bg-muted/60 transition-colors"
-                        title="Send photo"
+                        className="text-muted-foreground/70 hover:text-primary shrink-0 w-9 h-9 rounded-full flex items-center justify-center hover:bg-primary/10 transition-colors"
+                        title="Send photo or video"
                       >
-                        <Video className="w-5 h-5" />
+                        <Video className="w-4.5 h-4.5" />
                       </button>
                     </Link>
                   ))}
@@ -745,54 +751,58 @@ const ChatListPage: React.FC = () => {
 
           {/* TAB 3: REQUESTS TAB CONTENT */}
           {chatTab === "requests" && (
-            <div className="divide-y divide-border/30">
+            <div className="pt-1">
               {requestedGroups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-                  <p className="text-sm text-muted-foreground">No message requests</p>
+                  <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center text-muted-foreground mb-3">
+                    <MessageCircle className="w-7 h-7" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground mb-1">No message requests</p>
+                  <p className="text-xs text-muted-foreground">You don't have any ignored group requests right now.</p>
                 </div>
               ) : (
-                requestedGroups.map(({ group, member_count }) => (
-                  <div
-                    key={group.id}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors"
-                  >
-                    <Link to={"/group/" + group.id} className="relative shrink-0">
-                      <div className="msg-avatar-container ring-1 ring-border/40 bg-muted">
-                        {group.avatar_url ? (
-                          <img
-                            src={group.avatar_url}
-                            alt={group.name}
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-primary/15 text-primary flex items-center justify-center">
-                            <Users className="w-5 h-5" />
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                    <Link to={"/group/" + group.id} className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">
-                        {group.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {member_count} members · Ignored
-                      </p>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={(e) => handleUnignoreGroup(group.id, e)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold shrink-0 transition-colors"
+                <div className="space-y-1">
+                  {requestedGroups.map(({ group, member_count }) => (
+                    <div
+                      key={group.id}
+                      className="flex items-center gap-3.5 px-4 py-3 mx-2 rounded-2xl hover:bg-muted/50 transition-colors"
                     >
-                      <Undo2 className="h-3.5 w-3.5" />
-                      <span>Un-ignore</span>
-                    </button>
-                  </div>
-                ))
+                      <Link to={"/group/" + group.id} className="relative shrink-0">
+                        <div className="msg-avatar-container ring-1 ring-border/50 bg-muted shadow-xs">
+                          {group.avatar_url ? (
+                            <img
+                              src={group.avatar_url}
+                              alt={group.name}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-primary/15 text-primary flex items-center justify-center">
+                              <Users className="w-5 h-5" />
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                      <Link to={"/group/" + group.id} className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {group.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {member_count} members · Ignored
+                        </p>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={(e) => handleUnignoreGroup(group.id, e)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold shrink-0 transition-colors"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                        <span>Un-ignore</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
-
-
 
           {/* Create Note Modal */}
           {user && (
