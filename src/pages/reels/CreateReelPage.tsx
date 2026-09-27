@@ -164,10 +164,10 @@ const CreateReelPage: React.FC = () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: frontCamera ? 'user' : 'environment',
-          width: { ideal: 1080 },
-          height: { ideal: 1920 },
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
         },
-        audio: true,
+        audio: false,
       });
       streamRef.current = stream;
       if (videoStreamRef.current) {
@@ -197,9 +197,17 @@ const CreateReelPage: React.FC = () => {
   }, [step, frontCamera, startCamera, stopCamera]);
 
   // Handle Recording start / stop
-  const startRecording = () => {
+  const startRecording = async () => {
     if (!streamRef.current || isRecording) return;
     recordedChunksRef.current = [];
+    try {
+      if (streamRef.current.getAudioTracks().length === 0) {
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioStream.getAudioTracks().forEach((t) => streamRef.current?.addTrack(t));
+      }
+    } catch {
+      // Audio optional
+    }
 
     let mimeType = 'video/webm;codecs=vp8,opus';
     if (!MediaRecorder.isTypeSupported(mimeType)) {
@@ -291,6 +299,11 @@ const CreateReelPage: React.FC = () => {
   };
 
   const handleShutterClick = () => {
+    if (activeMode === 'video') {
+      stopCamera();
+      galleryInputRef.current?.click();
+      return;
+    }
     if (isRecording) {
       stopRecording();
     } else if (!isHoldingShutterRef.current) {
@@ -337,8 +350,9 @@ const CreateReelPage: React.FC = () => {
     }
   };
 
-  // Gallery Picker
+  // Gallery Picker (Instant 0ms trigger)
   const handleGalleryClick = () => {
+    stopCamera();
     if (!galleryInputRef.current) return;
     galleryInputRef.current.click();
   };
@@ -519,7 +533,7 @@ const CreateReelPage: React.FC = () => {
       createdAt: Date.now(),
     });
 
-    toast.success(`${modeLabel} upload shuru ho gaya... (Notification me progress check karein) 🚀`);
+    toast.success(`${modeLabel} upload shuru ho gaya... (1 se 100% count upar dekhein) 🚀`);
     navigate(currentMode === 'video' ? '/videos' : currentMode === 'reel' ? '/reels' : '/stories');
 
     runBackgroundUpload({
@@ -775,15 +789,15 @@ const CreateReelPage: React.FC = () => {
 
             {/* REAL INSTAGRAM SHUTTER ROW: Gallery on Left, Shutter in DEAD CENTER, Flip on Right */}
             <div className="w-full max-w-sm px-6 flex items-center justify-between">
-              {/* 1. Gallery Button (Bottom Left) */}
-              <button
-                type="button"
-                onClick={handleGalleryClick}
-                className="w-12 h-12 rounded-2xl border-2 border-white/80 bg-zinc-900/80 backdrop-blur-md overflow-hidden flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg group"
+              {/* 1. Gallery Button (Bottom Left) - Instant native label binding */}
+              <label
+                htmlFor="creator-gallery-input"
+                onClick={stopCamera}
+                className="w-12 h-12 rounded-2xl border-2 border-white/80 bg-zinc-900/80 backdrop-blur-md overflow-hidden flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg cursor-pointer group"
                 title="Open Gallery"
               >
                 <ImageIcon className="w-6 h-6 group-hover:scale-110 transition-transform text-white/90" />
-              </button>
+              </label>
 
               {/* 2. Instagram Shutter Button (DEAD CENTER, 80px ring + inner red recording dot) */}
               <div className="relative flex items-center justify-center">
@@ -881,6 +895,7 @@ const CreateReelPage: React.FC = () => {
 
           {/* Hidden File Input for Gallery */}
           <input
+            id="creator-gallery-input"
             ref={galleryInputRef}
             type="file"
             accept={activeMode === 'reel' || activeMode === 'video' ? 'video/*' : 'image/*,video/*'}

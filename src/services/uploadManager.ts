@@ -157,6 +157,12 @@ export function updateUpload(id: string, progress: number) {
   maybeNotify(job);
 }
 
+export function dismissUpload(id: string) {
+  jobs.delete(id);
+  notifiedAt.delete(id);
+  emit();
+}
+
 export function finishUpload(id: string, error?: string) {
   const job = jobs.get(id);
   if (!job) return;

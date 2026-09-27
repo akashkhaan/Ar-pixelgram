@@ -1,3 +1,4 @@
+import { startUpload, updateUpload, finishUpload } from '@/services/uploadManager';
 import useGoBack from '@/hooks/use-go-back';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -97,10 +98,14 @@ const UploadVideoPage: React.FC = () => {
     if (!file) { toast.error('Video select karein'); return; }
     if (!title.trim()) { toast.error('Title likhein'); return; }
 
+    const uploadId = startUpload('video', title.trim() || 'Video upload', thumbPreview || undefined);
     setUploading(true);
     setProgress(0);
     try {
-      const videoUrl = await uploadVideoFile(file, user.id, setProgress);
+      const videoUrl = await uploadVideoFile(file, user.id, (p) => {
+        setProgress(p);
+        updateUpload(uploadId, p);
+      });
       let thumbnailUrl: string | null = null;
       if (thumbBlob) {
         try {
@@ -118,10 +123,12 @@ const UploadVideoPage: React.FC = () => {
         durationSec: duration ? Math.round(duration) : null,
         visibility,
       });
+      finishUpload(uploadId);
       toast.success('Video upload ho gaya!');
       navigate(`/videos/${created.id}`, { replace: true });
     } catch (e) {
       console.error('video upload failed', e);
+      finishUpload(uploadId, e instanceof Error ? e.message : 'Upload fail hua');
       toast.error(e instanceof Error ? e.message : 'Upload fail hua — dobara try karein');
     } finally {
       setUploading(false);
