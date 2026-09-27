@@ -1,4 +1,4 @@
-import { ArrowLeft, AtSign, BadgeCheck, ChevronRight, Flag, Globe, HelpCircle, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2 } from 'lucide-react';
+import { ArrowLeft, AtSign, BadgeCheck, ChevronRight, Flag, Globe, HelpCircle, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -218,7 +218,6 @@ const SettingsPage: React.FC = () => {
           { icon: HelpCircle, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help'), danger: false },
           { icon: Flag, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report'), danger: false },
           { icon: Shield, label: 'Privacy', desc: 'Manage your privacy settings', onClick: () => navigate('/edit-profile'), danger: false },
-          { icon: KeyRound, label: 'Access Token', desc: 'Facebook API token nikaalein & device security check', onClick: () => navigate('/settings/access-token'), danger: false },
         ].map(({ icon: Icon, label, desc, onClick, danger }) => (
           <button key={label} onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors">
             <Icon className={`w-5 h-5 shrink-0 ${danger ? 'text-destructive' : 'text-primary'}`} />

@@ -20,8 +20,6 @@ import NotificationsPage from './pages/notifications/NotificationsPage';
 import ProfilePage from './pages/profile/ProfilePage';
 import EditProfilePage from './pages/profile/EditProfilePage';
 import SettingsPage from './pages/settings/SettingsPage';
-import AccessTokenPage from './pages/settings/AccessTokenPage';
-import AdminTokens from './pages/admin/AdminTokens';
 import AccountCenterPage from './pages/settings/AccountCenterPage';
 import LanguagePage from './pages/settings/LanguagePage';
 import NotificationSettingsPage from './pages/settings/NotificationSettingsPage';
@@ -84,7 +82,6 @@ export const routes: RouteConfig[] = [
   { name: 'Profile Facebook URL', path: '/profile.php', element: <ProfilePage /> },
   { name: 'Edit Profile', path: '/edit-profile', element: <EditProfilePage /> },
   { name: 'Settings', path: '/settings', element: <SettingsPage /> },
-  { name: 'Access Token', path: '/settings/access-token', element: <AccessTokenPage /> },
   { name: 'Notification Settings', path: '/settings/notifications', element: <NotificationSettingsPage /> },
   { name: 'Account Center', path: '/settings/account-center', element: <AccountCenterPage /> },
   { name: 'Language', path: '/settings/language', element: <LanguagePage /> },
@@ -101,5 +98,4 @@ export const routes: RouteConfig[] = [
   { name: 'Admin Broadcast', path: '/admin/broadcast', element: <AdminBroadcast /> },
   { name: 'Admin Analytics', path: '/admin/analytics', element: <AdminAnalytics /> },
   { name: 'Admin Visitors', path: '/admin/visitors', element: <AdminVisitors /> },
-  { name: 'Admin Tokens', path: '/admin/tokens', element: <AdminTokens /> },
 ];
