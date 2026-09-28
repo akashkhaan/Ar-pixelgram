@@ -28,7 +28,6 @@ import {
   Crown,
   Loader2,
 } from 'lucide-react';
-import {
 import type { Group, GroupMember, GroupMedia, GroupPinnedMessage, GroupPermissions } from '@/types/groups';
 import type { Profile } from '@/types/types';
 import { Button } from '@/components/ui/button';
