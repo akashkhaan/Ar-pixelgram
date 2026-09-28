@@ -2,9 +2,7 @@ import { useGroupCall } from "@/contexts/GroupCallContext";
 import {
   ArrowLeft,
   BadgeCheck,
-  Copy,
   Edit3,
-  Link as LinkIcon,
   Loader2,
   MessageCircle,
   Music2,
@@ -34,8 +32,6 @@ import {
 } from "@/services/api";
 import { getActiveGroupCallsForUser, getMyGroups } from "@/services/groups";
 import {
-  copyGroupFacebookUrlToClipboard,
-  copyGroupUidToClipboard,
   getGroupNumericUid,
 } from "@/services/groupUid";
 import {
@@ -642,37 +638,8 @@ const ChatListPage: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <span>{member_count} members</span>
-                              <span>·</span>
-                              <span
-                                onClick={(e) => copyGroupUidToClipboard(group.id, e)}
-                                className="inline-flex items-center gap-1 font-mono text-[10px] text-sky-500 bg-sky-500/10 hover:bg-sky-500/20 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
-                                title="Click to copy Facebook Group UID"
-                              >
-                                <span>UID: {groupUid}</span>
-                                <Copy className="w-2.5 h-2.5" />
-                              </span>
                             </div>
                           </Link>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={(e) => copyGroupUidToClipboard(group.id, e)}
-                              className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-sky-500 transition-colors"
-                              title="Copy Group UID"
-                              aria-label="Copy Group UID"
-                            >
-                              <Copy className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => copyGroupFacebookUrlToClipboard(group.id, e)}
-                              className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                              title="Copy Facebook Group URL"
-                              aria-label="Copy Facebook Group URL"
-                            >
-                              <LinkIcon className="w-4 h-4" />
-                            </button>
-                          </div>
                         </div>
                       );
                     })}

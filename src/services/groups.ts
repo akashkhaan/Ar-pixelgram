@@ -58,10 +58,11 @@ export async function getGroup(groupId: string): Promise<Group | null> {
 }
 
 export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
+  const actualId = await resolveGroupId(groupId);
   const { data, error } = await supabase
     .from('group_members')
     .select('*')
-    .eq('group_id', groupId)
+    .eq('group_id', actualId)
     .order('role', { ascending: true })
     .order('joined_at', { ascending: true });
   throwIfError(error);
@@ -75,10 +76,11 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
 }
 
 export async function getGroupMessages(groupId: string): Promise<GroupMessage[]> {
+  const actualId = await resolveGroupId(groupId);
   const { data, error } = await supabase
     .from('group_messages')
     .select('*, group_message_reactions(*)')
-    .eq('group_id', groupId)
+    .eq('group_id', actualId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })
     .limit(300);
@@ -90,7 +92,8 @@ export async function getGroupMessages(groupId: string): Promise<GroupMessage[]>
 }
 
 export async function getGroupPermissions(groupId: string): Promise<GroupPermissions | null> {
-  const { data, error } = await supabase.from('group_permissions').select('*').eq('group_id', groupId).maybeSingle();
+  const actualId = await resolveGroupId(groupId);
+  const { data, error } = await supabase.from('group_permissions').select('*').eq('group_id', actualId).maybeSingle();
   throwIfError(error);
   return data as GroupPermissions | null;
 }
