@@ -2,7 +2,9 @@ import { useGroupCall } from "@/contexts/GroupCallContext";
 import {
   ArrowLeft,
   BadgeCheck,
+  Copy,
   Edit3,
+  Link as LinkIcon,
   Loader2,
   MessageCircle,
   Music2,
@@ -31,6 +33,11 @@ import {
   getUnreadCount,
 } from "@/services/api";
 import { getActiveGroupCallsForUser, getMyGroups } from "@/services/groups";
+import {
+  copyGroupFacebookUrlToClipboard,
+  copyGroupUidToClipboard,
+  getGroupNumericUid,
+} from "@/services/groupUid";
 import {
   getFeedNotes,
   NoteAudioManager,
@@ -587,12 +594,14 @@ const ChatListPage: React.FC = () => {
                       const activeCall = activeGroupCalls[group.id];
                       const isCurrentUserInThisCall =
                         groupCall.active && groupCall.groupId === group.id;
+                      const groupUid = getGroupNumericUid(group.id);
+                      const groupUrl = `/messages/t/${groupUid}`;
                       return (
                         <div
                           key={group.id}
                           className="flex items-center gap-3.5 px-4 py-3 mx-2 rounded-2xl hover:bg-muted/50 active:bg-muted/70 transition-all duration-150 group"
                         >
-                          <Link to={"/group/" + group.id} className="relative shrink-0">
+                          <Link to={groupUrl} className="relative shrink-0">
                             <div className="msg-avatar-container ring-1 ring-border/50 bg-muted shadow-xs">
                               {group.avatar_url ? (
                                 <img
@@ -614,7 +623,7 @@ const ChatListPage: React.FC = () => {
                               </span>
                             )}
                           </Link>
-                          <Link to={"/group/" + group.id} className="min-w-0 flex-1">
+                          <Link to={groupUrl} className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 mb-0.5">
                               <p className="truncate text-sm font-semibold text-foreground">
                                 {group.name}
@@ -631,10 +640,39 @@ const ChatListPage: React.FC = () => {
                                 </span>
                               ) : null}
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {member_count} members
-                            </p>
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <span>{member_count} members</span>
+                              <span>·</span>
+                              <span
+                                onClick={(e) => copyGroupUidToClipboard(group.id, e)}
+                                className="inline-flex items-center gap-1 font-mono text-[10px] text-sky-500 bg-sky-500/10 hover:bg-sky-500/20 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                                title="Click to copy Facebook Group UID"
+                              >
+                                <span>UID: {groupUid}</span>
+                                <Copy className="w-2.5 h-2.5" />
+                              </span>
+                            </div>
                           </Link>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => copyGroupUidToClipboard(group.id, e)}
+                              className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-sky-500 transition-colors"
+                              title="Copy Group UID"
+                              aria-label="Copy Group UID"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => copyGroupFacebookUrlToClipboard(group.id, e)}
+                              className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                              title="Copy Facebook Group URL"
+                              aria-label="Copy Facebook Group URL"
+                            >
+                              <LinkIcon className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

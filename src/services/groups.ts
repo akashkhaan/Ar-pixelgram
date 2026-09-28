@@ -1,5 +1,6 @@
 import { supabase } from '@/db/supabase';
 import { createNotification, sendPushTo } from '@/services/api';
+import { getGroupNumericUid, resolveGroupId } from '@/services/groupUid';
 import type { Profile } from '@/types/types';
 import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary, GroupCall } from '@/types/groups';
 
@@ -39,13 +40,20 @@ export async function getMyGroups(userId: string): Promise<GroupSummary[]> {
   for (const row of counts || []) countMap.set(row.group_id, (countMap.get(row.group_id) || 0) + 1);
   return rows.flatMap(row => {
     const group = Array.isArray(row.groups) ? row.groups[0] : row.groups;
+    if (group) {
+      getGroupNumericUid(group.id);
+    }
     return group ? [{ group, role: row.role, member_count: countMap.get(row.group_id) || 1 }] : [];
   });
 }
 
 export async function getGroup(groupId: string): Promise<Group | null> {
-  const { data, error } = await supabase.from('groups').select('*').eq('id', groupId).maybeSingle();
+  const actualId = await resolveGroupId(groupId);
+  const { data, error } = await supabase.from('groups').select('*').eq('id', actualId).maybeSingle();
   throwIfError(error);
+  if (data) {
+    getGroupNumericUid(data.id);
+  }
   return data as Group | null;
 }
 

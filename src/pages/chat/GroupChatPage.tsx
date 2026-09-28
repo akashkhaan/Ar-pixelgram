@@ -2,7 +2,10 @@ import { InstagramSharedCard, parseSharedContent } from '@/components/chat/Insta
 import {
   ArrowLeft,
   Check,
+  Copy,
+  Globe,
   Info,
+  Link as LinkIcon,
   Loader2,
   Paperclip,
   Phone,
@@ -18,6 +21,13 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import {
+  copyGroupFacebookUrlToClipboard,
+  copyGroupUidToClipboard,
+  getGroupFacebookUrl,
+  getGroupNumericUid,
+  resolveGroupId,
+} from '@/services/groupUid';
 import GroupCallPanel, { GroupCallPanelHandle } from '@/components/call/GroupCallPanel';
 import { useGroupCall } from '@/contexts/GroupCallContext';
 import MessengerGroupSettings, { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
@@ -101,7 +111,17 @@ const renderMessageContent = (text: string, mine: boolean, myUsername?: string) 
 };
 
 const GroupChatPage: React.FC = () => {
-  const { groupId } = useParams<{ groupId: string }>();
+  const { groupId: rawGroupId } = useParams<{ groupId: string }>();
+  const [resolvedGroupId, setResolvedGroupId] = useState<string>(rawGroupId || '');
+
+  useEffect(() => {
+    if (!rawGroupId) return;
+    void resolveGroupId(rawGroupId).then(id => {
+      if (id) setResolvedGroupId(id);
+    });
+  }, [rawGroupId]);
+
+  const groupId = resolvedGroupId || rawGroupId;
   const { user, profile: myProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -124,6 +144,20 @@ const GroupChatPage: React.FC = () => {
   const [reactionMessage, setReactionMessage] = useState<string | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [activeGroupCall, setActiveGroupCall] = useState<GroupCall | null>(null);
+
+  const groupNumericUid = useMemo(() => {
+    return group?.id ? getGroupNumericUid(group.id) : (rawGroupId ? getGroupNumericUid(rawGroupId) : '');
+  }, [group?.id, rawGroupId]);
+
+  // Sync browser address / search bar URL to Facebook desktop style /messages/t/{numericUid}
+  useEffect(() => {
+    if (groupNumericUid && typeof window !== 'undefined') {
+      const fbPath = `/messages/t/${groupNumericUid}`;
+      if (window.location.pathname !== fbPath && !window.location.pathname.startsWith('/group/join')) {
+        window.history.replaceState(null, '', fbPath);
+      }
+    }
+  }, [groupNumericUid]);
 
   // Messenger customization states
   const [groupTheme, setGroupTheme] = useState<string>(() => {
@@ -443,8 +477,19 @@ const GroupChatPage: React.FC = () => {
             <Avatar profile={group.avatar_url ? ({ avatar_url: group.avatar_url, username: group.name } as Profile) : null} />
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold leading-tight">{group.name}</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {members.length} members · Active recently
+              <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground mt-0.5">
+                <span
+                  onClick={(e) => {
+                    copyGroupUidToClipboard(group.id, e);
+                  }}
+                  className="inline-flex items-center gap-1 font-mono text-[10px] text-sky-500 bg-sky-500/10 hover:bg-sky-500/20 px-1.5 py-0.5 rounded cursor-pointer transition-colors"
+                  title="Click to copy Facebook Group UID"
+                >
+                  UID: {groupNumericUid}
+                  <Copy className="h-2.5 w-2.5" />
+                </span>
+                <span>·</span>
+                <span>{members.length} members</span>
               </span>
             </span>
           </button>
@@ -502,6 +547,44 @@ const GroupChatPage: React.FC = () => {
             <Info className="h-5 w-5" />
           </button>
         </header>
+
+        {/* FACEBOOK DESKTOP BROWSER SEARCH BAR & GROUP UID BAR */}
+        <div className="bg-muted/50 border-b border-border/50 px-3 py-1.5 flex items-center justify-between gap-2 text-xs">
+          <div
+            onClick={(e) => copyGroupFacebookUrlToClipboard(group.id, e)}
+            className="flex items-center gap-1.5 min-w-0 flex-1 bg-background/90 border border-border/60 rounded-lg px-2.5 py-1 shadow-2xs cursor-pointer hover:border-sky-500/50 transition-colors"
+            title="Click to copy Facebook Browser URL"
+          >
+            <Globe className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <div className="flex items-center gap-1 min-w-0 flex-1 truncate font-mono text-[11px]">
+              <span className="text-muted-foreground/80 truncate">facebook.com/messages/t/</span>
+              <span className="font-bold text-sky-500 bg-sky-500/10 px-1 py-0.2 rounded shrink-0">
+                {groupNumericUid}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={(e) => copyGroupUidToClipboard(group.id, e)}
+              className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-500 font-semibold text-[11px] transition-all active:scale-95 shadow-2xs"
+              title="Copy Group UID"
+              aria-label="Copy Group UID"
+            >
+              <Copy className="w-3 h-3" />
+              <span>UID</span>
+            </button>
+            <button
+              type="button"
+              onClick={(e) => copyGroupFacebookUrlToClipboard(group.id, e)}
+              className="inline-flex items-center gap-1 h-7 px-2 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-medium text-[11px] transition-colors"
+              title="Copy Facebook Browser URL"
+              aria-label="Copy Facebook Browser URL"
+            >
+              <LinkIcon className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
 
         {/* IN-CONVERSATION SEARCH BAR */}
         {showMessageSearch && (

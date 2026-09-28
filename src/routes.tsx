@@ -75,6 +75,8 @@ export const routes: RouteConfig[] = [
   { name: 'Chat Conversation', path: '/chat/:receiverId', element: <ChatPage /> },
   { name: 'Create Group', path: '/groups/new', element: <CreateGroupPage /> },
   { name: 'Group Chat', path: '/group/:groupId', element: <GroupChatPage /> },
+  { name: 'Facebook Messages Group Chat', path: '/messages/t/:groupId', element: <GroupChatPage /> },
+  { name: 'Messages Group Chat', path: '/messages/group/:groupId', element: <GroupChatPage /> },
   { name: 'Join Group', path: '/group/join/:inviteToken', element: <GroupJoinPage /> },
   { name: 'Notifications', path: '/notifications', element: <NotificationsPage /> },
   { name: 'Profile', path: '/profile', element: <ProfilePage /> },

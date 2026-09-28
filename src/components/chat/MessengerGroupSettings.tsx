@@ -28,7 +28,13 @@ import {
   Crown,
   Loader2,
   Copy,
+  Globe,
 } from 'lucide-react';
+import {
+  copyGroupFacebookUrlToClipboard,
+  copyGroupUidToClipboard,
+  getGroupNumericUid,
+} from '@/services/groupUid';
 import type { Group, GroupMember, GroupMedia, GroupPinnedMessage, GroupPermissions } from '@/types/groups';
 import type { Profile } from '@/types/types';
 import { Button } from '@/components/ui/button';
@@ -543,9 +549,66 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
             onClick={onCopyInvite}
             className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
           >
-            <span className="text-sm font-medium text-foreground">Share Link</span>
+            <span className="text-sm font-medium text-foreground">Share Invite Link</span>
             <LinkIcon className="h-4 w-4 text-muted-foreground" />
           </button>
+
+          {/* Facebook Group UID & Browser URL (Desktop Site Style) */}
+          <div className="p-4 bg-muted/30 border-t border-border/40 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-sky-500" />
+                Facebook Group UID & Browser Link
+              </span>
+              <span className="text-[10px] uppercase font-bold text-sky-500 bg-sky-500/10 px-1.5 py-0.5 rounded">
+                Desktop Site
+              </span>
+            </div>
+
+            {/* Numeric UID display */}
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-background border border-border/60">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-muted-foreground uppercase font-semibold">Group UID Number</p>
+                <p className="font-mono text-xs font-bold text-sky-500 truncate tracking-wide">
+                  {getGroupNumericUid(group.id)}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={(e) => copyGroupUidToClipboard(group.id, e)}
+                className="h-7 text-xs gap-1 text-sky-500 border-sky-500/30 hover:bg-sky-500/10 shrink-0"
+              >
+                <Copy className="h-3 w-3" />
+                Copy UID
+              </Button>
+            </div>
+
+            {/* Desktop browser search bar URL display */}
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-background border border-border/60">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-muted-foreground uppercase font-semibold">Browser Search Bar URL</p>
+                <p className="font-mono text-[11px] text-foreground/80 truncate">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/messages/t/${getGroupNumericUid(group.id)}` : `/messages/t/${getGroupNumericUid(group.id)}`}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={(e) => copyGroupFacebookUrlToClipboard(group.id, e)}
+                className="h-7 text-xs gap-1 shrink-0"
+              >
+                <LinkIcon className="h-3 w-3" />
+                Copy URL
+              </Button>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Desktop site ya browser me messages open karne par search bar me jo numeric UID hoti hai, wahi unique Group UID yahan se nikal aur copy kar sakte hain.
+            </p>
+          </div>
         </div>
 
         {/* SECTION 2: MORE ACTIONS */}

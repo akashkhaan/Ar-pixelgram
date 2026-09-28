@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import useGoBack from '@/hooks/use-go-back';
 import { createGroup, searchGroupUsers, uploadGroupAvatar } from '@/services/groups';
+import { getGroupNumericUid } from '@/services/groupUid';
 import type { Profile } from '@/types/types';
 
 const Avatar: React.FC<{ profile?: Profile | null; size?: string }> = ({ profile, size = 'w-10 h-10' }) => (
@@ -64,7 +65,8 @@ const CreateGroupPage: React.FC = () => {
         catch { toast.error('Group created, but photo upload failed'); }
       }
       toast.success('Group created');
-      navigate('/group/' + groupId, { state: { selectedUserIds: selected.map(item => item.user_id) } });
+      const uid = getGroupNumericUid(groupId);
+      navigate('/messages/t/' + uid, { state: { selectedUserIds: selected.map(item => item.user_id) } });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Group create nahi hua');
     } finally { setLoading(false); }
