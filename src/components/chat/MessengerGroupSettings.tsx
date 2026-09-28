@@ -545,6 +545,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
             <span className="text-sm font-medium text-foreground">Share Invite Link</span>
             <LinkIcon className="h-4 w-4 text-muted-foreground" />
           </button>
+        </div>
 
         {/* SECTION 2: MORE ACTIONS */}
         <div className="space-y-1.5">
