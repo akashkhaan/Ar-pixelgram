@@ -143,15 +143,15 @@ const GroupChatPage: React.FC = () => {
     return group?.id ? getGroupNumericUid(group.id) : (rawGroupId ? getGroupNumericUid(rawGroupId) : '');
   }, [group?.id, rawGroupId]);
 
-  // Sync browser address / search bar URL to Facebook desktop style /messages/t/{numericUid}
+  // Keep the numeric group UID in the browser URL without rendering it in the chat UI.
   useEffect(() => {
     if (groupNumericUid && typeof window !== 'undefined') {
       const fbPath = `/messages/t/${groupNumericUid}`;
       if (window.location.pathname !== fbPath && !window.location.pathname.startsWith('/group/join')) {
-        window.history.replaceState(null, '', fbPath);
+        navigate(fbPath, { replace: true });
       }
     }
-  }, [groupNumericUid]);
+  }, [groupNumericUid, navigate]);
 
   // Messenger customization states
   const [groupTheme, setGroupTheme] = useState<string>(() => {
