@@ -304,6 +304,34 @@ const ChatListPage: React.FC = () => {
     return activeGroups.filter((g) => g.group.name?.toLowerCase().includes(q));
   }, [activeGroups, searchQuery]);
 
+
+  const formatUserPresence = (userId?: string) => {
+    if (!userId) return { isOnline: false, text: '' };
+    const status = onlineStatuses[userId];
+    if (!status) return { isOnline: false, text: '' };
+    const now = Date.now();
+    const lastSeen = status.last_seen_at ? new Date(status.last_seen_at).getTime() : 0;
+    const isRecent = lastSeen > 0 ? now - lastSeen < 120 * 1000 : true;
+    const isOnline = Boolean(status.is_online && isRecent);
+
+    if (isOnline) {
+      return { isOnline: true, text: 'Active now' };
+    }
+    if (!status.last_seen_at) {
+      return { isOnline: false, text: '' };
+    }
+    const diffMs = now - lastSeen;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return { isOnline: false, text: 'Active just now' };
+    if (diffMins < 60) return { isOnline: false, text: `Active ${diffMins}m ago` };
+    if (diffHours < 24) return { isOnline: false, text: `Active ${diffHours}h ago` };
+    if (diffDays === 1) return { isOnline: false, text: 'Active yesterday' };
+    return { isOnline: false, text: `Active ${diffDays}d ago` };
+  };
+
   const formatMessageTime = (dateStr?: string) => {
     if (!dateStr) return "";
     const d = new Date(dateStr);
