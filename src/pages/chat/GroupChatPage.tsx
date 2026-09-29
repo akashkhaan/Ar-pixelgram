@@ -632,8 +632,7 @@ const GroupChatPage: React.FC = () => {
             const displayName = nicknames[message.sender_id] || sender?.username || 'Member';
             const isSingleEmoji = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})$/u.test(message.content.trim());
 
-            return (
-              {isCallEventMessage(message.content) ? (
+            return isCallEventMessage(message.content) ? (
                 <div key={message.id} className="w-full flex justify-center">
                   <CallMessageCard
                     content={message.content}
