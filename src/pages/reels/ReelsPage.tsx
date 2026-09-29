@@ -398,32 +398,43 @@ const ReelCard: React.FC<{
         </div>
       </div>
 
-      {/* Right side actions */}
-      <div className="absolute right-4 bottom-36 flex flex-col items-center gap-5">
+      {/* Right side actions with animated dynamic color-shifting borders */}
+      <div className="absolute right-3.5 bottom-36 flex flex-col items-center gap-4 z-20">
         {/* Like */}
-        <button onClick={handleLike} className="flex flex-col items-center gap-1">
-          <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${liked ? 'scale-110' : ''}`}>
-            <Heart className={`w-7 h-7 transition-all ${liked ? 'fill-red-500 text-red-500 scale-110' : 'text-white'}`} />
+        <button onClick={handleLike} className="flex flex-col items-center gap-1 group active:scale-90 transition-transform">
+          <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(129,140,248,0.7),0_0_26px_rgba(244,63,94,0.4)] group-hover:scale-105 transition-all">
+            <div className="w-11 h-11 rounded-full bg-[#0a0a14]/85 backdrop-blur-md flex items-center justify-center">
+              <Heart className={`w-6 h-6 transition-all ${liked ? 'fill-rose-500 text-rose-500 scale-110 drop-shadow-[0_0_10px_rgba(244,63,94,0.9)]' : 'text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]'}`} />
+            </div>
           </div>
-          <span className="text-white text-xs font-semibold">{likesCount > 999 ? `${(likesCount/1000).toFixed(1)}k` : likesCount}</span>
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+            {likesCount > 999 ? `${(likesCount/1000).toFixed(1)}k` : likesCount}
+          </span>
         </button>
 
         {/* Comment */}
-        <button className="flex flex-col items-center gap-1" onClick={() => setCommentsOpen(true)}>
-          <div className="w-11 h-11 rounded-full flex items-center justify-center">
-            <MessageCircle className="w-7 h-7 text-white" />
+        <button className="flex flex-col items-center gap-1 group active:scale-90 transition-transform" onClick={() => setCommentsOpen(true)}>
+          <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(129,140,248,0.7),0_0_26px_rgba(168,85,247,0.4)] group-hover:scale-105 transition-all">
+            <div className="w-11 h-11 rounded-full bg-[#0a0a14]/85 backdrop-blur-md flex items-center justify-center">
+              <MessageCircle className="w-6 h-6 text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]" />
+            </div>
           </div>
-          <span className="text-white text-xs font-semibold">{commentsCount > 999 ? `${(commentsCount/1000).toFixed(1)}k` : commentsCount}</span>
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+            {commentsCount > 999 ? `${(commentsCount/1000).toFixed(1)}k` : commentsCount}
+          </span>
         </button>
 
         {/* Share */}
-        <button className="flex flex-col items-center gap-1" onClick={handleShare}>
-          <div className="w-11 h-11 rounded-full flex items-center justify-center">
-            <Share2 className="w-6 h-6 text-white" />
+        <button className="flex flex-col items-center gap-1 group active:scale-90 transition-transform" onClick={handleShare}>
+          <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(129,140,248,0.7),0_0_26px_rgba(56,189,248,0.4)] group-hover:scale-105 transition-all">
+            <div className="w-11 h-11 rounded-full bg-[#0a0a14]/85 backdrop-blur-md flex items-center justify-center">
+              <Share2 className="w-5 h-5 text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]" />
+            </div>
           </div>
-          <span className="text-white text-xs font-semibold">{t('share')}</span>
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+            {t('share')}
+          </span>
         </button>
-
       </div>
 
       {/* Bottom info */}
@@ -432,7 +443,7 @@ const ReelCard: React.FC<{
         <div className="flex items-center gap-2.5">
           <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0 group">
             {/* Glowing multi-color neon avatar ring matching screenshot */}
-            <div className="relative p-[2px] rounded-full bg-gradient-to-tr from-cyan-400 via-indigo-500 to-fuchsia-500 shadow-[0_0_12px_rgba(168,85,247,0.7)] shrink-0">
+            <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(168,85,247,0.8)] shrink-0">
               <Avatar className="w-8 h-8 rounded-full border border-black/60">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="bg-gradient-to-tr from-indigo-600 to-purple-600 text-white text-[12px] font-bold flex items-center justify-center">
@@ -448,7 +459,7 @@ const ReelCard: React.FC<{
               type="button"
               onClick={handleFollow}
               disabled={followLoading}
-              className="relative shrink-0 rounded-full p-[1.5px] bg-gradient-to-r from-cyan-400 via-indigo-500 via-fuchsia-500 to-pink-500 shadow-[0_0_16px_rgba(129,140,248,0.7),0_0_26px_rgba(217,70,239,0.45)] hover:scale-105 active:scale-95 transition-all group disabled:opacity-50"
+              className="relative shrink-0 rounded-full p-[2px] dynamic-rainbow-border shadow-[0_0_18px_rgba(129,140,248,0.8),0_0_30px_rgba(217,70,239,0.5)] hover:scale-105 active:scale-95 transition-all group disabled:opacity-50"
             >
               <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-[#0a0a14]/80 backdrop-blur-md">
                 {followStatus === 'accepted' ? (

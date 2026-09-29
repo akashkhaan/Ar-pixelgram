@@ -285,3 +285,31 @@
 .glow-action-ring:active {
   transform: scale(0.92);
 }
+
+/* ── Dynamic Continuous RGB Color Cycle ── */
+@keyframes dynamic-rainbow-cycle {
+  0% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: hue-rotate(180deg);
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: hue-rotate(360deg);
+  }
+}
+
+.dynamic-rainbow-border {
+  background: linear-gradient(135deg, #00f2fe, #4facfe, #818cf8, #c084fc, #f43f5e, #fb923c, #facc15, #00f2fe) !important;
+  background-size: 300% 300% !important;
+  animation: dynamic-rainbow-cycle 3.5s linear infinite !important;
+}
+
+.dynamic-rainbow-border-fast {
+  background: linear-gradient(135deg, #00f2fe, #4facfe, #818cf8, #c084fc, #f43f5e, #fb923c, #facc15, #00f2fe) !important;
+  background-size: 300% 300% !important;
+  animation: dynamic-rainbow-cycle 2.5s linear infinite !important;
+}

@@ -78,7 +78,8 @@ const BottomNav: React.FC<{ overlay?: boolean; hidden?: boolean }> = ({ hidden =
       )}
     >
       {/* Outer Floating Pill Capsule Container */}
-      <div className="relative rounded-full bg-[#090a16]/88 backdrop-blur-2xl border border-indigo-500/35 ring-1 ring-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.85),0_0_25px_rgba(99,102,241,0.32),inset_0_1px_1px_rgba(255,255,255,0.18)] px-2 py-1.5 flex items-center justify-between">
+      <div className="relative rounded-full p-[1.5px] dynamic-rainbow-border shadow-[0_10px_35px_rgba(0,0,0,0.85),0_0_30px_rgba(99,102,241,0.4)]">
+        <div className="rounded-full bg-[#090a16]/92 backdrop-blur-2xl px-2 py-1.5 flex items-center justify-between w-full">
         {navItems.map(({ path, icon: IconComponent, label, badge }) => {
           const isActive =
             location.pathname === path || (path !== '/' && path !== '/home' && location.pathname.startsWith(path));
@@ -91,7 +92,8 @@ const BottomNav: React.FC<{ overlay?: boolean; hidden?: boolean }> = ({ hidden =
             >
               {isActive ? (
                 /* Glowing Active Capsule Pill matching the screenshot */
-                <div className="relative flex flex-col items-center justify-center px-4 py-1.5 rounded-full bg-gradient-to-b from-indigo-500/40 via-purple-600/35 to-blue-600/40 border border-indigo-400/50 shadow-[0_0_20px_rgba(99,102,241,0.6),inset_0_0_12px_rgba(168,85,247,0.35)] scale-105 transition-all">
+                <div className="relative flex flex-col items-center justify-center p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_22px_rgba(99,102,241,0.7),0_0_35px_rgba(217,70,239,0.4)] scale-105 transition-all">
+                  <div className="w-full h-full px-3.5 py-1 rounded-full bg-[#0a0a14]/85 backdrop-blur-md flex flex-col items-center justify-center">
                   <div className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.85)]">
                     <IconComponent active={true} className="w-5 h-5 text-white" />
                   </div>
@@ -100,6 +102,7 @@ const BottomNav: React.FC<{ overlay?: boolean; hidden?: boolean }> = ({ hidden =
                   </span>
                   {/* Glowing Dot Underneath */}
                   <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_6px_#ffffff] mt-1" />
+                  </div>
                 </div>
               ) : (
                 /* Inactive Option */
@@ -121,6 +124,7 @@ const BottomNav: React.FC<{ overlay?: boolean; hidden?: boolean }> = ({ hidden =
             </Link>
           );
         })}
+        </div>
       </div>
     </nav>
   );
