@@ -1,73 +1,123 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Video, BookOpen, MessageCircle, User, Globe } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 
-const BottomNav: React.FC<{ overlay?: boolean; hidden?: boolean }> = ({ overlay = false, hidden = false }) => {
+// Pixel-perfect SVG icons matching the screenshot
+const HomeIcon: React.FC<{ active?: boolean; className?: string }> = ({ active, className }) => (
+  <svg viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth={active ? 1.5 : 1.8} className={className || "w-5 h-5"}>
+    <path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H4a1 1 0 0 1-1-1v-9.5z" />
+  </svg>
+);
+
+const VideoReelIcon: React.FC<{ active?: boolean; className?: string }> = ({ active, className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} className={className || "w-5 h-5"}>
+    <rect x="2.5" y="3.5" width="19" height="17" rx="3.5" />
+    <path d="M7 3.5v3.5M17 3.5v3.5M7 17v3.5M17 17v3.5" strokeWidth={1.5} />
+    <polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const PeopleIcon: React.FC<{ active?: boolean; className?: string }> = ({ active, className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} className={className || "w-5 h-5"}>
+    <circle cx="12" cy="12" r="9.5" />
+    <circle cx="12" cy="9.5" r="3" />
+    <path d="M6.5 18c0-2.8 2.5-4.8 5.5-4.8s5.5 2 5.5 4.8" />
+  </svg>
+);
+
+const StoriesIcon: React.FC<{ active?: boolean; className?: string }> = ({ active, className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} className={className || "w-5 h-5"}>
+    <circle cx="12" cy="12" r="9.5" />
+    <path d="M12 7.5v9M7.5 12h9" strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" />
+  </svg>
+);
+
+const ChatIcon: React.FC<{ active?: boolean; className?: string }> = ({ active, className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} className={className || "w-5 h-5"}>
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+    <circle cx="8" cy="12" r="1" fill="currentColor" />
+    <circle cx="12" cy="12" r="1" fill="currentColor" />
+    <circle cx="16" cy="12" r="1" fill="currentColor" />
+  </svg>
+);
+
+const ProfileIcon: React.FC<{ active?: boolean; className?: string }> = ({ active, className }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} className={className || "w-5 h-5"}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M5.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5" />
+  </svg>
+);
+
+interface NavItemDef {
+  path: string;
+  icon: React.FC<{ active?: boolean; className?: string }>;
+  label: string;
+  badge?: number | string;
+}
+
+const BottomNav: React.FC<{ overlay?: boolean; hidden?: boolean }> = ({ hidden = false }) => {
   const location = useLocation();
   const { t } = useLanguage();
-  const navItems = [
-    { path: '/home', icon: Home, label: t('home') },
-    { path: '/videos', icon: Video, label: 'वीडियो' },
-    { path: '/people', icon: Globe, label: 'लोग' },
-    { path: '/stories', icon: BookOpen, label: t('stories') },
-    { path: '/chat', icon: MessageCircle, label: t('chat') },
-    { path: '/profile', icon: User, label: t('profile') },
+
+  const navItems: NavItemDef[] = [
+    { path: '/home', icon: HomeIcon, label: t('home') || 'होम' },
+    { path: '/videos', icon: VideoReelIcon, label: 'वीडियो' },
+    { path: '/people', icon: PeopleIcon, label: 'लोग' },
+    { path: '/stories', icon: StoriesIcon, label: t('stories') || 'स्टोरीज़' },
+    { path: '/chat', icon: ChatIcon, label: t('chat') || 'चैट', badge: 3 },
+    { path: '/profile', icon: ProfileIcon, label: t('profile') || 'प्रोफ़ाइल' },
   ];
+
   return (
     <nav
+      aria-label="Bottom Navigation"
       className={cn(
-        'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg z-50 safe-bottom transition-transform duration-300',
-        hidden && 'translate-y-full',
-        overlay
-          ? 'bg-gradient-to-t from-black/85 via-black/60 to-transparent pt-3'
-          : 'bottom-nav'
+        'fixed bottom-3.5 left-1/2 -translate-x-1/2 w-[calc(100%-1.25rem)] max-w-[430px] z-50 pointer-events-auto transition-all duration-300 ease-out select-none safe-bottom',
+        hidden && 'translate-y-24 opacity-0 pointer-events-none'
       )}
     >
-      <div className="flex items-center justify-around px-1 py-2">
-        {navItems.map(({ path, icon: Icon, label }) => {
+      {/* Outer Floating Pill Capsule Container */}
+      <div className="relative rounded-full bg-[#090a16]/88 backdrop-blur-2xl border border-indigo-500/35 ring-1 ring-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.85),0_0_25px_rgba(99,102,241,0.32),inset_0_1px_1px_rgba(255,255,255,0.18)] px-2 py-1.5 flex items-center justify-between">
+        {navItems.map(({ path, icon: IconComponent, label, badge }) => {
           const isActive =
-            location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
+            location.pathname === path || (path !== '/' && path !== '/home' && location.pathname.startsWith(path));
+
           return (
             <Link
               key={path}
               to={path}
-              className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all relative"
+              className="relative flex flex-col items-center justify-center flex-1 transition-all duration-200"
             >
-              <div
-                className={cn(
-                  'w-8 h-8 flex items-center justify-center rounded-xl transition-all',
-                  isActive && 'text-primary-foreground scale-105'
-                )}
-                style={
-                  isActive
-                    ? { background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }
-                    : {}
-                }
-              >
-                <Icon
-                  className={cn(
-                    'w-4 h-4 transition-all',
-                    isActive ? 'text-white' : overlay ? 'text-white/80' : 'text-muted-foreground'
-                  )}
-                  strokeWidth={isActive ? 2.5 : 1.8}
-                />
-              </div>
-              <span
-                className={cn(
-                  'text-[9px] font-medium transition-colors',
-                  isActive
-                    ? overlay
-                      ? 'text-white'
-                      : 'text-primary'
-                    : overlay
-                    ? 'text-white/70'
-                    : 'text-muted-foreground'
-                )}
-              >
-                {label}
-              </span>
+              {isActive ? (
+                /* Glowing Active Capsule Pill matching the screenshot */
+                <div className="relative flex flex-col items-center justify-center px-4 py-1.5 rounded-full bg-gradient-to-b from-indigo-500/40 via-purple-600/35 to-blue-600/40 border border-indigo-400/50 shadow-[0_0_20px_rgba(99,102,241,0.6),inset_0_0_12px_rgba(168,85,247,0.35)] scale-105 transition-all">
+                  <div className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.85)]">
+                    <IconComponent active={true} className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-[10px] font-bold text-white tracking-tight mt-0.5 leading-none">
+                    {label}
+                  </span>
+                  {/* Glowing Dot Underneath */}
+                  <span className="w-1 h-1 rounded-full bg-white shadow-[0_0_6px_#ffffff] mt-1" />
+                </div>
+              ) : (
+                /* Inactive Option */
+                <div className="relative flex flex-col items-center justify-center py-1 px-1 text-white/70 hover:text-white transition-colors active:scale-95">
+                  <div className="relative">
+                    <IconComponent active={false} className="w-5 h-5 text-white/80 transition-colors" />
+                    {/* Badge if present (like the red '3' badge on chat) */}
+                    {badge !== undefined && (
+                      <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow-[0_0_8px_rgba(244,63,94,0.9)] animate-pulse">
+                        {badge}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-medium text-white/70 mt-1 leading-none">
+                    {label}
+                  </span>
+                </div>
+              )}
             </Link>
           );
         })}

@@ -14,7 +14,7 @@ import BottomNav from '@/components/layouts/BottomNav';
 import { retryMediaOnError, isLegacyMediaUrl } from '@/lib/mediaUrl';
 
 // Only render video for active ± 1 reels — prevents loading all videos at once
-const RENDER_WINDOW = 2;
+const RENDER_WINDOW = 3;
 
 const ReelCard: React.FC<{
   reel: Reel;
@@ -41,6 +41,7 @@ const ReelCard: React.FC<{
   const isOwner = user?.id === reel.user_id;
   const [followStatus, setFollowStatus] = useState<'accepted' | 'pending' | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -92,7 +93,19 @@ const ReelCard: React.FC<{
       // Instagram-jaisa instant play: pehle frame ka intezaar nahi karte,
       // seedha play() call karte hain aur agar browser ne abhi data nahi
       // liya to canplay par dobara try kar lete hain.
-      const tryPlay = () => { v.play().catch(() => {}); };
+      const tryPlay = () => {
+        const p = v.play();
+        if (p !== undefined) {
+          p.catch(() => {
+            // Mobile browser autoplay policy guard:
+            // If sound was blocked, mute temporarily so video starts playing INSTANTLY with 0ms black delay
+            if (!v.muted) {
+              v.muted = true;
+              v.play().catch(() => {});
+            }
+          });
+        }
+      };
       tryPlay();
       v.addEventListener('canplay', tryPlay, { once: true });
       v.addEventListener('loadeddata', tryPlay, { once: true });
@@ -212,18 +225,31 @@ const ReelCard: React.FC<{
           <p className="text-sm">Yeh reel purane server par thi, video ab available nahi hai.</p>
         </div>
       ) : isNear ? (
+        <>
+          {/* Shimmer/Poster placeholder while video buffers */}
+        {!videoReady && !isLegacyMediaUrl(reel.video_url) && (
+          <div className="absolute inset-0 bg-gradient-to-b from-zinc-950 via-[#0d0d16] to-black flex flex-col items-center justify-center pointer-events-none z-0">
+            {reel.thumbnail_url ? (
+              <img src={reel.thumbnail_url} alt="" className="w-full h-full object-cover blur-xs brightness-75 scale-105" />
+            ) : (
+              <div className="w-12 h-12 rounded-full border border-indigo-500/30 bg-indigo-500/10 flex items-center justify-center animate-pulse">
+                <span className="text-xl">✨</span>
+              </div>
+            )}
+          </div>
+        )}
         <video
           ref={videoRef}
           src={reel.video_url}
-          className="absolute inset-0 w-full h-full object-cover"
+          className={"absolute inset-0 w-full h-full object-cover transition-opacity duration-300 " + (videoReady ? "opacity-100" : "opacity-85")}
           muted={muteOriginal}
+          autoPlay={isActive}
           loop
           playsInline
           poster={reel.thumbnail_url || undefined}
-          // Aas-paas ke reels pehle se buffer ho jate hain, isliye scroll
-          // karte hi video turant chalti hai — koi 1 second ka kaala frame nahi.
           preload="auto"
-          style={{ backgroundColor: '#000' }}
+          onLoadedData={() => setVideoReady(true)}
+          onPlaying={() => setVideoReady(true)}
           onError={(e) => retryMediaOnError(e.currentTarget, reel.video_url)}
           onClick={() => {
             const v = videoRef.current;
@@ -238,6 +264,7 @@ const ReelCard: React.FC<{
             }
           }}
         />
+        </>
       ) : (
         // Placeholder for far-away reels — thumbnail dikhate hain taki
         // scroll karte waqt kaala/khali frame na dikhe.
@@ -332,28 +359,43 @@ const ReelCard: React.FC<{
 
       {/* Bottom info */}
       <div className="absolute left-0 right-16 bottom-[calc(6rem+env(safe-area-inset-bottom))] px-4 space-y-1.5">
-        {/* Creator row low on the left, like Instagram */}
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0">
-            <Avatar className="w-8 h-8 border border-white/70 shrink-0">
-              <AvatarImage src={profile?.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-[11px] font-bold">
-                {profile?.username?.[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-white font-bold text-sm truncate">@{profile?.username}</span>
-            {profile?.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
+        {/* Creator row low on the left with glowing neon avatar and glowing Following button matching screenshot */}
+        <div className="flex items-center gap-2.5">
+          <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0 group">
+            {/* Glowing multi-color neon avatar ring matching screenshot */}
+            <div className="relative p-[2px] rounded-full bg-gradient-to-tr from-cyan-400 via-indigo-500 to-fuchsia-500 shadow-[0_0_12px_rgba(168,85,247,0.7)] shrink-0">
+              <Avatar className="w-8 h-8 rounded-full border border-black/60">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="bg-gradient-to-tr from-indigo-600 to-purple-600 text-white text-[12px] font-bold flex items-center justify-center">
+                  {profile?.username?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+            <span className="text-white font-bold text-sm truncate group-hover:text-primary transition-colors">@{profile?.username}</span>
+            {profile?.is_verified && <BadgeCheck className="w-4 h-4 text-sky-400 shrink-0" />}
           </button>
           {!isOwner && (
             <button
               type="button"
               onClick={handleFollow}
               disabled={followLoading}
-              className="shrink-0 rounded-md border border-white/70 px-2 py-1 text-[11px] font-bold text-white backdrop-blur-sm disabled:opacity-50"
+              className="relative shrink-0 rounded-full p-[1.5px] bg-gradient-to-r from-cyan-400 via-indigo-500 via-fuchsia-500 to-pink-500 shadow-[0_0_16px_rgba(129,140,248,0.7),0_0_26px_rgba(217,70,239,0.45)] hover:scale-105 active:scale-95 transition-all group disabled:opacity-50"
             >
-              {followStatus === 'accepted' ? (
-                <span className="inline-flex items-center gap-1"><UserCheck className="w-3 h-3" /> Following</span>
-              ) : followStatus === 'pending' ? 'Requested' : 'Follow'}
+              <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-[#0a0a14]/80 backdrop-blur-md">
+                {followStatus === 'accepted' ? (
+                  <>
+                    <UserCheck className="w-3.5 h-3.5 text-cyan-300 drop-shadow-[0_0_6px_rgba(103,232,249,0.8)]" />
+                    <span className="text-xs font-bold text-white tracking-wide">Following</span>
+                  </>
+                ) : followStatus === 'pending' ? (
+                  <span className="text-xs font-bold text-white/90">Requested</span>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5 text-pink-300 drop-shadow-[0_0_6px_rgba(244,114,182,0.8)]" />
+                    <span className="text-xs font-bold text-white tracking-wide">Follow</span>
+                  </>
+                )}
+              </div>
             </button>
           )}
         </div>
@@ -423,7 +465,14 @@ const ReelsPage: React.FC = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [reels, setReels] = useState<Reel[]>([]);
+  const [reels, setReels] = useState<Reel[]>(() => {
+    try {
+      const cached = sessionStorage.getItem('pixelgram_cached_reels');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
   const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
@@ -449,6 +498,11 @@ const ReelsPage: React.FC = () => {
       }
 
       setReels(data);
+      try {
+        if (data && data.length > 0) {
+          sessionStorage.setItem('pixelgram_cached_reels', JSON.stringify(data.slice(0, 15)));
+        }
+      } catch {}
       reelsCountRef.current = data.length;
 
       if (targetId) {

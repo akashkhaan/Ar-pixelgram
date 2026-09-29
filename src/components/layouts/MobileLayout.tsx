@@ -1,3 +1,4 @@
+import BottomNav from "@/components/layouts/BottomNav";
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Video, BookOpen, MessageCircle, User, Bell, Globe } from 'lucide-react';
@@ -91,41 +92,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, hideNav = false, 
         {children}
       </main>
 
-      {/* Premium Bottom Navigation */}
-      {!hideNav && (
-        <nav className={cn(
-          'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg z-50 bottom-nav safe-bottom transition-transform duration-300',
-          navHidden && 'translate-y-full'
-        )}>
-          <div className="flex items-center justify-around px-1 py-2">
-            {navItems.map(({ path, icon: Icon, label }) => {
-              const isActive = location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
-              return (
-                <Link
-                  key={path}
-                  to={path}
-                  className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl transition-all relative"
-                >
-                  <div className={cn(
-                    'w-8 h-8 flex items-center justify-center rounded-xl transition-all',
-                    isActive && 'text-primary-foreground scale-105'
-                  )}
-                    style={isActive ? { background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' } : {}}
-                  >
-                    <Icon
-                      className={cn('w-4 h-4 transition-all', isActive ? 'text-white' : 'text-muted-foreground')}
-                      strokeWidth={isActive ? 2.5 : 1.8}
-                    />
-                  </div>
-                  <span className={cn('text-[9px] font-medium transition-colors', isActive ? 'text-primary' : 'text-muted-foreground')}>
-                    {label}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      )}
+      {!hideNav && <BottomNav hidden={navHidden} />}
 
     </div>
   );
