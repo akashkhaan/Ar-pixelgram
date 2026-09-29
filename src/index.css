@@ -250,3 +250,38 @@
 .animate-spin-slow { animation: spin-slow 3s linear infinite; }
 .animate-float-up  { animation: float-up 0.8s ease-out forwards; }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* ── Continuous Dynamic Color-Shifting RGB Animation ── */
+@keyframes dynamic-rainbow-spin {
+  0% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: hue-rotate(180deg);
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: hue-rotate(360deg);
+  }
+}
+
+.glow-action-ring {
+  position: relative;
+  border-radius: 9999px;
+  padding: 2px;
+  background: linear-gradient(135deg, #00f2fe, #4facfe, #818cf8, #c084fc, #f43f5e, #fb923c, #facc15, #00f2fe);
+  background-size: 300% 300%;
+  animation: dynamic-rainbow-spin 4s linear infinite;
+  box-shadow: 0 0 12px rgba(129, 140, 248, 0.6), 0 0 24px rgba(244, 63, 94, 0.35);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.glow-action-ring:hover {
+  transform: scale(1.08);
+}
+
+.glow-action-ring:active {
+  transform: scale(0.92);
+}

@@ -42,6 +42,46 @@ const ReelCard: React.FC<{
   const [followStatus, setFollowStatus] = useState<'accepted' | 'pending' | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  const [isBufferingSlow, setIsBufferingSlow] = useState(false);
+  const [isSlowConnection, setIsSlowConnection] = useState(false);
+  const bufferTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const checkConn = () => {
+      if (!navigator.onLine) {
+        setIsSlowConnection(true);
+        return;
+      }
+      const navConn = (navigator as unknown as { connection?: { effectiveType?: string; downlink?: number; rtt?: number } }).connection;
+      if (navConn) {
+        const is2g = navConn.effectiveType === 'slow-2g' || navConn.effectiveType === '2g';
+        const isHighPing = typeof navConn.rtt === 'number' && navConn.rtt > 800;
+        const isLowBandwidth = typeof navConn.downlink === 'number' && navConn.downlink < 0.9;
+        if (is2g || (isHighPing && isLowBandwidth)) {
+          setIsSlowConnection(true);
+          return;
+        }
+      }
+      setIsSlowConnection(false);
+    };
+
+    checkConn();
+    window.addEventListener('online', checkConn);
+    window.addEventListener('offline', checkConn);
+
+    const navConn = (navigator as unknown as { connection?: { addEventListener?: (e: string, cb: () => void) => void; removeEventListener?: (e: string, cb: () => void) => void } }).connection;
+    if (navConn?.addEventListener) {
+      navConn.addEventListener('change', checkConn);
+    }
+
+    return () => {
+      window.removeEventListener('online', checkConn);
+      window.removeEventListener('offline', checkConn);
+      if (navConn?.removeEventListener) {
+        navConn.removeEventListener('change', checkConn);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -249,7 +289,23 @@ const ReelCard: React.FC<{
           poster={reel.thumbnail_url || undefined}
           preload="auto"
           onLoadedData={() => setVideoReady(true)}
-          onPlaying={() => setVideoReady(true)}
+          onPlaying={() => {
+            if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
+            setIsBufferingSlow(false);
+            setVideoReady(true);
+          }}
+          onWaiting={() => {
+            if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
+            bufferTimerRef.current = setTimeout(() => {
+              setIsBufferingSlow(true);
+            }, 1400);
+          }}
+          onStalled={() => {
+            if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
+            bufferTimerRef.current = setTimeout(() => {
+              setIsBufferingSlow(true);
+            }, 1800);
+          }}
           onError={(e) => retryMediaOnError(e.currentTarget, reel.video_url)}
           onClick={() => {
             const v = videoRef.current;
@@ -291,6 +347,19 @@ const ReelCard: React.FC<{
 
       {/* Gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
+
+      {/* Castle-style Floating Slow Network Warning Banner */}
+      {(isBufferingSlow || isSlowConnection) && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-40 max-w-[92%] w-auto pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0d0c15]/85 backdrop-blur-xl border border-amber-500/50 shadow-[0_4px_20px_rgba(245,158,11,0.4),0_0_12px_rgba(245,158,11,0.2)] text-amber-300 text-xs font-semibold">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+            </span>
+            <span className="truncate tracking-wide">Your network is slow, please check network</span>
+          </div>
+        </div>
+      )}
 
       {/* Top bar — back button + REELS label + owner menu */}
       <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 pt-safe" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
