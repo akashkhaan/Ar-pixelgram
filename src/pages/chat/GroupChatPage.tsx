@@ -1,3 +1,4 @@
+import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
 import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
 import {
   ArrowLeft,
@@ -632,12 +633,23 @@ const GroupChatPage: React.FC = () => {
             const isSingleEmoji = /^(\p{Emoji_Presentation}|\p{Extended_Pictographic})$/u.test(message.content.trim());
 
             return (
-              <div key={message.id} className={'group flex items-end gap-2 ' + (mine ? 'justify-end' : 'justify-start')}>
-                {!mine && <Avatar profile={sender} size="w-7 h-7" />}
-                <div className="relative max-w-[82%]">
-                  {!mine && <p className="mb-0.5 px-1 text-[11px] font-medium text-primary">{displayName}</p>}
+              {isCallEventMessage(message.content) ? (
+                <div key={message.id} className="w-full flex justify-center">
+                  <CallMessageCard
+                    content={message.content}
+                    timestamp={message.created_at}
+                    isMe={mine}
+                    isGroup={true}
+                    onCallBack={(k) => { void handleStartCall(k); }}
+                  />
+                </div>
+              ) : (
+                <div key={message.id} className={'group flex items-end gap-2 ' + (mine ? 'justify-end' : 'justify-start')}>
+                  {!mine && <Avatar profile={sender} size="w-7 h-7" />}
+                  <div className="relative max-w-[82%]">
+                    {!mine && <p className="mb-0.5 px-1 text-[11px] font-medium text-primary">{displayName}</p>}
 
-                  {isSingleEmoji ? (
+                    {isSingleEmoji ? (
                     <div id={'group-message-' + message.id} className="text-4xl py-1 px-2 select-none">
                       {message.content.trim()}
                     </div>

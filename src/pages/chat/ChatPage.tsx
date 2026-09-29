@@ -1,3 +1,4 @@
+import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
 import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
 import {
   ArrowLeft,
@@ -98,8 +99,7 @@ const ChatPage: React.FC = () => {
     isBlocked(user.id, receiverId).then(setBlocked);
     isBlocked(receiverId, user.id).then(setBlockedByOther);
     getOnlineStatus(receiverId).then(setOnlineStatusState);
-    // Cleanup: set offline on unmount
-    return () => { setOnlineStatus(user.id, false); };
+    // AuthContext manages online presence globally
   }, [receiverId, user]);
 
   useEffect(() => {
@@ -144,6 +144,19 @@ const ChatPage: React.FC = () => {
           typingTimeoutRef.current = setTimeout(() => setOtherTyping(false), 2000);
         }
       })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'online_status', filter: `user_id=eq.${receiverId}` },
+        payload => {
+          const row = payload.new as any;
+          if (row) {
+            setOnlineStatusState({
+              is_online: row.is_online,
+              last_seen_at: row.last_seen_at,
+            });
+          }
+        }
+      )
       .on('broadcast', { event: 'online_status' }, payload => {
         if (payload.payload?.user_id === receiverId) {
           setOnlineStatusState({
@@ -459,8 +472,16 @@ const ChatPage: React.FC = () => {
                     </span>
                   </div>
                 )}
-                <div className={cn('flex items-end gap-1.5', isMe ? 'justify-end' : 'justify-start')}>
-                  {isSingleEmoji ? (
+                {isCallEventMessage(msg.content) ? (
+                    <CallMessageCard
+                      content={msg.content}
+                      timestamp={msg.created_at}
+                      isMe={isMe}
+                      onCallBack={(k) => { if (receiverId) startCall(receiverId, k); }}
+                    />
+                  ) : (
+                    <div className={cn('flex items-end gap-1.5', isMe ? 'justify-end' : 'justify-start')}>
+                      {isSingleEmoji ? (
                     <div className="text-5xl py-1 px-2 select-none hover:scale-110 active:scale-125 transition-transform">
                       {msg.content.trim()}
                     </div>
@@ -514,6 +535,7 @@ const ChatPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+                  )}
               </React.Fragment>
             );
           })}

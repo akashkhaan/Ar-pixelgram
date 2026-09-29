@@ -3,7 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import { purgeLegacyMediaForUser } from '@/lib/legacyCleanup';
 import { supabase } from '@/db/supabase';
 import type { Profile } from '@/types/types';
-import { getProfile } from '@/services/api';
+import { getProfile, setOnlineStatus } from '@/services/api';
 import { usePushSubscription } from '@/hooks/usePushSubscription';
 import { useNativePush } from '@/hooks/useNativePush';
 import { useNativeNotifications } from '@/hooks/useNativeNotifications';
@@ -111,7 +111,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user?.id) void purgeLegacyMediaForUser(user.id);
   }, [user?.id]);
 
+
+  // Realtime Presence / Online Status management
+  useEffect(() => {
+    if (!user?.id) return;
+    const uid = user.id;
+
+    // Mark online immediately
+    setOnlineStatus(uid, true).catch(() => {});
+
+    // Heartbeat every 30s
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        setOnlineStatus(uid, true).catch(() => {});
+      }
+    }, 30000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setOnlineStatus(uid, true).catch(() => {});
+      } else {
+        setOnlineStatus(uid, false).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const handleUnload = () => {
+      setOnlineStatus(uid, false).catch(() => {});
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+      setOnlineStatus(uid, false).catch(() => {});
+    };
+  }, [user?.id]);
+
   const signOut = async () => {
+    if (user?.id) { await setOnlineStatus(user.id, false).catch(() => {}); }
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);

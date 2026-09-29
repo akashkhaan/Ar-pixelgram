@@ -385,10 +385,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const rejectCall = useCallback((reason: 'declined' | 'no-answer' = 'declined') => {
-    if (state.peerId) {
+    if (state.peerId && user) {
       sendSignal(state.peerId, 'call-end', { reason: reason === 'declined' ? 'rejected' : 'no-answer' });
-      // Tell the caller they have a missed call (push + in-app).
       sendMissedAlert(state.peerId, state.kind, profile?.username || (user?.user_metadata?.username as string | undefined), reason);
+      const label = state.kind === 'video' ? 'video call' : 'audio call';
+      const text = reason === 'declined' ? `Declined ${label}` : `📵 Missed ${label}`;
+      sendMessage(state.peerId, text).catch(() => {});
     }
     cleanup();
     setState({ status: 'idle', kind: 'audio', peerId: null, peerProfile: null, startedAt: null });
@@ -401,36 +403,49 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const startedAt = startedAtRef.current;
     const kind = state.kind;
     const peerId = state.peerId;
+    const currentStatus = state.status;
     const durSec = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
     durationRef.current = durSec;
     if (state.peerId) sendSignal(state.peerId, 'call-end', { reason: 'ended', durationSec: durSec });
-    if (peerId && startedAt && user) {
-      const mm = Math.floor(durSec / 60).toString().padStart(2, '0');
-      const ss = Math.floor(durSec % 60).toString().padStart(2, '0');
-      const emoji = kind === 'video' ? '🎥' : '📞';
-      const text = `${emoji} ${kind === 'video' ? 'Video' : 'Voice'} call · ${mm}:${ss}`;
-      sendMessage(peerId, text).catch(() => {});
-      const pretty = formatCallDuration(durSec);
-      const label = kind === 'video' ? 'Video call' : 'Voice call';
-      void saveCallLog({
-        callerId: user.id,
-        receiverId: peerId,
-        callType: kind === 'video' ? 'video' : 'audio',
-        status: 'answered',
-        durationSec: durSec,
-        startedAt: new Date(startedAt).toISOString(),
-      });
-      createNotification(
-        peerId, 'message', user.id, undefined, undefined,
-        `📞 Call ended — ${pretty}`,
-      ).catch(() => {});
-      void sendPushTo(peerId, `${label} ended`, `Call ended — ${pretty}`, `/chat/${user.id}`, `call-ended-${peerId}-${Date.now()}`);
+    if (peerId && user) {
+      if (startedAt && durSec > 0) {
+        const mm = Math.floor(durSec / 60).toString().padStart(2, '0');
+        const ss = Math.floor(durSec % 60).toString().padStart(2, '0');
+        const emoji = kind === 'video' ? '🎥' : '📞';
+        const label = kind === 'video' ? 'Video call' : 'Audio call';
+        const text = `${emoji} ${label} ended · ${mm}:${ss}`;
+        sendMessage(peerId, text).catch(() => {});
+        const pretty = formatCallDuration(durSec);
+        void saveCallLog({
+          callerId: user.id,
+          receiverId: peerId,
+          callType: kind === 'video' ? 'video' : 'audio',
+          status: 'answered',
+          durationSec: durSec,
+          startedAt: new Date(startedAt).toISOString(),
+        });
+        createNotification(
+          peerId, 'message', user.id, undefined, undefined,
+          `📞 Call ended — ${pretty}`,
+        ).catch(() => {});
+        void sendPushTo(peerId, `${label} ended`, `Call ended — ${pretty}`, `/chat/${user.id}`, `call-ended-${peerId}-${Date.now()}`);
+      } else if (currentStatus === 'ringing-out') {
+        const label = kind === 'video' ? 'video call' : 'audio call';
+        sendMessage(peerId, `📵 Missed ${label}`).catch(() => {});
+        void saveCallLog({
+          callerId: user.id,
+          receiverId: peerId,
+          callType: kind === 'video' ? 'video' : 'audio',
+          status: 'missed',
+          durationSec: 0,
+        });
+      }
     }
     startedAtRef.current = null;
     cleanup();
     setState(prev => ({ ...prev, status: 'ended' }));
     setTimeout(() => setState({ status: 'idle', kind: 'audio', peerId: null, peerProfile: null, startedAt: null }), 1500);
-  }, [state.peerId, state.kind, sendSignal, cleanup, user]);
+  }, [state.peerId, state.kind, state.status, sendSignal, cleanup, user]);
   endCallRef.current = endCall;
 
   const toggleMute = useCallback(() => {

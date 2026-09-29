@@ -62,7 +62,8 @@ const ChatListPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<Awaited<ReturnType<typeof getMyGroups>>>([]);
   const [activeGroupCalls, setActiveGroupCalls] = useState<Record<string, GroupCall>>({});
-  const [chatTab, setChatTab] = useState<"primary" | "general" | "requests">("primary");
+  const [chatTab, setChatTab] = useState<"chats" | "groups" | "requests">("chats");
+  const [onlineStatuses, setOnlineStatuses] = useState<Record<string, { is_online: boolean; last_seen_at?: string }>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [showGroupMenu, setShowGroupMenu] = useState(false);
 
@@ -171,6 +172,25 @@ const ChatListPage: React.FC = () => {
           return { profile: p, lastMessage, unreadCount };
         })
       );
+            // Fetch online presence for all conversation profiles
+      const userIds = combined.map((p) => p.user_id);
+      if (userIds.length > 0) {
+        try {
+          const { data: statusRows } = await supabase
+            .from('online_status')
+            .select('user_id, is_online, last_seen_at')
+            .in('user_id', userIds);
+          if (statusRows) {
+            const statusMap: Record<string, { is_online: boolean; last_seen_at?: string }> = {};
+            statusRows.forEach((r: any) => {
+              statusMap[r.user_id] = { is_online: r.is_online, last_seen_at: r.last_seen_at };
+            });
+            setOnlineStatuses(statusMap);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
       setConversations(
         convs.sort((a, b) => {
           if (!a.lastMessage && !b.lastMessage) return 0;
@@ -195,6 +215,32 @@ const ChatListPage: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+    // Realtime subscription for users online/offline presence
+  useEffect(() => {
+    const channel = supabase
+      .channel('chat-list-online-status-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'online_status' },
+        (payload) => {
+          const row = payload.new as { user_id: string; is_online: boolean; last_seen_at?: string };
+          if (row?.user_id) {
+            setOnlineStatuses((prev) => ({
+              ...prev,
+              [row.user_id]: {
+                is_online: row.is_online,
+                last_seen_at: row.last_seen_at,
+              },
+            }));
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Realtime subscription for group call status updates
   useEffect(() => {
@@ -238,7 +284,7 @@ const ChatListPage: React.FC = () => {
     setIgnoredGroupIds(next);
     localStorage.setItem("ignored_group_ids", JSON.stringify(next));
     toast.success("Group restored to main chats");
-    if (next.length === 0) setChatTab("primary");
+    if (next.length === 0) setChatTab("chats");
   };
 
   // Filter conversations & groups by search query
@@ -536,9 +582,9 @@ const ChatListPage: React.FC = () => {
             <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-2xl">
               <button
                 type="button"
-                onClick={() => setChatTab("primary")}
+                onClick={() => setChatTab("chats")}
                 className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  chatTab === "primary"
+                  chatTab === "chats"
                     ? "bg-card text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -547,14 +593,19 @@ const ChatListPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setChatTab("general")}
-                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  chatTab === "general"
+                onClick={() => setChatTab("groups")}
+                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  chatTab === "groups"
                     ? "bg-card text-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                General
+                <span>Groups</span>
+                {filteredGroups.length > 0 && (
+                  <span className="rounded-full bg-primary/20 text-primary px-1.5 py-0.2 text-[10px] font-bold">
+                    {filteredGroups.length}
+                  </span>
+                )}
               </button>
             </div>
             {requestedGroups.length > 0 && (
@@ -575,180 +626,236 @@ const ChatListPage: React.FC = () => {
             )}
           </div>
 
-          {/* MAIN CHATS CONTENT */}
-          {chatTab !== "requests" && (
+          {/* TAB 1: 1-ON-1 CHATS CONTENT */}
+          {chatTab === "chats" && (
             <div className="pt-1">
-              {/* Groups List */}
-              {filteredGroups.length > 0 && (
-                <div className="mb-2">
-                  <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center gap-2">
-                    <Users className="w-3.5 h-3.5 text-primary" />
-                    <span>Groups</span>
-                  </div>
-                  <div className="space-y-1">
-                    {filteredGroups.map(({ group, member_count }) => {
-                      const activeCall = activeGroupCalls[group.id];
-                      const isCurrentUserInThisCall =
-                        groupCall.active && groupCall.groupId === group.id;
-                      const groupUid = getGroupNumericUid(group.id);
-                      const groupUrl = `/messages/t/${groupUid}`;
+              {(() => {
+                const chattedConversations = filteredConversations.filter((c) => c.lastMessage !== null);
+                if (loading && chattedConversations.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-24 gap-3">
+                      <div className="w-10 h-10 rounded-full border-3 border-primary/30 border-t-primary animate-spin" />
+                      <span className="text-xs text-muted-foreground font-medium">Loading messages...</span>
+                    </div>
+                  );
+                }
+                if (chattedConversations.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+                      <div className="w-18 h-18 rounded-3xl bg-gradient-to-tr from-violet-500/15 via-primary/10 to-pink-500/15 flex items-center justify-center mb-4 text-primary shadow-sm border border-primary/20">
+                        <MessageCircle className="w-9 h-9" />
+                      </div>
+                      <h3 className="font-bold text-base text-foreground mb-1">No messages yet</h3>
+                      <p className="text-sm text-muted-foreground text-pretty max-w-xs mb-5">
+                        Start a conversation with your friends, share reels, photos, or audio notes.
+                      </p>
+                      <Link
+                        to="/people"
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-600 to-pink-500 text-white font-semibold text-sm shadow-md shadow-primary/25 hover:opacity-95 active:scale-95 transition-all"
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        <span>Find friends</span>
+                      </Link>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-0.5">
+                    {chattedConversations.map(({ profile, lastMessage, unreadCount }) => {
+                      const presence = formatUserPresence(profile.user_id);
                       return (
-                        <div
-                          key={group.id}
+                        <Link
+                          key={profile.id}
+                          to={`/chat/${profile.user_id}`}
                           className="flex items-center gap-3.5 px-4 py-3 mx-2 rounded-2xl hover:bg-muted/50 active:bg-muted/70 transition-all duration-150 group"
                         >
-                          <Link to={groupUrl} className="relative shrink-0">
+                          {/* Avatar with Realtime Presence Dot */}
+                          <div className="shrink-0 relative">
                             <div className="msg-avatar-container ring-1 ring-border/50 bg-muted shadow-xs">
-                              {group.avatar_url ? (
-                                <img
-                                  src={group.avatar_url}
-                                  alt={group.name}
-                                />
+                              {profile.avatar_url ? (
+                                <img src={profile.avatar_url} alt={profile.username} />
                               ) : (
-                                <div className="w-full h-full bg-primary/15 text-primary flex items-center justify-center">
-                                  <Users className="w-6 h-6" />
+                                <div className="w-full h-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center">
+                                  <span className="text-primary font-bold text-base">
+                                    {profile.username[0]?.toUpperCase()}
+                                  </span>
                                 </div>
                               )}
                             </div>
-                            {(isCurrentUserInThisCall || !!activeCall) && (
-                              <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center z-10">
-                                <span className="h-3 w-3 rounded-full bg-emerald-500 animate-ping absolute" />
-                                <span className="h-3.5 w-3.5 rounded-full bg-emerald-600 ring-2 ring-background relative flex items-center justify-center">
-                                  <Phone className="h-2 w-2 text-white" />
-                                </span>
+                            {presence.isOnline && (
+                              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-background shadow-xs flex items-center justify-center">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white" />
                               </span>
                             )}
-                          </Link>
-                          <Link to={groupUrl} className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <p className="truncate text-sm font-semibold text-foreground">
-                                {group.name}
+                          </div>
+
+                          {/* Info & Last Message & Presence text */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2 mb-0.5">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span
+                                  className={`text-sm truncate ${
+                                    unreadCount > 0
+                                      ? "font-bold text-foreground"
+                                      : "font-semibold text-foreground/95"
+                                  }`}
+                                >
+                                  {profile.full_name || profile.username}
+                                </span>
+                                {profile.is_verified && (
+                                  <BadgeCheck className="w-3.5 h-3.5 text-sky-500 shrink-0 fill-sky-500/20" />
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {presence.isOnline ? (
+                                  <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Active now
+                                  </span>
+                                ) : presence.text ? (
+                                  <span className="text-[10px] text-muted-foreground/75 font-normal">
+                                    {presence.text}
+                                  </span>
+                                ) : null}
+                                {lastMessage && (
+                                  <span className="text-[11px] text-muted-foreground/80 font-medium">
+                                    • {formatMessageTime(lastMessage.created_at)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <p
+                                className={`text-xs truncate flex-1 min-w-0 ${
+                                  unreadCount > 0
+                                    ? "font-bold text-foreground"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {lastMessage ? lastMessage.content : "Sent a message"}
                               </p>
-                              {isCurrentUserInThisCall ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-bold text-emerald-500 animate-pulse">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                  In call
-                                </span>
-                              ) : activeCall ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                  {activeCall.kind === "video" ? "Video call" : "Audio call"}
-                                </span>
-                              ) : null}
+                              {unreadCount > 0 && (
+                                <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 shadow-xs shadow-primary/40" />
+                              )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <span>{member_count} members</span>
-                            </div>
-                          </Link>
-                        </div>
+                          </div>
+
+                          {/* Video action shortcut */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigate(`/chat/${profile.user_id}`);
+                            }}
+                            className="text-muted-foreground/70 hover:text-primary shrink-0 w-9 h-9 rounded-full flex items-center justify-center hover:bg-primary/10 transition-colors"
+                            title="Direct Message"
+                          >
+                            <Video className="w-4.5 h-4.5" />
+                          </button>
+                        </Link>
                       );
                     })}
                   </div>
-                </div>
-              )}
+                );
+              })()}
+            </div>
+          )}
 
-              {/* Direct Messages List */}
-              {loading && filteredConversations.length === 0 ? (
+          {/* TAB 2: GROUPS ONLY TAB CONTENT */}
+          {chatTab === "groups" && (
+            <div className="pt-1">
+              <div className="flex items-center justify-between px-4 py-2 mb-1">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80 flex items-center gap-2">
+                  <Users className="w-3.5 h-3.5 text-primary" />
+                  <span>Your Groups ({filteredGroups.length})</span>
+                </div>
+                <Link
+                  to="/groups/new"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create Group</span>
+                </Link>
+              </div>
+
+              {loading && filteredGroups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 gap-3">
                   <div className="w-10 h-10 rounded-full border-3 border-primary/30 border-t-primary animate-spin" />
-                  <span className="text-xs text-muted-foreground font-medium">Loading messages...</span>
+                  <span className="text-xs text-muted-foreground font-medium">Loading groups...</span>
                 </div>
-              ) : filteredConversations.length === 0 && filteredGroups.length === 0 ? (
+              ) : filteredGroups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-                  <div className="w-18 h-18 rounded-3xl bg-gradient-to-tr from-violet-500/15 via-primary/10 to-pink-500/15 flex items-center justify-center mb-4 text-primary shadow-sm border border-primary/20">
-                    <MessageCircle className="w-9 h-9" />
+                  <div className="w-18 h-18 rounded-3xl bg-emerald-500/10 flex items-center justify-center mb-4 text-emerald-500 shadow-sm border border-emerald-500/20">
+                    <Users className="w-9 h-9" />
                   </div>
-                  <h3 className="font-bold text-base text-foreground mb-1">No messages yet</h3>
+                  <h3 className="font-bold text-base text-foreground mb-1">No groups yet</h3>
                   <p className="text-sm text-muted-foreground text-pretty max-w-xs mb-5">
-                    Start a conversation with your friends, share reels, photos, or audio notes.
+                    Create a group to start group chats, audio calls, and video calls with friends.
                   </p>
                   <Link
-                    to="/people"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-600 to-pink-500 text-white font-semibold text-sm shadow-md shadow-primary/25 hover:opacity-95 active:scale-95 transition-all"
+                    to="/groups/new"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-semibold text-sm shadow-md shadow-emerald-500/25 hover:opacity-95 active:scale-95 transition-all"
                   >
-                    <UserPlus className="w-4 h-4" />
-                    <span>Find friends</span>
+                    <Plus className="w-4 h-4" />
+                    <span>Create group</span>
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-0.5">
-                  {filteredConversations.map(({ profile, lastMessage, unreadCount }) => (
-                    <Link
-                      key={profile.id}
-                      to={`/chat/${profile.user_id}`}
-                      className="flex items-center gap-3.5 px-4 py-3 mx-2 rounded-2xl hover:bg-muted/50 active:bg-muted/70 transition-all duration-150 group"
-                    >
-                      {/* Avatar */}
-                      <div className="shrink-0 relative">
-                        <div className="msg-avatar-container ring-1 ring-border/50 bg-muted shadow-xs">
-                          {profile.avatar_url ? (
-                            <img
-                              src={profile.avatar_url}
-                              alt={profile.username}
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center">
-                              <span className="text-primary font-bold text-base">
-                                {profile.username[0]?.toUpperCase()}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Info & Last Message */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2 mb-0.5">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span
-                              className={`text-sm truncate ${
-                                unreadCount > 0
-                                  ? "font-bold text-foreground"
-                                  : "font-semibold text-foreground/95"
-                              }`}
-                            >
-                              {profile.full_name || profile.username}
-                            </span>
-                            {profile.is_verified && (
-                              <BadgeCheck className="w-3.5 h-3.5 text-sky-500 shrink-0 fill-sky-500/20" />
+                <div className="space-y-1">
+                  {filteredGroups.map(({ group, member_count }) => {
+                    const activeCall = activeGroupCalls[group.id];
+                    const isCurrentUserInThisCall =
+                      groupCall.active && groupCall.groupId === group.id;
+                    const groupUid = getGroupNumericUid(group.id);
+                    const groupUrl = `/messages/t/${groupUid}`;
+                    return (
+                      <div
+                        key={group.id}
+                        className="flex items-center gap-3.5 px-4 py-3 mx-2 rounded-2xl hover:bg-muted/50 active:bg-muted/70 transition-all duration-150 group"
+                      >
+                        <Link to={groupUrl} className="relative shrink-0">
+                          <div className="msg-avatar-container ring-1 ring-border/50 bg-muted shadow-xs">
+                            {group.avatar_url ? (
+                              <img src={group.avatar_url} alt={group.name} />
+                            ) : (
+                              <div className="w-full h-full bg-primary/15 text-primary flex items-center justify-center">
+                                <Users className="w-6 h-6" />
+                              </div>
                             )}
                           </div>
-                          {lastMessage && (
-                            <span className="text-[11px] text-muted-foreground/80 shrink-0 font-medium">
-                              {formatMessageTime(lastMessage.created_at)}
+                          {(isCurrentUserInThisCall || !!activeCall) && (
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center z-10">
+                              <span className="h-3 w-3 rounded-full bg-emerald-500 animate-ping absolute" />
+                              <span className="h-3.5 w-3.5 rounded-full bg-emerald-600 ring-2 ring-background relative flex items-center justify-center">
+                                <Phone className="h-2 w-2 text-white" />
+                              </span>
                             </span>
                           )}
-                        </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <p
-                            className={`text-xs truncate flex-1 min-w-0 ${
-                              unreadCount > 0
-                                ? "font-bold text-foreground"
-                                : "text-muted-foreground"
-                            }`}
-                          >
-                            {lastMessage ? lastMessage.content : "Sent a message"}
-                          </p>
-                          {unreadCount > 0 && (
-                            <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 shadow-xs shadow-primary/40" />
-                          )}
-                        </div>
+                        </Link>
+                        <Link to={groupUrl} className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {group.name}
+                            </p>
+                            {isCurrentUserInThisCall ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-bold text-emerald-500 animate-pulse">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                In call
+                              </span>
+                            ) : activeCall ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                {activeCall.kind === "video" ? "Video call" : "Audio call"}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>{member_count} members</span>
+                          </div>
+                        </Link>
                       </div>
-
-                      {/* Camera / Video action icon */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          navigate(`/chat/${profile.user_id}`);
-                        }}
-                        className="text-muted-foreground/70 hover:text-primary shrink-0 w-9 h-9 rounded-full flex items-center justify-center hover:bg-primary/10 transition-colors"
-                        title="Send photo or video"
-                      >
-                        <Video className="w-4.5 h-4.5" />
-                      </button>
-                    </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

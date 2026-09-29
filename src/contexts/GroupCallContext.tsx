@@ -8,6 +8,7 @@ import {
   joinGroupCall,
   leaveGroupCall,
   startOrJoinGroupCall,
+  sendGroupMessage,
 } from '@/services/groups';
 import { createNotification, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
@@ -573,6 +574,8 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const leaveCall = async () => {
     const id = activeCallRef.current;
+    const targetGroupId = groupId;
+    const callElapsed = elapsedSeconds || (startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0);
     if (id && user) {
       send({ type: 'leave', callId: id, from: user.id });
       try {
@@ -580,6 +583,13 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       } catch {
         /* cleanup */
       }
+    }
+    if (targetGroupId && user && callElapsed > 0) {
+      const mm = Math.floor(callElapsed / 60).toString().padStart(2, '0');
+      const ss = Math.floor(callElapsed % 60).toString().padStart(2, '0');
+      const emoji = kind === 'video' ? '🎥' : '📞';
+      const label = kind === 'video' ? 'Group video call' : 'Group audio call';
+      sendGroupMessage(targetGroupId, `${emoji} ${label} ended · ${mm}:${ss}`).catch(() => {});
     }
 
     screenStreamRef.current?.getTracks().forEach(track => track.stop());
