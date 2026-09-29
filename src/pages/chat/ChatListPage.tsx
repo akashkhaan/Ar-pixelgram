@@ -630,7 +630,7 @@ const ChatListPage: React.FC = () => {
           {chatTab === "chats" && (
             <div className="pt-1">
               {(() => {
-                const chattedConversations = filteredConversations.filter((c) => c.lastMessage !== null);
+                const chattedConversations = (filteredConversations || []).filter((c) => c && c.lastMessage !== null);
                 if (loading && chattedConversations.length === 0) {
                   return (
                     <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -677,7 +677,7 @@ const ChatListPage: React.FC = () => {
                               ) : (
                                 <div className="w-full h-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center">
                                   <span className="text-primary font-bold text-base">
-                                    {profile.username[0]?.toUpperCase()}
+                                    {profile?.username ? profile.username[0].toUpperCase() : "U"}
                                   </span>
                                 </div>
                               )}

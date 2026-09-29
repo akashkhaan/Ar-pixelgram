@@ -117,37 +117,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user?.id) return;
     const uid = user.id;
 
-    // Mark online immediately
-    setOnlineStatus(uid, true).catch(() => {});
+    try {
+      setOnlineStatus(uid, true).catch(() => {});
+    } catch {}
 
-    // Heartbeat every 30s
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        setOnlineStatus(uid, true).catch(() => {});
-      }
+      try {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          setOnlineStatus(uid, true).catch(() => {});
+        }
+      } catch {}
     }, 30000);
 
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        setOnlineStatus(uid, true).catch(() => {});
-      } else {
-        setOnlineStatus(uid, false).catch(() => {});
-      }
+      try {
+        if (document.visibilityState === 'visible') {
+          setOnlineStatus(uid, true).catch(() => {});
+        } else {
+          setOnlineStatus(uid, false).catch(() => {});
+        }
+      } catch {}
     };
-    document.addEventListener('visibilitychange', handleVisibility);
 
     const handleUnload = () => {
-      setOnlineStatus(uid, false).catch(() => {});
+      try {
+        setOnlineStatus(uid, false).catch(() => {});
+      } catch {}
     };
+
+    window.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('beforeunload', handleUnload);
     window.addEventListener('pagehide', handleUnload);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('beforeunload', handleUnload);
       window.removeEventListener('pagehide', handleUnload);
-      setOnlineStatus(uid, false).catch(() => {});
+      try {
+        setOnlineStatus(uid, false).catch(() => {});
+      } catch {}
     };
   }, [user?.id]);
 

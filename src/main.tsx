@@ -76,24 +76,41 @@ void bootLiveWebsite();
 
 createRoot(document.getElementById("root")!).render(
   <Sentry.ErrorBoundary
-    fallback={
+    fallback={({ error }: { error?: any }) => (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-background text-foreground">
         <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4 text-3xl">
           ⚡
         </div>
         <h2 className="text-lg font-bold mb-2">पेज लोड करने में समस्या आई</h2>
-        <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+        <p className="text-sm text-muted-foreground mb-4 max-w-xs">
           कृपया नीचे दिया गया बटन दबाकर पेज को रीफ्रेश करें।
         </p>
+        {error && (
+          <div className="mb-4 p-2.5 rounded-xl bg-destructive/10 text-destructive text-xs font-mono max-w-sm overflow-auto text-left">
+            {error?.message || String(error)}
+          </div>
+        )}
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={async () => {
+            try {
+              if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const r of regs) await r.unregister();
+              }
+              if ('caches' in window) {
+                const keys = await caches.keys();
+                for (const k of keys) await caches.delete(k);
+              }
+            } catch {}
+            window.location.reload();
+          }}
           className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-95 transition-all shadow-md"
         >
           पेज रीफ्रेश करें
         </button>
       </div>
-    }
+    )}
   >
     <AppWrapper>
       <App />
