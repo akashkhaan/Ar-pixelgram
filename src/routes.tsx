@@ -51,7 +51,7 @@ export interface RouteConfig {
 
 export const routes: RouteConfig[] = [
   // Public routes
-  { name: 'Landing', path: '/', element: <LandingPage />, public: true },
+  { name: 'Root', path: '/', element: <LoginPage />, public: true },
   { name: 'Login', path: '/login', element: <LoginPage />, public: true },
   { name: 'Forgot Password', path: '/forgot-password', element: <ForgotPasswordPage />, public: true },
   { name: 'Register', path: '/register', element: <RegisterPage />, public: true },
