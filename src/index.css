@@ -356,3 +356,307 @@
   animation: dynamic-rainbow-cycle 3.5s linear infinite !important;
   display: inline-block;
 }
+
+/* ── Desktop Dual Sliding Auth Container (From User HTML) ── */
+.auth-desktop-wrapper {
+  background-color: #f3f4f6;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.auth-desktop-card {
+  background-color: #fff;
+  border-radius: 30px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+  width: 850px;
+  max-width: 95vw;
+  height: 580px;
+}
+
+.auth-desktop-card .form-container {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transition: all 0.6s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0 45px;
+}
+
+.auth-desktop-card .form-container form {
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.auth-desktop-card .brand-title {
+  font-size: 32px;
+  font-weight: 700;
+  text-align: center;
+  background: linear-gradient(45deg, #d946ef, #8b5cf6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 4px;
+}
+
+.auth-desktop-card .subtitle {
+  font-size: 13px;
+  color: #6b7280;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.auth-desktop-card .input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+
+.auth-desktop-card .input-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.auth-desktop-card .input-box {
+  position: relative;
+  width: 100%;
+  height: 42px;
+  background-color: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  transition: border-color 0.3s;
+}
+
+.auth-desktop-card .input-box:focus-within {
+  border-color: #8b5cf6;
+}
+
+.auth-desktop-card .input-box input {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0 38px 0 14px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.auth-desktop-card .input-box input::placeholder {
+  color: #9ca3af;
+}
+
+.auth-desktop-card .input-box .eye-icon-btn {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-desktop-card .forgot-password {
+  color: #8b5cf6;
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  text-align: right;
+  display: block;
+  margin-bottom: 18px;
+  margin-top: -4px;
+}
+
+.auth-desktop-card .forgot-password:hover {
+  text-decoration: underline;
+}
+
+.auth-desktop-card .btn-primary-auth {
+  background-color: #8b5cf6;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  width: 100%;
+  height: 46px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  transition: background-color 0.3s, transform 0.1s;
+}
+
+.auth-desktop-card .btn-primary-auth:hover {
+  background-color: #7c3aed;
+}
+
+.auth-desktop-card .btn-primary-auth:active {
+  transform: scale(0.98);
+}
+
+.auth-desktop-card .bottom-text {
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 18px;
+}
+
+.auth-desktop-card .bottom-text span {
+  color: #8b5cf6;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.auth-desktop-card .bottom-text span:hover {
+  text-decoration: underline;
+}
+
+/* Sliding Logic */
+.auth-desktop-card .login-container {
+  left: 50%;
+  width: 50%;
+  z-index: 2;
+}
+
+.auth-desktop-card.active .login-container {
+  transform: translateX(20px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.auth-desktop-card .register-container {
+  left: 0;
+  width: 50%;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-20px);
+}
+
+.auth-desktop-card.active .register-container {
+  transform: translateX(0);
+  opacity: 1;
+  z-index: 5;
+  pointer-events: all;
+}
+
+/* Purple Overlay Section */
+.auth-desktop-card .toggle-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  transition: all 0.6s ease-in-out;
+  z-index: 1000;
+  border-top-right-radius: 120px;
+  border-bottom-right-radius: 120px;
+}
+
+.auth-desktop-card.active .toggle-container {
+  transform: translateX(100%);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-top-left-radius: 120px;
+  border-bottom-left-radius: 120px;
+}
+
+.auth-desktop-card .toggle {
+  background: linear-gradient(to right, #d946ef, #8b5cf6);
+  color: #fff;
+  position: relative;
+  left: -100%;
+  height: 100%;
+  width: 200%;
+  transform: translateX(0);
+  transition: all 0.6s ease-in-out;
+}
+
+.auth-desktop-card.active .toggle {
+  transform: translateX(50%);
+}
+
+.auth-desktop-card .toggle-panel {
+  position: absolute;
+  width: 50%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0 40px;
+  text-align: center;
+  transition: all 0.6s ease-in-out;
+}
+
+.auth-desktop-card .toggle-panel h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 15px;
+}
+
+.auth-desktop-card .toggle-panel p {
+  font-size: 14px;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.auth-desktop-card .toggle-panel button {
+  background-color: transparent;
+  border: 2px solid #fff;
+  color: #fff;
+  border-radius: 8px;
+  width: 140px;
+  height: 45px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.auth-desktop-card .toggle-panel button:hover {
+  background-color: #fff;
+  color: #8b5cf6;
+}
+
+.auth-desktop-card .toggle-left {
+  right: 0;
+  transform: translateX(0);
+}
+
+.auth-desktop-card.active .toggle-left {
+  transform: translateX(200px);
+  opacity: 0;
+}
+
+.auth-desktop-card .toggle-right {
+  left: 0;
+  transform: translateX(-200px);
+  opacity: 0;
+}
+
+.auth-desktop-card.active .toggle-right {
+  transform: translateX(0);
+  opacity: 1;
+}

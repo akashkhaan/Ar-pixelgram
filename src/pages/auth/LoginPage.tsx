@@ -1,3 +1,4 @@
+import DesktopSlidingAuth from '@/components/auth/DesktopSlidingAuth';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
@@ -115,8 +116,15 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
-      <div className="w-full max-w-sm glass-card rounded-2xl p-8 space-y-6">
+    <>
+      {/* Desktop Site / Laptop / Computer View - Dual Sliding Auth Container */}
+      <div className="hidden md:block">
+        <DesktopSlidingAuth initialMode="login" />
+      </div>
+
+      {/* Mobile View */}
+      <div className="block md:hidden min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <div className="w-full max-w-sm glass-card rounded-2xl p-8 space-y-6">
         {/* Logo */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold gradient-text">Pixelgram</h1>
@@ -180,6 +188,7 @@ const LoginPage: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

@@ -1,3 +1,4 @@
+import DesktopSlidingAuth from '@/components/auth/DesktopSlidingAuth';
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
@@ -249,7 +250,14 @@ const RegisterPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <>
+      {/* Desktop View */}
+      <div className="hidden md:block">
+        <DesktopSlidingAuth initialMode="register" />
+      </div>
+
+      {/* Mobile View */}
+      <div className="block md:hidden min-h-screen flex flex-col bg-background">
       {/* Header + progress */}
       <div className="p-4 space-y-3">
         <button onClick={goBack} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -495,6 +503,7 @@ const RegisterPage: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
