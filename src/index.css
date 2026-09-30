@@ -660,3 +660,541 @@
   transform: translateX(0);
   opacity: 1;
 }
+
+/* ── Mobile Aurora Futuristic Auth Container ── */
+@property --hue {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 260;
+}
+@property --ang {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes spin-hue {
+  to { --hue: 620; }
+}
+@keyframes spin-ang {
+  to { --ang: 360deg; }
+}
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-26px) rotate(14deg); }
+}
+@keyframes bob2 {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(30px) rotate(-18deg); }
+}
+@keyframes aurora1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(8vw, -6vh) scale(1.3); }
+}
+@keyframes aurora2 {
+  0%, 100% { transform: translate(0, 0) scale(1.2); }
+  50% { transform: translate(-9vw, 7vh) scale(.9); }
+}
+@keyframes intro {
+  0% { opacity: 0; transform: translateY(40px) scale(.92); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes ripple {
+  to { transform: scale(3.2); opacity: 0; }
+}
+
+.aurora-auth-root {
+  animation: spin-hue 20s linear infinite;
+  --accent: hsl(var(--hue, 260) 92% 56%);
+  --accent2: hsl(calc(var(--hue, 260) + 55) 96% 62%);
+  --deep: hsl(calc(var(--hue, 260) + 25) 75% 18%);
+  --spring: cubic-bezier(.34, 1.4, .4, 1);
+  font-family: 'Poppins', system-ui, sans-serif;
+  background: #0a0918;
+  color: #15132b;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* dark aurora background */
+.aurora-auth-root .aurora {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: .55;
+  pointer-events: none;
+  will-change: transform;
+}
+.aurora-auth-root .a1 {
+  width: 46vmax;
+  height: 46vmax;
+  left: -14vmax;
+  top: -16vmax;
+  background: var(--accent, #8b5cf6);
+  animation: aurora1 14s ease-in-out infinite;
+}
+.aurora-auth-root .a2 {
+  width: 42vmax;
+  height: 42vmax;
+  right: -14vmax;
+  bottom: -16vmax;
+  background: hsl(calc(var(--hue, 260) + 110) 95% 55%);
+  animation: aurora2 17s ease-in-out infinite;
+}
+.aurora-auth-root .a3 {
+  width: 26vmax;
+  height: 26vmax;
+  left: 40%;
+  top: 30%;
+  background: var(--accent2, #d946ef);
+  opacity: .25;
+  animation: aurora1 20s ease-in-out infinite reverse;
+}
+
+/* tilt wrapper + rotating gradient border */
+.aurora-auth-root .tilt {
+  position: relative;
+  width: min(940px, 100%);
+  padding: 2px;
+  border-radius: 26px;
+  background: conic-gradient(from var(--ang, 0deg), var(--accent, #8b5cf6), transparent 30%, var(--accent2, #d946ef) 55%, transparent 80%, var(--accent, #8b5cf6));
+  animation: spin-ang 7s linear infinite, intro .9s var(--spring) backwards;
+  transform: perspective(1300px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform .25s ease-out;
+  box-shadow: 0 40px 100px -25px hsl(var(--hue, 260) 90% 50% / .6);
+}
+
+.aurora-auth-root .card {
+  position: relative;
+  aspect-ratio: 16/10;
+  min-height: 540px;
+  background: #fff;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+.aurora-auth-root .glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(360px circle at var(--gx, 50%) var(--gy, 50%), hsl(var(--hue, 260) 100% 90% / .75), transparent 60%);
+}
+
+/* colour-changing diagonal panel */
+.aurora-auth-root .panel {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--accent, #8b5cf6) 0%, var(--deep, #2e1065) 58%, var(--accent2, #d946ef) 100%);
+  clip-path: polygon(34% 0, 100% 0, 100% 100%, 82% 100%);
+  transition: clip-path 1s cubic-bezier(.7, -.15, .2, 1.15);
+}
+.aurora-auth-root .card.signup .panel {
+  clip-path: polygon(0 0, 63% 0, 19% 100%, 0 100%);
+}
+
+.aurora-auth-root .grain {
+  position: absolute;
+  inset: 0;
+  opacity: .16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.aurora-auth-root canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* floating glass shapes */
+.aurora-auth-root .shape {
+  position: absolute;
+  left: var(--l);
+  top: var(--t);
+  transition: left 1s cubic-bezier(.7, -.15, .2, 1.15);
+  transform: translate(calc(var(--mx, 0) * var(--d) * 1px), calc(var(--my, 0) * var(--d) * 1px));
+}
+.aurora-auth-root .shape i {
+  display: block;
+  width: var(--s);
+  height: var(--s);
+  animation: bob var(--t2) ease-in-out infinite;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .06));
+  border: 1px solid rgba(255, 255, 255, .5);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .25);
+}
+.aurora-auth-root .sh1 { --l: 56%; --t: 12%; --s: 64px; --d: -18; --t2: 6s; }
+.aurora-auth-root .sh1 i { border-radius: 50%; }
+.aurora-auth-root .sh2 { --l: 84%; --t: 64%; --s: 52px; --d: 24; --t2: 7.5s; }
+.aurora-auth-root .sh2 i { border-radius: 14px; animation-name: bob2; }
+.aurora-auth-root .sh3 { --l: 72%; --t: 38%; --s: 38px; --d: -30; --t2: 5s; }
+.aurora-auth-root .sh3 i { border-radius: 50%; background: none; border: 5px solid rgba(255, 255, 255, .55); backdrop-filter: none; }
+
+.aurora-auth-root .card.signup .sh1 { --l: 26%; }
+.aurora-auth-root .card.signup .sh2 { --l: 6%; }
+.aurora-auth-root .card.signup .sh3 { --l: 16%; }
+
+/* welcome text */
+.aurora-auth-root .welcome {
+  position: absolute;
+  top: 50%;
+  width: 30%;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, .3);
+  transition: transform .8s var(--spring);
+}
+.aurora-auth-root .welcome h2 {
+  font-size: clamp(1.3rem, 3.6vw, 2.15rem);
+  font-weight: 800;
+  line-height: 1.12;
+}
+.aurora-auth-root .welcome p {
+  font-size: clamp(.62rem, 1.4vw, .82rem);
+  font-weight: 500;
+  line-height: 1.6;
+  margin-top: 10px;
+}
+.aurora-auth-root .welcome.right {
+  right: 6%;
+  text-align: right;
+  transform: translateY(-58%);
+}
+.aurora-auth-root .welcome.left {
+  left: 5%;
+  text-align: left;
+  transform: translateY(-58%);
+}
+.aurora-auth-root .w {
+  display: inline-block;
+  white-space: nowrap;
+}
+.aurora-auth-root .ch {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(-46px) rotate(-14deg);
+  transition: opacity .3s ease, transform .7s var(--spring);
+}
+.aurora-auth-root .welcome p {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: all .6s ease;
+}
+.aurora-auth-root .card:not(.signup) .welcome.right .ch,
+.aurora-auth-root .card.signup .welcome.left .ch {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(var(--i) * 40ms + 350ms);
+}
+.aurora-auth-root .card:not(.signup) .welcome.right p,
+.aurora-auth-root .card.signup .welcome.left p {
+  opacity: .92;
+  transform: none;
+  transition-delay: .85s;
+}
+.aurora-auth-root .welcome.left { pointer-events: none; }
+.aurora-auth-root .card.signup .welcome.left { pointer-events: auto; }
+
+/* forms */
+.aurora-auth-root .form-box {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  pointer-events: none;
+}
+.aurora-auth-root .form-box.login { left: 6%; }
+.aurora-auth-root .form-box.register { right: 6%; }
+.aurora-auth-root .card:not(.signup) .login,
+.aurora-auth-root .card.signup .register {
+  pointer-events: auto;
+}
+
+.aurora-auth-root .stag {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity .25s ease, transform .25s ease;
+}
+.aurora-auth-root .card:not(.signup) .login .stag,
+.aurora-auth-root .card.signup .register .stag {
+  opacity: 1;
+  transform: none;
+  transition: opacity .5s ease, transform .7s var(--spring);
+  transition-delay: calc(var(--i) * 90ms + 450ms);
+}
+
+.aurora-auth-root .form-box h1 {
+  text-align: center;
+  font-size: clamp(1.4rem, 3.4vw, 2.15rem);
+  font-weight: 800;
+  position: relative;
+  padding-bottom: 12px;
+  margin-bottom: 6px;
+  background: linear-gradient(90deg, #15132b 30%, var(--accent, #8b5cf6));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.aurora-auth-root .form-box h1::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 46px;
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent, #8b5cf6), var(--accent2, #d946ef));
+  transform: translateX(-50%);
+}
+
+.aurora-auth-root .field {
+  position: relative;
+  margin-top: 14px;
+}
+.aurora-auth-root .field input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  border-bottom: 2px solid #dcdaea;
+  padding: 14px 48px 6px 0;
+  font: 500 .86rem 'Poppins', sans-serif;
+  color: #15132b;
+}
+.aurora-auth-root .field::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--accent, #8b5cf6), var(--accent2, #d946ef));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .4s ease;
+}
+.aurora-auth-root .field:focus-within::after {
+  transform: scaleX(1);
+}
+.aurora-auth-root .field label {
+  position: absolute;
+  left: 0;
+  top: 14px;
+  font-size: .86rem;
+  font-weight: 500;
+  color: #6d6b85;
+  pointer-events: none;
+  transition: all .25s var(--spring);
+}
+.aurora-auth-root .field input:focus + label,
+.aurora-auth-root .field input:not(:placeholder-shown) + label {
+  top: -6px;
+  font-size: .7rem;
+  color: var(--accent, #8b5cf6);
+  font-weight: 700;
+}
+.aurora-auth-root .ico {
+  position: absolute;
+  right: 2px;
+  top: 17px;
+  width: 16px;
+  height: 16px;
+  fill: #9a98b3;
+  transition: fill .25s, transform .35s var(--spring);
+}
+.aurora-auth-root .field:focus-within .ico {
+  fill: var(--accent, #8b5cf6);
+  transform: scale(1.3) rotate(-8deg);
+}
+.aurora-auth-root .eye {
+  position: absolute;
+  right: 24px;
+  top: 13px;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+}
+.aurora-auth-root .eye svg {
+  width: 16px;
+  height: 16px;
+  fill: #9a98b3;
+  transition: fill .2s;
+}
+.aurora-auth-root .eye:hover svg {
+  fill: var(--accent, #8b5cf6);
+}
+
+.aurora-auth-root .btn-aurora {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent, #8b5cf6), var(--accent2, #d946ef), var(--accent, #8b5cf6));
+  background-size: 200% 100%;
+  color: #fff;
+  font: 700 .9rem 'Poppins', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 12px 26px -8px var(--accent, #8b5cf6);
+  transition: transform .2s ease-out, box-shadow .25s, background-position .6s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.aurora-auth-root .btn-aurora:hover {
+  background-position: 100% 0;
+  box-shadow: 0 18px 32px -8px var(--accent, #8b5cf6);
+}
+.aurora-auth-root .btn-aurora:active {
+  transform: scale(.97);
+}
+.aurora-auth-root .alt {
+  text-align: center;
+  margin-top: 14px;
+  font-size: .75rem;
+  font-weight: 500;
+  color: #55536d;
+}
+.aurora-auth-root .switch {
+  background: none;
+  border: none;
+  font: 700 .75rem 'Poppins', sans-serif;
+  color: var(--accent, #8b5cf6);
+  cursor: pointer;
+  padding: 0;
+}
+.aurora-auth-root .switch:hover {
+  text-decoration: underline;
+}
+
+.aurora-auth-root .brand {
+  display: block;
+  font-size: 1.22em;
+  letter-spacing: .5px;
+}
+.aurora-auth-root .tag {
+  text-align: center;
+  font-size: .78rem;
+  font-weight: 500;
+  color: #6d6b85;
+  margin-top: 6px;
+}
+.aurora-auth-root .noico input {
+  padding-right: 0;
+}
+.aurora-auth-root .row {
+  display: flex;
+  gap: 14px;
+}
+.aurora-auth-root .row .field {
+  flex: 1;
+  min-width: 0;
+}
+.aurora-auth-root .forgot {
+  text-align: right;
+  margin-top: 8px;
+}
+.aurora-auth-root .forgot .switch {
+  font-size: .72rem;
+  text-decoration: underline;
+}
+.aurora-auth-root .note {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  text-align: center;
+  font-size: .7rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #55536d;
+  background: hsl(var(--hue, 260) 100% 96%);
+  border: 1px solid hsl(var(--hue, 260) 80% 86%);
+}
+.aurora-auth-root .note .switch {
+  font-size: .7rem;
+}
+
+/* Mobile responsive layout matching user HTML */
+@media (max-width: 767px) {
+  .aurora-auth-root {
+    padding: 8px;
+    align-items: flex-start;
+    padding-top: 16px;
+    overflow-y: auto;
+  }
+  .aurora-auth-root .tilt {
+    transform: none !important;
+    width: 100%;
+    margin-bottom: 24px;
+  }
+  .aurora-auth-root .card {
+    aspect-ratio: auto;
+    min-height: 700px;
+    height: auto;
+    padding-bottom: 24px;
+  }
+  .aurora-auth-root .panel {
+    clip-path: polygon(0 70%, 100% 55%, 100% 100%, 0 100%);
+  }
+  .aurora-auth-root .card.signup .panel {
+    clip-path: polygon(0 0, 100% 0, 100% 28%, 0 42%);
+  }
+  .aurora-auth-root .shape {
+    display: none;
+  }
+  .aurora-auth-root .form-box {
+    position: relative;
+    width: 90%;
+    left: 5% !important;
+    right: auto !important;
+    height: auto;
+    top: auto;
+    bottom: auto;
+    padding-top: 28px;
+    pointer-events: auto;
+  }
+  .aurora-auth-root .card:not(.signup) .form-box.register {
+    display: none;
+  }
+  .aurora-auth-root .card.signup .form-box.login {
+    display: none;
+  }
+  .aurora-auth-root .card.signup .form-box.register {
+    padding-top: 180px;
+  }
+  .aurora-auth-root .welcome {
+    width: 90%;
+    left: 5% !important;
+    right: auto !important;
+    text-align: left !important;
+  }
+  .aurora-auth-root .welcome.right {
+    top: auto;
+    bottom: 20px;
+    transform: none;
+  }
+  .aurora-auth-root .welcome.left {
+    top: 24px;
+    transform: none;
+  }
+}

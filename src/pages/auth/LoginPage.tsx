@@ -1,3 +1,4 @@
+import MobileAuroraAuth from '@/components/auth/MobileAuroraAuth';
 import DesktopSlidingAuth from '@/components/auth/DesktopSlidingAuth';
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -122,72 +123,10 @@ const LoginPage: React.FC = () => {
         <DesktopSlidingAuth initialMode="login" />
       </div>
 
-      {/* Mobile View */}
-      <div className="block md:hidden min-h-screen flex flex-col items-center justify-center bg-background p-6">
-        <div className="w-full max-w-sm glass-card rounded-2xl p-8 space-y-6">
-        {/* Logo */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold gradient-text">Pixelgram</h1>
-          <p className="text-sm text-muted-foreground">Sign in to your account</p>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="identifier">Username, Email or Phone</Label>
-            <Input
-              id="identifier"
-              type="text"
-              placeholder="username, you@example.com or +91…"
-              value={identifier}
-              onChange={e => setIdentifier(e.target.value)}
-              autoComplete="username"
-              className="h-11"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPass ? 'text' : 'password'}
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                autoComplete="current-password"
-                className="h-11 pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPass(!showPass)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-            <div className="text-right">
-              <Link to="/forgot-password" className="text-xs text-primary font-medium hover:underline">Forgot Password?</Link>
-            </div>
-          </div>
-          <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
-            <LogIn className="w-4 h-4 mr-2" />
-            {loading ? 'Signing in…' : 'Sign In'}
-          </Button>
-        </form>
-
-        <p className="text-center text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="text-primary font-medium hover:underline">Sign Up</Link>
-        </p>
-
-        <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 text-center">
-          <p className="text-xs text-muted-foreground">
-            <span className="font-semibold text-primary">New here?</span> First{' '}
-            <Link to="/register" className="text-primary font-semibold underline">Sign Up</Link>
-            {' '}to create your account, then log in.
-          </p>
-        </div>
+      {/* Mobile View - Aurora Futuristic Rotating Card (Bina Desktop Site On Kiye) */}
+      <div className="block md:hidden">
+        <MobileAuroraAuth initialMode="login" />
       </div>
-    </div>
     </>
   );
 };
