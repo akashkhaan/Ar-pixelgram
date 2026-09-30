@@ -398,40 +398,37 @@ const ReelCard: React.FC<{
         </div>
       </div>
 
-      {/* Right side actions with animated dynamic color-shifting borders */}
-      <div className="absolute right-3.5 bottom-36 flex flex-col items-center gap-4 z-20">
+      {/* Right side actions - Clean floating icons with dynamic color-shifting rainbow effect (NO circle container) */}
+      <div className="absolute right-3.5 bottom-36 flex flex-col items-center gap-5 z-20">
         {/* Like */}
-        <button onClick={handleLike} className="flex flex-col items-center gap-1 group active:scale-90 transition-transform">
-          <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(129,140,248,0.7),0_0_26px_rgba(244,63,94,0.4)] group-hover:scale-105 transition-all">
-            <div className="w-11 h-11 rounded-full bg-[#0a0a14]/85 backdrop-blur-md flex items-center justify-center">
-              <Heart className={`w-6 h-6 transition-all ${liked ? 'fill-rose-500 text-rose-500 scale-110 drop-shadow-[0_0_10px_rgba(244,63,94,0.9)]' : 'text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]'}`} />
-            </div>
-          </div>
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-            {likesCount > 999 ? `${(likesCount/1000).toFixed(1)}k` : likesCount}
+        <button onClick={handleLike} className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" aria-label="Like reel">
+          <Heart
+            className={"w-8 h-8 transition-transform group-hover:scale-110 " + (liked ? "fill-rose-500 text-rose-500 scale-110 drop-shadow-[0_0_14px_rgba(244,63,94,0.95)]" : "dynamic-rainbow-icon")}
+            strokeWidth={2.4}
+          />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            {likesCount > 999 ? (likesCount/1000).toFixed(1) + 'k' : likesCount}
           </span>
         </button>
 
         {/* Comment */}
-        <button className="flex flex-col items-center gap-1 group active:scale-90 transition-transform" onClick={() => setCommentsOpen(true)}>
-          <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(129,140,248,0.7),0_0_26px_rgba(168,85,247,0.4)] group-hover:scale-105 transition-all">
-            <div className="w-11 h-11 rounded-full bg-[#0a0a14]/85 backdrop-blur-md flex items-center justify-center">
-              <MessageCircle className="w-6 h-6 text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]" />
-            </div>
-          </div>
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-            {commentsCount > 999 ? `${(commentsCount/1000).toFixed(1)}k` : commentsCount}
+        <button className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" onClick={() => setCommentsOpen(true)} aria-label="Comments">
+          <MessageCircle
+            className="w-8 h-8 dynamic-rainbow-icon transition-transform group-hover:scale-110"
+            strokeWidth={2.4}
+          />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            {commentsCount > 999 ? (commentsCount/1000).toFixed(1) + 'k' : commentsCount}
           </span>
         </button>
 
         {/* Share */}
-        <button className="flex flex-col items-center gap-1 group active:scale-90 transition-transform" onClick={handleShare}>
-          <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(129,140,248,0.7),0_0_26px_rgba(56,189,248,0.4)] group-hover:scale-105 transition-all">
-            <div className="w-11 h-11 rounded-full bg-[#0a0a14]/85 backdrop-blur-md flex items-center justify-center">
-              <Share2 className="w-5 h-5 text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]" />
-            </div>
-          </div>
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+        <button className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" onClick={handleShare} aria-label="Share">
+          <Share2
+            className="w-7 h-7 dynamic-rainbow-icon transition-transform group-hover:scale-110"
+            strokeWidth={2.4}
+          />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
             {t('share')}
           </span>
         </button>
