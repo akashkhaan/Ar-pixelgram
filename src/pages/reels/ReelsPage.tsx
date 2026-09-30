@@ -403,7 +403,7 @@ const ReelCard: React.FC<{
         {/* Like */}
         <button onClick={handleLike} className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" aria-label="Like reel">
           <Heart
-            className={"w-8 h-8 transition-transform group-hover:scale-110 " + (liked ? "fill-rose-500 text-rose-500 scale-110 drop-shadow-[0_0_14px_rgba(244,63,94,0.95)]" : "dynamic-rainbow-icon")}
+            className={"w-8 h-8 dynamic-rainbow-icon transition-transform group-hover:scale-110 " + (liked ? "fill-current scale-110" : "fill-transparent")}
             strokeWidth={2.4}
           />
           <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
