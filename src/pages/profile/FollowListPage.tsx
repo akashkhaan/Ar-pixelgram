@@ -142,24 +142,26 @@ const FollowListPage: React.FC = () => {
               return (
                 <div key={profile.id} className="flex items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-muted/30 transition-colors">
                   {/* Avatar */}
-                  <button onClick={() => navigate(`/profile/${profile.user_id}`)} className="shrink-0">
-                    {profile.avatar_url ? (
-                      <div className="p-0.5 rounded-full" style={{ background: userGradient(profile.username) }}>
+                  <button onClick={() => navigate(`/profile/${profile.user_id}`)} className="shrink-0 relative group">
+                    <div className="p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_12px_rgba(168,85,247,0.7)] group-hover:scale-105 transition-transform">
+                      {profile.avatar_url ? (
                         <img src={profile.avatar_url} alt={profile.username}
-                          className="w-11 h-11 rounded-full object-cover border-2 border-background" />
-                      </div>
-                    ) : (
-                      <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-black text-lg shrink-0"
-                        style={{ background: userGradient(profile.username) }}>
-                        {profile.username[0]?.toUpperCase()}
-                      </div>
-                    )}
+                          className="w-12 h-12 rounded-full object-cover border-2 border-background"
+                          onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-black text-lg shrink-0 border-2 border-background"
+                          style={{ background: userGradient(profile.username) }}>
+                          {profile.username[0]?.toUpperCase()}
+                        </div>
+                      )}
+                    </div>
                   </button>
 
                   {/* Name */}
-                  <button className="flex-1 min-w-0 text-left" onClick={() => navigate(`/profile/${profile.user_id}`)}>
+                  <button className="flex-1 min-w-0 text-left"  onClick={() => navigate(`/profile/${profile.user_id}`)}>
                     <div className="flex items-center gap-1">
-                      <span className="font-semibold text-sm text-foreground truncate">{profile.username}</span>
+                      <span className="text-sm font-bold truncate dynamic-rainbow-text">{profile.username}</span>
                       {profile.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
                     </div>
                     {profile.full_name && (
@@ -167,19 +169,31 @@ const FollowListPage: React.FC = () => {
                     )}
                   </button>
 
-                  {/* Follow button — own account hide करें */}
+                  {/* Follow button — Dynamic Rainbow Button */}
                   {!isMe && (
-                    <Button
-                      size="sm"
-                      variant={isFollowing ? 'secondary' : 'default'}
-                      className={cn('h-8 text-xs px-4 rounded-xl shrink-0 font-semibold',
-                        !isFollowing && 'text-primary-foreground'
-                      )}
-                      style={!isFollowing ? { background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))', border: 'none' } : {}}
+                    <button
+                      type="button"
                       onClick={() => handleToggleFollow(profile)}
+                      className="relative shrink-0 rounded-full p-[1.5px] dynamic-rainbow-border shadow-[0_0_14px_rgba(129,140,248,0.7),0_0_24px_rgba(217,70,239,0.45)] hover:scale-105 active:scale-95 transition-all group"
                     >
-                      {isFollowing ? 'Following' : 'Follow'}
-                    </Button>
+                      <div className={`flex items-center gap-1 px-3.5 py-1 rounded-full transition-all ${
+                        isFollowing
+                          ? 'bg-background/90 text-foreground font-bold text-xs'
+                          : 'bg-transparent text-white font-bold text-xs shadow-sm'
+                      }`}>
+                        {isFollowing ? (
+                          <>
+                            <UserCheck className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+                            <span>Following</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-3.5 h-3.5 mr-1" />
+                            <span>Follow</span>
+                          </>
+                        )}
+                      </div>
+                    </button>
                   )}
                   {isMe && isOwnProfile && (
                     <span className="text-xs text-muted-foreground shrink-0 pr-1">You</span>

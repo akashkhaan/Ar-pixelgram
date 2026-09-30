@@ -345,3 +345,14 @@
 .dynamic-rainbow-icon {
   animation: dynamic-icon-color 3.5s linear infinite !important;
 }
+
+/* ── Dynamic Rainbow Text (Continuously animated color gradient) ── */
+.dynamic-rainbow-text {
+  background: linear-gradient(135deg, #00f2fe, #4facfe, #818cf8, #c084fc, #f43f5e, #fb923c, #facc15, #00f2fe) !important;
+  background-size: 300% 300% !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: dynamic-rainbow-cycle 3.5s linear infinite !important;
+  display: inline-block;
+}

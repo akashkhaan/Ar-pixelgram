@@ -99,41 +99,58 @@ const PeoplePage: React.FC = () => {
               const status = followMap[profile.user_id];
               return (
                 <div key={profile.id} className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors">
-                  {/* अवतार — क्लिक पर प्रोफाइल */}
-                  <button onClick={() => navigate(`/profile/${profile.user_id}`)} className="shrink-0">
-                    {profile.avatar_url ? (
-                      <img src={profile.avatar_url} alt={profile.username} className="w-12 h-12 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                        <span className="text-primary font-bold text-lg">{profile.username[0]?.toUpperCase()}</span>
-                      </div>
-                    )}
+                  {/* अवतार — क्लिक पर प्रोफाइल (Dynamic Rainbow Glow Border) */}
+                  <button onClick={() => navigate(`/profile/${profile.user_id}`)} className="shrink-0 relative group">
+                    <div className="p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_12px_rgba(168,85,247,0.7)] group-hover:scale-105 transition-transform">
+                      {profile.avatar_url ? (
+                        <img src={profile.avatar_url} alt={profile.username} className="w-12 h-12 rounded-full object-cover border-2 border-background" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-900/60 to-purple-900/60 flex items-center justify-center border-2 border-background">
+                          <span className="text-white font-bold text-lg">{profile.username[0]?.toUpperCase()}</span>
+                        </div>
+                      )}
+                    </div>
                   </button>
 
                   {/* जानकारी */}
                   <button className="flex-1 min-w-0 text-left" onClick={() => navigate(`/profile/${profile.user_id}`)}>
                     <div className="flex items-center gap-1">
-                      <span className="font-semibold text-sm text-foreground truncate">{profile.username}</span>
+                      <span className="text-sm font-bold truncate dynamic-rainbow-text">{profile.username}</span>
                       {profile.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-primary shrink-0" />}
                     </div>
                     {profile.full_name && <p className="text-xs text-muted-foreground truncate">{profile.full_name}</p>}
                     {profile.bio && <p className="text-xs text-muted-foreground truncate">{profile.bio}</p>}
                   </button>
 
-                  {/* फॉलो बटन */}
-                  <Button
-                    size="sm"
-                    variant={status === 'accepted' ? 'secondary' : 'default'}
-                    className="shrink-0 h-8 px-3 text-xs font-bold rounded-lg"
-                    style={status !== 'accepted' ? { background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))', border: 'none', color: 'white' } : {}}
+                  {/* फॉलो बटन — Dynamic Rainbow Button (Following & Follow both cycle colors) */}
+                  <button
+                    type="button"
                     onClick={() => handleFollow(profile)}
                     disabled={followLoading[profile.user_id]}
+                    className="relative shrink-0 rounded-full p-[1.5px] dynamic-rainbow-border shadow-[0_0_14px_rgba(129,140,248,0.7),0_0_24px_rgba(217,70,239,0.45)] hover:scale-105 active:scale-95 transition-all group disabled:opacity-50"
                   >
-                    {followLoading[profile.user_id] ? <Loader2 className="w-3 h-3 animate-spin" /> :
-                      status === 'accepted' ? <><UserCheck className="w-3 h-3 mr-1" />Following</> :
-                      status === 'pending' ? 'Requested' :
-                      <><UserPlus className="w-3 h-3 mr-1" />Follow</>}
-                  </Button>
+                    <div className={`flex items-center gap-1 px-3 py-1 rounded-full transition-all ${
+                      status === 'accepted'
+                        ? 'bg-background/90 text-foreground font-bold text-xs'
+                        : 'bg-transparent text-white font-bold text-xs shadow-sm'
+                    }`}>
+                      {followLoading[profile.user_id] ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : status === 'accepted' ? (
+                        <>
+                          <UserCheck className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+                          <span>Following</span>
+                        </>
+                      ) : status === 'pending' ? (
+                        <span>Requested</span>
+                      ) : (
+                        <>
+                          <UserPlus className="w-3.5 h-3.5 mr-1" />
+                          <span>Follow</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
                 </div>
               );
             })}
