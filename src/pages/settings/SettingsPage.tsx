@@ -1,3 +1,4 @@
+import InstagramIcon from "@/components/icons/InstagramIcon";
 import { ArrowLeft, AtSign, BadgeCheck, ChevronRight, Flag, Globe, HelpCircle, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -218,13 +219,7 @@ const SettingsPage: React.FC = () => {
           { icon: HelpCircle, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help'), danger: false },
           { icon: Flag, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report'), danger: false },
           {
-            customIcon: (
-              <img
-                src="/instagram.png"
-                alt="Instagram"
-                className="w-5 h-5 rounded-[5px] object-cover shrink-0 shadow-xs"
-              />
-            ),
+            customIcon: <InstagramIcon size={26} />,
             label: 'Owner contact',
             desc: 'Click on join pixelgram owner connect',
             href: 'https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==',

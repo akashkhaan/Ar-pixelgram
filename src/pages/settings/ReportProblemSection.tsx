@@ -1,3 +1,4 @@
+import InstagramIcon from "@/components/icons/InstagramIcon";
 import React, { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -118,11 +119,7 @@ const ReportProblemSection: React.FC<Props> = ({ userId, onBack, onDone }) => {
             rel="noopener noreferrer"
             className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors group cursor-pointer border border-pink-500/30 shadow-xs mb-3"
           >
-            <img
-              src="/instagram.png"
-              alt="Instagram"
-              className="w-6 h-6 rounded-lg object-cover shrink-0 shadow-xs group-hover:scale-105 transition-transform"
-            />
+            <InstagramIcon size={26} className="group-hover:scale-105 transition-transform" />
             <div className="flex-1 min-w-0 text-left">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-semibold text-foreground">Owner contact</p>
