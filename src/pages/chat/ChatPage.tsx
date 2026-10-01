@@ -5,10 +5,13 @@ import {
   ArrowLeft,
   BadgeCheck,
   Ban,
+  Camera,
   Image as ImageIcon,
   Info,
+  Mic,
   MoreVertical,
   Phone,
+  Plus,
   Search,
   Send,
   ShieldOff,
@@ -18,7 +21,7 @@ import {
 } from 'lucide-react';
 // चैट पेज — seen status, block/unblock, online status, avatar→profile click, Messenger settings & theme
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import MessengerDirectSettings from '@/components/chat/MessengerDirectSettings';
 import { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
@@ -47,6 +50,7 @@ import {
   sendMessage,
   setOnlineStatus,
   unblockUser,
+  uploadImage,
 } from '@/services/api';
 import type { Message, Profile } from '@/types/types';
 
@@ -86,6 +90,50 @@ const ChatPage: React.FC = () => {
     return (receiverId && localStorage.getItem(`chat_wallpaper_${receiverId}`)) || null;
   });
   const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !receiverId || uploadingImage) return;
+    e.target.value = '';
+    setUploadingImage(true);
+    try {
+      toast.info('Uploading photo...');
+      const url = await uploadImage('posts', file, user.id);
+      await handleSendCustom(url);
+      toast.success('Photo sent!');
+    } catch (err) {
+      console.error('Failed to upload image:', err);
+      toast.error('Failed to send photo');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSendCustom = async (customContent: string) => {
+    const text = customContent.trim();
+    if (!text || !user || !receiverId || sending || blocked || blockedByOther) return;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const optimisticMsg: Message = {
+      id: tempId,
+      sender_id: user.id,
+      receiver_id: receiverId,
+      content: text,
+      is_seen: false,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...(prev || []).filter(Boolean), optimisticMsg]);
+    try {
+      const newMsg = await sendMessage(receiverId, text);
+      if (newMsg && newMsg.id) {
+        setMessages(prev => (prev || []).filter(Boolean).map(m => (m.id === tempId ? newMsg : m)));
+      }
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    }
+  };
 
   const handleSelectWallpaper = (url: string | null) => {
     setWallpaper(url);
@@ -475,6 +523,68 @@ const ChatPage: React.FC = () => {
           {wallpaper && (
             <div className="absolute inset-0 bg-background/50 dark:bg-background/70 backdrop-blur-[0.5px] pointer-events-none" />
           )}
+
+          {/* Messenger Hero Profile Section (from Screenshot 2) */}
+          {!searchQuery && (
+            <div className="flex flex-col items-center justify-center pt-8 pb-5 text-center select-none animate-in fade-in duration-300">
+              <div className="relative mb-3">
+                {otherProfile?.avatar_url ? (
+                  <img
+                    src={otherProfile.avatar_url}
+                    alt=""
+                    className="w-24 h-24 rounded-full object-cover ring-2 ring-border/40 shadow-xl"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-violet-500/25 to-pink-500/25 flex items-center justify-center ring-2 ring-border/40 shadow-xl">
+                    <span className="text-primary font-bold text-3xl">
+                      {otherProfile?.username?.[0]?.toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                {onlineStatusState?.is_online && (
+                  <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-background shadow-xs" />
+                )}
+              </div>
+
+              <h2 className="text-xl font-bold text-foreground tracking-tight">
+                {displayName}
+              </h2>
+
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                @{otherProfile?.username}
+              </p>
+
+              <p className="text-xs text-muted-foreground mt-1">
+                You're connected on Pixelgram
+              </p>
+              {otherProfile?.bio && (
+                <p className="text-xs text-muted-foreground/80 mt-0.5 max-w-xs truncate px-4">
+                  {otherProfile.bio}
+                </p>
+              )}
+
+              <Link
+                to={`/profile/${otherProfile?.username || ''}`}
+                className="mt-3.5 inline-flex items-center justify-center px-5 py-1.5 rounded-full bg-[#3A3B3C] hover:bg-[#4E4F50] text-white text-xs font-semibold shadow-xs transition-colors"
+              >
+                View Profile
+              </Link>
+
+              {/* End-to-End Encryption Notice (from Screenshot 2) */}
+              <div className="mt-8 mb-2 max-w-xs px-2 text-center">
+                <p className="text-[11px] text-muted-foreground/85 leading-relaxed">
+                  🔒 Messages and calls are secured with end-to-end encryption. Only people in this chat can read, listen to or share them.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowDetails(true)}
+                    className="text-[#0084FF] font-semibold hover:underline inline"
+                  >
+                    Learn more
+                  </button>
+                </p>
+              </div>
+            </div>
+          )}
           {visibleMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
               {searchQuery ? (
@@ -574,28 +684,31 @@ const ChatPage: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div
-                      className={cn(
-                        'max-w-[78%] px-4 py-2.5 rounded-[22px] text-sm shadow-sm transition-all break-words',
-                        isMe
-                          ? cn('rounded-br-[5px] text-white', activeTheme.bubble)
-                          : 'bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40'
-                      )}
-                    >
-                      <p className="leading-relaxed">{msg.content}</p>
+                    <div className="flex flex-col items-end">
                       <div
                         className={cn(
-                          'flex items-center gap-1 justify-end mt-1 text-[10px]',
-                          isMe ? 'text-white/80' : 'text-muted-foreground'
+                          'max-w-[78%] px-4 py-2.5 rounded-[20px] text-sm shadow-sm transition-all break-words',
+                          isMe
+                            ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
+                            : 'bg-muted/80 dark:bg-[#242526] text-foreground rounded-bl-[4px] border border-border/40'
                         )}
                       >
-                        <span>{formatTime(msg.created_at)}</span>
-                        {isMe && (
-                          <span className={cn('font-bold', msg.is_seen ? 'text-sky-300' : 'text-white/70')}>
-                            {msg.is_seen ? '✓✓' : '✓'}
-                          </span>
-                        )}
+                        <p className="leading-relaxed">{msg.content}</p>
+                        <div
+                          className={cn(
+                            'flex items-center gap-1 justify-end mt-0.5 text-[9px]',
+                            isMe ? 'text-white/75' : 'text-muted-foreground'
+                          )}
+                        >
+                          <span>{formatTime(msg.created_at)}</span>
+                        </div>
                       </div>
+                      {/* Messenger Delivered indicator (from Screenshot 2) */}
+                      {isMe && idx === visibleMessages.length - 1 && (
+                        <div className="text-[10px] text-muted-foreground/80 font-medium pr-1 pt-1 select-none">
+                          {msg.is_seen ? 'Seen' : 'Delivered'}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

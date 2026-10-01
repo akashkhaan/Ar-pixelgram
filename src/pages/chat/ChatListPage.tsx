@@ -419,12 +419,9 @@ const ChatListPage: React.FC = () => {
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-bold tracking-tight text-foreground">
-                    {myProfile?.username || "Messages"}
+                  <h1 className="text-2xl font-black tracking-tight text-foreground lowercase select-none">
+                    messenger
                   </h1>
-                  {myProfile?.is_verified && (
-                    <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500/20" />
-                  )}
                 </div>
               </div>
 
@@ -528,7 +525,7 @@ const ChatListPage: React.FC = () => {
                     </div>
                   ) : (
                     <div className="relative mb-2.5 px-2.5 py-1 rounded-full bg-card/90 backdrop-blur-xs border border-border/60 text-[10px] text-muted-foreground font-medium shadow-2xs truncate max-w-[84px] group-hover:border-primary/50 transition-colors">
-                      Share a thought...
+                      Drop a thought
                     </div>
                   )}
                   {/* Avatar */}
@@ -556,7 +553,7 @@ const ChatListPage: React.FC = () => {
                   </div>
                 </div>
                 <span className="text-[11px] text-muted-foreground truncate w-full mt-1.5 font-medium">
-                  Your note
+                  {myNote ? "Your note" : "Create story"}
                 </span>
               </div>
 
@@ -581,20 +578,23 @@ const ChatListPage: React.FC = () => {
                         {note.text}
                       </p>
                     </div>
-                    {/* Avatar with Story gradient ring */}
-                    <div className="rail-avatar-container ring-2 ring-primary/40 group-hover:ring-primary transition-all bg-muted shadow-xs">
-                      {note.profile?.avatar_url ? (
-                        <img
-                          src={note.profile.avatar_url}
-                          alt={note.profile?.username || "Friend"}
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center">
-                          <span className="text-primary font-bold text-base">
-                            {note.profile?.username?.[0]?.toUpperCase()}
-                          </span>
-                        </div>
-                      )}
+                    {/* Avatar with Story gradient ring and green active dot */}
+                    <div className="relative">
+                      <div className="rail-avatar-container ring-2 ring-border/40 group-hover:ring-primary transition-all bg-muted shadow-xs">
+                        {note.profile?.avatar_url ? (
+                          <img
+                            src={note.profile.avatar_url}
+                            alt={note.profile?.username || "Friend"}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center">
+                            <span className="text-primary font-bold text-base">
+                              {note.profile?.username?.[0]?.toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-[#31A24C] ring-2 ring-black" />
                     </div>
                   </div>
                   <span className="text-[11px] text-foreground font-medium truncate w-full mt-1.5">
@@ -754,13 +754,15 @@ const ChatListPage: React.FC = () => {
                             </div>
                             <div className="flex items-center justify-between gap-2">
                               <p
-                                className={`text-xs truncate flex-1 min-w-0 ${
+                                className={`text-sm truncate flex-1 min-w-0 ${
                                   unreadCount > 0
                                     ? "font-bold text-foreground"
                                     : "text-muted-foreground"
                                 }`}
                               >
-                                {lastMessage ? lastMessage.content : "Sent a message"}
+                                {lastMessage
+                                  ? (lastMessage.sender_id === user?.id ? `You: ${lastMessage.content}` : lastMessage.content)
+                                  : "Messages and calls are secured..."}
                               </p>
                               {unreadCount > 0 && (
                                 <span className="shrink-0 w-2.5 h-2.5 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 shadow-xs shadow-primary/40" />
