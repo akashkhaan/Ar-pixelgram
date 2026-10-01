@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ChatWallpaperModal from './ChatWallpaperModal';
-import { Image as ImageIcon, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { Image as ImageIcon } from 'lucide-react';
 import {
   ArrowLeft,
   MoreVertical,
