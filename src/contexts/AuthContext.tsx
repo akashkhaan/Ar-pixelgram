@@ -1,3 +1,4 @@
+import { saveCurrentAccount } from '@/lib/savedAccounts';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { purgeLegacyMediaForUser } from '@/lib/legacyCleanup';
@@ -104,6 +105,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Auto-save active account credentials for instant Facebook-style account switching
+  useEffect(() => {
+    if (user && profile) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session && user) {
+          saveCurrentAccount(user, profile, session);
+        }
+      });
+    }
+  }, [user, profile]);
 
   // Purane band ho chuke project wale broken post/reel apne aap database se
   // hata do (sirf apne hi rows, ek baar).

@@ -1,10 +1,14 @@
+import FacebookSwitchAccountModal from '@/components/profile/FacebookSwitchAccountModal';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   Check,
+  ChevronDown,
   ChevronRight,
+  UserPlus,
+  Users,
   Copy,
   Heart,
   Link2,
@@ -77,6 +81,7 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
 
   const [currentView, setCurrentView] = useState<SheetView>('menu');
   const [copied, setCopied] = useState(false);
+  const [showSwitchAccountModal, setShowSwitchAccountModal] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
 
@@ -375,8 +380,84 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
                 </button>
               </div>
             ) : (
-              /* OWN PROFILE OPTIONS */
-              <div className="space-y-0.5">
+              /* OWN PROFILE OPTIONS (Facebook Menu Style from Screenshot) */
+              <div className="space-y-1">
+                {/* Facebook Menu Header (Exact Screenshot Replica) */}
+                <div className="space-y-2 mb-3">
+                  {/* Card 1: Profile Card */}
+                  <div
+                    onClick={() => {
+                      setShowSwitchAccountModal(true);
+                    }}
+                    className="flex items-center justify-between p-3.5 rounded-2xl bg-muted/60 dark:bg-zinc-800/80 hover:bg-muted active:scale-[0.99] transition-all cursor-pointer border border-border/40 shadow-xs"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      {profile.avatar_url ? (
+                        <img
+                          src={profile.avatar_url}
+                          alt=""
+                          className="w-12 h-12 rounded-full object-cover ring-1 ring-border/50"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-violet-500 to-pink-500 flex items-center justify-center text-white font-bold text-lg">
+                          {displayName[0]?.toUpperCase() || 'U'}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1 text-left">
+                        <p className="text-[15px] font-bold text-foreground truncate">
+                          {displayName}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          View your profile
+                        </p>
+                      </div>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-muted/90 flex items-center justify-center text-muted-foreground">
+                      <ChevronDown className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  {/* Card 2: Switch Account Card */}
+                  <div
+                    onClick={() => {
+                      setShowSwitchAccountModal(true);
+                    }}
+                    className="flex items-center justify-between p-3.5 rounded-2xl bg-muted/60 dark:bg-zinc-800/80 hover:bg-muted active:scale-[0.99] transition-all cursor-pointer border border-border/40 shadow-xs"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-12 h-12 rounded-full bg-muted/90 dark:bg-zinc-700/80 flex items-center justify-center text-foreground shrink-0 border border-border/50">
+                        <Users className="w-6 h-6 text-foreground" />
+                      </div>
+                      <div className="min-w-0 flex-1 text-left">
+                        <p className="text-[15px] font-bold text-foreground">
+                          Switch account
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Tap to switch or add another account
+                        </p>
+                      </div>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-muted/90 flex items-center justify-center text-muted-foreground">
+                      <ChevronDown className="w-5 h-5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Switch or Add Account Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowSwitchAccountModal(true)}
+                  className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-muted/60 active:bg-muted transition-colors text-left"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#0866FF]/10 text-[#0866FF] flex items-center justify-center shrink-0">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[15px] font-medium text-foreground">Switch or Add Account</p>
+                    <p className="text-xs text-muted-foreground">Manage your multiple profiles</p>
+                  </div>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
