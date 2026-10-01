@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ChatWallpaperModal from './ChatWallpaperModal';
 import { useNavigate } from 'react-router-dom';
 import { Image as ImageIcon, Upload } from 'lucide-react';
