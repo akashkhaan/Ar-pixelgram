@@ -1,11 +1,15 @@
 import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
+import { ChatMediaRenderer } from '@/components/chat/ChatMediaRenderer';
+import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
 import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
 import {
   ArrowLeft,
   Check,
+  Image as ImageIcon,
   Info,
   Loader2,
+  Mic,
   Paperclip,
   Phone,
   Pin,
@@ -135,6 +139,27 @@ const GroupChatPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+
+  const handleSendGroupVoice = async (audioBlob: Blob, durationSecs: number) => {
+    if (!groupId || !user) return;
+    setUploading(true);
+    try {
+      toast.info('Sending voice message...');
+      const url = await uploadChatMedia(audioBlob, user.id, `group_voice_${Date.now()}.webm`);
+      const durationText = `${Math.floor(durationSecs / 60)}:${durationSecs % 60 < 10 ? '0' : ''}${durationSecs % 60}`;
+      const content = `🎙️ Voice message (${durationText})\n${url}`;
+      await sendGroupTextMessage(groupId, content);
+      setIsRecordingVoice(false);
+      await load();
+      toast.success('Voice message sent');
+    } catch (error) {
+      console.error('Failed to send voice message:', error);
+      toast.error('Voice message failed');
+    } finally {
+      setUploading(false);
+    }
+  };
   const [showInfo, setShowInfo] = useState(false);
   const [memberQuery, setMemberQuery] = useState('');
   const [memberResults, setMemberResults] = useState<Profile[]>([]);
@@ -737,19 +762,9 @@ const GroupChatPage: React.FC = () => {
                             </div>
                           );
                         }
-                        if (message.content.startsWith('📎 ')) {
-                          return (
-                            <a
-                              id={'group-message-' + message.id}
-                              href={message.content.split('\n')[1]}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center gap-2 break-all underline"
-                            >
-                              <Paperclip className="h-4 w-4 shrink-0" />
-                              {message.content.split('\n')[0].replace('📎 ', '')}
-                            </a>
-                          );
+                        const mediaElement = <ChatMediaRenderer content={message.content} isMe={mine} activeBubbleClass={groupTheme.bubble} />;
+                        if (mediaElement) {
+                          return <div id={'group-message-' + message.id} className="py-0.5">{mediaElement}</div>;
                         }
                         return (
                           <p id={'group-message-' + message.id} className="break-words">

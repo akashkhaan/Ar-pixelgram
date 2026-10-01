@@ -1645,3 +1645,41 @@ export async function getReelsByMusic(trackId: string): Promise<Reel[]> {
   if (error) return [];
   return filterDeletedReels(dropLegacyReels((data || []) as Reel[])).map(decodeReelMusic);
 }
+
+// ===================== CHAT MEDIA UPLOAD (Photo, Video, Audio) =====================
+export async function uploadChatMedia(file: File | Blob, userId: string, originalName?: string): Promise<string> {
+  const isVideo = file.type.startsWith('video/');
+  const isAudio = file.type.startsWith('audio/');
+  const ext = originalName ? originalName.split('.').pop() || '' : (isAudio ? 'webm' : isVideo ? 'mp4' : 'jpg');
+  const filename = `${userId}/chat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext || (isAudio ? 'webm' : isVideo ? 'mp4' : 'jpg')}`;
+
+  const preferredBucket = isVideo ? 'reels' : isAudio ? 'posts' : 'posts';
+  const candidateBuckets = [preferredBucket, 'posts', 'stories', 'avatars', 'group-media'];
+  let publicUrl = '';
+  let lastError: any = null;
+
+  for (const bucket of candidateBuckets) {
+    try {
+      const { data, error } = await supabase.storage.from(bucket).upload(filename, file, {
+        contentType: file.type || (isAudio ? 'audio/webm' : isVideo ? 'video/mp4' : 'image/jpeg'),
+        upsert: true,
+      });
+      if (!error && data) {
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+        if (urlData?.publicUrl) {
+          publicUrl = urlData.publicUrl;
+          break;
+        }
+      } else {
+        lastError = error;
+      }
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  if (!publicUrl) {
+    throw lastError || new Error('Upload failed');
+  }
+  return publicUrl;
+}

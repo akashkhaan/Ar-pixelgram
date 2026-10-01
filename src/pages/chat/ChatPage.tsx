@@ -1,4 +1,6 @@
 import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
+import { ChatMediaRenderer, isMediaMessage } from '@/components/chat/ChatMediaRenderer';
+import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
 import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
 import {
@@ -50,6 +52,7 @@ import {
   sendMessage,
   setOnlineStatus,
   unblockUser,
+  uploadChatMedia,
   uploadImage,
 } from '@/services/api';
 import type { Message, Profile } from '@/types/types';
@@ -94,21 +97,43 @@ const ChatPage: React.FC = () => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+
+  const handlePickMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user || !receiverId || uploadingImage) return;
     e.target.value = '';
     setUploadingImage(true);
+    const isVideo = file.type.startsWith('video/');
     try {
-      toast.info('Uploading photo...');
-      const url = await uploadImage('posts', file, user.id);
+      toast.info(isVideo ? 'Uploading video...' : 'Uploading photo...');
+      const url = await uploadChatMedia(file, user.id, file.name);
       await handleSendCustom(url);
-      toast.success('Photo sent!');
+      toast.success(isVideo ? 'Video sent!' : 'Photo sent!');
     } catch (err) {
-      console.error('Failed to upload image:', err);
-      toast.error('Failed to send photo');
+      console.error('Failed to upload media:', err);
+      toast.error(isVideo ? 'Failed to send video' : 'Failed to send photo');
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleSendVoice = async (audioBlob: Blob, durationSecs: number) => {
+    if (!user || !receiverId) return;
+    try {
+      setSending(true);
+      toast.info('Sending voice message...');
+      const url = await uploadChatMedia(audioBlob, user.id, `voice_${Date.now()}.webm`);
+      const durationText = `${Math.floor(durationSecs / 60)}:${durationSecs % 60 < 10 ? '0' : ''}${durationSecs % 60}`;
+      const content = `🎙️ Voice message (${durationText})\n${url}`;
+      await handleSendCustom(content);
+      setIsRecordingVoice(false);
+      toast.success('Voice message sent!');
+    } catch (err) {
+      console.error('Failed to send voice message:', err);
+      toast.error('Voice message failed');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -685,24 +710,32 @@ const ChatPage: React.FC = () => {
                     </div>
                   ) : (
                     <div className="flex flex-col items-end">
-                      <div
-                        className={cn(
-                          'max-w-[78%] px-4 py-2.5 rounded-[20px] text-sm shadow-sm transition-all break-words',
-                          isMe
-                            ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
-                            : 'bg-muted/80 dark:bg-[#242526] text-foreground rounded-bl-[4px] border border-border/40'
-                        )}
-                      >
-                        <p className="leading-relaxed">{msg.content}</p>
+                      {isMediaMessage(msg.content) ? (
+                        <ChatMediaRenderer
+                          content={msg.content}
+                          isMe={isMe}
+                          activeBubbleClass={activeTheme.bubble}
+                        />
+                      ) : (
                         <div
                           className={cn(
-                            'flex items-center gap-1 justify-end mt-0.5 text-[9px]',
-                            isMe ? 'text-white/75' : 'text-muted-foreground'
+                            'max-w-[78%] px-4 py-2.5 rounded-[20px] text-sm shadow-sm transition-all break-words',
+                            isMe
+                              ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
+                              : 'bg-muted/80 dark:bg-[#242526] text-foreground rounded-bl-[4px] border border-border/40'
                           )}
                         >
-                          <span>{formatTime(msg.created_at)}</span>
+                          <p className="leading-relaxed">{msg.content}</p>
+                          <div
+                            className={cn(
+                              'flex items-center gap-1 justify-end mt-0.5 text-[9px]',
+                              isMe ? 'text-white/75' : 'text-muted-foreground'
+                            )}
+                          >
+                            <span>{formatTime(msg.created_at)}</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                       {/* Messenger Delivered indicator (from Screenshot 2) */}
                       {isMe && idx === visibleMessages.length - 1 && (
                         <div className="text-[10px] text-muted-foreground/80 font-medium pr-1 pt-1 select-none">
@@ -749,51 +782,130 @@ const ChatPage: React.FC = () => {
           </div>
         )}
 
-        {/* Input Bar (Modern Messenger / Instagram Style) */}
-        <form
-          onSubmit={handleSend}
-          className="sticky bottom-0 z-20 flex shrink-0 items-center gap-2 px-3 py-2.5 border-t border-border/50 bg-background/90 backdrop-blur-xl"
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),10px)' }}
-        >
-          <button
-            type="button"
-            onClick={() => setShowEmoji(!showEmoji)}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-sky-500 active:scale-95 transition-all shrink-0"
-            title="Emoji"
+        {/* Bottom Input bar (Messenger Style with Rainbow Voice Recorder, Photos & Videos) */}
+        {isRecordingVoice ? (
+          <div
+            className="sticky bottom-0 z-20 flex shrink-0 items-center px-3 py-2 bg-background/95 backdrop-blur-xl border-t border-border/50"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),8px)' }}
           >
-            <Smile className={cn('w-5 h-5 transition-transform', showEmoji ? 'text-sky-600 scale-110' : 'text-sky-500')} />
-          </button>
+            <VoiceRecorder
+              onSendAudio={handleSendVoice}
+              onCancel={() => setIsRecordingVoice(false)}
+              isSending={sending}
+            />
+          </div>
+        ) : (
+          <form
+            onSubmit={handleSend}
+            className="sticky bottom-0 z-20 flex shrink-0 items-center gap-1 sm:gap-2 px-2.5 py-2 bg-background/95 backdrop-blur-xl border-t border-border/50"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),8px)' }}
+          >
+            {/* Hidden file inputs for Camera and Gallery (Photos & Videos) */}
+            <input
+              type="file"
+              ref={galleryInputRef}
+              accept="image/*,video/*"
+              className="hidden"
+              onChange={handlePickMedia}
+            />
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*,video/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePickMedia}
+            />
 
-          <Input
-            placeholder={blocked || blockedByOther ? 'Message unavailable' : 'Message…'}
-            value={content}
-            onChange={e => { setContent(e.target.value); handleTyping(); }}
-            className="flex-1 h-10 rounded-full bg-muted/50 hover:bg-muted/70 focus:bg-card border border-border/40 focus-visible:ring-2 focus-visible:ring-primary/25 px-4 text-sm transition-all"
-            maxLength={500}
-            disabled={blocked || blockedByOther}
-          />
+            {/* Left Action Buttons */}
+            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+              {/* 1. Plus Button (+) */}
+              <button
+                type="button"
+                onClick={() => setShowWallpaperModal(true)}
+                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-[#0084FF] active:scale-90 transition-transform"
+                title="Add Wallpaper / Custom Background"
+              >
+                <Plus className="w-5 h-5 text-[#0084FF]" />
+              </button>
 
-          {content.trim() ? (
-            <Button
-              type="submit"
-              size="icon"
-              className="h-10 w-10 rounded-full shrink-0 bg-gradient-to-tr from-violet-600 to-pink-500 hover:from-violet-700 hover:to-pink-600 text-white shadow-md shadow-primary/20 active:scale-90 transition-all"
-              disabled={!content.trim() || sending || blocked || blockedByOther}
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void handleSendQuickEmoji(chatEmoji)}
-              className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted/80 active:scale-130 transition-transform text-2xl select-none shrink-0"
-              title={`Send ${chatEmoji}`}
-              disabled={blocked || blockedByOther}
-            >
-              {chatEmoji}
-            </button>
-          )}
-        </form>
+              {/* 2. Camera Button (📷) */}
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-[#0084FF] active:scale-90 transition-transform"
+                title="Camera (Photo/Video)"
+                disabled={blocked || blockedByOther}
+              >
+                <Camera className="w-5 h-5 text-[#0084FF]" />
+              </button>
+
+              {/* 3. Gallery Button (🖼️) */}
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-[#0084FF] active:scale-90 transition-transform"
+                title="Gallery (Photos & Videos)"
+                disabled={blocked || blockedByOther}
+              >
+                <ImageIcon className="w-5 h-5 text-[#0084FF]" />
+              </button>
+
+              {/* 4. Mic Button (🎙️) */}
+              <button
+                type="button"
+                onClick={() => setIsRecordingVoice(true)}
+                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-[#0084FF] active:scale-90 transition-transform"
+                title="Record voice message"
+                disabled={blocked || blockedByOther}
+              >
+                <Mic className="w-5 h-5 text-[#0084FF]" />
+              </button>
+            </div>
+
+            {/* Pill Message Input */}
+            <div className="relative flex-1 min-w-0 flex items-center">
+              <Input
+                placeholder={blocked || blockedByOther ? 'Message unavailable' : 'Message…'}
+                value={content}
+                onChange={e => { setContent(e.target.value); handleTyping(); }}
+                className="w-full h-10 rounded-full bg-[#242526] dark:bg-[#242526] bg-muted/70 text-foreground placeholder:text-muted-foreground/80 px-4 pr-10 text-sm border-none focus-visible:ring-1 focus-visible:ring-[#0084FF] transition-all"
+                maxLength={500}
+                disabled={blocked || blockedByOther}
+              />
+              <button
+                type="button"
+                onClick={() => setShowEmoji(!showEmoji)}
+                className="absolute right-2.5 w-7 h-7 flex items-center justify-center text-[#0084FF] hover:scale-110 active:scale-95 transition-transform"
+                title="Emoji"
+              >
+                <Smile className={cn('w-5 h-5 transition-transform', showEmoji ? 'text-sky-600 scale-110' : 'text-[#0084FF]')} />
+              </button>
+            </div>
+
+            {/* Right Action Button (Send OR Quick Thumbs Up Emoji) */}
+            {content.trim() ? (
+              <Button
+                type="submit"
+                size="icon"
+                className="h-10 w-10 rounded-full shrink-0 bg-[#0084FF] hover:bg-[#0073e6] text-white shadow-md active:scale-90 transition-all"
+                disabled={!content.trim() || sending || blocked || blockedByOther}
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleSendQuickEmoji(chatEmoji)}
+                className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted/80 active:scale-130 transition-transform text-2xl select-none shrink-0"
+                title={`Send ${chatEmoji}`}
+                disabled={blocked || blockedByOther}
+              >
+                {chatEmoji}
+              </button>
+            )}
+          </form>
+        )}
 
         {/* Messenger Direct Conversation Settings Sheet */}
         <MessengerDirectSettings
