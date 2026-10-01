@@ -1,15 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const defaultUrl = "https://jfizzduvmzavtqwzqacy.supabase.co";
+const defaultKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmaXp6ZHV2bXphdnRxd3pxYWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjQ2MTIsImV4cCI6MjEwMTU0MDYxMn0.9i77iYIYBEBDWzm528gVDpV3qgiiwkvE5MVTTKIG19s";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  // Vercel par env vars missing hone se har query fail hoti hai aur app
-  // "account deleted" jaisa dikhta hai. Yahan saaf error do.
-  throw new Error(
-    "Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. Vercel > Project Settings > Environment Variables me set karke redeploy karein."
-  );
-}
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || defaultUrl;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || defaultKey;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

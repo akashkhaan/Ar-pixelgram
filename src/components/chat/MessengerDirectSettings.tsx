@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import ChatWallpaperModal from './ChatWallpaperModal';
+import { Image as ImageIcon, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   MoreVertical,
@@ -65,6 +66,8 @@ interface MessengerDirectSettingsProps {
   onEmojiChange: (emoji: string) => void;
   nickname: string;
   onNicknameChange: (nick: string) => void;
+  currentWallpaper?: string | null;
+  onWallpaperChange?: (url: string | null) => void;
 }
 
 export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = ({
@@ -82,6 +85,8 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
   onEmojiChange,
   nickname,
   onNicknameChange,
+  currentWallpaper,
+  onWallpaperChange,
 }) => {
   const navigate = useNavigate();
 
@@ -90,6 +95,7 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
   const [showNicknameDialog, setShowNicknameDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showWallpaperModal, setShowWallpaperModal] = useState(false);
   const [tempNick, setTempNick] = useState(nickname);
   const [reportReason, setReportReason] = useState('');
 
@@ -154,6 +160,13 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5 shadow-2xl border-border bg-card">
+            <DropdownMenuItem
+              onClick={() => setShowWallpaperModal(true)}
+              className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+            >
+              <ImageIcon className="h-4 w-4 text-primary" />
+              <span>Wallpaper (इमेज / फोटो)</span>
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => { onClose(); navigate(`/profile/${profile.user_id}`); }}
               className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl"
@@ -287,6 +300,33 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
               <span
                 className={`h-5 w-5 rounded-full bg-gradient-to-tr ${activeTheme.preview} shadow-sm ring-1 ring-black/10`}
               />
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </button>
+
+          {/* Wallpaper / Background Image */}
+          <button
+            type="button"
+            onClick={() => setShowWallpaperModal(true)}
+            className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                <ImageIcon className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-foreground block">Wallpaper / Background Image</span>
+                <span className="text-[11px] text-muted-foreground">Gallery ya preset se photo lagayein</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {currentWallpaper ? (
+                <div className="h-7 w-7 rounded-xl overflow-hidden border border-border shadow-xs">
+                  <img src={currentWallpaper} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">Default</span>
+              )}
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
           </button>
@@ -505,6 +545,15 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
           </DialogFooter>
         </DialogContent>
       </Dialog>
+          {/* Wallpaper Picker Modal */}
+      <ChatWallpaperModal
+        open={showWallpaperModal}
+        onOpenChange={setShowWallpaperModal}
+        currentWallpaper={currentWallpaper || null}
+        onSelectWallpaper={(url) => {
+          onWallpaperChange?.(url);
+        }}
+      />
     </div>
   );
 };

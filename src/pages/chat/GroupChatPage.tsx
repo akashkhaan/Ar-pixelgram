@@ -1,3 +1,4 @@
+import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
 import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
 import {
@@ -28,6 +29,7 @@ import { useGroupCall } from '@/contexts/GroupCallContext';
 import MessengerGroupSettings, { MESSENGER_THEMES } from '@/components/chat/MessengerGroupSettings';
 import MobileLayout from '@/components/layouts/MobileLayout';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
@@ -168,6 +170,18 @@ const GroupChatPage: React.FC = () => {
       return {};
     }
   });
+  const [groupWallpaper, setGroupWallpaper] = useState<string | null>(() => {
+    return (groupId && localStorage.getItem(`group_wallpaper_${groupId}`)) || null;
+  });
+  const [showGroupWallpaperModal, setShowGroupWallpaperModal] = useState(false);
+
+  const handleSelectGroupWallpaper = (url: string | null) => {
+    setGroupWallpaper(url);
+    if (groupId) {
+      if (url) localStorage.setItem(`group_wallpaper_${groupId}`, url);
+      else localStorage.removeItem(`group_wallpaper_${groupId}`);
+    }
+  };
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const callPanelRef = useRef<GroupCallPanelHandle>(null);
@@ -520,16 +534,42 @@ const GroupChatPage: React.FC = () => {
             <Video className="h-5 w-5 fill-sky-500/20" />
           </button>
 
-          {/* Messenger Info Button (ⓘ) - Exact Match to Video */}
-          <button
-            type="button"
-            onClick={() => setShowInfo(true)}
-            className="rounded-full p-2 hover:bg-muted text-sky-500 transition-colors"
-            aria-label="Conversation details"
-            title="Conversation details"
-          >
-            <Info className="h-5 w-5" />
-          </button>
+          {/* 3-dots DropdownMenu with Wallpaper & Group Details */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="rounded-full p-2 hover:bg-muted text-sky-500 transition-colors"
+                aria-label="Group options"
+                title="More options"
+              >
+                <MoreVertical className="h-5 w-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border-border bg-card">
+              <DropdownMenuItem
+                onClick={() => setShowGroupWallpaperModal(true)}
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+              >
+                <ImageIcon className="w-4 h-4 text-primary" />
+                <span>Wallpaper (इमेज / फोटो)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setShowInfo(true)}
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+              >
+                <Info className="w-4 h-4 text-muted-foreground" />
+                <span>Group info (ग्रुप जानकारी)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setShowMessageSearch(true)}
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+              >
+                <Search className="w-4 h-4 text-muted-foreground" />
+                <span>Search in group</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
 
 
@@ -620,7 +660,22 @@ const GroupChatPage: React.FC = () => {
         ) : null}
 
         {/* MESSAGES LIST */}
-        <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
+        <div
+          className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3 relative"
+          style={
+            groupWallpaper
+              ? {
+                  backgroundImage: `url(${groupWallpaper})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
+                }
+              : undefined
+          }
+        >
+          {groupWallpaper && (
+            <div className="absolute inset-0 bg-background/50 dark:bg-background/70 backdrop-blur-[0.5px] pointer-events-none" />
+          )}
           <div className="mx-auto max-w-sm rounded-xl bg-primary/8 px-3 py-2 text-center text-xs text-muted-foreground">
             Messages in this group are visible only to its members.
           </div>
@@ -927,7 +982,14 @@ const GroupChatPage: React.FC = () => {
           memberResults={memberResults}
         />
       </div>
-    </MobileLayout>
+            <ChatWallpaperModal
+          open={showGroupWallpaperModal}
+          onOpenChange={setShowGroupWallpaperModal}
+          currentWallpaper={groupWallpaper}
+          onSelectWallpaper={handleSelectGroupWallpaper}
+          title="Group Wallpaper (ग्रुप बैकग्राउंड फोटो)"
+        />
+      </MobileLayout>
   );
 };
 

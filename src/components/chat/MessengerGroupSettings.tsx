@@ -106,6 +106,8 @@ interface MessengerGroupSettingsProps {
   onThemeChange: (themeKey: string) => void;
   groupEmoji: string;
   onEmojiChange: (emoji: string) => void;
+  groupWallpaper?: string | null;
+  onWallpaperChange?: (url: string | null) => void;
   nicknames: Record<string, string>;
   onNicknameChange: (userId: string, nickname: string) => void;
   memberQuery: string;
@@ -137,6 +139,8 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
   onThemeChange,
   groupEmoji,
   onEmojiChange,
+  groupWallpaper,
+  onWallpaperChange,
   nicknames,
   onNicknameChange,
   memberQuery,
@@ -159,6 +163,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
   const [showMediaSheet, setShowMediaSheet] = useState(false);
   const [showPermissionsSheet, setShowPermissionsSheet] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showWallpaperModal, setShowWallpaperModal] = useState(false);
 
   // States
   const [newName, setNewName] = useState(group.name);
@@ -494,6 +499,33 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
               <span
                 className={`h-5 w-5 rounded-full bg-gradient-to-tr ${activeTheme.preview} shadow-sm ring-1 ring-black/10`}
               />
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </button>
+
+          {/* Group Wallpaper / Image */}
+          <button
+            type="button"
+            onClick={() => setShowWallpaperModal(true)}
+            className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                <ImageIcon className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-foreground block">Group Wallpaper / Background Image</span>
+                <span className="text-[11px] text-muted-foreground">Gallery ya wallpaper se photo lagayein</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {groupWallpaper ? (
+                <div className="h-7 w-7 rounded-xl overflow-hidden border border-border shadow-xs">
+                  <img src={groupWallpaper} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">Default</span>
+              )}
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
           </button>
@@ -1143,6 +1175,16 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+          {/* Wallpaper Picker Modal */}
+      <ChatWallpaperModal
+        open={showWallpaperModal}
+        onOpenChange={setShowWallpaperModal}
+        currentWallpaper={groupWallpaper || null}
+        onSelectWallpaper={(url) => {
+          onWallpaperChange?.(url);
+        }}
+        title="Group Wallpaper (ग्रुप बैकग्राउंड फोटो)"
+      />
     </div>
   );
 };

@@ -1,9 +1,11 @@
+import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
 import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
 import {
   ArrowLeft,
   BadgeCheck,
   Ban,
+  Image as ImageIcon,
   Info,
   MoreVertical,
   Phone,
@@ -80,6 +82,18 @@ const ChatPage: React.FC = () => {
   const [nickname, setNickname] = useState<string>(() => {
     return (receiverId && localStorage.getItem(`direct_nickname_${receiverId}`)) || '';
   });
+  const [wallpaper, setWallpaper] = useState<string | null>(() => {
+    return (receiverId && localStorage.getItem(`chat_wallpaper_${receiverId}`)) || null;
+  });
+  const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+
+  const handleSelectWallpaper = (url: string | null) => {
+    setWallpaper(url);
+    if (receiverId) {
+      if (url) localStorage.setItem(`chat_wallpaper_${receiverId}`, url);
+      else localStorage.removeItem(`chat_wallpaper_${receiverId}`);
+    }
+  };
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -369,15 +383,50 @@ const ChatPage: React.FC = () => {
             <Video className="w-4.5 h-4.5" />
           </button>
 
-          {/* Conversation Info button ⓘ */}
-          <button
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-foreground/80 hover:text-primary active:scale-95 transition-all shrink-0"
-            onClick={() => setShowDetails(true)}
-            title="Conversation details"
-            aria-label="Conversation details"
-          >
-            <Info className="w-5 h-5" />
-          </button>
+          {/* 3-dots DropdownMenu with Wallpaper & Details & Block */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-foreground/80 hover:text-primary active:scale-95 transition-all shrink-0"
+                title="More options"
+                aria-label="More options"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border-border bg-card">
+              <DropdownMenuItem
+                onClick={() => setShowWallpaperModal(true)}
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+              >
+                <ImageIcon className="w-4 h-4 text-primary" />
+                <span>Wallpaper (इमेज / फोटो)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setShowDetails(true)}
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+              >
+                <Info className="w-4 h-4 text-muted-foreground" />
+                <span>Conversation details</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setShowSearch(true)}
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+              >
+                <Search className="w-4 h-4 text-muted-foreground" />
+                <span>Search messages</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleBlock}
+                className={`cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 ${
+                  blocked ? 'text-green-600 focus:text-green-600' : 'text-destructive focus:text-destructive'
+                }`}
+              >
+                {blocked ? <ShieldOff className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                <span>{blocked ? 'Unblock user' : 'Block user'}</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* IN-CONVERSATION SEARCH BAR */}
@@ -410,7 +459,22 @@ const ChatPage: React.FC = () => {
         )}
 
         {/* Messages Canvas */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-2.5 min-h-0 bg-background/50">
+        <div
+          className="flex-1 overflow-y-auto px-3.5 py-4 space-y-2.5 min-h-0 relative bg-background/50"
+          style={
+            wallpaper
+              ? {
+                  backgroundImage: `url(${wallpaper})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
+                }
+              : undefined
+          }
+        >
+          {wallpaper && (
+            <div className="absolute inset-0 bg-background/50 dark:bg-background/70 backdrop-blur-[0.5px] pointer-events-none" />
+          )}
           {visibleMessages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
               {searchQuery ? (
@@ -650,7 +714,14 @@ const ChatPage: React.FC = () => {
           }}
         />
       </div>
-    </MobileLayout>
+            <ChatWallpaperModal
+          open={showWallpaperModal}
+          onOpenChange={setShowWallpaperModal}
+          currentWallpaper={wallpaper}
+          onSelectWallpaper={handleSelectWallpaper}
+          title="Chat Wallpaper (बैकग्राउंड फोटो)"
+        />
+      </MobileLayout>
   );
 };
 
