@@ -27,6 +27,8 @@ import {
   Check,
   Crown,
   Loader2,
+  Image as ImageIcon,
+  Upload,
 } from 'lucide-react';
 import type { Group, GroupMember, GroupMedia, GroupPinnedMessage, GroupPermissions } from '@/types/groups';
 import type { Profile } from '@/types/types';
@@ -164,6 +166,49 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
   const [showPermissionsSheet, setShowPermissionsSheet] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+  const groupThemeGalleryInputRef = useRef<HTMLInputElement>(null);
+
+  const handleGroupThemeGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1280;
+        const MAX_HEIGHT = 1920;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        onWallpaperChange?.(dataUrl);
+        setShowThemeDialog(false);
+        toast.success('Gallery photo set as group chat theme/background!');
+      };
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // States
   const [newName, setNewName] = useState(group.name);
@@ -496,9 +541,15 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           >
             <span className="text-sm font-medium text-foreground">Theme</span>
             <div className="flex items-center gap-2">
-              <span
-                className={`h-5 w-5 rounded-full bg-gradient-to-tr ${activeTheme.preview} shadow-sm ring-1 ring-black/10`}
-              />
+              {groupWallpaper ? (
+                <div className="h-6 w-6 rounded-full overflow-hidden border border-border shadow-xs">
+                  <img src={groupWallpaper} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <span
+                  className={`h-5 w-5 rounded-full bg-gradient-to-tr ${activeTheme.preview} shadow-sm ring-1 ring-black/10`}
+                />
+              )}
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </div>
           </button>
@@ -798,13 +849,74 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
                 type="button"
                 onClick={() => { onThemeChange(theme.id); setShowThemeDialog(false); }}
                 className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${
-                  groupTheme === theme.id ? 'border-primary bg-primary/10 ring-2 ring-primary/30' : 'border-border hover:bg-muted'
+                  groupTheme === theme.id && !groupWallpaper ? 'border-primary bg-primary/10 ring-2 ring-primary/30' : 'border-border hover:bg-muted'
                 }`}
               >
                 <span className={`h-6 w-6 rounded-full bg-gradient-to-tr ${theme.preview} shrink-0 shadow-sm`} />
                 <span className="text-xs font-semibold text-foreground truncate">{theme.name}</span>
               </button>
             ))}
+
+            {/* 8TH ITEM: Gallery Photo / Image */}
+            <button
+              type="button"
+              onClick={() => groupThemeGalleryInputRef.current?.click()}
+              className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${
+                groupWallpaper
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary/30 shadow-xs'
+                  : 'border-dashed border-primary/60 hover:bg-muted/80 active:scale-95'
+              }`}
+            >
+              {groupWallpaper ? (
+                <div className="h-6 w-6 rounded-full overflow-hidden border border-border shadow-xs shrink-0">
+                  <img src={groupWallpaper} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <span className="h-6 w-6 rounded-full bg-gradient-to-tr from-fuchsia-500 via-rose-500 to-amber-400 flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <ImageIcon className="w-3.5 h-3.5" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-semibold text-foreground truncate block">Gallery Photo</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Gallery Photo Actions inside Group Theme Dialog */}
+          <div className="pt-2 border-t border-border space-y-2">
+            <input
+              type="file"
+              ref={groupThemeGalleryInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleGroupThemeGalleryUpload}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => groupThemeGalleryInputRef.current?.click()}
+              className="w-full rounded-xl border-dashed border-primary/50 hover:border-primary text-xs font-semibold flex items-center justify-center gap-2 h-9 text-primary"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Choose Photo from Gallery (गैलरी से फोटो लगाएं)</span>
+            </Button>
+
+            {groupWallpaper && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onWallpaperChange?.(null);
+                  toast.success('Custom photo removed');
+                }}
+                className="w-full text-xs text-destructive hover:bg-destructive/10 h-8 rounded-xl font-medium"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Remove Custom Photo (फोटो हटाएं)
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
