@@ -305,10 +305,10 @@ const ChatPage: React.FC = () => {
   }, [messages, searchQuery]);
 
   return (
-    <MobileLayout hideHeader hideNav>
-      <div className="flex flex-col h-[100dvh] bg-background">
+    <MobileLayout hideHeader hideNav noScroll>
+      <div className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-background">
         {/* Top bar (Glassmorphic & Modern Instagram Style) */}
-        <div className="sticky top-0 z-30 flex items-center gap-2 px-3 py-2.5 border-b border-border/50 bg-background/85 backdrop-blur-xl shrink-0 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+        <div className="shrink-0 z-30 flex items-center gap-2 px-3 py-2.5 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-xs">
           <button
             onClick={goBack}
             className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 active:scale-95 text-foreground transition-all shrink-0"
@@ -460,7 +460,7 @@ const ChatPage: React.FC = () => {
 
         {/* Messages Canvas */}
         <div
-          className="flex-1 overflow-y-auto px-3.5 py-4 space-y-2.5 min-h-0 relative bg-background/50"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 py-4 space-y-2.5 relative bg-background/50"
           style={
             wallpaper
               ? {

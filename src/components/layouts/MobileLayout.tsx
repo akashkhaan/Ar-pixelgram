@@ -13,9 +13,10 @@ interface MobileLayoutProps {
   hideHeader?: boolean; // top header (logo + notification bell) छिपाओ
   autoHideNav?: boolean; // scroll down पर bottom nav गायब, scroll up पर वापस (YouTube जैसा)
   fullscreen?: boolean; // header + nav दोनों छिपाओ, pure black bg (reels के लिए)
+  noScroll?: boolean; // freeze page, only allow internal scroll (e.g. Chat)
 }
 
-const MobileLayout: React.FC<MobileLayoutProps> = ({ children, hideNav = false, hideHeader = false, autoHideNav = true, fullscreen = false }) => {
+const MobileLayout: React.FC<MobileLayoutProps> = ({ children, hideNav = false, hideHeader = false, autoHideNav = true, fullscreen = false, noScroll = false }) => {
   const location = useLocation();
   const [navHidden, setNavHidden] = useState(false);
   const lastScrollY = useRef(0);
@@ -64,7 +65,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, hideNav = false, 
   ];
 
   return (
-    <div className="flex flex-col min-h-screen w-full max-w-lg mx-auto bg-background">
+    <div className={cn("flex flex-col w-full max-w-lg mx-auto bg-background", noScroll ? "fixed inset-0 overflow-hidden" : "min-h-screen")}>
       {/* Premium Top Header */}
       {!hideHeader && (
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 glass-card border-b border-border/40">
@@ -88,7 +89,7 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, hideNav = false, 
       )}
 
       {/* Main Content */}
-      <main ref={mainRef} className={cn('flex-1 overflow-y-auto', !hideNav && 'pb-nav')}>
+      <main ref={mainRef} className={cn('flex-1', noScroll ? 'min-h-0 overflow-hidden flex flex-col' : 'overflow-y-auto', !hideNav && 'pb-nav')}>
         {children}
       </main>
 

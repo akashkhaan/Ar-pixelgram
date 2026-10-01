@@ -443,7 +443,7 @@ const GroupChatPage: React.FC = () => {
 
   if (loading) {
     return (
-      <MobileLayout hideHeader hideNav>
+      <MobileLayout hideHeader hideNav noScroll>
         <div className="flex min-h-[100dvh] items-center justify-center">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
         </div>
@@ -465,7 +465,7 @@ const GroupChatPage: React.FC = () => {
 
   return (
     <MobileLayout hideHeader hideNav>
-      <div className="flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-background">
+      <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-background">
         {/* CHAT HEADER (Messenger Style: Back, Group info button, Call 📞, Video 📹, Info ⓘ) */}
         <header className="z-20 flex shrink-0 items-center gap-1 sm:gap-2 border-b border-border bg-card/95 px-2 py-2 backdrop-blur">
           <button
@@ -661,7 +661,7 @@ const GroupChatPage: React.FC = () => {
 
         {/* MESSAGES LIST */}
         <div
-          className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3 relative"
+          className="flex-1 min-h-0 space-y-2 overflow-y-auto overscroll-contain p-3 relative"
           style={
             groupWallpaper
               ? {
