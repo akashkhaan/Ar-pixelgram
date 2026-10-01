@@ -1,5 +1,7 @@
 /* stylelint-disable */
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
   :root {
@@ -99,7 +101,7 @@
   }
 
   * {
-    border-color: hsl(var(--border));
+    @apply border-border;
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
@@ -107,7 +109,7 @@
   *::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
 
   body {
-    background-color: hsl(var(--background)); color: hsl(var(--foreground));
+    @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
@@ -1195,4 +1197,56 @@
     top: 24px;
     transform: none;
   }
+}
+
+/* ── Ultra-Premium Dynamic Shifting Rainbow Suite (Rang-Birange Animated Colors) ── */
+@keyframes premium-rainbow-cycle {
+  0% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: hue-rotate(180deg);
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: hue-rotate(360deg);
+  }
+}
+
+@keyframes premium-rainbow-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.45), 0 0 25px rgba(168, 85, 247, 0.3);
+  }
+  33% {
+    box-shadow: 0 0 18px rgba(244, 63, 94, 0.5), 0 0 28px rgba(251, 146, 60, 0.35);
+  }
+  66% {
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.45), 0 0 28px rgba(56, 189, 248, 0.4);
+  }
+}
+
+.premium-rainbow-border {
+  background: linear-gradient(125deg, #00f2fe, #4facfe, #818cf8, #c084fc, #f43f5e, #fb923c, #facc15, #10b981, #00f2fe) !important;
+  background-size: 300% 300% !important;
+  animation: premium-rainbow-cycle 3s linear infinite !important;
+}
+
+.premium-rainbow-text {
+  background: linear-gradient(125deg, #00f2fe, #4facfe, #818cf8, #c084fc, #f43f5e, #fb923c, #facc15, #10b981, #00f2fe) !important;
+  background-size: 300% 300% !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  animation: premium-rainbow-cycle 3s linear infinite !important;
+  display: inline-block;
+}
+
+.premium-rainbow-glow {
+  animation: premium-rainbow-glow-pulse 3s ease-in-out infinite alternate !important;
+}
+
+.premium-rainbow-icon {
+  animation: dynamic-icon-color 2.8s linear infinite !important;
 }
