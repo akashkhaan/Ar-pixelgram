@@ -425,11 +425,13 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
                     className="flex items-center justify-between p-3.5 rounded-2xl bg-muted/60 dark:bg-zinc-800/80 hover:bg-muted active:scale-[0.99] transition-all cursor-pointer border border-border/40 shadow-xs"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="w-12 h-12 rounded-full bg-muted/90 dark:bg-zinc-700/80 flex items-center justify-center text-foreground shrink-0 border border-border/50">
-                        <Users className="w-6 h-6 text-foreground" />
+                      <div className="w-12 h-12 rounded-full p-[2px] premium-rainbow-border flex items-center justify-center shrink-0 shadow-sm">
+                        <div className="w-full h-full rounded-full bg-card dark:bg-zinc-800 flex items-center justify-center">
+                          <Users className="w-5 h-5 premium-rainbow-icon" />
+                        </div>
                       </div>
                       <div className="min-w-0 flex-1 text-left">
-                        <p className="text-[15px] font-bold text-foreground">
+                        <p className="text-[15px] font-bold premium-rainbow-text">
                           Switch account
                         </p>
                         <p className="text-xs text-muted-foreground">
@@ -449,8 +451,10 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
                   onClick={() => setShowSwitchAccountModal(true)}
                   className="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl hover:bg-muted/60 active:bg-muted transition-colors text-left"
                 >
-                  <div className="w-10 h-10 rounded-full bg-[#0866FF]/10 text-[#0866FF] flex items-center justify-center shrink-0">
-                    <UserPlus className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-full p-[1.5px] premium-rainbow-border flex items-center justify-center shrink-0 shadow-xs">
+                    <div className="w-full h-full rounded-full bg-card dark:bg-zinc-800 flex items-center justify-center">
+                      <UserPlus className="w-4.5 h-4.5 premium-rainbow-icon" />
+                    </div>
                   </div>
                   <div className="flex-1">
                     <p className="text-[15px] font-medium text-foreground">Switch or Add Account</p>

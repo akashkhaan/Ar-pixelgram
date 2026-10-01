@@ -216,11 +216,13 @@ const SettingsPage: React.FC = () => {
             className="flex items-center justify-between gap-3 glass-card rounded-2xl p-3.5 hover:bg-muted/70 active:scale-[0.99] transition-all cursor-pointer border border-border/50 shadow-xs"
           >
             <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-full bg-muted/90 dark:bg-zinc-700/80 flex items-center justify-center text-foreground shrink-0 border border-border/50">
-                <Users className="w-6 h-6 text-foreground" />
+              <div className="w-12 h-12 rounded-full p-[2px] premium-rainbow-border flex items-center justify-center shrink-0 shadow-sm">
+                <div className="w-full h-full rounded-full bg-card dark:bg-zinc-800 flex items-center justify-center">
+                  <Users className="w-5 h-5 premium-rainbow-icon" />
+                </div>
               </div>
               <div className="flex-1 min-w-0 text-left">
-                <p className="font-bold text-[15px] text-foreground">Switch account</p>
+                <p className="font-bold text-[15px] premium-rainbow-text">Switch account</p>
                 <p className="text-xs text-muted-foreground">Tap to switch or add another account</p>
               </div>
             </div>
