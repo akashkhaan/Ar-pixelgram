@@ -217,17 +217,57 @@ const SettingsPage: React.FC = () => {
           { icon: Globe, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language'), danger: false },
           { icon: HelpCircle, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help'), danger: false },
           { icon: Flag, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report'), danger: false },
+          {
+            customIcon: (
+              <img
+                src="/instagram.png"
+                alt="Instagram"
+                className="w-5 h-5 rounded-[5px] object-cover shrink-0 shadow-xs"
+              />
+            ),
+            label: 'Owner contact',
+            desc: 'Click on join pixelgram owner connect',
+            href: 'https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==',
+            badge: 'Instagram',
+            danger: false,
+          },
           { icon: Shield, label: 'Privacy', desc: 'Manage your privacy settings', onClick: () => navigate('/edit-profile'), danger: false },
-        ].map(({ icon: Icon, label, desc, onClick, danger }) => (
-          <button key={label} onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors">
-            <Icon className={`w-5 h-5 shrink-0 ${danger ? 'text-destructive' : 'text-primary'}`} />
-            <div className="flex-1 min-w-0 text-left">
-              <p className={`text-sm font-medium ${danger ? 'text-destructive' : 'text-foreground'}`}>{label}</p>
-              <p className="text-xs text-muted-foreground">{desc}</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-          </button>
-        ))}
+        ].map((item: any) => {
+          if (item.href) {
+            return (
+              <a
+                key={item.label}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors group cursor-pointer border border-pink-500/20"
+              >
+                {item.customIcon}
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-foreground">{item.label}</p>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-pink-500/15 via-rose-500/15 to-amber-500/15 text-pink-600 dark:text-pink-400 border border-pink-500/20">
+                      {item.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+              </a>
+            );
+          }
+          const { icon: Icon, label, desc, onClick, danger } = item;
+          return (
+            <button key={label} onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors">
+              <Icon className={`w-5 h-5 shrink-0 ${danger ? 'text-destructive' : 'text-primary'}`} />
+              <div className="flex-1 min-w-0 text-left">
+                <p className={`text-sm font-medium ${danger ? 'text-destructive' : 'text-foreground'}`}>{label}</p>
+                <p className="text-xs text-muted-foreground">{desc}</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+            </button>
+          );
+        })}
 
         {/* Admin Panel — only visible for admin users */}
         {profile?.is_admin && (

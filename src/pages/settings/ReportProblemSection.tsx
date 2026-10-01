@@ -110,6 +110,34 @@ const ReportProblemSection: React.FC<Props> = ({ userId, onBack, onDone }) => {
         <p className="text-sm text-muted-foreground mt-1 mb-5 text-pretty">
           Kya problem hai? Neeche se ek option chunein. Aap screenshot ya video bhi bhej sakte hain.
         </p>
+        {/* Direct Owner Connect */}
+        <div className="mt-4">
+          <a
+            href="https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg=="
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors group cursor-pointer border border-pink-500/30 shadow-xs mb-3"
+          >
+            <img
+              src="/instagram.png"
+              alt="Instagram"
+              className="w-6 h-6 rounded-lg object-cover shrink-0 shadow-xs group-hover:scale-105 transition-transform"
+            />
+            <div className="flex-1 min-w-0 text-left">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-foreground">Owner contact</p>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-pink-500/15 to-purple-500/15 text-pink-600 dark:text-pink-400 border border-pink-500/20">
+                  Instagram
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                Click on join pixelgram owner connect
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+          </a>
+        </div>
+
         <div className="space-y-2">
           {CATEGORIES.map(cat => (
             <button
