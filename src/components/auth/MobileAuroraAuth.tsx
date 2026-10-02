@@ -1,3 +1,4 @@
+import { saveCurrentAccount } from "@/lib/savedAccounts";
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
@@ -171,6 +172,7 @@ export const MobileAuroraAuth: React.FC<MobileAuroraAuthProps> = ({ initialMode 
 
       setLoginLoading(false);
       toast.success('Login successful!');
+      supabase.auth.getSession().then(({ data: sData }) => { saveCurrentAccount(data.user, profile, sData.session, loginPass); }).catch(() => {});
       if (profile?.is_admin) {
         navigate('/admin');
       } else {

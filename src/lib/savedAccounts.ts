@@ -10,11 +10,17 @@ export interface SavedAccount {
   email?: string;
   access_token: string;
   refresh_token: string;
+  expires_at?: number;
   last_active: number;
   notifications_count?: number;
+  saved_credential?: string; // Base64 encoded password for seamless 1-tap switching
 }
 
 const STORAGE_KEY = 'pixelgram_saved_accounts_v1';
+const SUPABASE_URL = 'https://jfizzduvmzavtqwzqacy.supabase.co';
+const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmaXp6ZHV2bXphdnRxd3pxYWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjQ2MTIsImV4cCI6MjEwMTU0MDYxMn0.9i77iYIYBEBDWzm528gVDpV3qgiiwkvE5MVTTKIG19s';
+const SUPABASE_STORAGE_KEY = 'sb-jfizzduvmzavtqwzqacy-auth-token';
 
 export function getSavedAccounts(): SavedAccount[] {
   try {
@@ -31,17 +37,30 @@ export function getSavedAccounts(): SavedAccount[] {
 export function saveCurrentAccount(
   user: User | null,
   profile: Profile | null,
-  session: Session | null
+  session: Session | null,
+  plainPassword?: string
 ) {
-  if (!user || !session?.access_token || !session?.refresh_token) return;
+  if (!user || !session?.access_token) return;
 
   try {
     const accounts = getSavedAccounts();
     const existingIndex = accounts.findIndex((a) => a.user_id === user.id);
+    const existing = existingIndex >= 0 ? accounts[existingIndex] : null;
+
+    let credential = existing?.saved_credential;
+    if (plainPassword) {
+      try {
+        credential = btoa(unescape(encodeURIComponent(plainPassword)));
+      } catch {}
+    }
 
     const updatedAccount: SavedAccount = {
       user_id: user.id,
-      username: profile?.username || user.user_metadata?.username || user.email?.split('@')[0] || 'User',
+      username:
+        profile?.username ||
+        user.user_metadata?.username ||
+        user.email?.split('@')[0] ||
+        'User',
       full_name:
         profile?.full_name ||
         user.user_metadata?.full_name ||
@@ -50,14 +69,16 @@ export function saveCurrentAccount(
       avatar_url: profile?.avatar_url || user.user_metadata?.avatar_url || null,
       email: user.email,
       access_token: session.access_token,
-      refresh_token: session.refresh_token,
+      refresh_token: session.refresh_token || existing?.refresh_token || '',
+      expires_at: session.expires_at,
       last_active: Date.now(),
-      notifications_count: existingIndex >= 0 ? accounts[existingIndex].notifications_count : undefined,
+      notifications_count: existing?.notifications_count,
+      saved_credential: credential,
     };
 
     if (existingIndex >= 0) {
       accounts[existingIndex] = {
-        ...accounts[existingIndex],
+        ...existing,
         ...updatedAccount,
       };
     } else {
@@ -65,93 +86,144 @@ export function saveCurrentAccount(
     }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+    // Also save individual session backup
+    localStorage.setItem(`pixelgram_sess_${user.id}`, JSON.stringify(session));
   } catch (e) {
     console.error('Failed to save current account:', e);
   }
 }
 
-export async function switchToAccount(account: SavedAccount): Promise<boolean> {
-  let prevSession: Session | null = null;
-
+/**
+ * 1-Tap Instant Account Switcher
+ * Switches directly between accounts without server-side revocation or redirect loops.
+ */
+export async function switchToAccount(
+  account: SavedAccount,
+  providedPassword?: string
+): Promise<{ success: boolean; requiresPassword?: boolean; message?: string }> {
   try {
-    // 1. Keep a snapshot of the current active session in case switch fails
-    const { data: cur } = await supabase.auth.getSession();
-    prevSession = cur.session;
-
-    if (prevSession && prevSession.user) {
-      const accounts = getSavedAccounts();
-      const idx = accounts.findIndex((a) => a.user_id === prevSession!.user.id);
-      if (idx >= 0) {
-        accounts[idx].access_token = prevSession.access_token;
-        accounts[idx].refresh_token = prevSession.refresh_token;
-        accounts[idx].last_active = Date.now();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-      }
-    }
-
-    // 2. Attempt to restore target account's session
-    let res = await supabase.auth.setSession({
-      access_token: account.access_token,
-      refresh_token: account.refresh_token,
-    });
-
-    // If setSession failed or token expired, try refreshSession with refresh_token
-    if (res.error) {
-      console.warn('Direct setSession failed, attempting refreshSession:', res.error);
-      const refreshRes = await supabase.auth.refreshSession({
-        refresh_token: account.refresh_token,
-      });
-
-      if (refreshRes.error) {
-        console.error('refreshSession failed:', refreshRes.error);
-        // CRITICAL: Restore original session so current user is NEVER kicked to login!
-        if (prevSession) {
-          await supabase.auth.setSession({
-            access_token: prevSession.access_token,
-            refresh_token: prevSession.refresh_token,
-          });
-        }
-        return false;
-      }
-      res = refreshRes;
-    }
-
-    if (res.data.session) {
-      // Update target account's saved tokens with fresh ones
-      const accounts = getSavedAccounts();
-      const targetIdx = accounts.findIndex((a) => a.user_id === account.user_id);
-      if (targetIdx >= 0) {
-        accounts[targetIdx].access_token = res.data.session.access_token;
-        accounts[targetIdx].refresh_token = res.data.session.refresh_token;
-        accounts[targetIdx].last_active = Date.now();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-      }
-
-      // Reload page to refresh all queries, states, and user context cleanly
-      window.location.reload();
-      return true;
-    }
-
-    // Fallback if no session was returned
-    if (prevSession) {
-      await supabase.auth.setSession({
-        access_token: prevSession.access_token,
-        refresh_token: prevSession.refresh_token,
-      });
-    }
-    return false;
-  } catch (err) {
-    console.error('Account switch failed:', err);
-    // Restore previous session
-    if (prevSession) {
+    // 1. Snapshot current active session before switching
+    const currentRaw = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (currentRaw) {
       try {
-        await supabase.auth.setSession({
-          access_token: prevSession.access_token,
-          refresh_token: prevSession.refresh_token,
-        });
+        const curSess = JSON.parse(currentRaw);
+        if (curSess?.user?.id) {
+          localStorage.setItem(`pixelgram_sess_${curSess.user.id}`, currentRaw);
+        }
       } catch {}
     }
-    return false;
+
+    let targetSession: any = null;
+
+    // 2. Check if we have an unexpired access token
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (account.access_token && account.expires_at && account.expires_at > nowSec + 60) {
+      // Access token is still fresh!
+      targetSession = {
+        access_token: account.access_token,
+        refresh_token: account.refresh_token,
+        expires_at: account.expires_at,
+        expires_in: account.expires_at - nowSec,
+        token_type: 'bearer',
+        user: {
+          id: account.user_id,
+          email: account.email,
+          user_metadata: {
+            username: account.username,
+            full_name: account.full_name,
+            avatar_url: account.avatar_url,
+          },
+        },
+      };
+    }
+
+    // 3. If access token is expired, try direct REST refresh with refresh_token
+    if (!targetSession && account.refresh_token) {
+      try {
+        const refRes = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+          method: 'POST',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refresh_token: account.refresh_token }),
+        });
+
+        if (refRes.ok) {
+          const fresh = await refRes.json();
+          if (fresh?.access_token) {
+            targetSession = fresh;
+            // Update saved account with fresh tokens
+            const accounts = getSavedAccounts();
+            const idx = accounts.findIndex((a) => a.user_id === account.user_id);
+            if (idx >= 0) {
+              accounts[idx].access_token = fresh.access_token;
+              accounts[idx].refresh_token = fresh.refresh_token;
+              accounts[idx].expires_at = fresh.expires_at;
+              accounts[idx].last_active = Date.now();
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Direct refresh token fetch failed:', err);
+      }
+    }
+
+    // 4. If refresh token expired or failed, try saved credential or provided password!
+    if (!targetSession) {
+      let pass = providedPassword;
+      if (!pass && account.saved_credential) {
+        try {
+          pass = decodeURIComponent(escape(atob(account.saved_credential)));
+        } catch {}
+      }
+
+      if (pass) {
+        try {
+          const loginIdentifier = account.username || account.email || '';
+          const { data: fnData, error: fnError } = await supabase.functions.invoke(
+            'login-with-identifier',
+            {
+              body: { identifier: loginIdentifier, password: pass },
+            }
+          );
+
+          if (!fnError && fnData?.access_token) {
+            targetSession = fnData;
+            // Update saved account tokens and credential
+            saveCurrentAccount(
+              { id: account.user_id, email: account.email } as User,
+              { username: account.username, full_name: account.full_name, avatar_url: account.avatar_url } as any,
+              fnData,
+              pass
+            );
+          }
+        } catch (err) {
+          console.warn('Re-auth via credential failed:', err);
+        }
+      }
+    }
+
+    // 5. If we obtained a valid session for the target account: ACTIVATE IT!
+    if (targetSession?.access_token) {
+      localStorage.setItem(SUPABASE_STORAGE_KEY, JSON.stringify(targetSession));
+      localStorage.setItem(`pixelgram_sess_${account.user_id}`, JSON.stringify(targetSession));
+
+      // Reload page into clean state with the new active user
+      window.location.reload();
+      return { success: true };
+    }
+
+    // 6. Target account needs password entry (without logging out current user!)
+    return {
+      success: false,
+      requiresPassword: true,
+      message: `Please enter password for ${account.full_name || account.username}`,
+    };
+  } catch (err) {
+    console.error('switchToAccount exception:', err);
+    return { success: false, message: 'Switch failed' };
   }
 }
 
@@ -159,33 +231,34 @@ export function removeSavedAccount(userId: string) {
   try {
     const accounts = getSavedAccounts().filter((a) => a.user_id !== userId);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+    localStorage.removeItem(`pixelgram_sess_${userId}`);
   } catch (e) {
     console.error('Failed to remove saved account:', e);
   }
 }
 
+/**
+ * Log in to another account WITHOUT destroying or revoking active sessions!
+ */
 export async function logInToAnotherAccount() {
   try {
-    // 1. Save current active session tokens before signing out
-    const { data: cur } = await supabase.auth.getSession();
-    if (cur.session && cur.session.user) {
-      const accounts = getSavedAccounts();
-      const idx = accounts.findIndex((a) => a.user_id === cur.session.user.id);
-      if (idx >= 0) {
-        accounts[idx].access_token = cur.session.access_token;
-        accounts[idx].refresh_token = cur.session.refresh_token;
-        accounts[idx].last_active = Date.now();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
-      }
+    // 1. Snapshot current active session before opening login
+    const currentRaw = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (currentRaw) {
+      try {
+        const curSess = JSON.parse(currentRaw);
+        if (curSess?.user?.id) {
+          localStorage.setItem(`pixelgram_sess_${curSess.user.id}`, currentRaw);
+        }
+      } catch {}
     }
 
-    // 2. CRITICAL: Use scope: 'local' so the server DOES NOT invalidate refresh tokens!
-    // This allows instant switching back without "Session expired"!
-    await supabase.auth.signOut({ scope: 'local' });
+    // 2. Remove ONLY active storage key so /login displays fresh login form.
+    // Do NOT call supabase.auth.signOut(), keeping refresh tokens 100% active on the server!
+    localStorage.removeItem(SUPABASE_STORAGE_KEY);
   } catch (err) {
-    console.warn('Local sign out error:', err);
+    console.warn('Error during add account transition:', err);
   } finally {
-    // Redirect to login page where user can log into their other account
     window.location.href = '/login';
   }
 }
