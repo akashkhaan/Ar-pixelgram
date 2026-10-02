@@ -366,7 +366,7 @@ const SettingsPage: React.FC = () => {
 
             {/* Rotating Phase Content with smooth cinema transition */}
             <div
-              className={}
+              className={`flex-1 flex flex-col transition-all duration-500 ${isCardTransitioning ? "opacity-0 scale-95 blur-xs translate-y-1" : "opacity-100 scale-100 blur-0 translate-y-0"}`}
             >
               {/* PHASE 1: Main Verification Box (30s) */}
               {cardPhase === 'main_box' && (
