@@ -1287,6 +1287,33 @@
   opacity: 0.75;
 }
 
+@keyframes dynamicGradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 10px 35px -5px rgba(236, 72, 153, 0.45), 0 0 25px rgba(59, 130, 246, 0.35);
+    border-color: rgba(244, 114, 182, 0.5);
+  }
+  33% {
+    box-shadow: 0 10px 35px -5px rgba(59, 130, 246, 0.45), 0 0 25px rgba(16, 185, 129, 0.35);
+    border-color: rgba(56, 189, 248, 0.5);
+  }
+  66% {
+    box-shadow: 0 10px 35px -5px rgba(245, 158, 11, 0.45), 0 0 25px rgba(236, 72, 153, 0.35);
+    border-color: rgba(251, 191, 36, 0.5);
+  }
+}
+
 .frame .dash,
 .dash {
   width: 100%;
@@ -1296,7 +1323,10 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: #2563eb;
+  background: linear-gradient(125deg, #ec4899, #8b5cf6, #3b82f6, #06b6d4, #10b981, #f59e0b, #ef4444, #ec4899);
+  background-size: 350% 350%;
+  animation: dynamicGradientShift 7s ease infinite, pulseGlow 7s ease infinite;
+  border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .frame .dash {
@@ -1314,7 +1344,10 @@
   justify-content: space-between;
   gap: 6px;
   padding: 10px 14px;
-  background: #2563eb;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
   color: #ffffff;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: clamp(0.72rem, 2.6vw, 0.95rem);

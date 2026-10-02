@@ -327,7 +327,7 @@ const SettingsPage: React.FC = () => {
 
             {/* Verification Status & 30-Day Auto Countdown inside Blue Box */}
             {isVerifiedActive ? (
-              <div className="flex-1 p-3 flex flex-col justify-between text-white bg-gradient-to-b from-[#2563eb] to-[#1d4ed8]">
+              <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
                 {/* Active Badge Title & Validity Badge */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -373,7 +373,7 @@ const SettingsPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 p-3 flex flex-col justify-between text-white bg-gradient-to-b from-[#2563eb] to-[#1d4ed8]">
+              <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
                 <div className="flex items-center justify-between gap-2 text-left">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 shrink-0">
