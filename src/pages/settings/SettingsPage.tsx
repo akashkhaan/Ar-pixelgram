@@ -29,10 +29,56 @@ const SettingsPage: React.FC = () => {
   const [verificationRequest, setVerificationRequest] = useState<VerificationRequest | null>(null);
   const [verifyReason, setVerifyReason] = useState('');
   const [loading, setLoading] = useState(false);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     if (user) getMyVerificationRequest(user.id).then(setVerificationRequest);
   }, [user]);
+
+  // Live timer for real-time countdown
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 30-day (1 month) verification timeline & auto-expiry calculations
+  const approvedAtRaw = verificationRequest?.reviewed_at || (profile?.is_verified ? (profile?.created_at || '2026-10-02T10:00:00Z') : null);
+  const approvedDate = approvedAtRaw ? new Date(approvedAtRaw) : new Date();
+  // 30 days = 1 month validity
+  const expiryDate = new Date(approvedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const diffMs = expiryDate.getTime() - now;
+  const isExpired = approvedAtRaw ? diffMs <= 0 : false;
+  const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  const hoursLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
+  const minutesLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+  const secondsLeft = Math.max(0, Math.floor((diffMs % (1000 * 60)) / 1000));
+
+  const isVerifiedActive = Boolean((profile?.is_verified || verificationRequest?.status === 'approved') && !isExpired);
+
+  // Auto-expire tick after 1 month (gayab ho jaye)
+  useEffect(() => {
+    if (profile?.is_verified && isExpired && user) {
+      import('@/services/api').then(({ supabase }) => {
+        supabase.from('profiles').update({ is_verified: false }).eq('user_id', user.id);
+      }).catch(console.error);
+    }
+  }, [profile?.is_verified, isExpired, user]);
+
+  const formatFriendlyDate = (d: Date) => {
+    try {
+      return d.toLocaleDateString('hi-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch {
+      return d.toLocaleDateString();
+    }
+  };
+
+  const formatFriendlyTime = (d: Date) => {
+    try {
+      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch {
+      return '';
+    }
+  };
 
   const toggleTheme = (val: boolean) => {
     setDarkMode(val);
@@ -249,19 +295,126 @@ const SettingsPage: React.FC = () => {
         {/* Dashboard Card */}
         <div className="frame">
           <div className="dash">
+            {/* Top Bar with Dynamic Avatar & Verification Button */}
             <div className="bar">
               <b>Pixelgram</b>
               <span>{profile?.username || 'username'}</span>
               <span>withdraw</span>
+              <button
+                type="button"
+                onClick={() => setSection('verification')}
+                className="flex items-center gap-1 text-white hover:text-sky-200 active:scale-95 transition-all font-medium cursor-pointer shrink-0"
+                title="Verification Status"
+              >
+                <BadgeCheck className="w-3.5 h-3.5 text-sky-300" />
+                <span>Verification</span>
+              </button>
               <span className="flex items-center gap-1.5 shrink-0">
                 <span>History</span>
-                <svg className="avatar" viewBox="0 0 32 32" aria-label="profile">
-                  <circle cx="16" cy="16" r="16" fill="#fff" />
-                  <circle cx="16" cy="12" r="5" fill="#2563eb" />
-                  <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
-                </svg>
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Profile"
+                    className="avatar rounded-full object-cover shrink-0 ring-1 ring-white/60"
+                  />
+                ) : (
+                  <svg className="avatar" viewBox="0 0 32 32" aria-label="profile">
+                    <circle cx="16" cy="16" r="16" fill="#fff" />
+                    <circle cx="16" cy="12" r="5" fill="#2563eb" />
+                    <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
+                  </svg>
+                )}
               </span>
             </div>
+
+            {/* Verification Status & 30-Day Auto Countdown inside Blue Box */}
+            {isVerifiedActive ? (
+              <div className="flex-1 p-3 flex flex-col justify-between text-white bg-gradient-to-b from-[#2563eb] to-[#1d4ed8]">
+                {/* Active Badge Title & Validity Badge */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-md shrink-0">
+                      <BadgeCheck className="w-5 h-5 text-[#2563eb] fill-[#2563eb]" stroke="#fff" />
+                    </div>
+                    <div className="min-w-0 text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-[13px] tracking-wide text-white truncate">Official Blue Tick Active</span>
+                        <span className="px-1.5 py-0.5 bg-emerald-400/25 text-emerald-300 border border-emerald-400/40 rounded-full text-[9px] font-bold shrink-0">Active</span>
+                      </div>
+                      <p className="text-[11px] text-blue-100/90 truncate">Konse tick: Blue Verified Badge (30 Din Validity)</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-[11px] font-black text-amber-300 bg-black/25 px-2 py-0.5 rounded-md border border-amber-300/30">
+                      {daysLeft} Din bache
+                    </span>
+                  </div>
+                </div>
+
+                {/* Kab mila aur Kab hatega Timings */}
+                <div className="grid grid-cols-2 gap-2 my-1 bg-black/20 p-2 rounded-xl border border-white/10 text-left">
+                  <div>
+                    <p className="text-[10px] text-blue-200 font-medium">Kab Mila (Issued):</p>
+                    <p className="text-[11px] font-bold text-white leading-tight">{formatFriendlyDate(approvedDate)}</p>
+                    <p className="text-[9px] text-blue-200/80">{formatFriendlyTime(approvedDate)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-amber-200 font-medium">Kab Hatega (Expiry):</p>
+                    <p className="text-[11px] font-bold text-amber-300 leading-tight">{formatFriendlyDate(expiryDate)}</p>
+                    <p className="text-[9px] text-amber-200/80">{formatFriendlyTime(expiryDate)}</p>
+                  </div>
+                </div>
+
+                {/* Daily Auto-Decrement Status Bar */}
+                <div className="bg-white/10 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[11px] border border-white/15">
+                  <div className="flex items-center gap-1 text-white font-medium truncate">
+                    <span className="animate-pulse">⏳</span>
+                    <span>Khatam hone me: <b className="text-amber-300 font-bold">{daysLeft} din {hoursLeft}h {minutesLeft}m {secondsLeft}s</b> bache</span>
+                  </div>
+                  <span className="text-[9px] text-blue-200 shrink-0 font-medium">1 Mahine me auto-expire</span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 p-3 flex flex-col justify-between text-white bg-gradient-to-b from-[#2563eb] to-[#1d4ed8]">
+                <div className="flex items-center justify-between gap-2 text-left">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 shrink-0">
+                      <BadgeCheck className="w-4 h-4 text-sky-200" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-[13px] text-white truncate">
+                        {verificationRequest?.status === 'pending'
+                          ? '⏳ Verification Request Pending'
+                          : isExpired
+                          ? '⚠️ Blue Tick Expired (30 Din pure)'
+                          : 'Get Official Blue Tick'}
+                      </p>
+                      <p className="text-[11px] text-blue-100/80 truncate">
+                        {verificationRequest?.status === 'pending'
+                          ? 'Request review mein hai, approve hote hi 30 din ka tick shuru hoga'
+                          : isExpired
+                          ? 'Aapka 1 mahine ka blue tick khatam ho gaya hai. Dobara request karein'
+                          : 'Request karein — 1 mahine automatic validity ke sath'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-black/20 p-2 rounded-xl border border-white/10 flex items-center justify-between gap-2">
+                  <div className="text-[11px] text-blue-100 truncate text-left">
+                    <span className="font-semibold text-white">Tick Validity:</span> 1 Mahina (30 Din Auto-Countdown)
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSection('verification')}
+                    className="px-3 py-1 bg-white text-[#2563eb] rounded-lg text-xs font-bold shadow hover:bg-blue-50 active:scale-95 transition-all shrink-0 flex items-center gap-1 cursor-pointer"
+                  >
+                    <BadgeCheck className="w-3.5 h-3.5" />
+                    <span>{verificationRequest?.status === 'pending' ? 'View Status' : isExpired ? 'Renew Tick' : 'Request Tick'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

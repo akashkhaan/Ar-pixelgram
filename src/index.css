@@ -1291,7 +1291,7 @@
 .dash {
   width: 100%;
   max-width: 960px;
-  aspect-ratio: 16 / 9;
+  min-height: 185px;
   border-radius: 16px;
   overflow: hidden;
   display: flex;
