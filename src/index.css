@@ -1250,3 +1250,92 @@
 .premium-rainbow-icon {
   animation: dynamic-icon-color 2.8s linear infinite !important;
 }
+
+
+/* ── Pixelgram Dashboard Blue Animated Card ── */
+@property --a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes spin {
+  to {
+    --a: 360deg;
+  }
+}
+
+.frame {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  max-width: 960px;
+  padding: 3px;
+  border-radius: 20px;
+  background: conic-gradient(from var(--a, 0deg), #ff2d95, #ffb400, #00e676, #00b0ff, #7c4dff, #ff2d95);
+  animation: spin 5s linear infinite;
+}
+
+.frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 20px;
+  background: inherit;
+  filter: blur(16px);
+  opacity: 0.75;
+}
+
+.frame .dash,
+.dash {
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #2563eb;
+}
+
+.frame .dash {
+  max-width: none;
+  border-radius: 17px;
+}
+
+.frame .bar,
+.bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: #2563eb;
+  color: #ffffff;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: clamp(0.85rem, 2.4vw, 1.1rem);
+}
+
+.frame .bar b,
+.bar b {
+  font-weight: 700;
+}
+
+.frame .bar span,
+.bar span {
+  font-weight: 500;
+}
+
+.frame .avatar,
+.avatar {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame {
+    animation: none;
+  }
+}

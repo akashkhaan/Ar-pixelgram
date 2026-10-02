@@ -246,10 +246,25 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Dashboard Card */}
+        <div className="frame">
+          <div className="dash">
+            <div className="bar">
+              <b>Pixelgram</b>
+              <span>{profile?.username || 'username'}</span>
+              <span>withdraw</span>
+              <span>History</span>
+              <svg className="avatar" viewBox="0 0 32 32" aria-label="profile">
+                <circle cx="16" cy="16" r="16" fill="#fff" />
+                <circle cx="16" cy="12" r="5" fill="#2563eb" />
+                <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
         {/* Menu items */}
         {[
-          { icon: Users, label: 'Switch accounts', desc: 'Manage and switch between your accounts', onClick: () => setShowSwitchModal(true), danger: false },
-          { icon: UserPlus, label: 'Log in to another account', desc: 'Create new account or log in with another', onClick: () => void logInToAnotherAccount(), danger: false },
           { icon: BadgeCheck, label: 'Request Verification', desc: profile?.is_verified ? 'Already verified ✓' : 'Get the blue badge', onClick: () => setSection('verification'), danger: false },
           { icon: AtSign, label: 'Account Center', desc: 'Email aur phone number add/manage karein', onClick: () => navigate('/settings/account-center'), danger: false },
           { icon: Globe, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language'), danger: false },
