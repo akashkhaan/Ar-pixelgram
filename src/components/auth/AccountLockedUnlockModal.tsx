@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/db/supabase';
 import { 
   Lock, Mail, Phone, CheckCircle2, AlertCircle, ArrowLeft, 
@@ -36,14 +36,48 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [rateLimited, setRateLimited] = useState(false);
 
   // 1-minute countdown timer (60 seconds)
   const [timeLeft, setTimeLeft] = useState<number>(60);
   const [isExpired, setIsExpired] = useState<boolean>(false);
   const timerRef = useRef<any>(null);
 
-  // Listen for Email Magic Link clicks (if user clicked link from earlier email)
+  // Robust function to start or restart the 60-second timer
+  const restartTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    setTimeLeft(60);
+    setIsExpired(false);
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          setIsExpired(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Listen for Email Magic Link clicks (if user clicked link from email)
   useEffect(() => {
     const handleAuthEvent = async (event: string, session: any) => {
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.id === user?.id) {
@@ -107,31 +141,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     loadContacts();
   }, [user, profile]);
 
-  // Countdown timer effect (STRICT 1-MINUTE EXPIRY)
-  useEffect(() => {
-    if (step === 'enter_otp') {
-      setTimeLeft(60);
-      setIsExpired(false);
-
-      if (timerRef.current) clearInterval(timerRef.current);
-
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current);
-            setIsExpired(true);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => {
-        if (timerRef.current) clearInterval(timerRef.current);
-      };
-    }
-  }, [step]);
-
   // Format real locked date & time
   const getFormattedLockedDate = () => {
     const rawDate = profile?.status_updated_at || profile?.updated_at || new Date().toISOString();
@@ -171,8 +180,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   const hasEmail = Boolean(email && email.trim());
   const hasPhone = Boolean(phone && phone.trim());
 
-  // Generate & Dispatch OTP
-  const handleSendOtp = async () => {
+  // Generate & Dispatch OTP (Also restarts the timer every single time!)
+  const handleSendOtp = async (isResend: boolean = false) => {
     const destination = selectedMethod === 'phone' ? phone : email;
     if (!destination) {
       toast.error(selectedMethod === 'phone' ? 'Account me phone number link nahi hai' : 'Account me email link nahi hai');
@@ -181,7 +190,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
     setLoading(true);
     setOtpCode('');
-    setRateLimited(false);
 
     // Generate fresh 6-digit OTP
     const generated = String(Math.floor(100000 + Math.random() * 900000));
@@ -197,6 +205,9 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
       hour12: true,
     }).format(now);
     setOtpTimestamp(formattedTime);
+
+    // RESTART TIMER IMMEDIATELY FROM 60s
+    restartTimer();
 
     try {
       if (selectedMethod === 'email') {
@@ -217,14 +228,13 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
         if (otpErr) {
           console.warn('Supabase signInWithOtp error:', otpErr);
-          if (otpErr.message?.includes('rate limit') || (otpErr as any)?.status === 429) {
-            setRateLimited(true);
-            toast.warning('Email limit reached on Supabase. Aapka OTP code niche screen par generate ho gaya hai!');
+          if (isResend) {
+            toast.success(`Naya OTP code generate ho gaya hai! (Valid for 1 minute)`);
           } else {
             toast.info(`OTP generated for ${maskEmail(destination)}`);
           }
         } else {
-          toast.success(`Verification request sent to ${maskEmail(destination)}! (Valid for 1 minute)`);
+          toast.success(isResend ? `Naya OTP code bhej diya gaya hai! (Valid for 1 minute)` : `Verification code sent to ${maskEmail(destination)}! (Valid for 1 minute)`);
         }
       } else {
         // SMS via Twilio
@@ -232,17 +242,17 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           await supabase.functions.invoke('signup-phone-start', {
             body: { phone: destination.trim() },
           });
-          toast.success(`SMS OTP sent via Twilio to ${maskPhone(destination)}! (Valid for 1 minute)`);
+          toast.success(isResend ? `Naya SMS OTP bhej diya gaya hai!` : `SMS OTP sent via Twilio to ${maskPhone(destination)}!`);
         } catch (e) {
           console.warn('SMS dispatch error:', e);
-          toast.success(`SMS OTP ready for ${maskPhone(destination)}! (Valid for 1 minute)`);
+          toast.success(`Naya OTP code ready hai! (Valid for 1 minute)`);
         }
       }
 
       setStep('enter_otp');
     } catch (err: any) {
       console.error('handleSendOtp error:', err);
-      toast.success(`Verification code ready! (Valid for 1 minute)`);
+      toast.success(`Naya verification code ready hai! (Valid for 1 minute)`);
       setStep('enter_otp');
     } finally {
       setLoading(false);
@@ -495,7 +505,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           </div>
 
           <Button
-            onClick={handleSendOtp}
+            onClick={() => handleSendOtp(false)}
             disabled={loading || (!hasEmail && !hasPhone)}
             className="w-full h-12 rounded-xl font-bold text-base shadow-md text-white premium-rainbow-border"
           >
@@ -579,7 +589,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
             </div>
           </div>
 
-          {/* Email Delivery Delay Notice */}
+          {/* Email Delivery Notice */}
           <div className="w-full mb-3 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-left flex items-start gap-2">
             <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
             <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-snug">
@@ -601,12 +611,12 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
             />
           </div>
 
-          {/* 1-Minute Expiration Timer Indicator */}
-          <div className="w-full mb-4 flex items-center justify-between px-3 py-2 rounded-xl bg-muted/40 border border-border/40 text-xs">
+          {/* 1-Minute Expiration Timer Indicator & Resend Button */}
+          <div className="w-full mb-4 flex items-center justify-between px-3 py-2.5 rounded-xl bg-muted/40 border border-border/40 text-xs">
             {isExpired ? (
               <div className="flex items-center gap-1.5 text-rose-500 font-bold">
                 <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>OTP 1 minute me expire ho gaya hai!</span>
+                <span>OTP expire ho gaya hai!</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-semibold">
@@ -615,16 +625,12 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
               </div>
             )}
 
-            {/* Resend OTP button */}
+            {/* Resend OTP button — RESTARTS TIMER FROM 60s & GENERATES NEW OTP */}
             <button
               type="button"
-              onClick={handleSendOtp}
+              onClick={() => handleSendOtp(true)}
               disabled={loading}
-              className={`font-bold transition-colors inline-flex items-center gap-1 ${
-                isExpired
-                  ? 'text-primary hover:underline'
-                  : 'text-muted-foreground/60 hover:text-muted-foreground'
-              }`}
+              className="font-bold text-primary hover:underline inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all active:scale-95 cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>Resend OTP</span>
