@@ -1,7 +1,7 @@
 import FacebookSwitchAccountModal from '@/components/profile/FacebookSwitchAccountModal';
 import { logInToAnotherAccount } from '@/lib/savedAccounts';
 import InstagramIcon from "@/components/icons/InstagramIcon";
-import { ArrowLeft, AtSign, BadgeCheck, ChevronDown, ChevronRight, Flag, UserPlus, Users, Globe, HelpCircle, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2 } from 'lucide-react';
+import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Users, Globe, HelpCircle, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -54,6 +54,45 @@ const SettingsPage: React.FC = () => {
   const secondsLeft = Math.max(0, Math.floor((diffMs % (1000 * 60)) / 1000));
 
   const isVerifiedActive = Boolean((profile?.is_verified || verificationRequest?.status === 'approved') && !isExpired);
+
+  // 3-Phase rotating card: 
+  // 1. main_box (30 seconds) -> 2. welcome_gov (6 seconds) -> 3. user_greeting (6 seconds) -> back to main_box (infinite loop)
+  type CardPhase = 'main_box' | 'welcome_gov' | 'user_greeting';
+  const [cardPhase, setCardPhase] = useState<CardPhase>('main_box');
+  const [isCardTransitioning, setIsCardTransitioning] = useState<boolean>(false);
+
+  useEffect(() => {
+    let timer: any;
+    if (cardPhase === 'main_box') {
+      // 30 seconds as requested: theek 30 second me gayab ho jaye
+      timer = setTimeout(() => {
+        setIsCardTransitioning(true);
+        setTimeout(() => {
+          setCardPhase('welcome_gov');
+          setIsCardTransitioning(false);
+        }, 450);
+      }, 30000);
+    } else if (cardPhase === 'welcome_gov') {
+      // 6 seconds for Indian Social Media & Gov notice
+      timer = setTimeout(() => {
+        setIsCardTransitioning(true);
+        setTimeout(() => {
+          setCardPhase('user_greeting');
+          setIsCardTransitioning(false);
+        }, 450);
+      }, 6000);
+    } else if (cardPhase === 'user_greeting') {
+      // 6 seconds for profile photo & Enjoy username
+      timer = setTimeout(() => {
+        setIsCardTransitioning(true);
+        setTimeout(() => {
+          setCardPhase('main_box');
+          setIsCardTransitioning(false);
+        }, 450);
+      }, 6000);
+    }
+    return () => clearTimeout(timer);
+  }, [cardPhase]);
 
   // Auto-expire tick after 1 month (gayab ho jaye)
   useEffect(() => {
@@ -292,9 +331,9 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Dashboard Card */}
+        {/* Dashboard Card with 3-Phase Auto Rotation */}
         <div className="frame">
-          <div className="dash">
+          <div className="dash relative overflow-hidden transition-all duration-500 min-h-[195px] flex flex-col justify-between">
             {/* Top Bar with Dynamic Avatar & Verification Button */}
             <div className="bar">
               <b>Pixelgram</b>
@@ -325,94 +364,196 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Verification Status & 30-Day Auto Countdown inside Blue Box */}
-            {isVerifiedActive ? (
-              <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
-                {/* Active Badge Title & Validity Badge */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-md shrink-0">
-                      <BadgeCheck className="w-5 h-5 text-[#2563eb] fill-[#2563eb]" stroke="#fff" />
-                    </div>
-                    <div className="min-w-0 text-left">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-[13px] tracking-wide text-white truncate">Official Blue Tick Active</span>
-                        <span className="px-1.5 py-0.5 bg-emerald-400/25 text-emerald-300 border border-emerald-400/40 rounded-full text-[9px] font-bold shrink-0">Active</span>
+            {/* Rotating Phase Content with smooth cinema transition */}
+            <div
+              className={}
+            >
+              {/* PHASE 1: Main Verification Box (30s) */}
+              {cardPhase === 'main_box' && (
+                isVerifiedActive ? (
+                  <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
+                    {/* Active Badge Title & Validity Badge */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-md shrink-0">
+                          <BadgeCheck className="w-5 h-5 text-[#2563eb] fill-[#2563eb]" stroke="#fff" />
+                        </div>
+                        <div className="min-w-0 text-left">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-[13px] tracking-wide text-white truncate">Official Blue Tick Active</span>
+                            <span className="px-1.5 py-0.5 bg-emerald-400/25 text-emerald-300 border border-emerald-400/40 rounded-full text-[9px] font-bold shrink-0">Active</span>
+                          </div>
+                          <p className="text-[11px] text-blue-100/90 truncate">Konse tick: Blue Verified Badge (30 Din Validity)</p>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-blue-100/90 truncate">Konse tick: Blue Verified Badge (30 Din Validity)</p>
+                      <div className="text-right shrink-0">
+                        <span className="text-[11px] font-black text-amber-300 bg-black/25 px-2 py-0.5 rounded-md border border-amber-300/30">
+                          {daysLeft} Din bache
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Kab mila aur Kab hatega Timings */}
+                    <div className="grid grid-cols-2 gap-2 my-1 bg-black/25 p-2 rounded-xl border border-white/10 text-left">
+                      <div>
+                        <p className="text-[10px] text-blue-200 font-medium">Kab Mila (Issued):</p>
+                        <p className="text-[11px] font-bold text-white leading-tight">{formatFriendlyDate(approvedDate)}</p>
+                        <p className="text-[9px] text-blue-200/80">{formatFriendlyTime(approvedDate)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-amber-200 font-medium">Kab Hatega (Expiry):</p>
+                        <p className="text-[11px] font-bold text-amber-300 leading-tight">{formatFriendlyDate(expiryDate)}</p>
+                        <p className="text-[9px] text-amber-200/80">{formatFriendlyTime(expiryDate)}</p>
+                      </div>
+                    </div>
+
+                    {/* Daily Auto-Decrement Status Bar */}
+                    <div className="bg-black/25 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[11px] border border-white/15">
+                      <div className="flex items-center gap-1 text-white font-medium truncate">
+                        <span className="animate-pulse">⏳</span>
+                        <span>Khatam hone me: <b className="text-amber-300 font-bold">{daysLeft} din {hoursLeft}h {minutesLeft}m {secondsLeft}s</b> bache</span>
+                      </div>
+                      <span className="text-[9px] text-blue-200 shrink-0 font-medium">1 Mahine me auto-expire</span>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-[11px] font-black text-amber-300 bg-black/25 px-2 py-0.5 rounded-md border border-amber-300/30">
-                      {daysLeft} Din bache
-                    </span>
-                  </div>
-                </div>
-
-                {/* Kab mila aur Kab hatega Timings */}
-                <div className="grid grid-cols-2 gap-2 my-1 bg-black/20 p-2 rounded-xl border border-white/10 text-left">
-                  <div>
-                    <p className="text-[10px] text-blue-200 font-medium">Kab Mila (Issued):</p>
-                    <p className="text-[11px] font-bold text-white leading-tight">{formatFriendlyDate(approvedDate)}</p>
-                    <p className="text-[9px] text-blue-200/80">{formatFriendlyTime(approvedDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-amber-200 font-medium">Kab Hatega (Expiry):</p>
-                    <p className="text-[11px] font-bold text-amber-300 leading-tight">{formatFriendlyDate(expiryDate)}</p>
-                    <p className="text-[9px] text-amber-200/80">{formatFriendlyTime(expiryDate)}</p>
-                  </div>
-                </div>
-
-                {/* Daily Auto-Decrement Status Bar */}
-                <div className="bg-white/10 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[11px] border border-white/15">
-                  <div className="flex items-center gap-1 text-white font-medium truncate">
-                    <span className="animate-pulse">⏳</span>
-                    <span>Khatam hone me: <b className="text-amber-300 font-bold">{daysLeft} din {hoursLeft}h {minutesLeft}m {secondsLeft}s</b> bache</span>
-                  </div>
-                  <span className="text-[9px] text-blue-200 shrink-0 font-medium">1 Mahine me auto-expire</span>
-                </div>
-              </div>
-            ) : (
-              <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
-                <div className="flex items-center justify-between gap-2 text-left">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 shrink-0">
-                      <BadgeCheck className="w-4 h-4 text-sky-200" />
+                ) : (
+                  <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
+                    <div className="flex items-center justify-between gap-2 text-left">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 shrink-0">
+                          <BadgeCheck className="w-4 h-4 text-sky-200" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-[13px] text-white truncate">
+                            {verificationRequest?.status === 'pending'
+                              ? '⏳ Verification Request Pending'
+                              : isExpired
+                              ? '⚠️ Blue Tick Expired (30 Din pure)'
+                              : 'Get Official Blue Tick'}
+                          </p>
+                          <p className="text-[11px] text-blue-100/80 truncate">
+                            {verificationRequest?.status === 'pending'
+                              ? 'Request review mein hai, approve hote hi 30 din ka tick shuru hoga'
+                              : isExpired
+                              ? 'Aapka 1 mahine ka blue tick khatam ho gaya hai. Dobara request karein'
+                              : 'Request karein — 1 mahine automatic validity ke sath'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-[13px] text-white truncate">
-                        {verificationRequest?.status === 'pending'
-                          ? '⏳ Verification Request Pending'
-                          : isExpired
-                          ? '⚠️ Blue Tick Expired (30 Din pure)'
-                          : 'Get Official Blue Tick'}
-                      </p>
-                      <p className="text-[11px] text-blue-100/80 truncate">
-                        {verificationRequest?.status === 'pending'
-                          ? 'Request review mein hai, approve hote hi 30 din ka tick shuru hoga'
-                          : isExpired
-                          ? 'Aapka 1 mahine ka blue tick khatam ho gaya hai. Dobara request karein'
-                          : 'Request karein — 1 mahine automatic validity ke sath'}
-                      </p>
+
+                    <div className="bg-black/25 p-2 rounded-xl border border-white/10 flex items-center justify-between gap-2">
+                      <div className="text-[11px] text-blue-100 truncate text-left">
+                        <span className="font-semibold text-white">Tick Validity:</span> 1 Mahina (30 Din Auto-Countdown)
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSection('verification')}
+                        className="px-3 py-1 bg-white text-slate-900 rounded-lg text-xs font-bold shadow hover:bg-slate-100 active:scale-95 transition-all shrink-0 flex items-center gap-1 cursor-pointer"
+                      >
+                        <BadgeCheck className="w-3.5 h-3.5 text-pink-600" />
+                        <span>{verificationRequest?.status === 'pending' ? 'View Status' : isExpired ? 'Renew Tick' : 'Request Tick'}</span>
+                      </button>
                     </div>
                   </div>
-                </div>
+                )
+              )}
 
-                <div className="bg-black/20 p-2 rounded-xl border border-white/10 flex items-center justify-between gap-2">
-                  <div className="text-[11px] text-blue-100 truncate text-left">
-                    <span className="font-semibold text-white">Tick Validity:</span> 1 Mahina (30 Din Auto-Countdown)
+              {/* PHASE 2: Official Indian Social Media & New Delhi Government Site */}
+              {cardPhase === 'welcome_gov' && (
+                <div className="flex-1 p-4 flex flex-col items-center justify-center text-center text-white relative overflow-hidden backdrop-blur-[2px]">
+                  {/* Subtle Tricolor Ambient Light */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-orange-500/15 via-white/10 to-emerald-500/15 pointer-events-none" />
+
+                  {/* Badge */}
+                  <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-black/35 backdrop-blur-md border border-white/25 text-[11px] font-bold text-amber-200 mb-2 shadow-md">
+                    <span className="text-sm">🇮🇳</span>
+                    <span>Official Certified Platform</span>
+                    <Sparkles className="w-3 h-3 text-amber-300" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSection('verification')}
-                    className="px-3 py-1 bg-white text-[#2563eb] rounded-lg text-xs font-bold shadow hover:bg-blue-50 active:scale-95 transition-all shrink-0 flex items-center gap-1 cursor-pointer"
-                  >
-                    <BadgeCheck className="w-3.5 h-3.5" />
-                    <span>{verificationRequest?.status === 'pending' ? 'View Status' : isExpired ? 'Renew Tick' : 'Request Tick'}</span>
-                  </button>
+
+                  <h3 className="text-base sm:text-lg font-black tracking-wide text-white drop-shadow-md leading-tight">
+                    Welcome back pixelgram
+                  </h3>
+                  <p className="text-xs sm:text-[13px] font-semibold text-emerald-200 mt-1 max-w-sm drop-shadow-sm leading-snug">
+                    Indian social media and new delhi government site
+                  </p>
+
+                  <div className="mt-2.5 flex items-center gap-2 text-[10px] text-white/80 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span>Digital India • Safe &amp; Trusted Community</span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* PHASE 3: User Avatar & Enjoy @username */}
+              {cardPhase === 'user_greeting' && (
+                <div className="flex-1 p-4 flex flex-col items-center justify-center text-center text-white relative overflow-hidden backdrop-blur-[2px]">
+                  {/* User Profile Avatar with glowing animated ring */}
+                  <div className="relative mb-1.5">
+                    <div className="w-13 h-13 rounded-full p-[2px] bg-gradient-to-tr from-amber-300 via-pink-400 to-cyan-300 shadow-lg shadow-pink-500/30">
+                      <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 flex items-center justify-center">
+                        {profile?.avatar_url ? (
+                          <img
+                            src={profile.avatar_url}
+                            alt={profile.username || 'user'}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <svg className="w-full h-full" viewBox="0 0 32 32">
+                            <circle cx="16" cy="16" r="16" fill="#fff" />
+                            <circle cx="16" cy="12" r="5" fill="#2563eb" />
+                            <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    {profile?.is_verified && (
+                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow">
+                        <BadgeCheck className="w-3.5 h-3.5 text-sky-500 fill-sky-500" stroke="#fff" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-base sm:text-lg font-black text-white drop-shadow-md tracking-tight">
+                      Enjoy @{profile?.username || 'user'} ✨
+                    </h3>
+                  </div>
+
+                  <p className="text-xs text-white/90 font-medium mt-0.5 drop-shadow-xs">
+                    Pixelgram par aapka swagat hai • Have fun &amp; enjoy your time!
+                  </p>
+
+                  <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/30 border border-white/20 text-[10px] text-amber-200 font-semibold">
+                    <Sparkles className="w-3 h-3 text-amber-300" />
+                    <span>Special Member Access</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Subtle Phase Indicator Dots */}
+            <div className="px-3 pb-1.5 flex items-center justify-center gap-1.5 z-10">
+              <button
+                type="button"
+                onClick={() => setCardPhase('main_box')}
+                className={`h-1.5 rounded-full transition-all duration-300 ${cardPhase === 'main_box' ? 'w-5 bg-white shadow-xs' : 'w-1.5 bg-white/35 hover:bg-white/60'}`}
+                aria-label="Main Card"
+              />
+              <button
+                type="button"
+                onClick={() => setCardPhase('welcome_gov')}
+                className={`h-1.5 rounded-full transition-all duration-300 ${cardPhase === 'welcome_gov' ? 'w-5 bg-white shadow-xs' : 'w-1.5 bg-white/35 hover:bg-white/60'}`}
+                aria-label="Gov Welcome"
+              />
+              <button
+                type="button"
+                onClick={() => setCardPhase('user_greeting')}
+                className={`h-1.5 rounded-full transition-all duration-300 ${cardPhase === 'user_greeting' ? 'w-5 bg-white shadow-xs' : 'w-1.5 bg-white/35 hover:bg-white/60'}`}
+                aria-label="User Greeting"
+              />
+            </div>
           </div>
         </div>
 
