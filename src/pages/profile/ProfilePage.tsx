@@ -306,7 +306,7 @@ const ProfilePage: React.FC = () => {
               navigate('/home');
             }}
             onSignOut={() => signOutTo('/login')}
-            onAppeal={() => navigate('/appeal')}
+            
           />
         </MobileLayout>
       );

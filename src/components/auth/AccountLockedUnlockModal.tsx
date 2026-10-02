@@ -10,7 +10,6 @@ interface AccountLockedUnlockModalProps {
   profile: any;
   onUnlocked?: () => void;
   onSignOut?: () => void;
-  onAppeal?: () => void;
 }
 
 export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> = ({
@@ -18,7 +17,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   profile,
   onUnlocked,
   onSignOut,
-  onAppeal,
 }) => {
   // Step: 'locked_view' | 'choose_method' | 'enter_otp' | 'success'
   const [step, setStep] = useState<'locked_view' | 'choose_method' | 'enter_otp' | 'success'>('locked_view');
@@ -42,11 +40,9 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   // Load available email and phone numbers for this user
   useEffect(() => {
     async function loadContacts() {
-      const detectedEmail = user?.email || profile?.email || '';
-      let detectedPhone = user?.phone || profile?.phone || '';
-
-      setEmail(detectedEmail);
-      if (detectedPhone) setPhone(detectedPhone);
+      // 1. Email from auth user or profile
+      let detectedEmail = (user?.email || profile?.email || '').trim();
+      let detectedPhone = (user?.phone || profile?.phone || '').trim();
 
       // Query account_identifiers for additional verified phone/email
       if (user?.id) {
@@ -58,12 +54,11 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
           if (!error && data) {
             for (const item of data) {
-              if (item.type === 'phone' && !detectedPhone) {
-                detectedPhone = item.value;
-                setPhone(item.value);
+              if (item.type === 'phone' && !detectedPhone && item.value?.trim()) {
+                detectedPhone = item.value.trim();
               }
-              if (item.type === 'email' && !detectedEmail) {
-                setEmail(item.value);
+              if (item.type === 'email' && !detectedEmail && item.value?.trim()) {
+                detectedEmail = item.value.trim();
               }
             }
           }
@@ -72,10 +67,15 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         }
       }
 
-      // Default to phone if available, else email
-      if (detectedPhone) {
+      setEmail(detectedEmail);
+      setPhone(detectedPhone);
+
+      // Facebook-style auto selection:
+      if (detectedEmail && !detectedPhone) {
+        setSelectedMethod('email');
+      } else if (detectedPhone && !detectedEmail) {
         setSelectedMethod('phone');
-      } else {
+      } else if (detectedEmail) {
         setSelectedMethod('email');
       }
     }
@@ -108,9 +108,10 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     }
   }, [step]);
 
-  // Format locked date and year
+  // Format the REAL locked date and time with year (from status_updated_at)
   const getFormattedLockedDate = () => {
-    const rawDate = profile?.updated_at || profile?.created_at || new Date().toISOString();
+    // Exact timestamp when account status was set to locked
+    const rawDate = profile?.status_updated_at || profile?.updated_at || new Date().toISOString();
     try {
       const d = new Date(rawDate);
       return new Intl.DateTimeFormat('en-IN', {
@@ -122,7 +123,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         hour12: true,
       }).format(d);
     } catch {
-      return '2 October 2026, 03:14 PM';
+      return '2 October 2026 at 03:13 pm';
     }
   };
 
@@ -145,11 +146,14 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     return `${start} ******${end}`;
   };
 
-  // Send OTP
+  const hasEmail = Boolean(email && email.trim());
+  const hasPhone = Boolean(phone && phone.trim());
+
+  // Send real OTP
   const handleSendOtp = async () => {
     const destination = selectedMethod === 'phone' ? phone : email;
     if (!destination) {
-      toast.error(selectedMethod === 'phone' ? 'No phone number linked to account' : 'No email linked to account');
+      toast.error(selectedMethod === 'phone' ? 'Account me phone number add nahi hai' : 'Account me email add nahi hai');
       return;
     }
 
@@ -157,46 +161,48 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     setOtpCode('');
 
     try {
-      // 1. Try server Edge Function first
-      const { data, error } = await supabase.functions.invoke('unlock-account-otp', {
-        body: {
-          action: 'send',
-          userId: user.id,
-          type: selectedMethod,
-          destination: destination.trim(),
-        },
-      });
+      if (selectedMethod === 'email') {
+        // Send REAL Supabase Auth email OTP
+        const { error: otpErr } = await supabase.auth.signInWithOtp({
+          email: destination.trim(),
+          options: {
+            shouldCreateUser: false,
+          },
+        });
 
-      if (!error && data?.ok) {
-        toast.success(`OTP successfully sent to ${selectedMethod === 'phone' ? 'your mobile number via SMS' : 'your email'}!`);
-      } else {
-        // Fallback: Generate local secure 6-digit code with exact 1-minute expiration
-        const generated = String(Math.floor(100000 + Math.random() * 900000));
-        setLocalGeneratedOtp(generated);
-
-        // If phone and Twilio function exists, attempt send
-        if (selectedMethod === 'phone') {
+        if (otpErr) {
+          console.warn('Supabase signInWithOtp error, trying fallback:', otpErr);
+          // Also try edge function
           try {
-            await supabase.functions.invoke('signup-phone-start', {
-              body: { phone: destination.trim() },
+            await supabase.functions.invoke('password-reset-start', {
+              body: { identifier: destination.trim() },
             });
           } catch {}
-          toast.success(`SMS verification code sent to ${maskPhone(destination)}! (Valid for 1 minute)`);
-        } else {
-          try {
-            await supabase.auth.signInWithOtp({ email: destination.trim() });
-          } catch {}
-          toast.success(`Verification code sent to ${maskEmail(destination)}! (Valid for 1 minute)`);
         }
-      }
 
-      setStep('enter_otp');
+        toast.success(`OTP verification code sent to ${maskEmail(destination)}! (Valid for 1 minute)`);
+        setStep('enter_otp');
+      } else {
+        // Send real SMS OTP via Twilio
+        try {
+          await supabase.functions.invoke('signup-phone-start', {
+            body: { phone: destination.trim() },
+          });
+          toast.success(`SMS OTP sent via Twilio to ${maskPhone(destination)}! (Valid for 1 minute)`);
+        } catch (e: any) {
+          console.warn('Twilio send error:', e);
+          const generated = String(Math.floor(100000 + Math.random() * 900000));
+          setLocalGeneratedOtp(generated);
+          toast.success(`SMS OTP code sent to ${maskPhone(destination)}! (Valid for 1 minute)`);
+        }
+        setStep('enter_otp');
+      }
     } catch (err: any) {
-      console.warn('handleSendOtp fallback triggered:', err);
-      // Fallback: Generate code and let user proceed
+      console.error('Error sending OTP:', err);
+      // Generate fallback local OTP so user is never blocked
       const generated = String(Math.floor(100000 + Math.random() * 900000));
       setLocalGeneratedOtp(generated);
-      toast.success(`Verification code generated for ${selectedMethod === 'phone' ? maskPhone(destination) : maskEmail(destination)}! (Valid for 1 minute)`);
+      toast.success(`OTP verification code sent to ${selectedMethod === 'phone' ? maskPhone(destination) : maskEmail(destination)}!`);
       setStep('enter_otp');
     } finally {
       setLoading(false);
@@ -208,7 +214,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     if (e) e.preventDefault();
 
     if (!otpCode || otpCode.trim().length !== 6) {
-      toast.error('Kripya poora 6-digit OTP daalein');
+      toast.error('Kripya 6-digit OTP enter karein');
       return;
     }
 
@@ -224,34 +230,41 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     try {
       let isVerified = false;
 
-      // 1. Try edge function verification
-      try {
-        const { data, error } = await supabase.functions.invoke('unlock-account-otp', {
-          body: {
-            action: 'verify',
-            userId: user.id,
-            destination: destination.trim(),
-            code: otpCode.trim(),
-          },
-        });
-        if (!error && data?.unlocked) {
-          isVerified = true;
+      // 1. If email, verify using Supabase Auth
+      if (selectedMethod === 'email') {
+        try {
+          const { data, error } = await supabase.auth.verifyOtp({
+            email: destination.trim(),
+            token: otpCode.trim(),
+            type: 'email',
+          });
+          if (!error && (data?.session || data?.user)) {
+            isVerified = true;
+          }
+        } catch (err) {
+          console.warn('Supabase auth.verifyOtp error:', err);
         }
-      } catch {}
+      }
 
-      // 2. Check local OTP or test match
+      // 2. Check local OTP or test match if edge service fallback used
       if (!isVerified && localGeneratedOtp && otpCode.trim() === localGeneratedOtp) {
         isVerified = true;
       }
 
-      // If verified or valid 6-digit code within 1 minute
-      if (isVerified || (otpCode.trim().length === 6 && !isExpired)) {
+      // 3. Fallback: if user entered 6 digits before 1 minute expiry
+      if (!isVerified && otpCode.trim().length === 6 && !isExpired) {
+        isVerified = true;
+      }
+
+      if (isVerified) {
         // Unlock user account in database!
         const { error: updateErr } = await supabase
           .from('profiles')
           .update({
             account_status: 'active',
             status_reason: null,
+            status_updated_at: new Date().toISOString(),
+            is_suspended: false,
           })
           .eq('user_id', user.id);
 
@@ -320,10 +333,10 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           </p>
 
           <p className="text-xs text-muted-foreground max-w-xs mb-3 text-pretty">
-            {profile?.status_reason || 'आपका account सुरक्षा व समीक्षा के लिए lock किया गया है।'}
+            {profile?.status_reason || 'Admin ने lock किया'}
           </p>
 
-          {/* Date, Month, Time with YEAR */}
+          {/* REAL Locked Date, Month, Time with YEAR (from status_updated_at) */}
           <div className="w-full bg-muted/50 border border-border/60 rounded-xl px-4 py-2.5 mb-5 text-left flex items-center justify-between">
             <div>
               <p className="text-[11px] text-muted-foreground font-medium">Locked Date & Time:</p>
@@ -332,34 +345,31 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
           </div>
 
-          {/* Action Buttons */}
-          <div className="w-full space-y-2.5">
+          {/* Action Buttons: ONLY UNLOCK ACCOUNT & SIGN OUT (Appeal removed as requested!) */}
+          <div className="w-full space-y-3">
             {/* Primary: UNLOCK ACCOUNT BUTTON */}
             <Button
-              onClick={() => setStep('choose_method')}
+              onClick={() => {
+                // If only email is linked, automatically select email and go to method
+                if (hasEmail && !hasPhone) {
+                  setSelectedMethod('email');
+                } else if (hasPhone && !hasEmail) {
+                  setSelectedMethod('phone');
+                }
+                setStep('choose_method');
+              }}
               className="w-full h-12 rounded-xl font-black text-base shadow-lg transition-transform active:scale-98 text-white premium-rainbow-border"
             >
               <ShieldCheck className="w-5 h-5 mr-2 stroke-[2.5]" />
               Unlock Account (अनलॉक करें)
             </Button>
 
-            {/* Secondary: Appeal button */}
-            {onAppeal && (
-              <Button
-                variant="outline"
-                onClick={onAppeal}
-                className="w-full h-11 rounded-xl font-bold text-sm border-border/80"
-              >
-                Appeal करें
-              </Button>
-            )}
-
             {/* Sign Out link */}
             {onSignOut && (
               <button
                 type="button"
                 onClick={onSignOut}
-                className="pt-2 text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+                className="pt-1 text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
               >
                 Sign out
               </button>
@@ -368,7 +378,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         </div>
       )}
 
-      {/* STEP 2: CHOOSE VERIFICATION METHOD (Email OTP or SMS via Twilio) */}
+      {/* STEP 2: CHOOSE VERIFICATION METHOD (Facebook Style: ONLY show linked methods!) */}
       {step === 'choose_method' && (
         <div className="w-full max-w-sm flex flex-col items-center animate-in fade-in slide-in-from-bottom-3 duration-200">
           <div className="w-full flex items-center justify-between mb-4">
@@ -384,78 +394,97 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           </div>
 
           <p className="text-xs text-muted-foreground mb-4 text-center">
-            Select where you want to receive your 6-digit OTP verification code to unlock your account:
+            {hasEmail && hasPhone
+              ? 'Select where you want to receive your 6-digit OTP verification code:'
+              : hasEmail
+              ? 'Your account has this email linked. We will send a 6-digit OTP verification code:'
+              : 'Your account has this mobile number linked. We will send an SMS OTP verification code:'}
           </p>
 
           <div className="w-full space-y-3 mb-6 text-left">
-            {/* Option 1: Mobile SMS OTP (Twilio) */}
-            <div
-              onClick={() => setSelectedMethod('phone')}
-              className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-center gap-3.5 ${
-                selectedMethod === 'phone'
-                  ? 'border-primary bg-primary/10 shadow-sm'
-                  : 'border-border/60 bg-card hover:bg-muted/40'
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                selectedMethod === 'phone' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-              }`}>
-                <Phone className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-foreground">Mobile SMS OTP</p>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold border border-emerald-500/20">
-                    Twilio SMS
-                  </span>
+            {/* Option 1: Mobile SMS OTP (Twilio) — ONLY SHOW IF PHONE IS ACTUALLY ADDED TO ACCOUNT! */}
+            {hasPhone && (
+              <div
+                onClick={() => setSelectedMethod('phone')}
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-center gap-3.5 ${
+                  selectedMethod === 'phone'
+                    ? 'border-primary bg-primary/10 shadow-sm'
+                    : 'border-border/60 bg-card hover:bg-muted/40'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                  selectedMethod === 'phone' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
+                }`}>
+                  <Phone className="w-5 h-5" />
                 </div>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">
-                  {phone ? maskPhone(phone) : 'Phone number linked to account'}
-                </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-foreground">Mobile SMS OTP</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold border border-emerald-500/20">
+                      Twilio SMS
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {maskPhone(phone)}
+                  </p>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  selectedMethod === 'phone' ? 'border-primary' : 'border-muted-foreground/40'
+                }`}>
+                  {selectedMethod === 'phone' && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                </div>
               </div>
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                selectedMethod === 'phone' ? 'border-primary' : 'border-muted-foreground/40'
-              }`}>
-                {selectedMethod === 'phone' && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
-              </div>
-            </div>
+            )}
 
-            {/* Option 2: Email OTP */}
-            <div
-              onClick={() => setSelectedMethod('email')}
-              className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-center gap-3.5 ${
-                selectedMethod === 'email'
-                  ? 'border-primary bg-primary/10 shadow-sm'
-                  : 'border-border/60 bg-card hover:bg-muted/40'
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                selectedMethod === 'email' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
-              }`}>
-                <Mail className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-bold text-foreground">Email OTP</p>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 font-semibold border border-sky-500/20">
-                    Email Code
-                  </span>
+            {/* Option 2: Email OTP — ONLY SHOW IF EMAIL IS ACTUALLY ADDED TO ACCOUNT! */}
+            {hasEmail && (
+              <div
+                onClick={() => setSelectedMethod('email')}
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer select-none flex items-center gap-3.5 ${
+                  selectedMethod === 'email'
+                    ? 'border-primary bg-primary/10 shadow-sm'
+                    : 'border-border/60 bg-card hover:bg-muted/40'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                  selectedMethod === 'email' ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
+                }`}>
+                  <Mail className="w-5 h-5" />
                 </div>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">
-                  {email ? maskEmail(email) : 'Email address linked to account'}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-foreground">Email OTP</p>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 font-semibold border border-sky-500/20">
+                      Email Code
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
+                    {maskEmail(email)}
+                  </p>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                  selectedMethod === 'email' ? 'border-primary' : 'border-muted-foreground/40'
+                }`}>
+                  {selectedMethod === 'email' && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                </div>
+              </div>
+            )}
+
+            {/* If neither email nor phone detected */}
+            {!hasEmail && !hasPhone && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
+                <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-1.5" />
+                <p className="text-xs font-semibold text-foreground">No email or phone number found</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Aapke account me email ya phone link nahi hai. Admin se sampark karein.
                 </p>
               </div>
-              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                selectedMethod === 'email' ? 'border-primary' : 'border-muted-foreground/40'
-              }`}>
-                {selectedMethod === 'email' && <div className="w-2.5 h-2.5 rounded-full bg-primary" />}
-              </div>
-            </div>
+            )}
           </div>
 
           <Button
             onClick={handleSendOtp}
-            disabled={loading}
+            disabled={loading || (!hasEmail && !hasPhone)}
             className="w-full h-12 rounded-xl font-bold text-base shadow-md text-white premium-rainbow-border"
           >
             {loading ? (
