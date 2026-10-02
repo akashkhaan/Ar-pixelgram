@@ -118,7 +118,8 @@ export function notifyPhone(options: NotifyPhoneOptions) {
           });
           return;
         }
-        android.showCallNotification?.(title, body, tag, false, resolvedIcon);
+        // Ringing call: the rich Firebase notification (name, photo,
+        // Answer/Decline) already shows it — a second plain one was the duplicate.
         return;
       }
       android.showNotification?.(title, body, tag, url || '/', resolvedIcon);

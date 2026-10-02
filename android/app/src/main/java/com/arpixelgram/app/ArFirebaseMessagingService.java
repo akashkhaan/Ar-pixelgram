@@ -130,7 +130,7 @@ public class ArFirebaseMessagingService extends FirebaseMessagingService {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setAutoCancel(false)
             .setOngoing(true)
-            .setContentIntent(answer)
+            .setContentIntent(open)
             .setFullScreenIntent(open, true)
             .setDefaults(Notification.DEFAULT_ALL)
             .addAction(R.mipmap.ic_launcher, isGroupCall ? "Join" : "Answer", answer)

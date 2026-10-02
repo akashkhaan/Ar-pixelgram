@@ -284,6 +284,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch { /* noop */ }
         }
         sendMessage(peerId, `📵 Missed ${label}`).catch(() => {});
+        void sendPushTo(peerId, 'Call cancelled', '', `/chat/${user.id}`, `call-${user.id}`, null, { type: 'call_cancelled' });
         cleanup();
         setState(prev => ({ ...prev, status: 'ended', endedReason: 'No answer' }));
         setTimeout(() => setState({ status: 'idle', kind: 'audio', peerId: null, peerProfile: null, startedAt: null }), 1500);
@@ -432,6 +433,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (currentStatus === 'ringing-out') {
         const label = kind === 'video' ? 'video call' : 'audio call';
         sendMessage(peerId, `📵 Missed ${label}`).catch(() => {});
+        // Caller hung up while ringing: remove the ringing notification on the other phone.
+        void sendPushTo(peerId, 'Call cancelled', '', `/chat/${user.id}`, `call-${user.id}`, null, { type: 'call_cancelled' });
         void saveCallLog({
           callerId: user.id,
           receiverId: peerId,

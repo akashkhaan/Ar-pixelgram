@@ -109,6 +109,8 @@ public class MainActivity extends BridgeActivity {
     }
 
     /** Turns a notification tap / Answer / Decline into a web event. */
+    static volatile String lastNotificationAction = null;
+
     private void handleNotificationIntent(Intent intent) {
         if (intent == null) return;
         String action = intent.getStringExtra("callAction");
@@ -120,8 +122,10 @@ public class MainActivity extends BridgeActivity {
             + "\"kind\":" + jsString(intent.getStringExtra("callKind")) + ","
             + "\"peerId\":" + jsString(intent.getStringExtra("peerId")) + ","
             + "\"groupId\":" + jsString(intent.getStringExtra("groupId")) + ","
-            + "\"callId\":" + jsString(intent.getStringExtra("callId"))
+            + "\"callId\":" + jsString(intent.getStringExtra("callId")) + ","
+            + "\"ts\":" + System.currentTimeMillis()
             + "}";
+        lastNotificationAction = pendingNotificationAction;
         boolean ringingOpen = (action == null || "open".equals(action)) && intent.getStringExtra("callId") != null;
         if (!ringingOpen) try {
             NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -448,6 +452,10 @@ public class MainActivity extends BridgeActivity {
                 // Ongoing calls are owned by the foreground service so they survive
                 // back press / app backgrounding just like Messenger.
                 MainActivity.isCallActive = true;
+                try {
+                    NotificationManager rn = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                    if (rn != null) rn.cancel(4321);
+                } catch (Exception ignored) {}
                 startOrUpdateCallService(
                     CallForegroundService.ACTION_UPDATE,
                     title,
@@ -559,12 +567,21 @@ public class MainActivity extends BridgeActivity {
             showCallNotification(title, body, tag, isOngoing);
         }
 
+        /** Web app reads (once) the notification action that opened the app. */
+        @JavascriptInterface
+        public String getPendingNotificationAction() {
+            String a = MainActivity.lastNotificationAction;
+            MainActivity.lastNotificationAction = null;
+            return a != null ? a : "";
+        }
+
         @JavascriptInterface
         public void dismissNotification(String tag) {
             try {
                 NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
                 if (nm == null) return;
 
+                nm.cancel(4321);
                 if (tag != null && !tag.isEmpty()) {
                     nm.cancel(tag, 7777);
                     nm.cancel(tag, 8888);

@@ -67,8 +67,11 @@ export function useNativePush(userId: string | undefined) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const handled = new Set<string>();
     const onAction = (event: Event) => {
       const detail = (event as CustomEvent<NotificationActionDetail>).detail || {};
+      const key = String((detail as { ts?: number }).ts ?? '');
+      if (key) { if (handled.has(key)) return; handled.add(key); }
       const action = detail.action || 'open';
 
       if (action === 'answer' || action === 'join' || action === 'decline') {
@@ -87,6 +90,15 @@ export function useNativePush(userId: string | undefined) {
     };
 
     window.addEventListener('appNotificationAction', onAction);
-    return () => window.removeEventListener('appNotificationAction', onAction);
+    // App was closed: the Answer/Join tap arrived before the page loaded.
+    // Pick it up from the phone once the call screens are listening.
+    const pickup = window.setTimeout(() => {
+      try {
+        const bridge = (window as unknown as { AndroidNotification?: { getPendingNotificationAction?: () => string } }).AndroidNotification;
+        const raw = bridge?.getPendingNotificationAction?.();
+        if (raw) onAction(new CustomEvent('appNotificationAction', { detail: JSON.parse(raw) }));
+      } catch { /* ignore */ }
+    }, 800);
+    return () => { window.clearTimeout(pickup); window.removeEventListener('appNotificationAction', onAction); };
   }, []);
 }
