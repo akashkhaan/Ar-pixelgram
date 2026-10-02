@@ -1,6 +1,7 @@
+import { supabase } from '@/db/supabase';
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Plus, Loader2, X, Trash2, ArrowRight, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Check, BadgeCheck, Plus, Loader2, X, Trash2, ArrowRight, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getSavedAccounts,
@@ -33,9 +34,41 @@ export const FacebookSwitchAccountModal: React.FC<FacebookSwitchAccountModalProp
 
   useEffect(() => {
     if (isOpen) {
-      setAccounts(getSavedAccounts());
+      const list = getSavedAccounts();
+      setAccounts(list);
       setPassPromptAccount(null);
       setPassInput('');
+
+      // Fetch fresh is_verified status for all saved accounts
+      const userIds = list.map((a) => a.user_id).filter(Boolean);
+      if (userIds.length > 0) {
+        supabase
+          .from('profiles')
+          .select('user_id, is_verified, avatar_url, full_name, username')
+          .in('user_id', userIds)
+          .then(({ data }) => {
+            if (data && data.length > 0) {
+              const profileMap = new Map(data.map((r) => [r.user_id, r]));
+              setAccounts((prev) => {
+                const updated = prev.map((a) => {
+                  const p = profileMap.get(a.user_id);
+                  if (!p) return a;
+                  return {
+                    ...a,
+                    is_verified: p.is_verified ?? a.is_verified,
+                    avatar_url: p.avatar_url || a.avatar_url,
+                    full_name: p.full_name || a.full_name,
+                    username: p.username || a.username,
+                  };
+                });
+                localStorage.setItem('pixelgram_saved_accounts_v1', JSON.stringify(updated));
+                return updated;
+              });
+            }
+          })
+          .catch(() => {});
+      }
+
       const prev = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
       return () => {
@@ -257,14 +290,19 @@ export const FacebookSwitchAccountModal: React.FC<FacebookSwitchAccountModalProp
 
                     {/* Name + Username */}
                     <div className="min-w-0 flex-1 text-left">
-                      <p
-                        className={cn(
-                          'text-[15px] font-bold truncate leading-snug',
-                          isCurrent ? 'premium-rainbow-text' : 'text-foreground group-hover:text-primary transition-colors'
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p
+                          className={cn(
+                            'text-[15px] font-bold truncate leading-snug',
+                            isCurrent ? 'premium-rainbow-text' : 'text-foreground group-hover:text-primary transition-colors'
+                          )}
+                        >
+                          {acc.full_name || acc.username}
+                        </p>
+                        {acc.is_verified && (
+                          <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500 shrink-0 inline-block drop-shadow-xs" stroke="#fff" />
                         )}
-                      >
-                        {acc.full_name || acc.username}
-                      </p>
+                      </div>
                       {acc.notifications_count && acc.notifications_count > 0 ? (
                         <p className="text-xs text-red-500 font-semibold flex items-center gap-1.5 mt-0.5">
                           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />

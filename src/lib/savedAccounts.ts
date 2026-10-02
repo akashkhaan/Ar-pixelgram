@@ -13,7 +13,8 @@ export interface SavedAccount {
   expires_at?: number;
   last_active: number;
   notifications_count?: number;
-  saved_credential?: string; // Base64 encoded password for seamless 1-tap switching
+  saved_credential?: string;
+  is_verified?: boolean; // Base64 encoded password for seamless 1-tap switching
 }
 
 const STORAGE_KEY = 'pixelgram_saved_accounts_v1';
@@ -74,6 +75,7 @@ export function saveCurrentAccount(
       last_active: Date.now(),
       notifications_count: existing?.notifications_count,
       saved_credential: credential,
+      is_verified: profile?.is_verified ?? existing?.is_verified ?? false,
     };
 
     if (existingIndex >= 0) {

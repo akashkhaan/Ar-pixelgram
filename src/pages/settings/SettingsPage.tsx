@@ -289,7 +289,12 @@ const SettingsPage: React.FC = () => {
                 </div>
               )}
               <div className="flex-1 min-w-0 text-left">
-                <p className="font-bold text-[15px] text-foreground truncate">{profile?.full_name || profile?.username}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="font-bold text-[15px] text-foreground truncate">{profile?.full_name || profile?.username}</p>
+                  {isVerifiedActive && (
+                    <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500 shrink-0 inline-block drop-shadow-xs" stroke="#fff" />
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground truncate">View your profile</p>
               </div>
             </div>
@@ -340,7 +345,12 @@ const SettingsPage: React.FC = () => {
             {/* Top Bar with Dynamic Avatar & Verification Button */}
             <div className="bar">
               <b>Pixelgram</b>
-              <span>{profile?.username || 'username'}</span>
+              <span className="inline-flex items-center gap-1">
+                <span>{profile?.username || 'username'}</span>
+                {isVerifiedActive && (
+                  <BadgeCheck className="w-3.5 h-3.5 text-sky-300 fill-sky-400 shrink-0" stroke="#fff" />
+                )}
+              </span>
               <button
                 type="button"
                 onClick={() => setSection('verification')}
@@ -526,8 +536,11 @@ const SettingsPage: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <span className="text-[10px] font-bold text-white truncate max-w-[80px] drop-shadow-sm">
-                      @{profile?.username || 'user'}
+                    <span className="text-[10px] font-bold text-white truncate max-w-[80px] drop-shadow-sm inline-flex items-center justify-center gap-0.5">
+                      <span>@{profile?.username || 'user'}</span>
+                      {isVerifiedActive && (
+                        <BadgeCheck className="w-3 h-3 text-sky-300 fill-sky-400 shrink-0" stroke="#fff" />
+                      )}
                     </span>
                   </div>
 

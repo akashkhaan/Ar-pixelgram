@@ -520,7 +520,14 @@ const ProfilePage: React.FC = () => {
           </div>
 
           {/* Name & Bio */}
-          {profile.full_name && <p className="font-bold text-sm text-foreground leading-tight mb-0.5">{profile.full_name}</p>}
+          {profile.full_name && (
+            <p className="font-bold text-sm text-foreground leading-tight mb-0.5 flex items-center gap-1.5">
+              <span>{profile.full_name}</span>
+              {profile.is_verified && (
+                <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500 shrink-0 inline-block drop-shadow-xs" stroke="#fff" />
+              )}
+            </p>
+          )}
           {profile.bio && <p className="text-sm text-foreground text-pretty mb-3 whitespace-pre-line">{profile.bio}</p>}
 
           {/* Action buttons (Instagram Style) */}
