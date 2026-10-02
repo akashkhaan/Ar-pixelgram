@@ -83,8 +83,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // Deploy/service-worker reload ke dauran transient null callbacks ko logout
       // mat samjho. User ko sirf Supabase ke explicit SIGNED_OUT event par hatao.
-      if (session?.user) setUser(session.user);
-      else if (event === 'SIGNED_OUT') setUser(null);
+      if (session?.user) {
+        setUser(session.user);
+        if (session) saveCurrentAccount(session.user, profile, session);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
       if (session?.user) {
         const userId = session.user.id;
         // Supabase auth callback ke andar await karke koi database/auth request

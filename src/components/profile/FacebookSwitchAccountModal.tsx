@@ -53,7 +53,16 @@ export const FacebookSwitchAccountModal: React.FC<FacebookSwitchAccountModalProp
     const ok = await switchToAccount(account);
     if (!ok) {
       setSwitchingId(null);
-      toast.error('Session expired. Please log in to this account again.');
+      toast.error(
+        `Session expired for ${account.full_name || account.username}. Tap below to log in again.`,
+        {
+          action: {
+            label: 'Log in',
+            onClick: () => handleAddAccount(),
+          },
+          duration: 5000,
+        }
+      );
     }
   };
 
@@ -238,18 +247,18 @@ export const FacebookSwitchAccountModal: React.FC<FacebookSwitchAccountModalProp
           </div>
         </div>
 
-        {/* Bottom Meta Branding (Fixed strictly with explicit dimension, perfect alignment and rainbow glow) */}
+        {/* Bottom Pixelgram Branding with Official Pixelgram PNG Logo and Dynamic Rainbow Text */}
         <div className="py-3 px-4 border-t border-border/30 flex items-center justify-center gap-2 select-none bg-muted/20">
-          <svg
-            style={{ width: 18, height: 18, minWidth: 18, minHeight: 18, maxWidth: 18, maxHeight: 18 }}
-            className="shrink-0 premium-rainbow-icon inline-block"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-          >
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.07 13.91c-1.32.96-3.08 1.09-4.53.33-1.63-.85-2.4-2.8-1.78-4.56.57-1.6 2.15-2.68 3.86-2.68 1.48 0 2.87.81 3.58 2.08l-1.38.79c-.43-.77-1.25-1.26-2.2-1.26-1.06 0-2.02.66-2.38 1.66-.4 1.12.08 2.37 1.13 2.91.95.49 2.09.4 2.94-.23l.76.96zm4.84.09h-1.64V8h1.64v8z" />
-          </svg>
-          <span className="text-[13px] font-black tracking-wider premium-rainbow-text uppercase">
-            Meta
+          <img
+            src="/icon-192.png"
+            alt="Pixelgram"
+            className="w-5 h-5 rounded-md object-contain shadow-xs shrink-0"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = '/favicon.png';
+            }}
+          />
+          <span className="text-[14px] font-black tracking-wide premium-rainbow-text">
+            Pixelgram
           </span>
         </div>
       </div>

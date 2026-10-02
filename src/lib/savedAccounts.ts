@@ -33,7 +33,7 @@ export function saveCurrentAccount(
   profile: Profile | null,
   session: Session | null
 ) {
-  if (!user || !session) return;
+  if (!user || !session?.access_token || !session?.refresh_token) return;
 
   try {
     const accounts = getSavedAccounts();
@@ -71,27 +71,31 @@ export function saveCurrentAccount(
 }
 
 export async function switchToAccount(account: SavedAccount): Promise<boolean> {
+  let prevSession: Session | null = null;
+
   try {
-    // 1. First ensure current account tokens are updated in list
+    // 1. Keep a snapshot of the current active session in case switch fails
     const { data: cur } = await supabase.auth.getSession();
-    if (cur.session && cur.session.user) {
+    prevSession = cur.session;
+
+    if (prevSession && prevSession.user) {
       const accounts = getSavedAccounts();
-      const idx = accounts.findIndex((a) => a.user_id === cur.session.user.id);
+      const idx = accounts.findIndex((a) => a.user_id === prevSession!.user.id);
       if (idx >= 0) {
-        accounts[idx].access_token = cur.session.access_token;
-        accounts[idx].refresh_token = cur.session.refresh_token;
+        accounts[idx].access_token = prevSession.access_token;
+        accounts[idx].refresh_token = prevSession.refresh_token;
         accounts[idx].last_active = Date.now();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
       }
     }
 
-    // 2. Set target account's session
+    // 2. Attempt to restore target account's session
     let res = await supabase.auth.setSession({
       access_token: account.access_token,
       refresh_token: account.refresh_token,
     });
 
-    // If access token expired, try refreshing with refresh token
+    // If setSession failed or token expired, try refreshSession with refresh_token
     if (res.error) {
       console.warn('Direct setSession failed, attempting refreshSession:', res.error);
       const refreshRes = await supabase.auth.refreshSession({
@@ -99,13 +103,21 @@ export async function switchToAccount(account: SavedAccount): Promise<boolean> {
       });
 
       if (refreshRes.error) {
-        throw refreshRes.error;
+        console.error('refreshSession failed:', refreshRes.error);
+        // CRITICAL: Restore original session so current user is NEVER kicked to login!
+        if (prevSession) {
+          await supabase.auth.setSession({
+            access_token: prevSession.access_token,
+            refresh_token: prevSession.refresh_token,
+          });
+        }
+        return false;
       }
       res = refreshRes;
     }
 
     if (res.data.session) {
-      // Update saved tokens
+      // Update target account's saved tokens with fresh ones
       const accounts = getSavedAccounts();
       const targetIdx = accounts.findIndex((a) => a.user_id === account.user_id);
       if (targetIdx >= 0) {
@@ -114,13 +126,31 @@ export async function switchToAccount(account: SavedAccount): Promise<boolean> {
         accounts[targetIdx].last_active = Date.now();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
       }
+
+      // Reload page to refresh all queries, states, and user context cleanly
+      window.location.reload();
+      return true;
     }
 
-    // Full reload to clean all query caches and load fresh profile
-    window.location.href = '/home';
-    return true;
+    // Fallback if no session was returned
+    if (prevSession) {
+      await supabase.auth.setSession({
+        access_token: prevSession.access_token,
+        refresh_token: prevSession.refresh_token,
+      });
+    }
+    return false;
   } catch (err) {
     console.error('Account switch failed:', err);
+    // Restore previous session
+    if (prevSession) {
+      try {
+        await supabase.auth.setSession({
+          access_token: prevSession.access_token,
+          refresh_token: prevSession.refresh_token,
+        });
+      } catch {}
+    }
     return false;
   }
 }
@@ -136,7 +166,7 @@ export function removeSavedAccount(userId: string) {
 
 export async function logInToAnotherAccount() {
   try {
-    // Save current active session tokens before signing out
+    // 1. Save current active session tokens before signing out
     const { data: cur } = await supabase.auth.getSession();
     if (cur.session && cur.session.user) {
       const accounts = getSavedAccounts();
@@ -149,12 +179,13 @@ export async function logInToAnotherAccount() {
       }
     }
 
-    // Sign out from Supabase (without clearing saved_accounts in localStorage!)
-    await supabase.auth.signOut();
+    // 2. CRITICAL: Use scope: 'local' so the server DOES NOT invalidate refresh tokens!
+    // This allows instant switching back without "Session expired"!
+    await supabase.auth.signOut({ scope: 'local' });
   } catch (err) {
-    console.warn('Sign out for add account caught error:', err);
+    console.warn('Local sign out error:', err);
   } finally {
-    // Redirect to login page where user can create a new account or log in
+    // Redirect to login page where user can log into their other account
     window.location.href = '/login';
   }
 }
