@@ -418,7 +418,6 @@ const SettingsPage: React.FC = () => {
 
         {/* Menu items */}
         {[
-          { icon: BadgeCheck, label: 'Request Verification', desc: profile?.is_verified ? 'Already verified ✓' : 'Get the blue badge', onClick: () => setSection('verification'), danger: false },
           { icon: AtSign, label: 'Account Center', desc: 'Email aur phone number add/manage karein', onClick: () => navigate('/settings/account-center'), danger: false },
           { icon: Globe, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language'), danger: false },
           { icon: HelpCircle, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help'), danger: false },
