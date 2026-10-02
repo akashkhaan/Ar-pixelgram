@@ -1,3 +1,4 @@
+import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
 // Account Appeal पेज — suspended/locked accounts के लिए
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +25,7 @@ const AppealPage: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
 
   const status = profile?.account_status;
+  const [showUnlockFlow, setShowUnlockFlow] = useState(false);
   const statusInfo = status && status !== 'active' ? STATUS_MAP[status as keyof typeof STATUS_MAP] : null;
 
   useEffect(() => {
@@ -51,6 +53,17 @@ const AppealPage: React.FC = () => {
     setLoading(false);
   };
 
+  if (status === 'locked' && showUnlockFlow) {
+    return (
+      <AccountLockedUnlockModal
+        user={user}
+        profile={profile}
+        onUnlocked={() => navigate('/home')}
+        onSignOut={() => navigate('/login')}
+        onAppeal={() => setShowUnlockFlow(false)}
+      />
+    );
+  }
   if (submitted) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-background">
@@ -87,6 +100,17 @@ const AppealPage: React.FC = () => {
           <p className="font-semibold text-foreground mb-1">@{profile.username}</p>
         )}
         <p className="text-sm text-muted-foreground">{statusInfo?.msg}</p>
+        {status === locked && (
+          <div className="mt-3">
+            <Button
+              type="button"
+              onClick={() => setShowUnlockFlow(true)}
+              className="w-full h-11 rounded-xl font-bold text-sm text-white premium-rainbow-border shadow-md"
+            >
+              🔓 Unlock Account via OTP (Self-Service)
+            </Button>
+          </div>
+        )}
         {profile?.status_reason && (
           <p className="text-xs text-muted-foreground mt-1">कारण: {profile.status_reason}</p>
         )}

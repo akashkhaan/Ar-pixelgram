@@ -1,3 +1,4 @@
+import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
 import { ArrowLeft, BadgeCheck, Camera, Film, Flag, Grid3X3, Heart, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -294,6 +295,22 @@ const ProfilePage: React.FC = () => {
 
   // अपना account restricted है तो Instagram-style suspended page दिखाओ
   if (ownAccountRestricted) {
+    if (profile.account_status === 'locked') {
+      return (
+        <MobileLayout hideNav>
+          <AccountLockedUnlockModal
+            user={user}
+            profile={profile}
+            onUnlocked={() => {
+              load();
+              navigate('/home');
+            }}
+            onSignOut={() => signOutTo('/login')}
+            onAppeal={() => navigate('/appeal')}
+          />
+        </MobileLayout>
+      );
+    }
     const statusMap: Record<string, { title: string; msg: string; color: string }> = {
       suspended: { title: 'Account Suspended', msg: 'आपका account अस्थायी रूप से निलंबित किया गया है। आप appeal कर सकते हैं।', color: 'amber' },
       locked: { title: 'Account Locked', msg: 'आपका account समीक्षा के लिए lock किया गया है। आप appeal कर सकते हैं।', color: 'blue' },

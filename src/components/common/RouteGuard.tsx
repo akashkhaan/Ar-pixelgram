@@ -67,6 +67,10 @@ export function RouteGuard({ children }: RouteGuardProps) {
     if (user && profile && profile.account_status && profile.account_status !== 'active' && !isAppealRoute) {
       if (profile.account_status === 'permanently_disabled') {
         navigate('/account-deleted', { replace: true });
+      } else if (profile.account_status === 'locked') {
+        if (location.pathname !== '/profile' && location.pathname !== '/appeal') {
+          navigate('/profile', { replace: true });
+        }
       } else {
         navigate('/appeal', { replace: true });
       }
