@@ -55,40 +55,43 @@ const SettingsPage: React.FC = () => {
 
   const isVerifiedActive = Boolean((profile?.is_verified || verificationRequest?.status === 'approved') && !isExpired);
 
-  // 3-Phase rotating card: 
-  // 1. main_box (30 seconds) -> 2. welcome_gov (6 seconds) -> 3. user_greeting (6 seconds) -> back to main_box (infinite loop)
+  // 3-Phase Ghost Vanish rotating card:
+  // Box 30s ke baad bhoot ki tarah gayab hoga, fir 2nd box aayega (6s), fir 3rd box (6s), fir wapas 1st box
   type CardPhase = 'main_box' | 'welcome_gov' | 'user_greeting';
   const [cardPhase, setCardPhase] = useState<CardPhase>('main_box');
-  const [isCardTransitioning, setIsCardTransitioning] = useState<boolean>(false);
+  const [ghostState, setGhostState] = useState<'visible' | 'vanishing' | 'appearing'>('visible');
 
   useEffect(() => {
     let timer: any;
     if (cardPhase === 'main_box') {
-      // 30 seconds as requested: theek 30 second me gayab ho jaye
+      // 30 seconds tak rahega, fir bhoot ki tarah gayab hoga
       timer = setTimeout(() => {
-        setIsCardTransitioning(true);
+        setGhostState('vanishing');
         setTimeout(() => {
           setCardPhase('welcome_gov');
-          setIsCardTransitioning(false);
-        }, 450);
+          setGhostState('appearing');
+          setTimeout(() => setGhostState('visible'), 650);
+        }, 700);
       }, 30000);
     } else if (cardPhase === 'welcome_gov') {
-      // 6 seconds for Indian Social Media & Gov notice
+      // 6 seconds tak welcome gov box rahega, fir gayab
       timer = setTimeout(() => {
-        setIsCardTransitioning(true);
+        setGhostState('vanishing');
         setTimeout(() => {
           setCardPhase('user_greeting');
-          setIsCardTransitioning(false);
-        }, 450);
+          setGhostState('appearing');
+          setTimeout(() => setGhostState('visible'), 650);
+        }, 700);
       }, 6000);
     } else if (cardPhase === 'user_greeting') {
-      // 6 seconds for profile photo & Enjoy username
+      // 6 seconds tak user profile + Enjoy username rahega, fir gayab
       timer = setTimeout(() => {
-        setIsCardTransitioning(true);
+        setGhostState('vanishing');
         setTimeout(() => {
           setCardPhase('main_box');
-          setIsCardTransitioning(false);
-        }, 450);
+          setGhostState('appearing');
+          setTimeout(() => setGhostState('visible'), 650);
+        }, 700);
       }, 6000);
     }
     return () => clearTimeout(timer);
@@ -331,9 +334,9 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Dashboard Card with 3-Phase Auto Rotation */}
+        {/* Dashboard Card with Ghost Vanish & Materialize (Bhoot ki tarah gayab hona) */}
         <div className="frame">
-          <div className="dash relative overflow-hidden transition-all duration-500 min-h-[195px] flex flex-col justify-between">
+          <div className={`dash relative overflow-hidden min-h-[195px] flex flex-col justify-between ${ghostState === "vanishing" ? "ghost-disappear" : ghostState === "appearing" ? "ghost-appear" : ""}`}>
             {/* Top Bar with Dynamic Avatar & Verification Button */}
             <div className="bar">
               <b>Pixelgram</b>
@@ -364,10 +367,8 @@ const SettingsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Rotating Phase Content with smooth cinema transition */}
-            <div
-              className={`flex-1 flex flex-col transition-all duration-500 ${isCardTransitioning ? "opacity-0 scale-95 blur-xs translate-y-1" : "opacity-100 scale-100 blur-0 translate-y-0"}`}
-            >
+            {/* Phase Content */}
+            <div className="flex-1 flex flex-col">
               {/* PHASE 1: Main Verification Box (30s) */}
               {cardPhase === 'main_box' && (
                 isVerifiedActive ? (
@@ -533,27 +534,7 @@ const SettingsPage: React.FC = () => {
               )}
             </div>
 
-            {/* Subtle Phase Indicator Dots */}
-            <div className="px-3 pb-1.5 flex items-center justify-center gap-1.5 z-10">
-              <button
-                type="button"
-                onClick={() => setCardPhase('main_box')}
-                className={`h-1.5 rounded-full transition-all duration-300 ${cardPhase === 'main_box' ? 'w-5 bg-white shadow-xs' : 'w-1.5 bg-white/35 hover:bg-white/60'}`}
-                aria-label="Main Card"
-              />
-              <button
-                type="button"
-                onClick={() => setCardPhase('welcome_gov')}
-                className={`h-1.5 rounded-full transition-all duration-300 ${cardPhase === 'welcome_gov' ? 'w-5 bg-white shadow-xs' : 'w-1.5 bg-white/35 hover:bg-white/60'}`}
-                aria-label="Gov Welcome"
-              />
-              <button
-                type="button"
-                onClick={() => setCardPhase('user_greeting')}
-                className={`h-1.5 rounded-full transition-all duration-300 ${cardPhase === 'user_greeting' ? 'w-5 bg-white shadow-xs' : 'w-1.5 bg-white/35 hover:bg-white/60'}`}
-                aria-label="User Greeting"
-              />
-            </div>
+
           </div>
         </div>
 
