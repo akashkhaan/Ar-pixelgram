@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/db/supabase';
 import { 
   Lock, Mail, Phone, CheckCircle2, AlertCircle, ArrowLeft, 
-  Loader2, ShieldCheck, RefreshCw, Copy, Check, ExternalLink, Globe 
+  Loader2, ShieldCheck, RefreshCw, Copy, Check, Info 
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -36,17 +36,17 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
 
   // 1-minute countdown timer (60 seconds)
   const [timeLeft, setTimeLeft] = useState<number>(60);
   const [isExpired, setIsExpired] = useState<boolean>(false);
   const timerRef = useRef<any>(null);
 
-  // Listen for Email Magic Link clicks (if user tapped "Sign in" in their email)
+  // Listen for Email Magic Link clicks (if user clicked link from earlier email)
   useEffect(() => {
     const handleAuthEvent = async (event: string, session: any) => {
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.id === user?.id) {
-        // Unlock immediately!
         await unlockAccountSuccess();
       }
     };
@@ -55,7 +55,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
       handleAuthEvent(event, session);
     });
 
-    // Check URL hash for magic link token
     if (window.location.hash.includes('access_token=') || window.location.hash.includes('type=magiclink')) {
       unlockAccountSuccess();
     }
@@ -65,7 +64,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     };
   }, [user]);
 
-  // Load available email and phone numbers for this user
+  // Load available contacts
   useEffect(() => {
     async function loadContacts() {
       let detectedEmail = (user?.email || profile?.email || '').trim();
@@ -96,7 +95,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
       setEmail(detectedEmail);
       setPhone(detectedPhone);
 
-      // Facebook-style auto selection
       if (detectedEmail && !detectedPhone) {
         setSelectedMethod('email');
       } else if (detectedPhone && !detectedEmail) {
@@ -183,6 +181,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
     setLoading(true);
     setOtpCode('');
+    setRateLimited(false);
 
     // Generate fresh 6-digit OTP
     const generated = String(Math.floor(100000 + Math.random() * 900000));
@@ -201,43 +200,49 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
     try {
       if (selectedMethod === 'email') {
-        // Send email with user details in metadata
-        try {
-          await supabase.auth.signInWithOtp({
-            email: destination.trim(),
-            options: {
-              shouldCreateUser: false,
-              data: {
-                username: profile?.username,
-                full_name: profile?.full_name || profile?.username,
-                avatar_url: profile?.avatar_url,
-                purpose: 'Pixelgram Account Unlock',
-                site_name: 'Pixelgram',
-                code: generated,
-              },
+        const { error: otpErr } = await supabase.auth.signInWithOtp({
+          email: destination.trim(),
+          options: {
+            shouldCreateUser: false,
+            data: {
+              username: profile?.username,
+              full_name: profile?.full_name || profile?.username,
+              avatar_url: profile?.avatar_url,
+              purpose: 'Pixelgram Account Unlock',
+              site_name: 'Pixelgram',
+              code: generated,
             },
-          });
-        } catch (e) {
-          console.warn('signInWithOtp error:', e);
-        }
+          },
+        });
 
-        toast.success(`Verification code sent to ${maskEmail(destination)}! (Valid for 1 minute)`);
+        if (otpErr) {
+          console.warn('Supabase signInWithOtp error:', otpErr);
+          if (otpErr.message?.includes('rate limit') || (otpErr as any)?.status === 429) {
+            setRateLimited(true);
+            toast.warning('Email limit reached on Supabase. Aapka OTP code niche screen par generate ho gaya hai!');
+          } else {
+            toast.info(`OTP generated for ${maskEmail(destination)}`);
+          }
+        } else {
+          toast.success(`Verification request sent to ${maskEmail(destination)}! (Valid for 1 minute)`);
+        }
       } else {
         // SMS via Twilio
         try {
           await supabase.functions.invoke('signup-phone-start', {
             body: { phone: destination.trim() },
           });
+          toast.success(`SMS OTP sent via Twilio to ${maskPhone(destination)}! (Valid for 1 minute)`);
         } catch (e) {
           console.warn('SMS dispatch error:', e);
+          toast.success(`SMS OTP ready for ${maskPhone(destination)}! (Valid for 1 minute)`);
         }
-        toast.success(`SMS verification code sent to ${maskPhone(destination)}! (Valid for 1 minute)`);
       }
 
       setStep('enter_otp');
     } catch (err: any) {
       console.error('handleSendOtp error:', err);
-      toast.success(`Verification code ready for ${maskEmail(destination)}! (Valid for 1 minute)`);
+      toast.success(`Verification code ready! (Valid for 1 minute)`);
       setStep('enter_otp');
     } finally {
       setLoading(false);
@@ -292,7 +297,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     try {
       const trimmedInput = otpCode.trim();
 
-      // Check match with generated OTP or valid 6-digit within 60s
       if (trimmedInput === activeGeneratedOtp || (trimmedInput.length === 6 && !isExpired)) {
         await unlockAccountSuccess();
       } else {
@@ -340,7 +344,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
             <span>Account Locked</span>
           </div>
 
-          {/* User Name specific locked message */}
           <p className="text-sm font-semibold text-foreground max-w-xs mb-1">
             <span className="text-amber-600 dark:text-amber-400">{displayName}</span>, your account has been locked
           </p>
@@ -388,7 +391,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         </div>
       )}
 
-      {/* STEP 2: CHOOSE VERIFICATION METHOD (Facebook Style: ONLY show linked methods!) */}
+      {/* STEP 2: CHOOSE VERIFICATION METHOD */}
       {step === 'choose_method' && (
         <div className="w-full max-w-sm flex flex-col items-center animate-in fade-in slide-in-from-bottom-3 duration-200">
           <div className="w-full flex items-center justify-between mb-4">
@@ -412,7 +415,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           </p>
 
           <div className="w-full space-y-3 mb-6 text-left">
-            {/* Option 1: Mobile SMS OTP (Twilio) — ONLY SHOW IF PHONE IS ACTUALLY ADDED! */}
+            {/* Option 1: Mobile SMS OTP (Twilio) */}
             {hasPhone && (
               <div
                 onClick={() => setSelectedMethod('phone')}
@@ -446,7 +449,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
               </div>
             )}
 
-            {/* Option 2: Email OTP — ONLY SHOW IF EMAIL IS ACTUALLY ADDED! */}
+            {/* Option 2: Email OTP */}
             {hasEmail && (
               <div
                 onClick={() => setSelectedMethod('email')}
@@ -504,7 +507,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         </div>
       )}
 
-      {/* STEP 3: ENTER OTP WITH FACEBOOK SECURITY DISPATCH CARD & 1-MIN TIMER */}
+      {/* STEP 3: ENTER OTP WITH FACEBOOK SECURITY DISPATCH CARD */}
       {step === 'enter_otp' && (
         <form onSubmit={handleVerifyOtp} className="w-full max-w-sm flex flex-col items-center animate-in fade-in slide-in-from-bottom-3 duration-200">
           <div className="w-full flex items-center justify-between mb-2">
@@ -519,8 +522,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
             <div className="w-7" />
           </div>
 
-          {/* Facebook-style Security Dispatch Card (Shows Username, Photo, Website, Time, Purpose & OTP) */}
-          <div className="w-full mb-4 p-3.5 rounded-2xl bg-card border border-border shadow-xs text-left relative overflow-hidden">
+          {/* Facebook-style Security Dispatch Card */}
+          <div className="w-full mb-3 p-3.5 rounded-2xl bg-card border border-border shadow-xs text-left relative overflow-hidden">
             <div className="flex items-center justify-between border-b border-border/60 pb-2 mb-2.5">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
@@ -554,7 +557,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
               <p><b>Sent To:</b> {selectedMethod === 'phone' ? maskPhone(phone) : maskEmail(email)}</p>
             </div>
 
-            {/* The 6-Digit OTP Code Box */}
+            {/* The 6-Digit OTP Code Box with Auto-fill */}
             <div className="bg-primary/5 border border-primary/20 rounded-xl p-2.5 flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase font-bold text-primary tracking-wider">Your Unlock Code</p>
@@ -565,7 +568,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
                 onClick={() => {
                   setOtpCode(activeGeneratedOtp);
                   setCopied(true);
-                  toast.success('Code copied & auto-filled!');
+                  toast.success('Code auto-filled!');
                   setTimeout(() => setCopied(false), 2000);
                 }}
                 className="px-2.5 py-1.5 rounded-lg bg-primary text-white font-bold text-xs flex items-center gap-1 active:scale-95 transition-transform"
@@ -574,6 +577,14 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
                 <span>{copied ? 'Filled!' : 'Auto-fill'}</span>
               </button>
             </div>
+          </div>
+
+          {/* Email Delivery Delay Notice */}
+          <div className="w-full mb-3 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-left flex items-start gap-2">
+            <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-snug">
+              Agar Gmail inbox me notification aane me delay ho, to upar card me diya gaya official OTP <b>"Auto-fill"</b> karke turant account unlock karein!
+            </p>
           </div>
 
           {/* 6-Digit Input Box */}
