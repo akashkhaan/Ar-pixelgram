@@ -299,7 +299,6 @@ const SettingsPage: React.FC = () => {
             <div className="bar">
               <b>Pixelgram</b>
               <span>{profile?.username || 'username'}</span>
-              <span>withdraw</span>
               <button
                 type="button"
                 onClick={() => setSection('verification')}
@@ -309,8 +308,7 @@ const SettingsPage: React.FC = () => {
                 <BadgeCheck className="w-3.5 h-3.5 text-sky-300" />
                 <span>Verification</span>
               </button>
-              <span className="flex items-center gap-1.5 shrink-0">
-                <span>History</span>
+              <div className="flex items-center shrink-0">
                 {profile?.avatar_url ? (
                   <img
                     src={profile.avatar_url}
@@ -324,7 +322,7 @@ const SettingsPage: React.FC = () => {
                     <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
                   </svg>
                 )}
-              </span>
+              </div>
             </div>
 
             {/* Verification Status & 30-Day Auto Countdown inside Blue Box */}
