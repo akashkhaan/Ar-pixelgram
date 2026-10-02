@@ -1318,7 +1318,9 @@
 .dash {
   width: 100%;
   max-width: 960px;
+  height: 185px;
   min-height: 185px;
+  max-height: 185px;
   border-radius: 16px;
   overflow: hidden;
   display: flex;

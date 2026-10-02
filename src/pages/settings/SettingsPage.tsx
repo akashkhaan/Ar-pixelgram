@@ -336,7 +336,7 @@ const SettingsPage: React.FC = () => {
 
         {/* Dashboard Card with Ghost Vanish & Materialize (Bhoot ki tarah gayab hona) */}
         <div className="frame">
-          <div className={`dash relative overflow-hidden min-h-[195px] flex flex-col justify-between ${ghostState === "vanishing" ? "ghost-disappear" : ghostState === "appearing" ? "ghost-appear" : ""}`}>
+          <div className={`dash relative overflow-hidden h-[185px] min-h-[185px] max-h-[185px] flex flex-col justify-between ${ghostState === "vanishing" ? "ghost-disappear" : ghostState === "appearing" ? "ghost-appear" : ""}`}>
             {/* Top Bar with Dynamic Avatar & Verification Button */}
             <div className="bar">
               <b>Pixelgram</b>
@@ -462,73 +462,94 @@ const SettingsPage: React.FC = () => {
 
               {/* PHASE 2: Official Indian Social Media & New Delhi Government Site */}
               {cardPhase === 'welcome_gov' && (
-                <div className="flex-1 p-4 flex flex-col items-center justify-center text-center text-white relative overflow-hidden backdrop-blur-[2px]">
+                <div className="flex-1 px-3.5 py-2.5 flex items-center justify-between gap-3 text-white relative overflow-hidden backdrop-blur-[2px]">
                   {/* Subtle Tricolor Ambient Light */}
                   <div className="absolute inset-0 bg-gradient-to-r from-orange-500/15 via-white/10 to-emerald-500/15 pointer-events-none" />
 
-                  {/* Badge */}
-                  <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-black/35 backdrop-blur-md border border-white/25 text-[11px] font-bold text-amber-200 mb-2 shadow-md">
-                    <span className="text-sm">🇮🇳</span>
-                    <span>Official Certified Platform</span>
-                    <Sparkles className="w-3 h-3 text-amber-300" />
+                  {/* LEFT SIDE: National Seal & Official Badge */}
+                  <div className="flex flex-col items-center justify-center shrink-0 w-20 text-center">
+                    <div className="w-13 h-13 rounded-2xl bg-black/30 backdrop-blur-md border border-white/25 flex items-center justify-center shadow-md mb-1">
+                      <span className="text-2xl">🇮🇳</span>
+                    </div>
+                    <span className="text-[9px] font-extrabold text-amber-200 uppercase tracking-wider">Official</span>
                   </div>
 
-                  <h3 className="text-base sm:text-lg font-black tracking-wide text-white drop-shadow-md leading-tight">
-                    Welcome back pixelgram
-                  </h3>
-                  <p className="text-xs sm:text-[13px] font-semibold text-emerald-200 mt-1 max-w-sm drop-shadow-sm leading-snug">
-                    Indian social media and new delhi government site
-                  </p>
+                  {/* RIGHT SIDE: Text Description */}
+                  <div className="flex-1 min-w-0 text-left flex flex-col justify-center gap-0.5">
+                    <div className="inline-flex items-center gap-1 self-start px-2 py-0.5 rounded-full bg-black/30 border border-white/20 text-[9px] font-bold text-amber-200 shadow-xs">
+                      <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                      <span>Certified Platform</span>
+                    </div>
 
-                  <div className="mt-2.5 flex items-center gap-2 text-[10px] text-white/80 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <span>Digital India • Safe &amp; Trusted Community</span>
+                    <h3 className="text-[14px] sm:text-[15px] font-black text-white drop-shadow-md tracking-tight leading-tight truncate">
+                      Welcome back pixelgram
+                    </h3>
+
+                    <p className="text-[11px] font-semibold text-emerald-200 leading-tight">
+                      Indian social media and new delhi government site
+                    </p>
+
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-white/80 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                      <span className="truncate">Digital India • Safe &amp; Trusted Community</span>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* PHASE 3: User Avatar & Enjoy @username */}
+              {/* PHASE 3: User Avatar & Name on LEFT, Enjoy Text on RIGHT (Same Compact Size) */}
               {cardPhase === 'user_greeting' && (
-                <div className="flex-1 p-4 flex flex-col items-center justify-center text-center text-white relative overflow-hidden backdrop-blur-[2px]">
-                  {/* User Profile Avatar with glowing animated ring */}
-                  <div className="relative mb-1.5">
-                    <div className="w-13 h-13 rounded-full p-[2px] bg-gradient-to-tr from-amber-300 via-pink-400 to-cyan-300 shadow-lg shadow-pink-500/30">
-                      <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 flex items-center justify-center">
-                        {profile?.avatar_url ? (
-                          <img
-                            src={profile.avatar_url}
-                            alt={profile.username || 'user'}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <svg className="w-full h-full" viewBox="0 0 32 32">
-                            <circle cx="16" cy="16" r="16" fill="#fff" />
-                            <circle cx="16" cy="12" r="5" fill="#2563eb" />
-                            <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
-                          </svg>
-                        )}
+                <div className="flex-1 px-3.5 py-2.5 flex items-center justify-between gap-3.5 text-white relative overflow-hidden backdrop-blur-[2px]">
+                  {/* LEFT SIDE: Profile Photo & Username */}
+                  <div className="flex flex-col items-center justify-center shrink-0 w-20 text-center">
+                    <div className="relative mb-1">
+                      <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-amber-300 via-pink-400 to-cyan-300 shadow-md shadow-pink-500/20">
+                        <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 flex items-center justify-center">
+                          {profile?.avatar_url ? (
+                            <img
+                              src={profile.avatar_url}
+                              alt={profile.username || 'user'}
+                              className="w-full h-full object-cover rounded-full"
+                            />
+                          ) : (
+                            <svg className="w-full h-full" viewBox="0 0 32 32">
+                              <circle cx="16" cy="16" r="16" fill="#fff" />
+                              <circle cx="16" cy="12" r="5" fill="#2563eb" />
+                              <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
+                            </svg>
+                          )}
+                        </div>
                       </div>
+                      {profile?.is_verified && (
+                        <div className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-white flex items-center justify-center shadow">
+                          <BadgeCheck className="w-3.5 h-3.5 text-sky-500 fill-sky-500" stroke="#fff" />
+                        </div>
+                      )}
                     </div>
-                    {profile?.is_verified && (
-                      <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow">
-                        <BadgeCheck className="w-3.5 h-3.5 text-sky-500 fill-sky-500" stroke="#fff" />
-                      </div>
-                    )}
+                    <span className="text-[10px] font-bold text-white truncate max-w-[80px] drop-shadow-sm">
+                      @{profile?.username || 'user'}
+                    </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-base sm:text-lg font-black text-white drop-shadow-md tracking-tight">
+                  {/* RIGHT SIDE: Enjoy Greeting & Text */}
+                  <div className="flex-1 min-w-0 text-left flex flex-col justify-center gap-0.5">
+                    <div className="inline-flex items-center gap-1 self-start px-2 py-0.5 rounded-full bg-black/30 border border-white/20 text-[9px] text-amber-200 font-semibold shadow-xs">
+                      <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                      <span>Special Member Access</span>
+                    </div>
+
+                    <h3 className="text-[14px] sm:text-[15px] font-black text-white drop-shadow-md tracking-tight leading-tight truncate">
                       Enjoy @{profile?.username || 'user'} ✨
                     </h3>
-                  </div>
 
-                  <p className="text-xs text-white/90 font-medium mt-0.5 drop-shadow-xs">
-                    Pixelgram par aapka swagat hai • Have fun &amp; enjoy your time!
-                  </p>
+                    <p className="text-[11px] text-white/90 font-medium leading-tight">
+                      Pixelgram par aapka swagat hai • Have fun &amp; enjoy your time!
+                    </p>
 
-                  <div className="mt-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-black/30 border border-white/20 text-[10px] text-amber-200 font-semibold">
-                    <Sparkles className="w-3 h-3 text-amber-300" />
-                    <span>Special Member Access</span>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-emerald-300 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                      <span className="truncate">VIP Experience Active</span>
+                    </div>
                   </div>
                 </div>
               )}
