@@ -1,22 +1,20 @@
 import React, { useState } from 'react';
-import { KeyRound, Loader2, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { KeyRound, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { startPasswordReset, confirmPasswordReset } from '@/services/passwordReset';
+import { FuturisticOtpCard } from '@/components/auth/FuturisticOtpCard';
 
 /**
- * Account Center → Password reset (Facebook jaisa).
- * Email par 6-digit OTP jata hai, wahi daal kar naya password set hota hai.
- * Koi reset link nahi.
+ * Account Center → Password reset with FuturisticOtpCard
  */
 const PasswordResetSection: React.FC = () => {
   const { user, profile } = useAuth();
-  const [stage, setStage] = useState<'idle' | 'verify'>('idle');
+  const [stage, setStage] = useState<'idle' | 'password_input' | 'verify'>('idle');
   const [token, setToken] = useState('');
   const [masked, setMasked] = useState('');
-  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -25,12 +23,23 @@ const PasswordResetSection: React.FC = () => {
   const accountEmail = user?.email || '';
   const identifier = accountEmail || profile?.username || '';
 
-  // Account ka email masked form me — user ko pehle hi dikh jaye ki code kahan jayega.
   const maskEmail = (email: string) => {
     const [name, domain] = email.split('@');
     if (!domain) return email;
     const visible = name.length <= 2 ? name[0] : `${name.slice(0, 1)}${'*'.repeat(Math.max(1, name.length - 2))}${name.slice(-1)}`;
     return `${visible}@${domain}`;
+  };
+
+  const handleStartReset = () => {
+    if (password.length < 6) {
+      toast.error('Password kam se kam 6 characters ka ho');
+      return;
+    }
+    if (password !== confirm) {
+      toast.error('Dono password same nahi hain');
+      return;
+    }
+    sendCode();
   };
 
   const sendCode = async () => {
@@ -41,7 +50,6 @@ const PasswordResetSection: React.FC = () => {
       if (!res.found || !res.token) { toast.error('Account nahi mila'); return; }
       setToken(res.token);
       setMasked(res.masked ?? '');
-      setCode('');
       setStage('verify');
       toast.success('OTP email par bhej diya');
     } catch (e) {
@@ -51,22 +59,41 @@ const PasswordResetSection: React.FC = () => {
     }
   };
 
-  const submit = async () => {
-    if (code.trim().length < 6) { toast.error('6-digit OTP daalein'); return; }
-    if (password.length < 6) { toast.error('Password kam se kam 6 characters ka ho'); return; }
-    if (password !== confirm) { toast.error('Dono password same nahi hain'); return; }
-    setBusy(true);
+  const handleVerifyOtp = async (codeEntered: string): Promise<boolean> => {
+    if (codeEntered.trim().length < 6) {
+      throw new Error('6-digit OTP daalein');
+    }
     try {
-      await confirmPasswordReset(token, code, password);
+      await confirmPasswordReset(token, codeEntered, password);
       toast.success('Password badal gaya ✅');
-      setStage('idle');
-      setPassword(''); setConfirm(''); setCode('');
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(false);
+      setTimeout(() => {
+        setStage('idle');
+        setPassword('');
+        setConfirm('');
+      }, 1500);
+      return true;
+    } catch (e: any) {
+      throw new Error(e?.message || 'Galat OTP code! Kripya sahi code daalein.');
     }
   };
+
+  if (stage === 'verify') {
+    return (
+      <div className="flex items-center justify-center -mx-4 -my-2">
+        <FuturisticOtpCard
+          title="Check Your Email Now"
+          subtitle="Enter the OTP sent to your email to change your password."
+          target={masked}
+          type="email"
+          onVerify={handleVerifyOtp}
+          onResend={sendCode}
+          onBack={() => setStage('password_input')}
+          successTitle="Password Changed Successfully!"
+          successSubtitle="Your account credentials have been updated."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="glass-card rounded-xl p-4 space-y-3">
@@ -84,31 +111,25 @@ const PasswordResetSection: React.FC = () => {
             </p>
           </div>
           <p className="text-sm text-muted-foreground">
-            Isi email par 6-digit code bhejenge. Code daal kar naya password set kar sakte hain.
+            Isi email par 6-digit code bhejenge. Naya password set karne ke liye aage badhein.
           </p>
-          <Button onClick={() => void sendCode()} disabled={busy || !identifier} className="w-full h-10 font-semibold">
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send code'}
+          <Button onClick={() => setStage('password_input')} disabled={!identifier} className="w-full h-10 font-semibold">
+            Change password
           </Button>
         </>
       ) : (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-primary" /> {masked} par code bheja gaya
+          <p className="text-xs text-muted-foreground">
+            Naya password daalein, iske baad aapke email ({maskEmail(accountEmail)}) par 6-digit OTP verification code aayega:
           </p>
-          <Input
-            value={code}
-            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            placeholder="6-digit OTP"
-            inputMode="numeric"
-            className="h-11 text-center tracking-[0.4em] font-semibold"
-          />
           <div className="relative">
             <Input
               type={showPass ? 'text' : 'password'}
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Naya password"
+              placeholder="Naya password (min 6 characters)"
               className="h-11 pr-10"
+              autoFocus
             />
             <button
               type="button"
@@ -126,16 +147,14 @@ const PasswordResetSection: React.FC = () => {
             className="h-11"
           />
           <div className="flex gap-2">
-            <Button onClick={() => void submit()} disabled={busy} className="flex-1 h-10 font-semibold">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Reset password'}
+            <Button onClick={handleStartReset} disabled={busy} className="flex-1 h-10 font-semibold">
+              {busy ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Send OTP & Verify
             </Button>
-            <Button variant="outline" onClick={() => void sendCode()} disabled={busy} className="h-10">
-              Resend
+            <Button variant="outline" onClick={() => setStage('idle')} disabled={busy} className="h-10">
+              Cancel
             </Button>
           </div>
-          <button onClick={() => setStage('idle')} className="w-full text-xs text-muted-foreground py-1">
-            Cancel
-          </button>
         </div>
       )}
     </div>

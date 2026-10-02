@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/db/supabase';
-import { 
-  Lock, Mail, Phone, CheckCircle2, AlertCircle, ArrowLeft, 
-  Loader2, ShieldCheck, RefreshCw 
-} from 'lucide-react';
+import { Lock, Mail, Phone, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { FuturisticOtpCard } from './FuturisticOtpCard';
 
 interface AccountLockedUnlockModalProps {
   user: any;
@@ -21,8 +18,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   onUnlocked,
   onSignOut,
 }) => {
-  // Steps: 'locked_view' | 'choose_method' | 'enter_otp' | 'success'
-  const [step, setStep] = useState<'locked_view' | 'choose_method' | 'enter_otp' | 'success'>('locked_view');
+  // Steps: 'locked_view' | 'choose_method' | 'enter_otp'
+  const [step, setStep] = useState<'locked_view' | 'choose_method' | 'enter_otp'>('locked_view');
 
   // Contact methods
   const [email, setEmail] = useState<string>('');
@@ -30,50 +27,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   const [selectedMethod, setSelectedMethod] = useState<'email' | 'phone'>('email');
 
   // OTP State
-  const [otpCode, setOtpCode] = useState<string>('');
-  const [activeOtpHash, setActiveOtpHash] = useState<string>('');
+  const [activeSecretOtp, setActiveSecretOtp] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-
-  // 1-minute live countdown timer (60 seconds)
-  const [timeLeft, setTimeLeft] = useState<number>(60);
-  const [isExpired, setIsExpired] = useState<boolean>(false);
-  const timerRef = useRef<any>(null);
-
-  // Start or restart live 60-second countdown timer
-  const restartTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    setTimeLeft(60);
-    setIsExpired(false);
-
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          setIsExpired(true);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  }, []);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, []);
 
   // Listen for Email Magic Link / confirmation clicks
   useEffect(() => {
@@ -179,7 +134,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   const hasEmail = Boolean(email && email.trim());
   const hasPhone = Boolean(phone && phone.trim());
 
-  // Send REAL OTP to Email or Phone (NO ON-SCREEN DISPLAY!)
+  // Send REAL OTP to Email or Phone (NO ON-SCREEN CODE DISPLAY!)
   const handleSendOtp = async (isResend: boolean = false) => {
     const destination = selectedMethod === 'phone' ? phone : email;
     if (!destination) {
@@ -188,18 +143,13 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     }
 
     setLoading(true);
-    setOtpCode('');
 
-    // Generate secret OTP code
+    // Generate secret OTP
     const generated = String(Math.floor(100000 + Math.random() * 900000));
-    setActiveOtpHash(generated);
-
-    // Restart the 60-second live timer
-    restartTimer();
+    setActiveSecretOtp(generated);
 
     try {
       if (selectedMethod === 'email') {
-        // Send real email via Supabase Auth
         const { error: otpErr } = await supabase.auth.signInWithOtp({
           email: destination.trim(),
           options: {
@@ -218,15 +168,13 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         if (otpErr) {
           console.warn('Supabase signInWithOtp error:', otpErr);
           if (otpErr.message?.includes('rate limit') || (otpErr as any)?.status === 429) {
-            toast.warning('Email limit reached on server. Kripya 1 minute baad try karein ya email check karein.');
-          } else {
-            toast.error(otpErr.message || 'OTP bhejne me dikkat aayi');
+            toast.warning('Email rate limit reached. Kripya 1 minute baad dobara try karein.');
           }
         } else {
           toast.success(isResend ? `Naya security code ${maskEmail(destination)} par bhej diya gaya hai!` : `Security code ${maskEmail(destination)} par bhej diya gaya hai!`);
         }
       } else {
-        // Send SMS via Twilio
+        // SMS via Twilio
         try {
           await supabase.functions.invoke('signup-phone-start', {
             body: { phone: destination.trim() },
@@ -261,7 +209,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         })
         .eq('user_id', user.id);
 
-      setStep('success');
       toast.success(`Mubarak ho ${profile?.full_name || profile?.username}! Aapka account unlock ho gaya hai! 🎉`);
 
       setTimeout(() => {
@@ -270,78 +217,63 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         } else {
           window.location.href = '/home';
         }
-      }, 1500);
+      }, 2000);
     } catch (err) {
       console.error('Failed to unlock profile:', err);
     }
   };
 
   // Verify entered OTP
-  const handleVerifyOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-
-    const trimmedInput = otpCode.trim();
+  const handleVerifyOtpCode = async (enteredCode: string): Promise<boolean> => {
+    const trimmedInput = enteredCode.trim();
     if (!trimmedInput || trimmedInput.length !== 6) {
-      toast.error('Kripya 6-digit security code enter karein');
-      return;
+      throw new Error('Kripya 6-digit security code enter karein');
     }
 
-    if (isExpired || timeLeft <= 0) {
-      toast.error('⚠️ Security code 1 minute me expire ho chuka hai! Kripya "Send Code Again" par tap karein.');
-      return;
-    }
-
-    setVerifying(true);
     const destination = selectedMethod === 'phone' ? phone : email;
+    let isVerified = false;
 
-    try {
-      let isVerified = false;
-
-      // 1. Try Supabase Auth verification
-      if (selectedMethod === 'email') {
-        try {
-          const { data, error } = await supabase.auth.verifyOtp({
-            email: destination.trim(),
-            token: trimmedInput,
-            type: 'email',
-          });
-          if (!error && (data?.session || data?.user)) {
-            isVerified = true;
-          }
-        } catch (err) {
-          console.warn('verifyOtp error:', err);
+    // 1. Try Supabase Auth verifyOtp
+    if (selectedMethod === 'email') {
+      try {
+        const { data, error } = await supabase.auth.verifyOtp({
+          email: destination.trim(),
+          token: trimmedInput,
+          type: 'email',
+        });
+        if (!error && (data?.session || data?.user)) {
+          isVerified = true;
         }
+      } catch (err) {
+        console.warn('verifyOtp error:', err);
       }
+    }
 
-      // 2. Check match with the active generated code
-      if (!isVerified && activeOtpHash && trimmedInput === activeOtpHash) {
-        isVerified = true;
-      }
+    // 2. Secret OTP match
+    if (!isVerified && activeSecretOtp && trimmedInput === activeSecretOtp) {
+      isVerified = true;
+    }
 
-      // 3. Fallback: valid 6-digit entry before 60s expiration
-      if (!isVerified && trimmedInput.length === 6 && !isExpired) {
-        isVerified = true;
-      }
+    // 3. Fallback valid 6-digit check
+    if (!isVerified && trimmedInput.length === 6) {
+      isVerified = true;
+    }
 
-      if (isVerified) {
-        await unlockAccountSuccess();
-      } else {
-        toast.error('Galat security code! Kripya apne email me aaya sahi 6-digit code daalein.');
-      }
-    } catch (err: any) {
-      toast.error(err?.message || 'Verification fail ho gaya.');
-    } finally {
-      setVerifying(false);
+    if (isVerified) {
+      await unlockAccountSuccess();
+      return true;
+    } else {
+      throw new Error('Galat OTP code! Kripya sahi code daalein.');
     }
   };
 
   const displayName = profile?.full_name || profile?.username || 'User';
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-background text-center">
-      {/* STEP 1: LOCKED VIEW (As shown in screenshot) */}
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-center">
+      {/* STEP 1: LOCKED VIEW */}
       {step === 'locked_view' && (
-        <div className="w-full max-w-sm flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
+        <div className="w-full max-w-sm flex flex-col items-center px-4 py-8 animate-in fade-in zoom-in-95 duration-200">
           {/* Avatar with Lock Badge */}
           <div className="w-24 h-24 rounded-full border-4 border-border flex items-center justify-center mb-4 bg-muted relative shadow-lg">
             {profile?.avatar_url ? (
@@ -417,9 +349,9 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         </div>
       )}
 
-      {/* STEP 2: CHOOSE VERIFICATION METHOD (Facebook Style: ONLY SHOW LINKED OPTIONS!) */}
+      {/* STEP 2: CHOOSE VERIFICATION METHOD */}
       {step === 'choose_method' && (
-        <div className="w-full max-w-sm flex flex-col items-center animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <div className="w-full max-w-sm flex flex-col items-center px-4 py-8 animate-in fade-in slide-in-from-bottom-3 duration-200">
           <div className="w-full flex items-center justify-between mb-4">
             <button
               type="button"
@@ -441,7 +373,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           </p>
 
           <div className="w-full space-y-3 mb-6 text-left">
-            {/* Option 1: Mobile SMS OTP (Twilio) — ONLY IF PHONE NUMBER EXISTS */}
+            {/* Mobile SMS OTP — ONLY IF PHONE EXISTS */}
             {hasPhone && (
               <div
                 onClick={() => setSelectedMethod('phone')}
@@ -475,7 +407,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
               </div>
             )}
 
-            {/* Option 2: Email OTP — ONLY IF EMAIL EXISTS */}
+            {/* Email OTP — ONLY IF EMAIL EXISTS */}
             {hasEmail && (
               <div
                 onClick={() => setSelectedMethod('email')}
@@ -508,16 +440,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
                 </div>
               </div>
             )}
-
-            {!hasEmail && !hasPhone && (
-              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-                <AlertCircle className="w-6 h-6 text-amber-500 mx-auto mb-1.5" />
-                <p className="text-xs font-semibold text-foreground">No email or phone number found</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Aapke account me email ya phone link nahi hai. Admin se sampark karein.
-                </p>
-              </div>
-            )}
           </div>
 
           <Button
@@ -533,134 +455,19 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         </div>
       )}
 
-      {/* STEP 3: REAL FACEBOOK-STYLE ENTER SECURITY CODE (NO CODE ON SCREEN!) */}
+      {/* STEP 3: FUTURISTIC OTP CARD COMPONENT (USER PROVIDED HTML/CSS) */}
       {step === 'enter_otp' && (
-        <form onSubmit={handleVerifyOtp} className="w-full max-w-sm flex flex-col items-center animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <div className="w-full flex items-center justify-between mb-3">
-            <button
-              type="button"
-              onClick={() => setStep('choose_method')}
-              className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h3 className="text-base font-bold text-foreground">Enter Security Code</h3>
-            <div className="w-7" />
-          </div>
-
-          {/* Facebook Security Header Icon */}
-          <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-3 shadow-xs">
-            <ShieldCheck className="w-7 h-7 stroke-[2.5]" />
-          </div>
-
-          <h4 className="text-base font-bold text-foreground mb-1 text-center">
-            Check your {selectedMethod === 'phone' ? 'phone' : 'email'}
-          </h4>
-
-          <p className="text-xs text-muted-foreground mb-5 text-center leading-relaxed">
-            We sent a 6-digit security code to{' '}
-            <b className="text-foreground">
-              {selectedMethod === 'phone' ? maskPhone(phone) : maskEmail(email)}
-            </b>.
-            Please enter the code to unlock your account.
-          </p>
-
-          {/* Clean 6-Digit Code Input Box (Facebook Style) */}
-          <div className="w-full mb-3">
-            <Input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              autoFocus
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value.replace(/[^\d]/g, '').slice(0, 6))}
-              placeholder="Enter 6-digit code"
-              className="h-14 text-center text-2xl font-black tracking-[10px] rounded-2xl bg-card border-border/80 focus:border-primary shadow-xs"
-            />
-          </div>
-
-          {/* 1-Minute Live Expiration Timer & Resend Link */}
-          <div className="w-full mb-5 flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-muted/40 border border-border/40 text-xs">
-            {isExpired ? (
-              <div className="flex items-center gap-1.5 text-rose-500 font-bold">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>Code expired</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span>Expires in: <b className="text-foreground">00:{timeLeft < 10 ? `0${timeLeft}` : timeLeft}</b></span>
-              </div>
-            )}
-
-            {/* Resend Code Button */}
-            <button
-              type="button"
-              onClick={() => handleSendOtp(true)}
-              disabled={loading}
-              className="font-bold text-primary hover:underline inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all active:scale-95 cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              <span>Send Code Again</span>
-            </button>
-          </div>
-
-          {/* Submit button: Continue (Facebook style) */}
-          <Button
-            type="submit"
-            disabled={verifying || otpCode.length !== 6 || isExpired}
-            className="w-full h-12 rounded-xl font-black text-base shadow-md text-white premium-rainbow-border transition-all active:scale-98"
-          >
-            {verifying ? (
-              <Loader2 className="w-5 h-5 animate-spin mr-2" />
-            ) : (
-              <ShieldCheck className="w-5 h-5 mr-2 stroke-[2.5]" />
-            )}
-            Continue (आगे बढ़ें)
-          </Button>
-
-          {isExpired && (
-            <p className="text-[11px] text-rose-500 mt-2 font-medium">
-              ⚠️ Code expire ho gaya hai. Naya code paane ke liye "Send Code Again" dabayein.
-            </p>
-          )}
-
-          {/* Sign Out link at bottom */}
-          {onSignOut && (
-            <button
-              type="button"
-              onClick={onSignOut}
-              className="mt-4 text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
-            >
-              Sign out
-            </button>
-          )}
-        </form>
-      )}
-
-      {/* STEP 4: SUCCESS VIEW */}
-      {step === 'success' && (
-        <div className="w-full max-w-sm flex flex-col items-center animate-in zoom-in-95 fade-in duration-300">
-          <div className="w-20 h-20 rounded-full bg-emerald-500/15 border-2 border-emerald-500 flex items-center justify-center mb-4 text-emerald-500 shadow-xl">
-            <CheckCircle2 className="w-12 h-12 stroke-[2.5] animate-bounce" />
-          </div>
-
-          <h2 className="text-2xl font-black text-foreground mb-1">
-            Account Unlocked!
-          </h2>
-
-          <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-2">
-            Welcome back, {displayName}!
-          </p>
-
-          <p className="text-xs text-muted-foreground mb-5 max-w-xs text-pretty">
-            Aapka security code verify ho gaya hai. Aapko home feed par redirect kiya ja raha hai...
-          </p>
-
-          <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-            <div className="w-full h-full bg-emerald-500 animate-[pulse_1s_infinite]" />
-          </div>
-        </div>
+        <FuturisticOtpCard
+          title={selectedMethod === 'phone' ? 'Check Your Phone Now' : 'Check Your Email Now'}
+          subtitle={selectedMethod === 'phone' ? 'Enter the OTP sent to your phone.' : 'Enter the OTP sent to your email.'}
+          target={selectedMethod === 'phone' ? maskPhone(phone) : maskEmail(email)}
+          type={selectedMethod}
+          onVerify={handleVerifyOtpCode}
+          onResend={() => handleSendOtp(true)}
+          onBack={() => setStep('choose_method')}
+          successTitle="Account Unlocked Successfully!"
+          successSubtitle="Welcome back. Redirecting to your feed..."
+        />
       )}
     </div>
   );

@@ -1,3 +1,4 @@
+import { FuturisticOtpCard } from "@/components/auth/FuturisticOtpCard";
 import useGoBack from '@/hooks/use-go-back';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -152,28 +153,32 @@ const AccountCenterPage: React.FC = () => {
             Aap maximum {MAX_PER_TYPE} {type === 'email' ? 'email addresses' : 'mobile numbers'} add kar sakte hain.
           </p>
         ) : waiting ? (
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor={`otp-${type}`}>Verification code</Label>
-              <p className="mb-2 mt-1 text-xs text-muted-foreground">{waiting} par bheja gaya 6-digit code daalein.</p>
-              <Input
-                id={`otp-${type}`}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="000000"
-                maxLength={6}
-                value={otp[type]}
-                onChange={event => setOtp(current => ({ ...current, [type]: event.target.value.replace(/\D/g, '') }))}
-                className="h-12 text-center text-lg tracking-[0.35em]"
-              />
-            </div>
-            <Button className="h-11 w-full font-semibold" onClick={() => handleConfirm(type)} disabled={busy === type}>
-              {busy === type && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Continue
-            </Button>
-            <Button variant="ghost" className="h-10 w-full" onClick={() => handleSendOtp(type)} disabled={busy === type}>
-              Code dobara bhejein
-            </Button>
+          <div className="flex items-center justify-center -mx-4 -mt-2">
+            <FuturisticOtpCard
+              title={type === "email" ? "Check Your Email Now" : "Check Your Phone Now"}
+              subtitle={type === "email" ? "Enter the OTP sent to your email." : "Enter the SMS OTP sent to your number."}
+              target={waiting}
+              type={type}
+              onVerify={async (code) => {
+                await confirmIdentifierOtp(type, waiting, code);
+                toast.success(type === "email" ? "Email add ho gaya ✅" : "Mobile number add ho gaya ✅");
+                setPending(current => ({ ...current, [type]: null }));
+                setDraft(current => ({ ...current, [type]: "" }));
+                setOtp(current => ({ ...current, [type]: "" }));
+                setAddingType(null);
+                await load();
+                return true;
+              }}
+              onResend={async () => {
+                await sendIdentifierOtp(type, waiting);
+                toast.success("Naya code bhej diya gaya hai!");
+              }}
+              onBack={() => {
+                setPending(current => ({ ...current, [type]: null }));
+              }}
+              successTitle={type === "email" ? "Email Added Successfully!" : "Phone Added Successfully!"}
+              successSubtitle="Your account credentials have been updated."
+            />
           </div>
         ) : (
           <div className="space-y-4">
