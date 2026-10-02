@@ -100,7 +100,7 @@ const AppealPage: React.FC = () => {
           <p className="font-semibold text-foreground mb-1">@{profile.username}</p>
         )}
         <p className="text-sm text-muted-foreground">{statusInfo?.msg}</p>
-        {status === locked && (
+        {status === 'locked' && (
           <div className="mt-3">
             <Button
               type="button"
