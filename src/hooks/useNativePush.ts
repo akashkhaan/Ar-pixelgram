@@ -43,6 +43,7 @@ async function saveToken(userId: string, token: string) {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'token' });
     if (error) console.warn('device token save failed', error.message);
+    else (window as unknown as { __arFcmActive?: boolean }).__arFcmActive = true;
   } catch (e) {
     console.warn('device token save failed', e);
   }

@@ -1,6 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/db/supabase';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
+import { phonePreview } from '@/services/api';
+
+/** Firebase chalu ho (token save ho gaya) to wahi notification dikhata hai — yahan se dobara nahi. */
+function fcmActive(): boolean {
+  return typeof window !== 'undefined' && !!(window as unknown as { __arFcmActive?: boolean }).__arFcmActive;
+}
+function notifyLocal(opts: Parameters<typeof notifyPhone>[0]) {
+  if (fcmActive()) return;
+  notifyPhone(opts);
+}
 
 type Row = {
   id: string;
@@ -58,8 +68,6 @@ export function useNativeNotifications(userId: string | undefined) {
 
   useEffect(() => {
     if (!userId || typeof window === 'undefined') return;
-    // APK me phone notifications Firebase se aate hain; yahan se dobara banana duplicate karta tha.
-    if ((window as unknown as { AndroidNotification?: unknown }).AndroidNotification) return;
     let cancelled = false;
 
     // Fetch user profile username for mention detection
@@ -108,6 +116,9 @@ export function useNativeNotifications(userId: string | undefined) {
         async (payload) => {
           if (cancelled) return;
           const row = payload.new as Row;
+          // Message / group message ka notification neeche wale listeners dete hain — yahan dobara nahi.
+          const callRow = !!row.message && (row.message.startsWith('📞') || row.message.startsWith('📵'));
+          if (!callRow && (row.type === 'message' || row.type === 'group_message' || row.type === 'group_mention')) return;
           let who = 'Someone';
           let actorAvatar: string | null = null;
           if (row.actor_id) {
@@ -130,7 +141,7 @@ export function useNativeNotifications(userId: string | undefined) {
             : titleFor(row.type, who);
           const body = row.message || (row.type === 'message' ? 'New message received' : 'Pixelgram');
 
-          notifyPhone({
+          notifyLocal({
             title,
             body,
             tag: isCall ? `call_${row.id}` : `notif_${row.id}`,
@@ -170,9 +181,9 @@ export function useNativeNotifications(userId: string | undefined) {
             senderAvatar = data?.avatar_url || null;
           } catch { /* noop */ }
 
-          notifyPhone({
+          notifyLocal({
             title: `${senderName} 💬`,
-            body: newMsg.content || 'Sent an attachment',
+            body: phonePreview(newMsg.content || ''),
             tag: `msg_${newMsg.id}`,
             url: `/chat/${newMsg.sender_id}`,
             icon: senderAvatar || '/images/logo/logo-icon.svg',
@@ -220,9 +231,9 @@ export function useNativeNotifications(userId: string | undefined) {
             myUsername && content.toLowerCase().includes(`@${myUsername}`)
           );
 
-          notifyPhone({
+          notifyLocal({
             title: isMentioned ? `🏷️ ${senderName} mentioned you in ${groupName}` : `${groupName} · ${senderName} 💬`,
-            body: isMentioned ? `@${senderName}: ${content}` : content || 'Sent an attachment',
+            body: isMentioned ? `@${senderName}: ${phonePreview(content || '')}` : phonePreview(content || ''),
             tag: `group_msg_${newMsg.id}`,
             url: `/group/${newMsg.group_id}`,
             icon: groupAvatar || senderAvatar || '/images/logo/logo-icon.svg',
@@ -249,7 +260,7 @@ export function useNativeNotifications(userId: string | undefined) {
         };
         if (!data || !data.groupId || data.from === userId) return;
 
-        notifyPhone({
+        notifyLocal({
           title: `📞 ${data.groupName || 'Group'} · Incoming ${data.kind === 'video' ? 'Video' : 'Audio'} Call`,
           body: `${data.fromName || 'A member'} is calling the group · Tap Receive or End`,
           tag: `group_call_${data.callId || data.groupId}`,

@@ -118,8 +118,10 @@ export function notifyPhone(options: NotifyPhoneOptions) {
           });
           return;
         }
-        // Ringing call: the rich Firebase notification (name, photo,
-        // Answer/Decline) already shows it — a second plain one was the duplicate.
+        // Firebase chalu ho to wahi rich call notification dikhata hai (duplicate na ho).
+        if (!(window as unknown as { __arFcmActive?: boolean }).__arFcmActive) {
+          android.showCallNotification?.(title, body, tag, false, resolvedIcon);
+        }
         return;
       }
       android.showNotification?.(title, body, tag, url || '/', resolvedIcon);
