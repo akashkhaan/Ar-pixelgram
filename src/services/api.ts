@@ -548,7 +548,7 @@ export async function sendMessage(
   // Receiver ko notification + phone push (app band ho tab bhi).
   try {
     if (senderId && senderId !== receiverId) {
-      const preview = content.length > 80 ? `${content.slice(0, 80)}...` : content;
+      const preview = phonePreview(content);
       await createNotification(receiverId, 'message', senderId, undefined, undefined, preview);
     }
   } catch (e) {
@@ -810,6 +810,8 @@ export async function createNotification(
   };
   const title = titles[type];
   if (!title || message?.startsWith('📞') || message?.startsWith('📵')) return;
+  // Group message/mention/call ka push groups.ts aur GroupCallContext khud bhejte hain — dobara nahi.
+  if (type === 'group_message' || type === 'group_mention' || type === 'group_call') return;
   const isReelComment = type === 'reel_comment' || type === 'comment_reply';
   const isReelType = type.startsWith('reel_') || type === 'comment_reply';
   const reelUrl = postId
@@ -837,6 +839,24 @@ export async function createNotification(
       },
     },
   }).catch(() => {});
+}
+
+/** Phone notification text: media links ki jagah "📷 Photo" jaisa saaf text. */
+export function phonePreview(content: string): string {
+  const raw = content || '';
+  const urls = raw.match(/https?:\/\/\S+/g) || [];
+  let text = raw.replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim();
+  if (!text && urls.length) {
+    const u = urls[0].toLowerCase().split('?')[0];
+    if (/\.(jpe?g|png|gif|webp|heic|bmp)$/.test(u)) text = '📷 Photo';
+    else if (/\.(mp4|mov|webm|mkv|3gp)$/.test(u)) text = '🎥 Video';
+    else if (/\.(mp3|m4a|aac|ogg|oga|wav|opus)$/.test(u) || u.includes('voice') || u.includes('audio')) text = '🎤 Voice message';
+    else if (u.includes('/reel')) text = '🎬 Reel';
+    else if (u.includes('/post')) text = '🖼️ Post';
+    else text = '📎 Attachment';
+  }
+  if (!text) text = 'New message';
+  return text.length > 80 ? `${text.slice(0, 80)}...` : text;
 }
 
 /** Sirf push bhejne ke liye (DB row already ho ya na ho). */

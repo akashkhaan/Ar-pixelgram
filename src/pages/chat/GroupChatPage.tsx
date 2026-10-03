@@ -20,6 +20,7 @@ import {
   Users,
   Video,
   X,
+  MoreVertical,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';

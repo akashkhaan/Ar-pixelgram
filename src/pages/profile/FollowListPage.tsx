@@ -1,4 +1,4 @@
-import { ArrowLeft, BadgeCheck, Search } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Search, UserCheck, UserPlus } from 'lucide-react';
 // Followers / Following list — Instagram स्टाइल
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';

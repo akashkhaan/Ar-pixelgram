@@ -58,6 +58,8 @@ export function useNativeNotifications(userId: string | undefined) {
 
   useEffect(() => {
     if (!userId || typeof window === 'undefined') return;
+    // APK me phone notifications Firebase se aate hain; yahan se dobara banana duplicate karta tha.
+    if ((window as unknown as { AndroidNotification?: unknown }).AndroidNotification) return;
     let cancelled = false;
 
     // Fetch user profile username for mention detection

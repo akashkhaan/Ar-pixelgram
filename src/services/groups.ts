@@ -1,5 +1,5 @@
 import { supabase } from '@/db/supabase';
-import { createNotification, sendPushTo } from '@/services/api';
+import { createNotification, sendPushTo, phonePreview } from '@/services/api';
 import { getGroupNumericUid, resolveGroupId } from '@/services/groupUid';
 import type { Profile } from '@/types/types';
 import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary, GroupCall } from '@/types/groups';
@@ -201,7 +201,7 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
         const groupAvatar = grp?.avatar_url || null;
         const senderName = senderProf?.username || senderProf?.full_name || (sender.user_metadata?.username as string | undefined) || 'Member';
         const senderAvatar = senderProf?.avatar_url || null;
-        const snippet = cleanContent.length > 80 ? cleanContent.slice(0, 77) + '...' : cleanContent;
+        const snippet = phonePreview(cleanContent);
 
         for (const uid of otherMemberIds) {
           const isMention = mentionedIds.includes(uid);

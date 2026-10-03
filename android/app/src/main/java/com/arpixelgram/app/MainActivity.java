@@ -272,6 +272,11 @@ public class MainActivity extends BridgeActivity {
             moveTaskToBack(true);
             return;
         }
+        // Instagram jaisa: pichhle page par wapas jao; sabse pehle page par app band.
+        try {
+            WebView wv = getBridge().getWebView();
+            if (wv != null && wv.canGoBack()) { wv.goBack(); return; }
+        } catch (Exception ignored) {}
         super.onBackPressed();
     }
 
