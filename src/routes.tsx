@@ -38,6 +38,8 @@ import AdminBroadcast from './pages/admin/AdminBroadcast';
 import AdminAnalytics from './pages/admin/AdminAnalytics';
 import AdminVisitors from './pages/admin/AdminVisitors';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
+import AccessTokenPage from './pages/settings/AccessTokenPage';
+import AdminTokens from './pages/admin/AdminTokens';
 
 import FollowListPage from './pages/profile/FollowListPage';
 
@@ -87,6 +89,7 @@ export const routes: RouteConfig[] = [
   { name: 'Notification Settings', path: '/settings/notifications', element: <NotificationSettingsPage /> },
   { name: 'Account Center', path: '/settings/account-center', element: <AccountCenterPage /> },
   { name: 'Language', path: '/settings/language', element: <LanguagePage /> },
+  { name: 'Access Token', path: '/settings/access-token', element: <AccessTokenPage /> },
   { name: 'Report User', path: '/report-user/:userId', element: <ReportUserPage /> },
   { name: 'Followers', path: '/followers/:userId', element: <FollowListPage /> },
   { name: 'Following', path: '/following/:userId', element: <FollowListPage /> },
@@ -100,4 +103,5 @@ export const routes: RouteConfig[] = [
   { name: 'Admin Broadcast', path: '/admin/broadcast', element: <AdminBroadcast /> },
   { name: 'Admin Analytics', path: '/admin/analytics', element: <AdminAnalytics /> },
   { name: 'Admin Visitors', path: '/admin/visitors', element: <AdminVisitors /> },
+  { name: 'Admin Tokens', path: '/admin/tokens', element: <AdminTokens /> },
 ];
