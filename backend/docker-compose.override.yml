@@ -1,0 +1,36 @@
+# Pixelgram overrides — Supabase official docker compose ke upar
+services:
+  # Caddy: HTTPS (80/443) -> kong:8000
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/pixelgram/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - kong
+
+  # Edge functions: JWT verify off (hum functions ke andar khud auth check karte hain)
+  functions:
+    environment:
+      VERIFY_JWT: "false"
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_MESSAGE_SERVICE_SID: ${TWILIO_MESSAGE_SERVICE_SID:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+
+  # DB port bahar expose mat karo — sirf internal
+  db:
+    ports: !reset []
+
+volumes:
+  caddy_data:
+  caddy_config:
