@@ -1,3 +1,4 @@
+import { PixelgramProfileCard } from "@/components/profile/PixelgramProfileCard";
 import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
 import { ArrowLeft, BadgeCheck, Camera, Film, Flag, Grid3X3, Heart, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -461,128 +462,44 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        <div className="px-4 pt-3 pb-3">
-          {/* Avatar and Stats Row (Instagram Style) */}
-          <div className="flex items-center justify-between gap-6 mb-3">
-            {/* Avatar with story ring — own profile: tap to change photo */}
-            <div className="shrink-0 relative">
-              {isOwnProfile ? (
-                <label className="cursor-pointer block">
-                  {profile.avatar_url ? (
-                    <div className="story-ring animate-pulse-glow">
-                      <div className="story-ring-inner">
-                        <img src={profile.avatar_url} alt={profile.username} className="w-20 h-20 rounded-full object-cover" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-full flex items-center justify-center text-primary-foreground font-black text-2xl"
-                      style={{ background: "linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))", width: 80, height: 80 }}>
-                      {profile.username[0]?.toUpperCase()}
-                    </div>
-                  )}
-                  <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary flex items-center justify-center shadow-md border-2 border-background">
-                    <Camera className="w-3.5 h-3.5 text-primary-foreground" />
-                  </div>
-                  <input
-                    type="file" accept="image/*" className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || !user) return;
-                      if (file.size > 5 * 1024 * 1024) { toast.error("5MB से बड़ी फाइल नहीं"); return; }
-                      try {
-                        const url = await uploadImage("avatars", file, user.id);
-                        await updateProfile(user.id, { avatar_url: url } as Parameters<typeof updateProfile>[1]);
-                        await load();
-                        toast.success("प्रोफाइल फोटो अपडेट हुई ✨");
-                      } catch { toast.error("फोटो अपलोड नहीं हुई"); }
-                    }}
-                  />
-                </label>
-              ) : (
-                profile.avatar_url ? (
-                  <div className="p-0.5 rounded-full" style={{ background: userGradient(profile.username) }}>
-                    <div className="bg-background p-0.5 rounded-full">
-                      <img src={profile.avatar_url} alt={profile.username} className="w-20 h-20 rounded-full object-cover" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-full flex items-center justify-center text-white font-black text-2xl"
-                    style={{ background: userGradient(profile.username), width: 80, height: 80 }}>
-                    {profile.username[0]?.toUpperCase()}
-                  </div>
-                )
-              )}
-            </div>
+        <div className="px-2 pt-1 pb-2">
+          {/* Pixelgram 3D Profile Card (New Profile System from HTML) */}
+          <PixelgramProfileCard
+            profile={profile}
+            postsCount={posts.length}
+            followersCount={followersCount}
+            followingCount={followingCount}
+            isOwnProfile={isOwnProfile}
+            followStatus={followStatus}
+            followLoading={followLoading}
+            onFollow={handleFollow}
+            onAvatarUpload={async (file: File) => {
+              if (!file || !user) return;
+              if (file.size > 5 * 1024 * 1024) { toast.error("5MB से बड़ी फाइल नहीं"); return; }
+              try {
+                const url = await uploadImage("avatars", file, user.id);
+                await updateProfile(user.id, { avatar_url: url } as Parameters<typeof updateProfile>[1]);
+                await load();
+                toast.success("प्रोफाइल फोटो अपडेट हुई ✨");
+              } catch {
+                toast.error("फोटो अपलोड नहीं हुई");
+              }
+            }}
+            onScrollToPosts={() => {
+              const el = document.getElementById("posts-tab-section");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }}
+          />
 
-            {/* Stats (Posts, Followers, Following) */}
-            <div className="flex-1 flex items-center justify-around text-center">
-              {[
-                { val: posts.length, label: t("posts"), link: null },
-                { val: followersCount, label: t("followers"), link: `/followers/${profile.user_id}` },
-                { val: followingCount, label: t("following"), link: `/following/${profile.user_id}` },
-              ].map(({ val, label, link }) => (
-                link ? (
-                  <button key={label} onClick={() => navigate(link)} className="text-center hover:opacity-70 transition-opacity">
-                    <p className="font-bold text-base text-foreground leading-none">{val > 999 ? `${(val/1000).toFixed(1)}k` : val}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{label}</p>
-                  </button>
-                ) : (
-                  <div key={label} className="text-center">
-                    <p className="font-bold text-base text-foreground leading-none">{val > 999 ? `${(val/1000).toFixed(1)}k` : val}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{label}</p>
-                  </div>
-                )
-              ))}
-            </div>
-          </div>
-
-          {/* Name & Bio */}
-          {profile.full_name && (
-            <p className="font-bold text-sm text-foreground leading-tight mb-0.5 flex items-center gap-1.5">
-              <span>{profile.full_name}</span>
-              {profile.is_verified && (
-                <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500 shrink-0 inline-block drop-shadow-xs" stroke="#fff" />
-              )}
+          {/* Bio if provided */}
+          {profile.bio && (
+            <p className="text-xs text-muted-foreground mt-2 px-1 text-center whitespace-pre-line">
+              {profile.bio}
             </p>
           )}
-          {profile.bio && <p className="text-sm text-foreground text-pretty mb-3 whitespace-pre-line">{profile.bio}</p>}
-
-          {/* Action buttons (Instagram Style) */}
-          <div className="flex gap-2">
-            {isOwnProfile ? (
-              <>
-                <Link to="/edit-profile" className="flex-1">
-                  <Button variant="secondary" className="w-full h-8 font-semibold text-xs rounded-lg">{t("editProfile")}</Button>
-                </Link>
-                <Link to="/settings" className="flex-1">
-                  <Button variant="secondary" className="w-full h-8 font-semibold text-xs rounded-lg">सेटिंग्स</Button>
-                </Link>
-              </>
-            ) : (
-              <>
-                <Button
-                  className="flex-1 h-8 font-semibold text-xs rounded-lg"
-                  variant={followStatus === "accepted" ? "secondary" : "default"}
-                  onClick={handleFollow}
-                  disabled={followLoading}
-                  style={followStatus !== "accepted" ? { background: "linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))", border: "none" } : {}}
-                >
-                  {followLoading ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                    followStatus === "accepted" ? t("following") :
-                    followStatus === "pending" ? "Requested" : t("follow")}
-                </Button>
-                {followStatus === "accepted" && (
-                  <Link to={`/chat/${profile.user_id}`} className="flex-1">
-                    <Button variant="secondary" className="w-full h-8 font-semibold text-xs rounded-lg">{t("chat")}</Button>
-                  </Link>
-                )}
-
-              </>
-            )}
-          </div>
         </div>
         {/* Posts / Reels tab bar */}
-        <div className="border-t border-border sticky top-12 bg-background/95 backdrop-blur-sm z-10">
+        <div id="posts-tab-section" className="border-t border-border sticky top-12 bg-background/95 backdrop-blur-sm z-10">
           <div className="flex">
             <button
               onClick={() => setActiveTab('posts')}
