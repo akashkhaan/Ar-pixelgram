@@ -210,6 +210,7 @@ const GroupChatPage: React.FC = () => {
   };
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const callPanelRef = useRef<GroupCallPanelHandle>(null);
   const groupCall = useGroupCall();
 
@@ -490,7 +491,7 @@ const GroupChatPage: React.FC = () => {
   }
 
   return (
-    <MobileLayout hideHeader hideNav>
+    <MobileLayout hideHeader hideNav noScroll>
       <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-background">
         {/* CHAT HEADER (Messenger Style: Back, Group info button, Call 📞, Video 📹, Info ⓘ) */}
         <header className="z-20 flex shrink-0 items-center gap-1 sm:gap-2 border-b border-border bg-card/95 px-2 py-2 backdrop-blur">
@@ -687,6 +688,7 @@ const GroupChatPage: React.FC = () => {
 
         {/* MESSAGES LIST */}
         <div
+          ref={messagesContainerRef}
           className="flex-1 min-h-0 space-y-2 overflow-y-auto overscroll-contain p-3 relative"
           style={
             groupWallpaper
@@ -881,48 +883,57 @@ const GroupChatPage: React.FC = () => {
           </div>
         )}
 
-        {/* BOTTOM MESSAGE INPUT BAR (Messenger Style with Quick Emoji) */}
+        {/* BOTTOM MESSAGE INPUT BAR (Always-Visible Send Button & Quick Emoji) */}
         <form
-          onSubmit={handleSend}
-          className="z-20 flex shrink-0 items-center gap-2 border-t border-border bg-card/95 px-3 py-2 backdrop-blur"
+          onSubmit={e => {
+            e.preventDefault();
+            if (content.trim() || uploading) {
+              void handleSend(e);
+            } else {
+              void handleQuickSendEmoji(groupEmoji);
+            }
+          }}
+          className="z-20 flex shrink-0 items-center gap-1.5 border-t border-border bg-card/95 px-2.5 py-2 backdrop-blur"
         >
           <label
-            className="cursor-pointer rounded-full p-2 hover:bg-muted text-sky-500 hover:text-sky-600 transition-colors"
+            className="cursor-pointer rounded-full p-2 hover:bg-muted text-sky-500 hover:text-sky-600 transition-colors shrink-0"
             title="Attach file"
           >
             <Paperclip className="h-5 w-5" />
             <input type="file" className="hidden" onChange={handleFile} disabled={uploading || sending} />
           </label>
-
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Input
               value={content}
               onChange={event => handleContentChange(event.target.value)}
               placeholder="Type a message..."
               maxLength={2000}
-              className="h-10 rounded-full bg-muted/60 border-none px-4 text-sm focus-visible:ring-1 focus-visible:ring-primary"
+              className="h-10 rounded-full bg-muted/60 border-none px-4 text-sm focus-visible:ring-1 focus-visible:ring-primary w-full"
             />
           </div>
-
-          {content.trim() || uploading ? (
-            <Button
-              type="submit"
-              size="icon"
-              className="h-10 w-10 rounded-full shrink-0 bg-sky-500 hover:bg-sky-600 text-white shadow-sm"
-              disabled={(!content.trim() && !uploading) || sending || uploading}
-            >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void handleQuickSendEmoji(groupEmoji)}
-              className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted active:scale-125 transition-transform text-2xl select-none"
-              title={`Send ${groupEmoji}`}
-            >
-              {groupEmoji}
-            </button>
-          )}
+          {/* Quick Emoji Button */}
+          <button
+            type="button"
+            onClick={() => void handleQuickSendEmoji(groupEmoji)}
+            className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-125 transition-transform text-xl select-none shrink-0"
+            title={`Send ${groupEmoji}`}
+          >
+            {groupEmoji}
+          </button>
+          {/* Always Visible Send Button */}
+          <Button
+            type="submit"
+            size="icon"
+            className={`h-10 w-10 rounded-full shrink-0 transition-all ${
+              content.trim() || uploading
+                ? "bg-sky-500 hover:bg-sky-600 text-white shadow-md active:scale-95"
+                : "bg-muted text-muted-foreground hover:bg-sky-500 hover:text-white"
+            }`}
+            disabled={sending || uploading}
+            title="Send message"
+          >
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
         </form>
 
         {/* 5. MESSENGER GROUP SETTINGS MODAL / PAGE (Exact Replica of Video 00:09) */}

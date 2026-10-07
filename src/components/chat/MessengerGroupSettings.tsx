@@ -1,3 +1,4 @@
+import ChatWallpaperModal from "./ChatWallpaperModal";
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
