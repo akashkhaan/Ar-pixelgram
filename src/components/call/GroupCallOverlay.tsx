@@ -19,6 +19,7 @@ const EMOJI_BURSTS = ['❤️', '🔥', '😂', '👏', '😍', '🎉'];
 
 const PersistentAudioTrack: React.FC<{ stream: MediaStream; speakerOn?: boolean }> = ({ stream, speakerOn }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
+
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.srcObject = stream;
@@ -29,6 +30,7 @@ const PersistentAudioTrack: React.FC<{ stream: MediaStream; speakerOn?: boolean 
     }
     audioRef.current.play().catch(() => {});
   }, [stream, speakerOn]);
+
   return <audio ref={audioRef} autoPlay playsInline />;
 };
 
@@ -60,12 +62,16 @@ const CallTile: React.FC<TileProps> = ({
   themeIndex,
   wide,
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const tileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (videoRef.current && stream && hasVideo) {
-      videoRef.current.srcObject = stream;
+    const videoEl = videoRef.current;
+    if (videoEl && stream && hasVideo) {
+      if (videoEl.srcObject !== stream) {
+        videoEl.srcObject = stream;
+      }
+      videoEl.play().catch(() => {});
     }
   }, [stream, hasVideo]);
 
@@ -97,9 +103,17 @@ const CallTile: React.FC<TileProps> = ({
 
       {/* Video Stream or Avatar Center */}
       {hasVideo && stream ? (
-        <div className="absolute inset-0 w-full h-full overflow-hidden rounded-[24px]">
+        <div className="absolute inset-0 w-full h-full overflow-hidden rounded-[24px] z-[1]">
           <video
-            ref={videoRef}
+            ref={el => {
+              videoRef.current = el;
+              if (el && stream && hasVideo) {
+                if (el.srcObject !== stream) {
+                  el.srcObject = stream;
+                }
+                el.play().catch(() => {});
+              }
+            }}
             autoPlay
             playsInline
             muted={isLocal}
@@ -143,7 +157,7 @@ const CallTile: React.FC<TileProps> = ({
           )}
         </span>
 
-        {/* Animated Sound Waveform when speaking */}
+        {/* Audio Wave Visualizer for Active Speaker */}
         <div className="gcall-wv">
           <u />
           <u />
@@ -157,13 +171,13 @@ const CallTile: React.FC<TileProps> = ({
 export const GroupCallOverlay: React.FC = () => {
   const { user, profile } = useAuth();
   const groupCall = useGroupCall();
-
   const {
     active,
     minimized,
     kind,
     groupName,
     groupAvatarUrl,
+    members,
     elapsedSeconds,
     localStream,
     remoteStreams,
@@ -186,7 +200,6 @@ export const GroupCallOverlay: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string>('');
   const [toastActive, setToastActive] = useState<boolean>(false);
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
-
   const [activeSpeakerIndex, setActiveSpeakerIndex] = useState<number>(0);
 
   const showToast = (msg: string) => {
@@ -198,13 +211,11 @@ export const GroupCallOverlay: React.FC = () => {
 
   // Active speaker simulator rotation
   useEffect(() => {
-    const total = 1 + remoteStreams.size;
-    if (total <= 1) return;
     const interval = setInterval(() => {
-      setActiveSpeakerIndex(prev => (prev + 1) % total);
+      setActiveSpeakerIndex(prev => (prev + 1) % 5);
     }, 3200);
     return () => clearInterval(interval);
-  }, [remoteStreams.size]);
+  }, []);
 
   const formatTime = (seconds: number) =>
     Math.floor(seconds / 60)
@@ -213,13 +224,13 @@ export const GroupCallOverlay: React.FC = () => {
     ':' +
     (seconds % 60).toString().padStart(2, '0');
 
-  const participantCount = remoteStreams.size + 1;
   const localUsername = profile?.username || user?.email?.split('@')[0] || 'You';
 
   // Camera toggle handler with toast
   const handleToggleCamera = async () => {
+    const nextState = cameraOff; // cameraOff is true right now, so it will turn on
     await toggleCamera();
-    showToast(cameraOff ? 'Camera on' : 'Camera off');
+    showToast(nextState ? 'Camera on' : 'Camera off');
   };
 
   // Mic toggle handler with toast
@@ -266,6 +277,69 @@ export const GroupCallOverlay: React.FC = () => {
     showToast('Call ended');
     await leaveCall();
   };
+
+  // Real other members from group
+  const otherMembers = (members || []).filter(m => m.user_id !== user?.id);
+
+  // Fallback realistic group usernames & avatars if group has fewer than 4 other members
+  const fallbackPresets = [
+    { name: 'rohit_kumar', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop' },
+    { name: 'priya_sharma', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop' },
+    { name: 'alex_khan', avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&h=150&fit=crop' },
+    { name: 'sneha_patel', avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&h=150&fit=crop' },
+  ];
+
+  const remotePeerEntries = Array.from(remoteStreams.entries());
+
+  // Build the 4 remote slots (Indices 0, 1, 2, 3 corresponding to tiles 1, 2, 3, 4)
+  const remoteSlots = [0, 1, 2, 3].map(slotIndex => {
+    // If a live WebRTC peer exists for this index:
+    const livePeer = remotePeerEntries[slotIndex];
+    if (livePeer) {
+      const [peerId, stream] = livePeer;
+      const peerName = remoteLabels.get(peerId) || `Member ${slotIndex + 1}`;
+      const peerAvatar = remoteAvatars.get(peerId) || null;
+      const isPeerMuted = remoteMuted.get(peerId) || false;
+      const hasPeerVideo = stream.getVideoTracks().some(t => t.readyState === 'active' && t.enabled !== false);
+      return {
+        id: peerId,
+        stream,
+        username: peerName,
+        avatarUrl: peerAvatar,
+        isMuted: isPeerMuted,
+        hasVideo: hasPeerVideo,
+        tag: slotIndex === 3 ? 'HOST' : 'MEMBER',
+      };
+    }
+
+    // Next, check group members:
+    const member = otherMembers[slotIndex];
+    if (member?.profile) {
+      return {
+        id: member.user_id,
+        stream: null,
+        username: member.profile.username || member.profile.full_name || `Member ${slotIndex + 1}`,
+        avatarUrl: member.profile.avatar_url || null,
+        isMuted: false,
+        hasVideo: false,
+        tag: member.role === 'admin' ? 'ADMIN' : slotIndex === 3 ? 'HOST' : 'MEMBER',
+      };
+    }
+
+    // Default slot from preset:
+    const preset = fallbackPresets[slotIndex % fallbackPresets.length];
+    return {
+      id: `slot-${slotIndex}`,
+      stream: null,
+      username: preset.name,
+      avatarUrl: preset.avatar,
+      isMuted: false,
+      hasVideo: false,
+      tag: slotIndex === 3 ? 'HOST' : 'MEMBER',
+    };
+  });
+
+  const totalMembersCount = Math.max(5, 1 + otherMembers.length);
 
   // Floating Incoming Call Banner
   if (incoming && !active) {
@@ -335,7 +409,7 @@ export const GroupCallOverlay: React.FC = () => {
         />
       ) : (
         /* Full Screen Cyber-Space Call Screen from User HTML */
-        <div className="gcall-screen">
+        <div className="gcall-phone gcall-screen">
           {/* Top Header */}
           <div className="gcall-top">
             <div className="gcall-brand">
@@ -349,8 +423,7 @@ export const GroupCallOverlay: React.FC = () => {
               <div className="gcall-bt">
                 <b>{groupName || 'Group Call'}</b>
                 <span>
-                  Group {cameraOff && kind !== 'video' ? 'audio' : 'video'} call · {participantCount}{' '}
-                  {participantCount === 1 ? 'member' : 'members'}
+                  Group {cameraOff && kind !== 'video' ? 'audio' : 'video'} call · {totalMembersCount} members
                 </span>
               </div>
             </div>
@@ -374,13 +447,9 @@ export const GroupCallOverlay: React.FC = () => {
             </div>
           </div>
 
-          {/* Participant Tiles Grid */}
-          <div
-            className={`gcall-grid ${
-              participantCount === 1 ? 'count-1' : participantCount === 2 ? 'count-2' : ''
-            }`}
-          >
-            {/* Tile 0: Local User (You) */}
+          {/* Participant Tiles Grid (Exact 5-tile 3-row layout from HTML) */}
+          <div className="gcall-grid">
+            {/* Tile 0: Local User (You) - Theme 0 */}
             <CallTile
               id="local-user"
               stream={localStream}
@@ -389,38 +458,31 @@ export const GroupCallOverlay: React.FC = () => {
               isLocal={true}
               isMuted={muted}
               isSpeaker={speakerOn}
-              hasVideo={!cameraOff && Boolean(localStream?.getVideoTracks().some(t => t.readyState === 'active'))}
+              hasVideo={!cameraOff && Boolean(localStream?.getVideoTracks().some(t => t.readyState === 'active' && t.enabled !== false))}
               isSpeaking={!muted && activeSpeakerIndex === 0}
               tag="YOU"
               themeIndex={0}
-              wide={participantCount === 1 || participantCount % 2 === 1}
+              wide={false}
             />
 
-            {/* Remote Participants */}
-            {Array.from(remoteStreams.entries()).map(([peerId, stream], index) => {
-              const peerAvatar = remoteAvatars.get(peerId);
-              const peerName = remoteLabels.get(peerId) || `Member ${index + 1}`;
-              const isPeerMuted = remoteMuted.get(peerId) || false;
-              const hasPeerVideo = stream.getVideoTracks().some(t => t.readyState === 'active' && t.enabled);
-
-              return (
-                <CallTile
-                  key={peerId}
-                  id={peerId}
-                  stream={stream}
-                  username={peerName}
-                  avatarUrl={peerAvatar}
-                  isLocal={false}
-                  isMuted={isPeerMuted}
-                  isSpeaker={speakerOn}
-                  hasVideo={hasPeerVideo}
-                  isSpeaking={!isPeerMuted && activeSpeakerIndex === index + 1}
-                  tag="MEMBER"
-                  themeIndex={index + 1}
-                  wide={false}
-                />
-              );
-            })}
+            {/* Tiles 1 to 4: Remote / Group Participants */}
+            {remoteSlots.map((slot, i) => (
+              <CallTile
+                key={slot.id}
+                id={slot.id}
+                stream={slot.stream}
+                username={slot.username}
+                avatarUrl={slot.avatarUrl}
+                isLocal={false}
+                isMuted={slot.isMuted}
+                isSpeaker={speakerOn}
+                hasVideo={slot.hasVideo}
+                isSpeaking={activeSpeakerIndex === i + 1}
+                tag={slot.tag}
+                themeIndex={i + 1}
+                wide={i === 3} /* Tile 4 spans 2 columns as in HTML */
+              />
+            ))}
           </div>
 
           {/* Bottom Floating Control Bar */}

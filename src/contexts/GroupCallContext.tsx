@@ -397,7 +397,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       await waitForChannel();
       const callInfo = await startOrJoinGroupCall(targetGroupId, requestedKind);
-      const finalKind = callInfo.kind || requestedKind;
+      const finalKind = requestedKind === "video" ? "video" : (callInfo.kind || requestedKind);
 
       await getMedia(finalKind);
       await joinGroupCall(callInfo.id);
@@ -406,6 +406,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       activeCallRef.current = callInfo.id;
       setCallId(callInfo.id);
       setKind(finalKind);
+      setCameraOff(finalKind !== "video");
       setStartedAt(callStarted);
       setActive(true);
       setMinimized(false);
@@ -514,6 +515,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       setKind(requestedKind);
+      setCameraOff(requestedKind !== "video");
       setStartedAt(startedAtTime || Date.now());
       setActive(true);
       setMinimized(false);
@@ -643,46 +645,83 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const toggleCamera = async () => {
     try {
-      const currentStream = localStreamRef.current;
-      const videoTrack = currentStream?.getVideoTracks()[0];
+      let currentStream = localStreamRef.current;
+      const activeVideoTrack = currentStream?.getVideoTracks().find(t => t.readyState === "active" && t.enabled !== false);
 
-      // If call started as audio-only, request camera stream now
-      if (!videoTrack && cameraOff) {
+      if (cameraOff || !activeVideoTrack) {
+        // TURN CAMERA ON
+        let videoStream: MediaStream | null = null;
         if (navigator.mediaDevices?.getUserMedia) {
-          const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-          const newTrack = videoStream.getVideoTracks()[0];
-          if (newTrack) {
-            currentStream?.addTrack(newTrack);
-            peersRef.current.forEach(peer => {
-              const senders = peer.getSenders();
-              const vSender = senders.find(s => s.track?.kind === "video");
-              if (vSender) {
-                vSender.replaceTrack(newTrack).catch(() => {});
-              } else {
-                try { peer.addTrack(newTrack, currentStream!); } catch {}
-              }
+          try {
+            videoStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: "user" },
             });
-            setLocalStream(new MediaStream(currentStream?.getTracks() || [newTrack]));
-            setCameraOff(false);
-            setKind("video");
-            return;
+          } catch {
+            try {
+              videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (err: any) {
+              console.warn("Camera getUserMedia failed:", err);
+              toast.error("Camera access denied or unavailable");
+              return;
+            }
           }
         }
-      }
 
-      const next = !cameraOff;
-      if (!screenSharing && videoTrack) {
-        videoTrack.enabled = !next;
-        if (next) {
-          videoTrack.stop();
-          currentStream?.removeTrack(videoTrack);
-          setLocalStream(new MediaStream(currentStream?.getTracks() || []));
+        const newTrack = videoStream?.getVideoTracks()[0];
+        if (newTrack) {
+          if (!currentStream) {
+            currentStream = new MediaStream();
+          }
+          // Remove any old dead video tracks
+          currentStream.getVideoTracks().forEach(t => {
+            try { t.stop(); } catch {}
+            currentStream?.removeTrack(t);
+          });
+          currentStream.addTrack(newTrack);
+
+          peersRef.current.forEach(peer => {
+            const senders = peer.getSenders();
+            const vSender = senders.find(s => s.track?.kind === "video");
+            if (vSender) {
+              vSender.replaceTrack(newTrack).catch(() => {});
+            } else {
+              try { peer.addTrack(newTrack, currentStream!); } catch {}
+            }
+          });
+
+          localStreamRef.current = currentStream;
+          setLocalStream(new MediaStream(currentStream.getTracks()));
+          setCameraOff(false);
+          setKind("video");
+          toast.success("Camera on");
         }
+      } else {
+        // TURN CAMERA OFF
+        const tracks = currentStream?.getVideoTracks() || [];
+        tracks.forEach(t => {
+          t.enabled = false;
+          try { t.stop(); } catch {}
+          currentStream?.removeTrack(t);
+        });
+
+        peersRef.current.forEach(peer => {
+          const senders = peer.getSenders();
+          const vSender = senders.find(s => s.track?.kind === "video");
+          if (vSender) {
+            vSender.replaceTrack(null).catch(() => {});
+          }
+        });
+
+        if (currentStream) {
+          localStreamRef.current = currentStream;
+          setLocalStream(new MediaStream(currentStream.getTracks()));
+        }
+        setCameraOff(true);
+        toast.info("Camera off");
       }
-      setCameraOff(next);
-    } catch (err) {
+    } catch (err: any) {
       console.warn("Camera toggle error:", err);
-      toast.error("Camera permission denied or unavailable");
+      toast.error(err?.message || "Camera permission denied or unavailable");
     }
   };
 
