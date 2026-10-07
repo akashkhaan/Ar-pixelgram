@@ -32,9 +32,23 @@ const PersistentAudioTrack: React.FC<{ stream: MediaStream; speakerOn: boolean }
   }, [stream]);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = speakerOn ? 1.0 : 0.4;
+    const el = audioRef.current;
+    if (!el) return;
+
+    // Normal ear-call vs Loudspeaker:
+    // When speaker is ON (loudspeaker): full volume (1.0)
+    // When speaker is OFF (earpiece): normal/quiet earpiece volume (0.25)
+    el.volume = speakerOn ? 1.0 : 0.25;
+
+    // Route audio output via setSinkId if supported by browser/device:
+    const anyEl = el as HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
+    if (typeof anyEl.setSinkId === "function") {
+      anyEl.setSinkId(speakerOn ? "default" : "communications").catch(() => {});
     }
+
+    // Call native Android bridge if available:
+    const android = (window as unknown as { AndroidAudio?: { setSpeakerphoneOn?: (on: boolean) => void } }).AndroidAudio;
+    android?.setSpeakerphoneOn?.(speakerOn);
   }, [speakerOn]);
 
   return <audio ref={audioRef} autoPlay playsInline />;
@@ -122,7 +136,7 @@ const CallTile: React.FC<{
             }}
             autoPlay
             playsInline
-            muted={isLocal}
+            muted={true}
             className="w-full h-full object-cover"
           />
         </div>
@@ -158,7 +172,7 @@ const CallTile: React.FC<{
           {isSpeaker && (
             <span className="gcall-badge-spk">
               <Volume2 className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Speaker</span>
+              <span>Speaker on</span>
             </span>
           )}
         </span>
@@ -241,8 +255,9 @@ export const GroupCallOverlay: React.FC = () => {
 
   // Speaker toggle handler with toast
   const handleToggleSpeaker = () => {
+    const nextSpeaker = !speakerOn;
     toggleSpeaker();
-    showToast(speakerOn ? 'Speaker off' : 'Speaker on');
+    showToast(nextSpeaker ? 'Speaker on' : 'Earpiece on (normal)');
   };
 
   // Flip camera handler
@@ -459,7 +474,7 @@ export const GroupCallOverlay: React.FC = () => {
                 avatarUrl={slot.avatarUrl}
                 isLocal={false}
                 isMuted={slot.isMuted}
-                isSpeaker={speakerOn}
+                isSpeaker={false}
                 hasVideo={slot.hasVideo}
                 isSpeaking={!slot.isMuted}
                 tag={slot.tag}
