@@ -179,6 +179,18 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }],
       });
       peersRef.current.set(peerId, pc);
+      const person = memberFor(peerId);
+      if (person) {
+        setRemoteLabels(current => new Map(current).set(peerId, person.username || person.full_name || 'Participant'));
+        setRemoteAvatars(current => new Map(current).set(peerId, person.avatar_url || null));
+      } else {
+        supabase.from('profiles').select('username, full_name, avatar_url').eq('id', peerId).maybeSingle().then(({ data }) => {
+          if (data) {
+            setRemoteLabels(current => new Map(current).set(peerId, data.username || data.full_name || 'Participant'));
+            setRemoteAvatars(current => new Map(current).set(peerId, data.avatar_url || null));
+          }
+        }).catch(() => {});
+      }
 
       localStreamRef.current?.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current as MediaStream));
 

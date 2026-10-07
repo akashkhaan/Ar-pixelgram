@@ -1,55 +1,63 @@
-import { MessengerCallBubble } from './MessengerCallBubble';
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useGroupCall } from '@/contexts/GroupCallContext';
 import {
-  ChevronDown,
   Mic,
   MicOff,
-  PhoneOff,
-  RefreshCw,
   Video,
   VideoOff,
   Volume2,
   VolumeX,
+  PhoneOff,
+  RefreshCw,
+  ChevronDown,
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useGroupCall } from '@/contexts/GroupCallContext';
+import { MessengerCallBubble } from './MessengerCallBubble';
 import { Button } from '@/components/ui/button';
 
-const EMOJI_BURSTS = ['❤️', '🔥', '😂', '👏', '😍', '🎉'];
-
-const PersistentAudioTrack: React.FC<{ stream: MediaStream; speakerOn?: boolean }> = ({ stream, speakerOn }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
+// Helper component for persistent background remote audio playback
+const PersistentAudioTrack: React.FC<{ stream: MediaStream; speakerOn: boolean }> = ({
+  stream,
+  speakerOn,
+}) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (!audioRef.current) return;
-    audioRef.current.srcObject = stream;
-    audioRef.current.volume = 1;
-    const el = audioRef.current as any;
-    if (typeof el.setSinkId === 'function') {
-      el.setSinkId(speakerOn ? 'default' : 'communications').catch(() => {});
+    if (audioRef.current && stream) {
+      if (audioRef.current.srcObject !== stream) {
+        audioRef.current.srcObject = stream;
+      }
+      audioRef.current.play().catch(() => {});
     }
-    audioRef.current.play().catch(() => {});
-  }, [stream, speakerOn]);
+  }, [stream]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = speakerOn ? 1.0 : 0.4;
+    }
+  }, [speakerOn]);
 
   return <audio ref={audioRef} autoPlay playsInline />;
 };
 
-interface TileProps {
+// Fun click emoji bursts on participant tile
+const EMOJI_BURSTS = ['🔥', '❤️', '👏', '⚡', '✨', '🎉', '🚀'];
+
+// Participant Tile Component matching the Cyber-Space UI
+const CallTile: React.FC<{
   id: string;
   stream: MediaStream | null;
   username: string;
   avatarUrl?: string | null;
-  isLocal?: boolean;
-  isMuted?: boolean;
-  isSpeaker?: boolean;
-  hasVideo?: boolean;
-  isSpeaking?: boolean;
+  isLocal: boolean;
+  isMuted: boolean;
+  isSpeaker: boolean;
+  hasVideo: boolean;
+  isSpeaking: boolean;
   tag: string;
   themeIndex: number;
   wide?: boolean;
-}
-
-const CallTile: React.FC<TileProps> = ({
+}> = ({
   stream,
   username,
   avatarUrl,
@@ -60,24 +68,22 @@ const CallTile: React.FC<TileProps> = ({
   isSpeaking,
   tag,
   themeIndex,
-  wide,
+  wide = false,
 }) => {
+  const tileRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const tileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const videoEl = videoRef.current;
-    if (videoEl && stream && hasVideo) {
-      if (videoEl.srcObject !== stream) {
-        videoEl.srcObject = stream;
+    if (videoRef.current && stream && hasVideo) {
+      if (videoRef.current.srcObject !== stream) {
+        videoRef.current.srcObject = stream;
       }
-      videoEl.play().catch(() => {});
+      videoRef.current.play().catch(() => {});
     }
   }, [stream, hasVideo]);
 
   const handleTileClick = () => {
-    if (!tileRef.current) return;
-    for (let j = 0; j < 3; j++) {
+    for (let j = 0; j < 5; j++) {
       setTimeout(() => {
         if (!tileRef.current) return;
         const span = document.createElement('span');
@@ -157,7 +163,7 @@ const CallTile: React.FC<TileProps> = ({
           )}
         </span>
 
-        {/* Audio Wave Visualizer for Active Speaker */}
+        {/* Audio Wave Visualizer */}
         <div className="gcall-wv">
           <u />
           <u />
@@ -200,7 +206,6 @@ export const GroupCallOverlay: React.FC = () => {
   const [toastMsg, setToastMsg] = useState<string>('');
   const [toastActive, setToastActive] = useState<boolean>(false);
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
-  const [activeSpeakerIndex, setActiveSpeakerIndex] = useState<number>(0);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -208,14 +213,6 @@ export const GroupCallOverlay: React.FC = () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastActive(false), 1400);
   };
-
-  // Active speaker simulator rotation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveSpeakerIndex(prev => (prev + 1) % 5);
-    }, 3200);
-    return () => clearInterval(interval);
-  }, []);
 
   const formatTime = (seconds: number) =>
     Math.floor(seconds / 60)
@@ -278,68 +275,52 @@ export const GroupCallOverlay: React.FC = () => {
     await leaveCall();
   };
 
-  // Real other members from group
+  // Real other members from group (used only for metadata lookup like admin role/avatar)
   const otherMembers = (members || []).filter(m => m.user_id !== user?.id);
 
-  // Fallback realistic group usernames & avatars if group has fewer than 4 other members
-  const fallbackPresets = [
-    { name: 'rohit_kumar', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop' },
-    { name: 'priya_sharma', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop' },
-    { name: 'alex_khan', avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&h=150&fit=crop' },
-    { name: 'sneha_patel', avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&h=150&fit=crop' },
-  ];
+  // ONLY SHOW PARTICIPANTS WHO HAVE ACTUALLY JOINED THE CALL:
+  // Collect joined peer IDs from remoteStreams and remoteLabels
+  const joinedRemotePeerIds = Array.from(
+    new Set([
+      ...Array.from(remoteStreams.keys()),
+      ...Array.from(remoteLabels.keys()),
+    ])
+  ).filter(peerId => Boolean(peerId && peerId !== user?.id));
 
-  const remotePeerEntries = Array.from(remoteStreams.entries());
+  // Build slots strictly for members who have joined the call:
+  const remoteSlots = joinedRemotePeerIds.map((peerId, i) => {
+    const stream = remoteStreams.get(peerId) || null;
+    const memberObj = otherMembers.find(m => m.user_id === peerId);
+    const peerName =
+      remoteLabels.get(peerId) ||
+      memberObj?.profile?.username ||
+      memberObj?.profile?.full_name ||
+      `Member ${i + 1}`;
+    const peerAvatar =
+      remoteAvatars.get(peerId) ||
+      memberObj?.profile?.avatar_url ||
+      null;
+    const isPeerMuted = remoteMuted.get(peerId) || false;
+    const hasPeerVideo = Boolean(
+      stream &&
+      stream.getVideoTracks().some(
+        t => t.readyState === 'active' && t.enabled !== false
+      )
+    );
 
-  // Build the 4 remote slots (Indices 0, 1, 2, 3 corresponding to tiles 1, 2, 3, 4)
-  const remoteSlots = [0, 1, 2, 3].map(slotIndex => {
-    // If a live WebRTC peer exists for this index:
-    const livePeer = remotePeerEntries[slotIndex];
-    if (livePeer) {
-      const [peerId, stream] = livePeer;
-      const peerName = remoteLabels.get(peerId) || `Member ${slotIndex + 1}`;
-      const peerAvatar = remoteAvatars.get(peerId) || null;
-      const isPeerMuted = remoteMuted.get(peerId) || false;
-      const hasPeerVideo = stream.getVideoTracks().some(t => t.readyState === 'active' && t.enabled !== false);
-      return {
-        id: peerId,
-        stream,
-        username: peerName,
-        avatarUrl: peerAvatar,
-        isMuted: isPeerMuted,
-        hasVideo: hasPeerVideo,
-        tag: slotIndex === 3 ? 'HOST' : 'MEMBER',
-      };
-    }
-
-    // Next, check group members:
-    const member = otherMembers[slotIndex];
-    if (member?.profile) {
-      return {
-        id: member.user_id,
-        stream: null,
-        username: member.profile.username || member.profile.full_name || `Member ${slotIndex + 1}`,
-        avatarUrl: member.profile.avatar_url || null,
-        isMuted: false,
-        hasVideo: false,
-        tag: member.role === 'admin' ? 'ADMIN' : slotIndex === 3 ? 'HOST' : 'MEMBER',
-      };
-    }
-
-    // Default slot from preset:
-    const preset = fallbackPresets[slotIndex % fallbackPresets.length];
     return {
-      id: `slot-${slotIndex}`,
-      stream: null,
-      username: preset.name,
-      avatarUrl: preset.avatar,
-      isMuted: false,
-      hasVideo: false,
-      tag: slotIndex === 3 ? 'HOST' : 'MEMBER',
+      id: peerId,
+      stream,
+      username: peerName,
+      avatarUrl: peerAvatar,
+      isMuted: isPeerMuted,
+      hasVideo: hasPeerVideo,
+      tag: memberObj?.role === 'admin' ? 'ADMIN' : 'MEMBER',
     };
   });
 
-  const totalMembersCount = Math.max(5, 1 + otherMembers.length);
+  const totalInCall = 1 + remoteSlots.length;
+  const gridCountClass = `gcall-grid-${Math.min(totalInCall, 5)}`;
 
   // Floating Incoming Call Banner
   if (incoming && !active) {
@@ -408,7 +389,7 @@ export const GroupCallOverlay: React.FC = () => {
           onEndCall={() => void leaveCall()}
         />
       ) : (
-        /* Full Screen Cyber-Space Call Screen from User HTML */
+        /* Full Screen Cyber-Space Call Screen */
         <div className="gcall-phone gcall-screen">
           {/* Top Header */}
           <div className="gcall-top">
@@ -423,7 +404,7 @@ export const GroupCallOverlay: React.FC = () => {
               <div className="gcall-bt">
                 <b>{groupName || 'Group Call'}</b>
                 <span>
-                  Group {cameraOff && kind !== 'video' ? 'audio' : 'video'} call · {totalMembersCount} members
+                  Group {cameraOff && kind !== 'video' ? 'audio' : 'video'} call · {totalInCall} in call{members && members.length > 0 ? ` (${members.length} members)` : ''}
                 </span>
               </div>
             </div>
@@ -447,8 +428,8 @@ export const GroupCallOverlay: React.FC = () => {
             </div>
           </div>
 
-          {/* Participant Tiles Grid (Exact 5-tile 3-row layout from HTML) */}
-          <div className="gcall-grid">
+          {/* Participant Tiles Grid - ONLY real joined callers */}
+          <div className={`gcall-grid ${gridCountClass}`}>
             {/* Tile 0: Local User (You) - Theme 0 */}
             <CallTile
               id="local-user"
@@ -459,13 +440,21 @@ export const GroupCallOverlay: React.FC = () => {
               isMuted={muted}
               isSpeaker={speakerOn}
               hasVideo={!cameraOff && Boolean(localStream?.getVideoTracks().some(t => t.readyState === 'active' && t.enabled !== false))}
-              isSpeaking={!muted && activeSpeakerIndex === 0}
+              isSpeaking={!muted}
               tag="YOU"
               themeIndex={0}
-              wide={false}
+              wide={totalInCall === 3}
             />
 
-            {/* Tiles 1 to 4: Remote / Group Participants */}
+            {/* Waiting indicator when only YOU are in the call */}
+            {remoteSlots.length === 0 && (
+              <div className="gcall-waiting-pill">
+                <span className="gcall-waiting-dot" />
+                <span>Waiting for members to join...</span>
+              </div>
+            )}
+
+            {/* Tiles for Joined Remote Participants ONLY */}
             {remoteSlots.map((slot, i) => (
               <CallTile
                 key={slot.id}
@@ -477,10 +466,10 @@ export const GroupCallOverlay: React.FC = () => {
                 isMuted={slot.isMuted}
                 isSpeaker={speakerOn}
                 hasVideo={slot.hasVideo}
-                isSpeaking={activeSpeakerIndex === i + 1}
+                isSpeaking={!slot.isMuted}
                 tag={slot.tag}
                 themeIndex={i + 1}
-                wide={i === 3} /* Tile 4 spans 2 columns as in HTML */
+                wide={totalInCall === 5 && i === remoteSlots.length - 1}
               />
             ))}
           </div>

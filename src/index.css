@@ -1962,6 +1962,65 @@
   min-height: 0;
   overflow: hidden;
 }
+.gcall-grid.gcall-grid-1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.gcall-grid.gcall-grid-1 .gcall-tile .av {
+  width: 32cqw;
+  height: 32cqw;
+  font-size: 13cqw;
+}
+.gcall-grid.gcall-grid-2 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.gcall-grid.gcall-grid-2 .gcall-tile .av {
+  width: 25cqw;
+  height: 25cqw;
+  font-size: 10cqw;
+}
+.gcall-grid.gcall-grid-3 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.gcall-grid.gcall-grid-4 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.gcall-grid.gcall-grid-5 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+}
+.gcall-waiting-pill {
+  position: absolute;
+  top: 14cqw;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 1.6cqw 3.6cqw;
+  border-radius: 9999px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 3.2cqw;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 2cqw;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  animation: gcallPop 0.5s ease-out;
+}
+.gcall-waiting-dot {
+  width: 2.2cqw;
+  height: 2.2cqw;
+  border-radius: 50%;
+  background: #31d158;
+  box-shadow: 0 0 2cqw #31d158;
+  animation: gcallBlink 1.4s infinite;
+}
 
 .gcall-tile {
   position: relative;
