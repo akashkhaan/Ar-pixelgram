@@ -33,9 +33,10 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Responsive scale factor (base width 784px)
   const [scale, setScale] = useState<number>(0.48);
 
-  // Animation states matching user HTML
+  // Animation timeline state
   const [cardShow, setCardShow] = useState<boolean>(false);
   const [avatarState, setAvatarState] = useState<'initial' | 'center' | 'pos'>('initial');
   const [unameShow, setUnameShow] = useState<boolean>(false);
@@ -46,10 +47,15 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
   const [btnShow, setBtnShow] = useState<boolean>(false);
   const [uiFloat, setUiFloat] = useState<boolean>(false);
 
-  // Animated counters
+  // Display count numbers (start from 0, animate up)
   const [dispPosts, setDispPosts] = useState<number>(0);
   const [dispFollowers, setDispFollowers] = useState<number>(0);
   const [dispFollowing, setDispFollowing] = useState<number>(0);
+
+  // Track if initial count animation has run
+  const hasAnimatedPosts = useRef<boolean>(false);
+  const hasAnimatedFollowers = useRef<boolean>(false);
+  const hasAnimatedFollowing = useRef<boolean>(false);
 
   // Responsive scale observer
   useEffect(() => {
@@ -72,22 +78,24 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
     };
   }, []);
 
-  // Number count up animation helper
-  const animateCount = (
+  // Guaranteed count-up animation function
+  const countUp = (
     from: number,
     to: number,
-    duration: number,
+    durationMs: number,
     setter: React.Dispatch<React.SetStateAction<number>>
   ) => {
-    if (from === to) {
-      setter(to);
+    if (to <= 0) {
+      setter(0);
       return;
     }
-    const start = performance.now();
+    const startTime = performance.now();
     const step = (now: number) => {
-      const elapsed = Math.min(1, (now - start) / duration);
+      const elapsed = Math.min(1, (now - startTime) / durationMs);
+      // easeOutCubic curve
       const ease = 1 - Math.pow(1 - elapsed, 3);
-      setter(Math.round(from + (to - from) * ease));
+      const current = Math.round(from + (to - from) * ease);
+      setter(current);
       if (elapsed < 1) {
         requestAnimationFrame(step);
       } else {
@@ -97,94 +105,105 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
     requestAnimationFrame(step);
   };
 
-  // Main intro animation timeline from user HTML
+  // Snappy sequence on mount
   useEffect(() => {
     const timers: NodeJS.Timeout[] = [];
 
-    // Stage 1: Card show & avatar in center
+    // Stage 1 (50ms): Card appears, avatar enters center
     timers.push(
       setTimeout(() => {
         setCardShow(true);
         setAvatarState('center');
-      }, 100)
+      }, 50)
     );
 
-    // Stage 2: Avatar flips to final left position
+    // Stage 2 (800ms): Avatar flips to left position
     timers.push(
       setTimeout(() => {
         setAvatarState('pos');
-      }, 1400)
+      }, 800)
     );
 
-    // Stage 3: Username reveals
+    // Stage 3 (1200ms): Username appears
     timers.push(
       setTimeout(() => {
         setUnameShow(true);
-      }, 2200)
+      }, 1200)
     );
 
-    // Stage 4: Posts counter reveals
+    // Stage 4 (1400ms): Posts appear & count
     timers.push(
       setTimeout(() => {
         setS1Show(true);
-        animateCount(0, postsCount, 900, setDispPosts);
-      }, 2500)
+        hasAnimatedPosts.current = true;
+        countUp(0, postsCount, 800, setDispPosts);
+      }, 1400)
     );
 
-    // Stage 5: Followers counter reveals
+    // Stage 5 (1600ms): Followers appear & count
     timers.push(
       setTimeout(() => {
         setS2Show(true);
-        animateCount(0, followersCount, 1000, setDispFollowers);
-      }, 2750)
+        hasAnimatedFollowers.current = true;
+        countUp(0, followersCount, 1000, setDispFollowers);
+      }, 1600)
     );
 
-    // Stage 6: Following counter reveals
+    // Stage 6 (1800ms): Following appear & count
     timers.push(
       setTimeout(() => {
         setS3Show(true);
-        animateCount(0, followingCount, 900, setDispFollowing);
-      }, 3000)
+        hasAnimatedFollowing.current = true;
+        countUp(0, followingCount, 800, setDispFollowing);
+      }, 1800)
     );
 
-    // Stage 7: Handle reveals
+    // Stage 7 (2000ms): Handle reveals
     timers.push(
       setTimeout(() => {
         setHandleShow(true);
-      }, 3400)
+      }, 2000)
     );
 
-    // Stage 8: Action buttons reveal
+    // Stage 8 (2200ms): Buttons reveal
     timers.push(
       setTimeout(() => {
         setBtnShow(true);
-      }, 3800)
+      }, 2200)
     );
 
-    // Stage 9: Ambient floating physics
+    // Stage 9 (2500ms): Ambient floating physics
     timers.push(
       setTimeout(() => {
         setUiFloat(true);
-      }, 4300)
+      }, 2500)
     );
 
     return () => {
       timers.forEach(clearTimeout);
     };
-  }, [postsCount, followersCount, followingCount]);
+  }, []);
 
-  // Keep numbers updated if props change after intro
+  // Animate whenever numbers load or change (e.g. after Supabase API fetch)
   useEffect(() => {
-    if (s1Show) setDispPosts(postsCount);
-  }, [postsCount, s1Show]);
-  useEffect(() => {
-    if (s2Show) setDispFollowers(followersCount);
-  }, [followersCount, s2Show]);
-  useEffect(() => {
-    if (s3Show) setDispFollowing(followingCount);
-  }, [followingCount, s3Show]);
+    if (s1Show || hasAnimatedPosts.current) {
+      countUp(dispPosts, postsCount, 700, setDispPosts);
+    }
+  }, [postsCount]);
 
-  // Canvas floating particles loop
+  useEffect(() => {
+    if (s2Show || hasAnimatedFollowers.current) {
+      countUp(dispFollowers, followersCount, 900, setDispFollowers);
+    }
+  }, [followersCount]);
+
+  useEffect(() => {
+    if (s3Show || hasAnimatedFollowing.current) {
+      countUp(dispFollowing, followingCount, 700, setDispFollowing);
+    }
+  }, [followingCount]);
+
+  // Floating particles canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -193,9 +212,9 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
 
     let animId: number;
     const cols = ['#a78bfa', '#ff5fb0', '#ffb066', '#ffffff'];
-    const particles = Array.from({ length: 42 }, () => ({
+    const particles = Array.from({ length: 38 }, () => ({
       x: Math.random() * 784,
-      y: Math.random() * 570,
+      y: Math.random() * 415,
       r: Math.random() * 2.2 + 0.6,
       v: Math.random() * 0.4 + 0.15,
       c: cols[Math.floor(Math.random() * cols.length)],
@@ -204,11 +223,11 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
     }));
 
     const render = (time: number) => {
-      ctx.clearRect(0, 0, 784, 570);
+      ctx.clearRect(0, 0, 784, 415);
       particles.forEach((p) => {
         p.y -= p.v;
         if (p.y < -5) {
-          p.y = 575;
+          p.y = 420;
           p.x = Math.random() * 784;
         }
         ctx.globalAlpha = p.o * (0.6 + 0.4 * Math.sin(time / 700 + p.ph));
@@ -244,11 +263,11 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
       ref={containerRef}
       className="w-full relative overflow-hidden select-none my-1"
       style={{
-        height: `${Math.round(570 * scale)}px`,
-        borderRadius: `${Math.round(48 * scale)}px`,
+        height: `${Math.round(415 * scale)}px`,
+        borderRadius: `${Math.round(36 * scale)}px`,
       }}
     >
-      {/* Scaled Virtual Stage Container */}
+      {/* Scaled Virtual Stage Container (Compact 784x415 base) */}
       <div
         className="pxc-stage"
         style={{
@@ -267,7 +286,7 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
         <div className="pxc-grid" />
 
         {/* Floating Particles Canvas */}
-        <canvas ref={canvasRef} width={784} height={570} className="absolute inset-0 pointer-events-none z-0" />
+        <canvas ref={canvasRef} width={784} height={415} className="absolute inset-0 pointer-events-none z-0" />
 
         {/* Glowing Conic Border Card */}
         <div className={`pxc-card ${cardShow ? 'show' : ''}`} />
@@ -331,7 +350,7 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
             />
           )}
 
-          {/* Username with Verified Badge */}
+          {/* Username with Verified Badge (Bigger & Bolder Text) */}
           <div className={`pxc-uname pxc-rv ${unameShow ? 'show' : ''}`}>
             <span>{profile.full_name || profile.username}</span>
             {profile.is_verified && (
@@ -352,7 +371,7 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
             )}
           </div>
 
-          {/* Stats: Posts, Followers, Following */}
+          {/* Stats: Posts, Followers, Following (Bold Numbers with Smooth Count Up) */}
           <div className="pxc-stats">
             {/* Posts */}
             <button
@@ -385,12 +404,12 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
             </button>
           </div>
 
-          {/* Handle */}
+          {/* Handle (Bigger & Crisper Text) */}
           <div className={`pxc-handle pxc-rv ${handleShow ? 'show' : ''}`}>
             @{profile.username}
           </div>
 
-          {/* Action Buttons */}
+          {/* Action Buttons (Bigger Text & Sleek Touch Areas) */}
           {isOwnProfile ? (
             <>
               {/* Button 1: Edit Profile */}
@@ -423,10 +442,10 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
                 disabled={followLoading}
               >
                 {followLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-6 h-6 animate-spin" />
                 ) : followStatus === 'accepted' ? (
                   <>
-                    <Check className="w-5 h-5 stroke-[3]" />
+                    <Check className="w-6 h-6 stroke-[3]" />
                     <span>FOLLOWING</span>
                   </>
                 ) : followStatus === 'pending' ? (

@@ -1492,7 +1492,7 @@
   left: 0;
   top: 0;
   width: 784px;
-  height: 570px;
+  height: 415px;
   overflow: hidden;
   background: #07050d;
   font-family: "Poppins", "Segoe UI", Arial, sans-serif;
@@ -1524,7 +1524,7 @@
   width: 520px;
   height: 520px;
   right: -40px;
-  top: 140px;
+  top: 100px;
   background: #e11d74;
   opacity: 0.38;
   animation: pxF2 17s ease-in-out infinite alternate;
@@ -1557,8 +1557,8 @@
   left: 0;
   top: 0;
   width: 784px;
-  height: 570px;
-  border-radius: 60px;
+  height: 415px;
+  border-radius: 44px;
   background: radial-gradient(circle at 18% 0%, rgba(139, 92, 246, 0.40), transparent 52%),
     radial-gradient(circle at 95% 105%, rgba(255, 110, 60, 0.22), transparent 50%),
     linear-gradient(180deg, #1f1833 0%, #0d0a16 55%, #050408 100%);
@@ -1580,7 +1580,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: 60px;
+  border-radius: 44px;
   padding: 3px;
   background: conic-gradient(from var(--px-a, 0deg), #7c3aed, #ff2d95, #ff9a1f, #ff2d95, #7c3aed);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -1610,19 +1610,19 @@
 
 .pxc-avatar {
   position: absolute;
-  left: 83px;
-  top: 130px;
-  width: 168px;
-  height: 168px;
+  left: 75px;
+  top: 86px;
+  width: 154px;
+  height: 154px;
   opacity: 0;
   transform-style: preserve-3d;
-  transform: perspective(900px) translate(225px, 0px) scale(0.8) rotateY(0deg);
-  transition: opacity 0.5s, transform 1.3s cubic-bezier(0.65, 0, 0.25, 1);
+  transform: perspective(900px) translate(240px, 0px) scale(0.85) rotateY(0deg);
+  transition: opacity 0.5s, transform 1.2s cubic-bezier(0.65, 0, 0.25, 1);
 }
 
 .pxc-avatar.center {
   opacity: 1;
-  transform: perspective(900px) translate(225px, 0px) scale(1) rotateY(0deg);
+  transform: perspective(900px) translate(240px, 0px) scale(1) rotateY(0deg);
 }
 
 .pxc-avatar.pos {
@@ -1644,7 +1644,7 @@
   display: block;
   border-radius: 50%;
   object-fit: cover;
-  transform: scale(1.05);
+  transform: scale(1.04);
   animation: pxGlowp 2s ease-in-out infinite;
 }
 
@@ -1655,7 +1655,7 @@
 
 .pxc-ring {
   position: absolute;
-  inset: -7px;
+  inset: -6px;
   border-radius: 50%;
   background: conic-gradient(from var(--px-a, 0deg), #7c3aed, #ff2d95, #ff9a1f, #ff2d95, #7c3aed);
   animation: pxSpin 3.5s linear infinite;
@@ -1674,8 +1674,8 @@
 
 .pxc-rv {
   opacity: 0;
-  transform: translateY(14px);
-  transition: opacity 0.6s, transform 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  transform: translateY(12px);
+  transition: opacity 0.5s, transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 .pxc-rv.show {
   opacity: 1;
@@ -1686,38 +1686,38 @@
   position: absolute;
   left: 0;
   width: 784px;
-  top: 54px;
+  top: 22px;
   text-align: center;
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 38px;
+  font-weight: 800;
   letter-spacing: 0.3px;
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px;
-  text-shadow: 0 0 18px rgba(255, 255, 255, 0.45);
+  gap: 12px;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.55);
   color: #fff;
 }
 .pxc-uname svg {
-  width: 26px;
-  height: 26px;
-  filter: drop-shadow(0 0 8px rgba(56, 140, 255, 0.8));
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 0 10px rgba(56, 140, 255, 0.9));
 }
 
 .pxc-stats {
   position: absolute;
-  left: 280px;
-  top: 178px;
+  left: 275px;
+  top: 104px;
   display: flex;
-  gap: 32px;
+  gap: 36px;
 }
 .pxc-stat {
   text-align: center;
-  font-size: 18px;
-  font-weight: 500;
-  color: #cbc3e3;
-  line-height: 1.25;
-  min-width: 86px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #f3e8ff;
+  line-height: 1.2;
+  min-width: 95px;
   cursor: pointer;
   background: none;
   border: none;
@@ -1725,40 +1725,40 @@
 }
 .pxc-stat b {
   display: block;
-  font-size: 34px;
-  font-weight: 700;
+  font-size: 54px;
+  font-weight: 900;
   color: #fff;
-  text-shadow: 0 0 18px rgba(255, 255, 255, 0.5);
+  text-shadow: 0 0 22px rgba(255, 255, 255, 0.65);
 }
 
 .pxc-handle {
   position: absolute;
-  left: 83px;
-  width: 168px;
+  left: 52px;
+  width: 200px;
   text-align: center;
-  top: 312px;
-  font-size: 19px;
-  font-weight: 600;
+  top: 248px;
+  font-size: 26px;
+  font-weight: 700;
   background: linear-gradient(90deg, #a78bfa, #ff5fb0, #ffb066);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 10px rgba(255, 80, 170, 0.55));
+  filter: drop-shadow(0 0 12px rgba(255, 80, 170, 0.65));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .pxc-btn {
-  height: 60px;
+  height: 70px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 25px;
+  font-weight: 800;
   letter-spacing: 0.5px;
-  border-radius: 30px;
+  border-radius: 35px;
   overflow: hidden;
   cursor: pointer;
   border: none;
@@ -1767,12 +1767,12 @@
 
 .pxc-follow {
   position: absolute;
-  left: 88px;
-  top: 395px;
-  width: 275px;
+  left: 75px;
+  top: 318px;
+  width: 300px;
   background: linear-gradient(100deg, #7c3aed, #ec2c8f 55%, #ff8a1f);
   box-shadow: 0 8px 30px rgba(236, 44, 143, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  transition: opacity 0.6s, transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3), background 0.4s, box-shadow 0.4s;
+  transition: opacity 0.5s, transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.3), background 0.4s, box-shadow 0.4s;
   color: #fff;
 }
 .pxc-follow::after {
@@ -1796,13 +1796,13 @@
 
 .pxc-msg {
   position: absolute;
-  left: 418px;
-  top: 395px;
-  width: 275px;
+  left: 410px;
+  top: 318px;
+  width: 300px;
   border: 2px solid rgba(255, 255, 255, 0.85);
   background: rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(8px);
   box-shadow: 0 0 22px rgba(255, 255, 255, 0.18), inset 0 0 18px rgba(255, 255, 255, 0.06);
-  transition: opacity 0.6s, transform 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  transition: opacity 0.5s, transform 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
   color: #fff;
 }
