@@ -109,7 +109,7 @@ const CallTile: React.FC<{
 
       {/* Video Stream or Avatar Center */}
       {hasVideo && stream ? (
-        <div className="absolute inset-0 w-full h-full overflow-hidden rounded-[24px] z-[1]">
+        <div className="absolute inset-0 w-full h-full overflow-hidden rounded-[24px] z-[1] bg-black">
           <video
             ref={el => {
               videoRef.current = el;
@@ -177,19 +177,21 @@ const CallTile: React.FC<{
 export const GroupCallOverlay: React.FC = () => {
   const { user, profile } = useAuth();
   const groupCall = useGroupCall();
+
   const {
     active,
     minimized,
-    kind,
     groupName,
     groupAvatarUrl,
     members,
     elapsedSeconds,
     localStream,
+    screenStream,
     remoteStreams,
     remoteLabels,
     remoteAvatars,
     remoteMuted,
+    remoteCameraOff,
     muted,
     cameraOff,
     speakerOn,
@@ -197,6 +199,7 @@ export const GroupCallOverlay: React.FC = () => {
     leaveCall,
     toggleMute,
     toggleCamera,
+    flipCamera,
     toggleSpeaker,
     setMinimized,
     acceptIncoming,
@@ -244,32 +247,10 @@ export const GroupCallOverlay: React.FC = () => {
 
   // Flip camera handler
   const handleFlipCamera = async () => {
-    if (localStream && !cameraOff) {
-      try {
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-          const settings = videoTrack.getSettings?.();
-          const currentFacing = settings?.facingMode === 'user' ? 'environment' : 'user';
-          const newStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: currentFacing },
-          });
-          const newTrack = newStream.getVideoTracks()[0];
-          if (newTrack) {
-            videoTrack.stop();
-            localStream.removeTrack(videoTrack);
-            localStream.addTrack(newTrack);
-            showToast('Camera flipped');
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn('Flip camera error:', err);
-      }
-    }
-    showToast('Camera flipped');
+    await flipCamera();
   };
 
-  // End call handler: only disconnects local user, leaves other members in call
+  // End call handler
   const handleEndCall = async () => {
     showToast('Call ended');
     await leaveCall();
@@ -279,13 +260,19 @@ export const GroupCallOverlay: React.FC = () => {
   const otherMembers = (members || []).filter(m => m.user_id !== user?.id);
 
   // ONLY SHOW PARTICIPANTS WHO HAVE ACTUALLY JOINED THE CALL:
-  // Collect joined peer IDs from remoteStreams and remoteLabels
   const joinedRemotePeerIds = Array.from(
     new Set([
       ...Array.from(remoteStreams.keys()),
       ...Array.from(remoteLabels.keys()),
     ])
   ).filter(peerId => Boolean(peerId && peerId !== user?.id));
+
+  // Determine if local user has an active camera stream
+  const hasLocalVideo = !cameraOff && Boolean(
+    (screenStream || localStream)?.getVideoTracks().some(
+      t => (t.readyState === 'live' || (t.readyState as string) === 'active') && t.enabled !== false
+    )
+  );
 
   // Build slots strictly for members who have joined the call:
   const remoteSlots = joinedRemotePeerIds.map((peerId, i) => {
@@ -301,12 +288,15 @@ export const GroupCallOverlay: React.FC = () => {
       memberObj?.profile?.avatar_url ||
       null;
     const isPeerMuted = remoteMuted.get(peerId) || false;
-    const hasPeerVideo = Boolean(
+    const isPeerCamOff = remoteCameraOff?.get(peerId);
+    const hasPeerVideoTrack = Boolean(
       stream &&
       stream.getVideoTracks().some(
-        t => t.readyState === 'active' && t.enabled !== false
+        t => (t.readyState === 'live' || (t.readyState as string) === 'active') && t.enabled !== false
       )
     );
+    // Remote slot has video if not marked off AND has active video track, or if camera explicitly on
+    const hasVideo = isPeerCamOff === false || (!isPeerCamOff && hasPeerVideoTrack);
 
     return {
       id: peerId,
@@ -314,24 +304,26 @@ export const GroupCallOverlay: React.FC = () => {
       username: peerName,
       avatarUrl: peerAvatar,
       isMuted: isPeerMuted,
-      hasVideo: hasPeerVideo,
+      hasVideo,
       tag: memberObj?.role === 'admin' ? 'ADMIN' : 'MEMBER',
     };
   });
 
   const totalInCall = 1 + remoteSlots.length;
   const gridCountClass = `gcall-grid-${Math.min(totalInCall, 5)}`;
+  const hasAnyVideo = hasLocalVideo || remoteSlots.some(s => s.hasVideo);
+  const callModeLabel = hasAnyVideo ? 'video' : 'audio';
 
   // Floating Incoming Call Banner
   if (incoming && !active) {
     return (
-      <div className="fixed top-3 inset-x-3 z-[150] mx-auto max-w-md animate-in fade-in slide-in-from-top-4 duration-300">
+      <div className="fixed top-3 inset-x-3 z-[100] mx-auto max-w-md animate-in fade-in slide-in-from-top-4 duration-300">
         <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-card/95 p-3 shadow-2xl backdrop-blur-md text-foreground">
           <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-primary/20 font-semibold text-primary shrink-0 ring-2 ring-primary/30">
             {groupAvatarUrl ? (
               <img src={groupAvatarUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              (groupName?.[0] || 'G').toUpperCase()
+              (groupName || 'G')[0]?.toUpperCase()
             )}
           </div>
           <div className="min-w-0 flex-1">
@@ -380,9 +372,9 @@ export const GroupCallOverlay: React.FC = () => {
         <MessengerCallBubble
           avatarUrl={groupAvatarUrl}
           title={groupName || 'Group'}
-          kind={kind}
+          kind={callModeLabel}
           elapsedSeconds={elapsedSeconds}
-          videoStream={kind === 'video' ? remoteStreams.values().next().value || localStream : null}
+          videoStream={hasAnyVideo ? remoteStreams.values().next().value || localStream : null}
           muted={muted}
           onToggleMute={toggleMute}
           onMaximize={() => setMinimized(false)}
@@ -393,53 +385,56 @@ export const GroupCallOverlay: React.FC = () => {
         <div className="gcall-phone gcall-screen">
           {/* Top Header */}
           <div className="gcall-top">
-            <div className="gcall-brand">
-              <div className="gcall-logo">
-                {groupAvatarUrl ? (
-                  <img src={groupAvatarUrl} alt={groupName} />
-                ) : (
-                  <span>{(groupName?.[0] || 'G').toUpperCase()}</span>
+            <div className="gcall-user">
+              <div
+                className="gcall-uav"
+                style={{
+                  backgroundImage: groupAvatarUrl ? `url(${groupAvatarUrl})` : undefined,
+                  backgroundSize: 'cover',
+                }}
+              >
+                {!groupAvatarUrl && (
+                  <span className="text-white text-xs font-bold">
+                    {(groupName || 'G')[0]?.toUpperCase()}
+                  </span>
                 )}
               </div>
               <div className="gcall-bt">
                 <b>{groupName || 'Group Call'}</b>
                 <span>
-                  Group {cameraOff && kind !== 'video' ? 'audio' : 'video'} call · {totalInCall} in call{members && members.length > 0 ? ` (${members.length} members)` : ''}
+                  Group {callModeLabel} call · {totalInCall} in call{members && members.length > 0 ? ` (${members.length} members)` : ''}
                 </span>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Running Call Timer with pulsing green dot */}
-              <div className="gcall-timer">
+              <div className="gcall-time">
                 <i />
                 <span>{formatTime(elapsedSeconds)}</span>
               </div>
-
-              {/* Minimize to Bubble Button */}
               <button
                 type="button"
                 onClick={() => setMinimized(true)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/15 transition-transform active:scale-90"
-                title="Minimize to bubble"
+                className="gcall-min-btn"
+                title="Minimize call"
               >
-                <ChevronDown className="w-5 h-5 text-white" />
+                <ChevronDown className="w-5 h-5" />
               </button>
             </div>
           </div>
 
           {/* Participant Tiles Grid - ONLY real joined callers */}
           <div className={`gcall-grid ${gridCountClass}`}>
-            {/* Tile 0: Local User (You) - Theme 0 */}
+            {/* Tile 0: Local User (You) */}
             <CallTile
               id="local-user"
-              stream={localStream}
+              stream={screenStream || localStream}
               username={localUsername}
               avatarUrl={profile?.avatar_url}
               isLocal={true}
               isMuted={muted}
               isSpeaker={speakerOn}
-              hasVideo={!cameraOff && Boolean(localStream?.getVideoTracks().some(t => t.readyState === 'active' && t.enabled !== false))}
+              hasVideo={hasLocalVideo}
               isSpeaking={!muted}
               tag="YOU"
               themeIndex={0}
@@ -474,18 +469,18 @@ export const GroupCallOverlay: React.FC = () => {
             ))}
           </div>
 
-          {/* Bottom Floating Control Bar */}
+          {/* Bottom Floating Glass Control Bar */}
           <div className="gcall-bar">
-            {/* Video Button */}
+            {/* Video / Camera Button */}
             <button
               type="button"
-              className={`gcall-ctl ${cameraOff ? '' : 'off'}`}
+              className={`gcall-ctl ${cameraOff ? 'off' : ''}`}
               onClick={() => void handleToggleCamera()}
             >
               <div className="gcall-cb">
                 {cameraOff ? <VideoOff /> : <Video />}
               </div>
-              <span>Video</span>
+              <span>{cameraOff ? 'Camera on' : 'Camera off'}</span>
             </button>
 
             {/* Mute Button */}
@@ -503,7 +498,7 @@ export const GroupCallOverlay: React.FC = () => {
             {/* Speaker Button */}
             <button
               type="button"
-              className={`gcall-ctl ${speakerOn ? 'off' : ''}`}
+              className={`gcall-ctl ${speakerOn ? '' : 'off'}`}
               onClick={handleToggleSpeaker}
             >
               <div className="gcall-cb">

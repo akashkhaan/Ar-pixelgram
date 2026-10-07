@@ -119,7 +119,9 @@ export const CallOverlay: React.FC = () => {
   }, [visible, call.minimized, call.toggleMinimize]);
   if (!visible) return null;
 
-  const showVideo = call.kind === 'video';
+  const hasLocalVideo = !call.cameraOff && Boolean(call.localStream?.getVideoTracks().some(t => t.readyState === "live" && t.enabled !== false));
+  const hasRemoteVideo = Boolean(call.remoteStream?.getVideoTracks().some(t => t.readyState === "live" && t.enabled !== false));
+  const showVideo = call.kind === "video" || hasLocalVideo || hasRemoteVideo;
   const statusText =
     call.status === 'ringing-out' ? 'Ringing…' :
     call.status === 'connecting' ? 'Connecting…' :
@@ -248,11 +250,9 @@ export const CallOverlay: React.FC = () => {
             <Ctl onClick={call.toggleMute} active={call.muted} label={call.muted ? 'Unmute' : 'Mute'}>
               {call.muted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
             </Ctl>
-            {showVideo && (
-              <Ctl onClick={call.toggleCamera} active={call.cameraOff} label={call.cameraOff ? 'Camera on' : 'Camera off'}>
-                {call.cameraOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
-              </Ctl>
-            )}
+            <Ctl onClick={call.toggleCamera} active={call.cameraOff} label={call.cameraOff ? "Camera on" : "Camera off"}>
+              {call.cameraOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
+            </Ctl>
             <Ctl onClick={call.endCall} disabled={call.status === 'ended'} tone="danger" big label="End">
               <PhoneOff className="w-7 h-7" />
             </Ctl>

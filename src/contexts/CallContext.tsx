@@ -458,12 +458,49 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setMuted(enabled);
   }, [localStream, muted]);
 
-  const toggleCamera = useCallback(() => {
+  const toggleCamera = useCallback(async () => {
     if (!localStream) return;
     const off = !cameraOff;
-    localStream.getVideoTracks().forEach(t => { t.enabled = !off; });
-    setCameraOff(off);
-  }, [localStream, cameraOff]);
+    if (off) {
+      localStream.getVideoTracks().forEach(t => {
+        t.enabled = false;
+        try { t.stop(); } catch {}
+        localStream.removeTrack(t);
+      });
+      if (videoSenderRef.current) {
+        await videoSenderRef.current.replaceTrack(null);
+      }
+      setCameraOff(true);
+      sendSignal({ type: "camera", cameraOff: true });
+    } else {
+      try {
+        const fresh = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingFront ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        const newTrack = fresh.getVideoTracks()[0];
+        if (newTrack) {
+          localStream.getVideoTracks().forEach(t => {
+            try { t.stop(); } catch {}
+            localStream.removeTrack(t);
+          });
+          localStream.addTrack(newTrack);
+          camVideoTrackRef.current = newTrack;
+          if (videoSenderRef.current) {
+            await videoSenderRef.current.replaceTrack(newTrack);
+          } else if (pcRef.current) {
+            videoSenderRef.current = pcRef.current.addTrack(newTrack, localStream);
+          }
+          setLocalStream(new MediaStream(localStream.getTracks()));
+          setCameraOff(false);
+          setState(prev => ({ ...prev, kind: "video" }));
+          sendSignal({ type: "camera", cameraOff: false });
+        }
+      } catch (err) {
+        console.warn("Camera on failed:", err);
+      }
+    }
+  }, [localStream, cameraOff, facingFront, sendSignal]);
 
   const toggleMinimize = useCallback(() => setMinimized(m => !m), []);
 

@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 export type CallKind = 'audio' | 'video';
 
 export type Signal = {
-  type: 'invite' | 'join' | 'offer' | 'answer' | 'ice' | 'leave' | 'mute';
+  type: 'invite' | 'join' | 'offer' | 'answer' | 'ice' | 'leave' | 'mute' | 'camera';
   callId: string;
   from: string;
   to?: string;
@@ -28,6 +28,7 @@ export type Signal = {
   candidate?: RTCIceCandidateInit;
   startedAt?: number;
   isMuted?: boolean;
+  cameraOff?: boolean;
 };
 
 export interface GroupCallContextValue {
@@ -47,8 +48,10 @@ export interface GroupCallContextValue {
   remoteLabels: Map<string, string>;
   remoteAvatars: Map<string, string | null>;
   remoteMuted: Map<string, boolean>;
+  remoteCameraOff: Map<string, boolean>;
   muted: boolean;
   cameraOff: boolean;
+  facingFront: boolean;
   speakerOn: boolean;
   screenSharing: boolean;
   incoming: Signal | null;
@@ -69,7 +72,8 @@ export interface GroupCallContextValue {
   ) => Promise<void>;
   leaveCall: () => Promise<void>;
   toggleMute: () => void;
-  toggleCamera: () => void;
+  toggleCamera: () => Promise<void>;
+  flipCamera: () => Promise<void>;
   toggleSpeaker: () => void;
   toggleScreenShare: () => Promise<void>;
   setMinimized: (min: boolean) => void;
@@ -107,9 +111,11 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [remoteLabels, setRemoteLabels] = useState<Map<string, string>>(new Map());
   const [remoteAvatars, setRemoteAvatars] = useState<Map<string, string | null>>(new Map());
   const [remoteMuted, setRemoteMuted] = useState<Map<string, boolean>>(new Map());
+  const [remoteCameraOff, setRemoteCameraOff] = useState<Map<string, boolean>>(new Map());
 
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
+  const [facingFront, setFacingFront] = useState(true);
   const [speakerOn, setSpeakerOn] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
 
@@ -121,35 +127,28 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
   const activeCallRef = useRef<string | null>(null);
-  const channelReadyRef = useRef(false);
+  const channelReadyRef = useRef<boolean>(false);
+
+  const send = useCallback((signal: Signal) => {
+    if (!channelRef.current || !channelReadyRef.current) return;
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'signal',
+      payload: signal,
+    });
+  }, []);
 
   const memberFor = useCallback(
-    (userId: string) => members.find(m => m.user_id === userId)?.profile,
+    (uid: string) => members.find(m => m.user_id === uid)?.profile || null,
     [members],
   );
 
-  const send = useCallback((signal: Signal) => {
-    void channelRef.current?.send({ type: 'broadcast', event: 'signal', payload: signal });
-  }, []);
-
-  const waitForChannel = useCallback(async () => {
-    if (channelReadyRef.current) return;
-    for (let attempt = 0; attempt < 15 && !channelReadyRef.current; attempt += 1) {
-      await new Promise(resolve => window.setTimeout(resolve, 100));
-    }
-    if (!channelReadyRef.current && channelRef.current) {
-      try {
-        await channelRef.current.subscribe();
-        channelReadyRef.current = true;
-      } catch {
-        /* proceed */
-      }
-    }
-  }, []);
-
   const closePeer = useCallback((peerId: string) => {
-    peersRef.current.get(peerId)?.close();
-    peersRef.current.delete(peerId);
+    const pc = peersRef.current.get(peerId);
+    if (pc) {
+      pc.close();
+      peersRef.current.delete(peerId);
+    }
     setRemoteStreams(current => {
       const next = new Map(current);
       next.delete(peerId);
@@ -170,6 +169,11 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       next.delete(peerId);
       return next;
     });
+    setRemoteCameraOff(current => {
+      const next = new Map(current);
+      next.delete(peerId);
+      return next;
+    });
   }, []);
 
   const createPeer = useCallback(
@@ -179,6 +183,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }],
       });
       peersRef.current.set(peerId, pc);
+
       const person = memberFor(peerId);
       if (person) {
         setRemoteLabels(current => new Map(current).set(peerId, person.username || person.full_name || 'Participant'));
@@ -192,7 +197,19 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }).catch(() => {});
       }
 
-      localStreamRef.current?.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current as MediaStream));
+      // Add local audio and video tracks to peer connection
+      localStreamRef.current?.getTracks().forEach(track => {
+        try { pc.addTrack(track, localStreamRef.current as MediaStream); } catch {}
+      });
+
+      // ALWAYS ensure both audio and video transceivers exist so camera can be turned on/off dynamically
+      try {
+        if (!pc.getTransceivers().some(t => t.receiver.track?.kind === 'video')) {
+          pc.addTransceiver('video', { direction: 'sendrecv' });
+        }
+      } catch (err) {
+        console.warn('addTransceiver error:', err);
+      }
 
       pc.onicecandidate = event => {
         if (event.candidate) {
@@ -201,12 +218,34 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
 
       pc.ontrack = event => {
-        const stream = event.streams[0];
-        if (!stream) return;
-        const person = memberFor(peerId);
-        setRemoteStreams(current => new Map(current).set(peerId, stream));
-        setRemoteLabels(current => new Map(current).set(peerId, person?.username || person?.full_name || 'Participant'));
-        setRemoteAvatars(current => new Map(current).set(peerId, person?.avatar_url || null));
+        const track = event.track;
+        const stream = event.streams[0] || new MediaStream([track]);
+        const matchedPerson = memberFor(peerId);
+
+        setRemoteStreams(current => {
+          const existing = current.get(peerId);
+          if (existing) {
+            if (!existing.getTracks().some(t => t.id === track.id)) {
+              existing.addTrack(track);
+            }
+            return new Map(current).set(peerId, new MediaStream(existing.getTracks()));
+          }
+          return new Map(current).set(peerId, stream);
+        });
+
+        setRemoteLabels(current => new Map(current).set(peerId, matchedPerson?.username || matchedPerson?.full_name || 'Participant'));
+        setRemoteAvatars(current => new Map(current).set(peerId, matchedPerson?.avatar_url || null));
+
+        if (track.kind === 'video') {
+          setRemoteCameraOff(c => new Map(c).set(peerId, false));
+          setKind('video');
+          track.onunmute = () => {
+            setRemoteCameraOff(c => new Map(c).set(peerId, false));
+          };
+          track.onended = () => {
+            setRemoteCameraOff(c => new Map(c).set(peerId, true));
+          };
+        }
       };
 
       pc.onconnectionstatechange = () => {
@@ -214,7 +253,8 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       };
 
       if (isInitiator) {
-        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: activeKind === 'video' });
+        // ALWAYS offerToReceiveVideo: true so video can start dynamically
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
         send({ type: 'offer', callId: activeId, from: user.id, to: peerId, kind: activeKind, offer });
       }
@@ -225,41 +265,66 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const handleSignal = useCallback(
     async (signal: Signal) => {
       if (!user || signal.from === user.id || (signal.to && signal.to !== user.id)) return;
+
       if (signal.type === 'invite') {
-        if (!active && !incoming) setIncoming(signal);
+        if (active) return;
+        setIncoming(signal);
+        setCallId(signal.callId);
+        setKind(signal.kind || 'audio');
         return;
       }
+
       if (signal.type === 'join') {
         if (active && signal.callId === activeCallRef.current) {
           await createPeer(signal.from, true, signal.callId, signal.kind || kind);
         }
         return;
       }
+
       if (signal.type === 'offer' && signal.offer) {
         if (signal.callId !== activeCallRef.current) return;
         await createPeer(signal.from, false, signal.callId, signal.kind || kind);
         const pc = peersRef.current.get(signal.from);
         if (!pc) return;
+
+        try {
+          if (!pc.getTransceivers().some(t => t.receiver.track?.kind === 'video')) {
+            pc.addTransceiver('video', { direction: 'sendrecv' });
+          }
+        } catch {}
+
         await pc.setRemoteDescription(signal.offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         send({ type: 'answer', callId: signal.callId, from: user.id, to: signal.from, answer });
         return;
       }
+
       if (signal.type === 'answer' && signal.answer) {
         const pc = peersRef.current.get(signal.from);
         if (pc) await pc.setRemoteDescription(signal.answer);
         return;
       }
+
       if (signal.type === 'ice' && signal.candidate) {
         const pc = peersRef.current.get(signal.from);
         if (pc) await pc.addIceCandidate(signal.candidate);
         return;
       }
+
       if (signal.type === 'mute' && signal.from) {
         setRemoteMuted(current => new Map(current).set(signal.from, !!signal.isMuted));
         return;
       }
+
+      if (signal.type === 'camera' && signal.from) {
+        setRemoteCameraOff(current => new Map(current).set(signal.from, !!signal.cameraOff));
+        if (!signal.cameraOff) {
+          setKind('video');
+        }
+        return;
+      }
+
       if (signal.type === 'leave') closePeer(signal.from);
     },
     [active, closePeer, createPeer, incoming, kind, send, user],
@@ -276,7 +341,6 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       channelReadyRef.current = status === 'SUBSCRIBED';
     });
     channelRef.current = channel;
-
     return () => {
       channelReadyRef.current = false;
       void channel.unsubscribe();
@@ -323,21 +387,19 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const android = (window as unknown as { AndroidNotification?: { setCallActive?: (a: boolean, t: string) => void } }).AndroidNotification;
     android?.setCallActive?.(true, title);
-
-    // Keep the ongoing notification alive across timer refreshes. Cleanup is
-    // handled by the inactive branch and leaveCall; dismissing here would make
-    // Android briefly remove and recreate the call notification every second.
   }, [active, groupId, groupName, groupAvatarUrl, kind, elapsedSeconds]);
 
   // "End call" tapped on the phone's ongoing-call notification
   useEffect(() => {
     if (!active) return;
-    const onEndRequested = () => { void leaveCallRef.current?.(); };
+    const onEndRequested = () => {
+      void leaveCallRef.current?.();
+    };
     window.addEventListener('appEndCallRequested', onEndRequested);
     return () => window.removeEventListener('appEndCallRequested', onEndRequested);
   }, [active]);
 
-  // Back button interception when call overlay is full-screen
+  // Native / Android back button: Minimize instead of killing the call
   useEffect(() => {
     if (!active || minimized) return;
 
@@ -367,7 +429,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
-        video: requestedKind === 'video',
+        video: requestedKind === 'video' ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } : false,
       });
       localStreamRef.current = stream;
       setLocalStream(stream);
@@ -397,103 +459,77 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   ) => {
     if (!user) return;
     if (active) {
-      setMinimized(false);
+      toast.info('Already in a call');
       return;
     }
 
-    setGroupId(targetGroupId);
-    setGroupName(targetGroupName);
-    setGroupAvatarUrl(targetAvatarUrl || null);
-    setMembers(targetMembers);
-
     try {
-      await waitForChannel();
-      const callInfo = await startOrJoinGroupCall(targetGroupId, requestedKind);
-      const finalKind = requestedKind === "video" ? "video" : (callInfo.kind || requestedKind);
+      setGroupId(targetGroupId);
+      setGroupName(targetGroupName);
+      setGroupAvatarUrl(targetAvatarUrl || null);
+      setMembers(targetMembers);
+      setKind(requestedKind);
+      setCameraOff(requestedKind !== 'video');
 
-      await getMedia(finalKind);
-      await joinGroupCall(callInfo.id);
+      await getMedia(requestedKind);
 
-      const callStarted = Date.now();
-      activeCallRef.current = callInfo.id;
-      setCallId(callInfo.id);
-      setKind(finalKind);
-      setCameraOff(finalKind !== "video");
-      setStartedAt(callStarted);
+      const dbCall = await startOrJoinGroupCall(targetGroupId, requestedKind);
+      const newCallId = dbCall.id;
+      setCallId(newCallId);
+      activeCallRef.current = newCallId;
       setActive(true);
       setMinimized(false);
 
-      const callerName = profile?.username || profile?.full_name || 'Someone';
+      const now = Date.now();
+      setStartedAt(now);
+
+      const callerName = profile?.full_name || profile?.username || 'Group Member';
       const callerAvatar = profile?.avatar_url || null;
 
-      if (callInfo.isNew) {
-        send({ type: 'invite', callId: callInfo.id, from: user.id, kind: finalKind, startedAt: callStarted });
-        let memberIds = targetMembers.map(m => m.user_id);
-        try {
-          const { data: fresh } = await supabase
-            .from('group_members')
-            .select('user_id')
-            .eq('group_id', targetGroupId);
-          if (fresh && fresh.length) memberIds = Array.from(new Set([...memberIds, ...fresh.map((r: { user_id: string }) => r.user_id)]));
-        } catch { /* use passed members */ }
-        const otherMemberIds = memberIds.filter(uid => uid && uid !== user.id);
-        void Promise.allSettled(
-          otherMemberIds.map(async uid => {
-            void sendPushTo(
-              uid,
-              `📞 ${targetGroupName || 'Group'} · Incoming ${finalKind === 'video' ? 'Video' : 'Audio'} Call`,
-              `${callerName} is calling the group · Tap to join`,
-              `/group/${targetGroupId}?autoJoin=1&kind=${finalKind}`,
-              `group_call_${callInfo.id}`,
-              targetAvatarUrl || callerAvatar || '/images/logo/logo-icon.svg',
-              {
-                type: 'group_call',
-                kind: finalKind,
-                groupId: targetGroupId,
-                groupName: targetGroupName || 'Group',
-                callId: callInfo.id,
-                callerName,
-                callerAvatar: callerAvatar || undefined,
-              },
-            );
-            try {
-              const memberCallChannel = supabase.channel(`calls:${uid}`);
-              await memberCallChannel.subscribe();
-              await memberCallChannel.send({
-                type: 'broadcast',
-                event: 'group-call-invite',
-                payload: {
-                  groupId: targetGroupId,
-                  groupName: targetGroupName || 'Group',
-                  groupAvatarUrl: targetAvatarUrl || null,
-                  callId: callInfo.id,
-                  kind: finalKind,
-                  from: user.id,
-                  fromName: callerName,
-                  fromAvatar: callerAvatar,
-                },
-              });
-              setTimeout(() => memberCallChannel.unsubscribe(), 3000);
-            } catch {
-              /* optional */
-            }
-            return createNotification(
-              uid,
-              'group_call',
-              user.id,
-              targetGroupId,
-              undefined,
-              `📞 Group ${finalKind} call started in ${targetGroupName || 'Group'} by ${callerName}`,
-            );
-          }),
-        );
-      } else {
-        send({ type: 'join', callId: callInfo.id, from: user.id, kind: finalKind });
-      }
-    } catch (error: any) {
-      console.error('Call start error:', error);
-      toast.error(error instanceof Error ? error.message : 'Call start nahi hui');
-      throw error;
+      const otherMembers = targetMembers.filter(m => m.user_id !== user.id);
+      otherMembers.forEach(m => {
+        sendPushTo(m.user_id, {
+          title: `${targetGroupName || 'Group'} 📞`,
+          body: `${callerName} started a group ${requestedKind} call`,
+          url: `/group/${targetGroupId}`,
+          icon: targetAvatarUrl || '/images/logo/logo-icon.svg',
+          tag: `group_call_${targetGroupId}`,
+          isCall: true,
+          channelId: 'calls',
+          senderName: callerName,
+          senderAvatar: callerAvatar,
+          callType: requestedKind,
+          groupId: targetGroupId,
+          groupName: targetGroupName,
+          callId: newCallId,
+        }).catch(() => {});
+
+        createNotification({
+          user_id: m.user_id,
+          type: 'call',
+          title: `Group ${requestedKind} call`,
+          content: `${callerName} started a group call in ${targetGroupName}`,
+          reference_id: targetGroupId,
+        }).catch(() => {});
+      });
+
+      sendGroupMessage(
+        targetGroupId,
+        `📞 Started a group ${requestedKind} call. Tap to join!`,
+      ).catch(() => {});
+
+      send({
+        type: 'invite',
+        callId: newCallId,
+        from: user.id,
+        kind: requestedKind,
+        startedAt: now,
+      });
+
+      toast.success(`Group ${requestedKind} call started`);
+    } catch (err: any) {
+      cleanupMedia();
+      toast.error(err?.message || 'Could not start group call');
     }
   };
 
@@ -506,135 +542,98 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     startedAtTime?: number,
   ) => {
     if (!user) return;
-    setGroupId(targetGroupId);
-    setGroupName(targetGroupName);
-    setGroupAvatarUrl(targetAvatarUrl || null);
-
     try {
-      await waitForChannel();
+      setGroupId(targetGroupId);
+      setGroupName(targetGroupName);
+      setGroupAvatarUrl(targetAvatarUrl || null);
+      setKind(requestedKind);
+      setCameraOff(requestedKind !== 'video');
+
       await getMedia(requestedKind);
 
-      let targetId = targetCallId;
-      if (!targetId) {
-        const activeCall = await getActiveGroupCall(targetGroupId);
-        if (activeCall) targetId = activeCall.id;
+      let effectiveCallId = targetCallId;
+      if (!effectiveCallId) {
+        const activeDb = await getActiveGroupCall(targetGroupId);
+        if (activeDb) effectiveCallId = activeDb.id;
       }
 
-      if (targetId) {
-        await joinGroupCall(targetId);
-        activeCallRef.current = targetId;
-        setCallId(targetId);
+      if (effectiveCallId) {
+        await joinGroupCall(effectiveCallId);
+        setCallId(effectiveCallId);
+        activeCallRef.current = effectiveCallId;
       }
 
-      setKind(requestedKind);
-      setCameraOff(requestedKind !== "video");
-      setStartedAt(startedAtTime || Date.now());
       setActive(true);
       setMinimized(false);
       setIncoming(null);
 
-      if (targetId) {
-        send({ type: 'join', callId: targetId, from: user.id, kind: requestedKind });
-      }
-    } catch (error) {
-      console.error('Join call error:', error);
-      toast.error(error instanceof Error ? error.message : 'Call join nahi hui');
+      const startTime = startedAtTime || Date.now();
+      setStartedAt(startTime);
+
+      send({
+        type: 'join',
+        callId: effectiveCallId || 'active',
+        from: user.id,
+        kind: requestedKind,
+      });
+
+      toast.success('Joined group call');
+    } catch (err: any) {
+      cleanupMedia();
+      toast.error(err?.message || 'Could not join call');
     }
   };
 
-  const stopScreenShare = useCallback(async () => {
-    const display = screenStreamRef.current;
-    const cameraTrack = localStreamRef.current?.getVideoTracks()[0];
-    for (const pc of peersRef.current.values()) {
-      const sender = pc.getSenders().find(item => item.track?.kind === 'video');
-      if (sender && cameraTrack) await sender.replaceTrack(cameraTrack);
-    }
-    if (cameraTrack) cameraTrack.enabled = !cameraOff;
-    display?.getTracks().forEach(track => track.stop());
-    screenStreamRef.current = null;
-    setScreenStream(null);
-    setScreenSharing(false);
-  }, [cameraOff]);
-
-  const toggleScreenShare = async () => {
-    if (kind !== 'video') {
-      toast.info('Screen share video call me available hai');
-      return;
-    }
-    if (screenSharing) {
-      await stopScreenShare();
-      return;
-    }
-    try {
-      if (!navigator.mediaDevices?.getDisplayMedia) {
-        throw new Error('Screen share browser me available nahi hai');
-      }
-      const display = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      const track = display.getVideoTracks()[0];
-      for (const pc of peersRef.current.values()) {
-        const sender = pc.getSenders().find(item => item.track?.kind === 'video');
-        if (sender) await sender.replaceTrack(track);
-      }
-      screenStreamRef.current = display;
-      setScreenStream(display);
-      setScreenSharing(true);
-      track.onended = () => {
-        void stopScreenShare();
-      };
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Screen share start nahi hua');
-    }
-  };
-
-  const leaveCall = async () => {
-    const id = activeCallRef.current;
-    const targetGroupId = groupId;
-    const callElapsed = elapsedSeconds || (startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0);
-    if (id && user) {
-      send({ type: 'leave', callId: id, from: user.id });
-      try {
-        await leaveGroupCall(id);
-      } catch {
-        /* cleanup */
-      }
-    }
-    // Only post call ended message if this user was the last participant in call
-    const isLastOne = remoteStreams.size === 0;
-    if (targetGroupId && user && callElapsed > 0 && isLastOne) {
-      const mm = Math.floor(callElapsed / 60).toString().padStart(2, '0');
-      const ss = Math.floor(callElapsed % 60).toString().padStart(2, '0');
-      const emoji = kind === 'video' ? '🎥' : '📞';
-      const label = kind === 'video' ? 'Group video call' : 'Group audio call';
-      sendGroupMessage(targetGroupId, `${emoji} ${label} ended · ${mm}:${ss}`).catch(() => {});
-    }
-
-    screenStreamRef.current?.getTracks().forEach(track => track.stop());
-    peersRef.current.forEach(peer => peer.close());
-    peersRef.current.clear();
-    localStreamRef.current?.getTracks().forEach(track => track.stop());
-
+  const cleanupMedia = () => {
+    localStreamRef.current?.getTracks().forEach(t => {
+      try { t.stop(); } catch {}
+    });
+    screenStreamRef.current?.getTracks().forEach(t => {
+      try { t.stop(); } catch {}
+    });
     localStreamRef.current = null;
     screenStreamRef.current = null;
-    activeCallRef.current = null;
+    setLocalStream(null);
+    setScreenStream(null);
+
+    peersRef.current.forEach(pc => pc.close());
+    peersRef.current.clear();
 
     setRemoteStreams(new Map());
     setRemoteLabels(new Map());
     setRemoteAvatars(new Map());
     setRemoteMuted(new Map());
-    setScreenStream(null);
-    setLocalStream(null);
+    setRemoteCameraOff(new Map());
+    setActive(false);
+    setMinimized(false);
     setCallId(null);
+    activeCallRef.current = null;
     setStartedAt(null);
     setElapsedSeconds(0);
     setScreenSharing(false);
-    setActive(false);
-    setMinimized(false);
-    setIncoming(null);
+    setCameraOff(false);
+    setMuted(false);
+  };
 
-    dismissPhoneNotification('group_call_ongoing');
-    if (groupId) dismissPhoneNotification(`group_call_${groupId}`);
-    const android = (window as unknown as { AndroidNotification?: { setCallActive?: (a: boolean, t: string) => void } }).AndroidNotification;
-    android?.setCallActive?.(false, '');
+  const leaveCall = async () => {
+    if (groupId) {
+      dismissPhoneNotification(`group_call_${groupId}`);
+    }
+    dismissPhoneNotification(`group_call_ongoing`);
+
+    if (activeCallRef.current && user) {
+      send({
+        type: 'leave',
+        callId: activeCallRef.current,
+        from: user.id,
+      });
+      try {
+        await leaveGroupCall(activeCallRef.current);
+      } catch (e) {
+        console.warn('leaveGroupCall failed:', e);
+      }
+    }
+    cleanupMedia();
   };
 
   leaveCallRef.current = leaveCall;
@@ -655,25 +654,29 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // Turn Camera ON/OFF dynamically during audio or video call
   const toggleCamera = async () => {
     try {
       let currentStream = localStreamRef.current;
-      const activeVideoTrack = currentStream?.getVideoTracks().find(t => t.readyState === "active" && t.enabled !== false);
+      const liveVideoTrack = currentStream?.getVideoTracks().find(
+        t => (t.readyState === 'live' || (t.readyState as string) === 'active') && t.enabled !== false
+      );
 
-      if (cameraOff || !activeVideoTrack) {
-        // TURN CAMERA ON
+      if (cameraOff || !liveVideoTrack) {
+        // === TURN CAMERA ON ===
         let videoStream: MediaStream | null = null;
         if (navigator.mediaDevices?.getUserMedia) {
           try {
             videoStream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: "user" },
+              video: { facingMode: facingFront ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+              audio: false,
             });
           } catch {
             try {
-              videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+              videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
             } catch (err: any) {
-              console.warn("Camera getUserMedia failed:", err);
-              toast.error("Camera access denied or unavailable");
+              console.warn('Camera getUserMedia failed:', err);
+              toast.error('Camera access denied or camera is in use');
               return;
             }
           }
@@ -684,16 +687,17 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           if (!currentStream) {
             currentStream = new MediaStream();
           }
-          // Remove any old dead video tracks
+          // Remove old stopped video tracks
           currentStream.getVideoTracks().forEach(t => {
             try { t.stop(); } catch {}
             currentStream?.removeTrack(t);
           });
           currentStream.addTrack(newTrack);
 
+          // Update peers
           peersRef.current.forEach(peer => {
             const senders = peer.getSenders();
-            const vSender = senders.find(s => s.track?.kind === "video");
+            const vSender = senders.find(s => s.track?.kind === 'video' || (!s.track && s.dtlsTransport));
             if (vSender) {
               vSender.replaceTrack(newTrack).catch(() => {});
             } else {
@@ -704,11 +708,21 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           localStreamRef.current = currentStream;
           setLocalStream(new MediaStream(currentStream.getTracks()));
           setCameraOff(false);
-          setKind("video");
-          toast.success("Camera on");
+          setKind('video');
+
+          if (activeCallRef.current && user) {
+            send({
+              type: 'camera',
+              callId: activeCallRef.current,
+              from: user.id,
+              cameraOff: false,
+            });
+          }
+
+          toast.success('Camera on');
         }
       } else {
-        // TURN CAMERA OFF
+        // === TURN CAMERA OFF ===
         const tracks = currentStream?.getVideoTracks() || [];
         tracks.forEach(t => {
           t.enabled = false;
@@ -718,7 +732,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         peersRef.current.forEach(peer => {
           const senders = peer.getSenders();
-          const vSender = senders.find(s => s.track?.kind === "video");
+          const vSender = senders.find(s => s.track?.kind === 'video');
           if (vSender) {
             vSender.replaceTrack(null).catch(() => {});
           }
@@ -728,12 +742,63 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           localStreamRef.current = currentStream;
           setLocalStream(new MediaStream(currentStream.getTracks()));
         }
+
         setCameraOff(true);
-        toast.info("Camera off");
+
+        if (activeCallRef.current && user) {
+          send({
+            type: 'camera',
+            callId: activeCallRef.current,
+            from: user.id,
+            cameraOff: true,
+          });
+        }
+
+        toast.info('Camera off');
       }
     } catch (err: any) {
-      console.warn("Camera toggle error:", err);
-      toast.error(err?.message || "Camera permission denied or unavailable");
+      console.warn('Camera toggle error:', err);
+      toast.error(err?.message || 'Camera permission denied or unavailable');
+    }
+  };
+
+  // Flip between front and back cameras
+  const flipCamera = async () => {
+    if (cameraOff || !localStreamRef.current) {
+      toast.info('Turn on camera first to flip');
+      return;
+    }
+    const nextFacing = !facingFront;
+    setFacingFront(nextFacing);
+    try {
+      const fresh = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: nextFacing ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      const newTrack = fresh.getVideoTracks()[0];
+      if (!newTrack) return;
+
+      const currentStream = localStreamRef.current;
+      currentStream.getVideoTracks().forEach(t => {
+        try { t.stop(); } catch {}
+        currentStream.removeTrack(t);
+      });
+      currentStream.addTrack(newTrack);
+
+      peersRef.current.forEach(peer => {
+        const senders = peer.getSenders();
+        const vSender = senders.find(s => s.track?.kind === 'video');
+        if (vSender) {
+          vSender.replaceTrack(newTrack).catch(() => {});
+        }
+      });
+
+      localStreamRef.current = currentStream;
+      setLocalStream(new MediaStream(currentStream.getTracks()));
+      toast.success(nextFacing ? 'Front camera' : 'Back camera');
+    } catch (err) {
+      console.warn('Flip camera error:', err);
+      toast.error('Could not switch camera');
     }
   };
 
@@ -746,7 +811,6 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     await joinCall(groupId, groupName, groupAvatarUrl, incoming.callId, incoming.kind || 'audio', incoming.startedAt);
   };
 
-  // "Join" / "Decline" tapped on the phone's group-call notification.
   const acceptIncomingRef = useRef<(() => Promise<void>) | null>(null);
   acceptIncomingRef.current = acceptIncoming;
   useEffect(() => {
@@ -762,6 +826,55 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     window.addEventListener('appCallActionFromNotification', onAction);
     return () => window.removeEventListener('appCallActionFromNotification', onAction);
   }, []);
+
+  const toggleScreenShare = async () => {
+    if (!screenSharing) {
+      try {
+        if (!navigator.mediaDevices?.getDisplayMedia) {
+          toast.error('Screen sharing is not supported on this device/browser');
+          return;
+        }
+        const sStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        screenStreamRef.current = sStream;
+        setScreenStream(sStream);
+        setScreenSharing(true);
+
+        const screenTrack = sStream.getVideoTracks()[0];
+        if (screenTrack) {
+          peersRef.current.forEach(peer => {
+            const senders = peer.getSenders();
+            const vSender = senders.find(s => s.track?.kind === 'video');
+            if (vSender) vSender.replaceTrack(screenTrack);
+            else peer.addTrack(screenTrack, sStream);
+          });
+          screenTrack.onended = () => {
+            void toggleScreenShare();
+          };
+        }
+        toast.success('Screen sharing started');
+      } catch (err: any) {
+        if (err?.name !== 'NotAllowedError') {
+          console.warn('Screen share error:', err);
+          toast.error('Could not share screen');
+        }
+      }
+    } else {
+      screenStreamRef.current?.getTracks().forEach(t => t.stop());
+      screenStreamRef.current = null;
+      setScreenStream(null);
+      setScreenSharing(false);
+
+      const localCamTrack = localStreamRef.current?.getVideoTracks().find(t => t.readyState === 'live');
+      peersRef.current.forEach(peer => {
+        const senders = peer.getSenders();
+        const vSender = senders.find(s => s.track?.kind === 'video');
+        if (vSender) {
+          vSender.replaceTrack(cameraOff ? null : (localCamTrack || null));
+        }
+      });
+      toast.info('Screen sharing stopped');
+    }
+  };
 
   return (
     <GroupCallContext.Provider
@@ -782,8 +895,10 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         remoteLabels,
         remoteAvatars,
         remoteMuted,
+        remoteCameraOff,
         muted,
         cameraOff,
+        facingFront,
         speakerOn,
         screenSharing,
         incoming,
@@ -792,6 +907,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         leaveCall,
         toggleMute,
         toggleCamera,
+        flipCamera,
         toggleSpeaker,
         toggleScreenShare,
         setMinimized,
@@ -804,3 +920,5 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     </GroupCallContext.Provider>
   );
 };
+
+export default GroupCallContext;
