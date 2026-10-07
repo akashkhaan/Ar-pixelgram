@@ -584,7 +584,9 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         /* cleanup */
       }
     }
-    if (targetGroupId && user && callElapsed > 0) {
+    // Only post call ended message if this user was the last participant in call
+    const isLastOne = remoteStreams.size === 0;
+    if (targetGroupId && user && callElapsed > 0 && isLastOne) {
       const mm = Math.floor(callElapsed / 60).toString().padStart(2, '0');
       const ss = Math.floor(callElapsed % 60).toString().padStart(2, '0');
       const emoji = kind === 'video' ? '🎥' : '📞';
@@ -639,14 +641,49 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  const toggleCamera = () => {
-    const next = !cameraOff;
-    if (!screenSharing) {
-      localStreamRef.current?.getVideoTracks().forEach(track => {
-        track.enabled = !next;
-      });
+  const toggleCamera = async () => {
+    try {
+      const currentStream = localStreamRef.current;
+      const videoTrack = currentStream?.getVideoTracks()[0];
+
+      // If call started as audio-only, request camera stream now
+      if (!videoTrack && cameraOff) {
+        if (navigator.mediaDevices?.getUserMedia) {
+          const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          const newTrack = videoStream.getVideoTracks()[0];
+          if (newTrack) {
+            currentStream?.addTrack(newTrack);
+            peersRef.current.forEach(peer => {
+              const senders = peer.getSenders();
+              const vSender = senders.find(s => s.track?.kind === "video");
+              if (vSender) {
+                vSender.replaceTrack(newTrack).catch(() => {});
+              } else {
+                try { peer.addTrack(newTrack, currentStream!); } catch {}
+              }
+            });
+            setLocalStream(new MediaStream(currentStream?.getTracks() || [newTrack]));
+            setCameraOff(false);
+            setKind("video");
+            return;
+          }
+        }
+      }
+
+      const next = !cameraOff;
+      if (!screenSharing && videoTrack) {
+        videoTrack.enabled = !next;
+        if (next) {
+          videoTrack.stop();
+          currentStream?.removeTrack(videoTrack);
+          setLocalStream(new MediaStream(currentStream?.getTracks() || []));
+        }
+      }
+      setCameraOff(next);
+    } catch (err) {
+      console.warn("Camera toggle error:", err);
+      toast.error("Camera permission denied or unavailable");
     }
-    setCameraOff(next);
   };
 
   const toggleSpeaker = () => setSpeakerOn(v => !v);

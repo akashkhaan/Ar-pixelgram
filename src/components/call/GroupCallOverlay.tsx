@@ -1,15 +1,13 @@
 import { MessengerCallBubble } from './MessengerCallBubble';
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
-  Camera,
-  CameraOff,
   ChevronDown,
-  Maximize2,
   Mic,
   MicOff,
-  Monitor,
   PhoneOff,
-  Users,
+  RefreshCw,
+  Video,
+  VideoOff,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -17,22 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useGroupCall } from '@/contexts/GroupCallContext';
 import { Button } from '@/components/ui/button';
 
-const TILE_COLORS = [
-  'from-blue-600/80 to-indigo-900/90',
-  'from-emerald-600/80 to-teal-900/90',
-  'from-purple-600/80 to-violet-900/90',
-  'from-amber-600/80 to-rose-900/90',
-];
-
-function initials(name: string) {
-  return (name || 'M')
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(p => p[0]?.toUpperCase())
-    .join('');
-}
-
+const EMOJI_BURSTS = ['❤️', '🔥', '😂', '👏', '😍', '🎉'];
 
 const PersistentAudioTrack: React.FC<{ stream: MediaStream; speakerOn?: boolean }> = ({ stream, speakerOn }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -41,137 +24,132 @@ const PersistentAudioTrack: React.FC<{ stream: MediaStream; speakerOn?: boolean 
     audioRef.current.srcObject = stream;
     audioRef.current.volume = 1;
     const el = audioRef.current as any;
-    if (typeof el.setSinkId === "function") {
-      el.setSinkId(speakerOn ? "default" : "communications").catch(() => {});
+    if (typeof el.setSinkId === 'function') {
+      el.setSinkId(speakerOn ? 'default' : 'communications').catch(() => {});
     }
     audioRef.current.play().catch(() => {});
   }, [stream, speakerOn]);
   return <audio ref={audioRef} autoPlay playsInline />;
 };
 
-const ParticipantTile: React.FC<{
+interface TileProps {
+  id: string;
   stream: MediaStream | null;
-  label: string;
+  username: string;
   avatarUrl?: string | null;
-  videoMuted?: boolean;
-  isMicMuted?: boolean;
-  showVideo?: boolean;
-  speakerOn?: boolean;
-  index: number;
-  local?: boolean;
-}> = ({ stream, label, avatarUrl, videoMuted, isMicMuted, showVideo, speakerOn, index, local }) => {
-  const ref = useRef<HTMLVideoElement>(null);
-  const hasVideo = Boolean(stream && showVideo);
+  isLocal?: boolean;
+  isMuted?: boolean;
+  isSpeaker?: boolean;
+  hasVideo?: boolean;
+  isSpeaking?: boolean;
+  tag: string;
+  themeIndex: number;
+  wide?: boolean;
+}
+
+const CallTile: React.FC<TileProps> = ({
+  stream,
+  username,
+  avatarUrl,
+  isLocal,
+  isMuted,
+  isSpeaker,
+  hasVideo,
+  isSpeaking,
+  tag,
+  themeIndex,
+  wide,
+}) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const tileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!ref.current) return;
-    ref.current.srcObject = stream;
-    ref.current.volume = speakerOn ? 1 : 0;
-  }, [stream, speakerOn]);
+    if (videoRef.current && stream && hasVideo) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream, hasVideo]);
+
+  const handleTileClick = () => {
+    if (!tileRef.current) return;
+    for (let j = 0; j < 3; j++) {
+      setTimeout(() => {
+        if (!tileRef.current) return;
+        const span = document.createElement('span');
+        span.className = 'gcall-fx';
+        span.textContent = EMOJI_BURSTS[Math.floor(Math.random() * EMOJI_BURSTS.length)];
+        span.style.left = `${15 + Math.random() * 70}%`;
+        tileRef.current.appendChild(span);
+        setTimeout(() => span.remove(), 1900);
+      }, j * 160);
+    }
+  };
+
+  const themeClass = `gcall-t${themeIndex % 5}`;
 
   return (
-    <div className="relative flex min-h-[200px] flex-1 flex-col items-center justify-center overflow-hidden rounded-2xl bg-neutral-900/90 shadow-2xl border border-white/10">
-      {hasVideo ? (
-        <>
+    <div
+      ref={tileRef}
+      onClick={handleTileClick}
+      className={`gcall-tile ${themeClass} ${wide ? 'wide' : ''} ${isSpeaking ? 'speak' : ''}`}
+    >
+      {/* Participant Tag */}
+      <i className="gcall-tag">{tag}</i>
+
+      {/* Video Stream or Avatar Center */}
+      {hasVideo && stream ? (
+        <div className="absolute inset-0 w-full h-full overflow-hidden rounded-[24px]">
           <video
-            ref={ref}
+            ref={videoRef}
             autoPlay
             playsInline
-            muted={true}
-            className="h-full min-h-[200px] w-full object-cover"
+            muted={isLocal}
+            className="w-full h-full object-cover"
           />
-          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/85 via-black/40 to-transparent px-3.5 pb-3 pt-8 text-white">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-xs sm:text-sm font-semibold drop-shadow">
-                {local ? 'You' : label}
-              </span>
-              {isMicMuted && (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow ring-1 ring-black/40">
-                  <MicOff className="h-3 w-3" />
-                </span>
-              )}
-            </div>
-            <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur-sm border border-white/10">
-              Camera
-            </span>
-          </div>
-        </>
+        </div>
       ) : (
-        <>
-          {avatarUrl ? (
-            <div className="absolute inset-0 overflow-hidden">
-              <img
-                src={avatarUrl}
-                alt=""
-                className="h-full w-full object-cover brightness-[0.55] select-none"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/85" />
-            </div>
-          ) : (
-            <div className={'absolute inset-0 bg-gradient-to-br ' + TILE_COLORS[index % TILE_COLORS.length]} />
+        <div
+          className="av"
+          style={{
+            backgroundImage: avatarUrl ? `url(${avatarUrl})` : undefined,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          {!avatarUrl && (
+            <span className="text-white drop-shadow-md">
+              {(username?.[0] || 'U').toUpperCase()}
+            </span>
           )}
-
-          <div className="relative z-10 flex flex-col items-center justify-center p-4 text-center select-none">
-            <div className="relative">
-              <div className="flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center overflow-hidden rounded-full bg-white/15 text-2xl sm:text-3xl font-bold text-white ring-4 ring-white/30 shadow-2xl backdrop-blur-sm">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={label} className="h-full w-full object-cover" />
-                ) : (
-                  initials(label)
-                )}
-              </div>
-              {isMicMuted && (
-                <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white shadow-lg ring-2 ring-black/70 animate-in fade-in zoom-in-75">
-                  <MicOff className="h-3.5 w-3.5" />
-                </span>
-              )}
-            </div>
-            <div className="mt-3 flex flex-col items-center">
-              <p className="max-w-[180px] truncate text-sm sm:text-base font-bold text-white drop-shadow-md">
-                {local ? 'You' : label}
-              </p>
-              <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-black/50 px-2.5 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur-sm border border-white/10 shadow-sm">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Audio
-              </span>
-            </div>
-          </div>
-        </>
+        </div>
       )}
-    </div>
-  );
-};
 
-const RoundCallButton: React.FC<{
-  label: string;
-  onClick: () => void;
-  variant?: 'normal' | 'active' | 'danger' | 'highlight';
-  disabled?: boolean;
-  children: React.ReactNode;
-}> = ({ label, onClick, variant = 'normal', disabled, children }) => {
-  let styleClasses = 'bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/15';
-  if (variant === 'active') {
-    styleClasses = 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/40 border border-blue-400/40';
-  } else if (variant === 'danger') {
-    styleClasses = 'bg-red-600 hover:bg-red-700 text-white shadow-xl shadow-red-600/50 border border-red-500/40';
-  } else if (variant === 'highlight') {
-    styleClasses = 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/40 border border-emerald-400/40';
-  }
+      {/* Bottom Name Bar */}
+      <div className="gcall-name">
+        <span>
+          <span className="truncate max-w-[120px]">@{username}</span>
+          {/* Mute indicator: shows 'Mute' when muted */}
+          {isMuted && (
+            <span className="gcall-badge-mute">
+              <MicOff className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Mute</span>
+            </span>
+          )}
+          {/* Speaker indicator: shows 'Speaker' when on speaker */}
+          {isSpeaker && (
+            <span className="gcall-badge-spk">
+              <Volume2 className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Speaker</span>
+            </span>
+          )}
+        </span>
 
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled}
-        aria-label={label}
-        className={`flex h-14 w-14 sm:h-14 sm:w-14 items-center justify-center rounded-full transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-35 ${styleClasses}`}
-      >
-        {children}
-      </button>
-      <span className="text-[11px] font-medium text-white/80 select-none text-center drop-shadow">
-        {label}
-      </span>
+        {/* Animated Sound Waveform when speaking */}
+        <div className="gcall-wv">
+          <u />
+          <u />
+          <u />
+        </div>
+      </div>
     </div>
   );
 };
@@ -188,7 +166,6 @@ export const GroupCallOverlay: React.FC = () => {
     groupAvatarUrl,
     elapsedSeconds,
     localStream,
-    screenStream,
     remoteStreams,
     remoteLabels,
     remoteAvatars,
@@ -196,17 +173,38 @@ export const GroupCallOverlay: React.FC = () => {
     muted,
     cameraOff,
     speakerOn,
-    screenSharing,
     incoming,
     leaveCall,
     toggleMute,
     toggleCamera,
     toggleSpeaker,
-    toggleScreenShare,
     setMinimized,
     acceptIncoming,
     dismissIncoming,
   } = groupCall;
+
+  const [toastMsg, setToastMsg] = useState<string>('');
+  const [toastActive, setToastActive] = useState<boolean>(false);
+  const toastTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const [activeSpeakerIndex, setActiveSpeakerIndex] = useState<number>(0);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setToastActive(true);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastActive(false), 1400);
+  };
+
+  // Active speaker simulator rotation
+  useEffect(() => {
+    const total = 1 + remoteStreams.size;
+    if (total <= 1) return;
+    const interval = setInterval(() => {
+      setActiveSpeakerIndex(prev => (prev + 1) % total);
+    }, 3200);
+    return () => clearInterval(interval);
+  }, [remoteStreams.size]);
 
   const formatTime = (seconds: number) =>
     Math.floor(seconds / 60)
@@ -216,18 +214,69 @@ export const GroupCallOverlay: React.FC = () => {
     (seconds % 60).toString().padStart(2, '0');
 
   const participantCount = remoteStreams.size + 1;
-  const localLabel = profile?.username || profile?.full_name || user?.email?.split('@')[0] || 'You';
+  const localUsername = profile?.username || user?.email?.split('@')[0] || 'You';
 
-  /* Floating Incoming Call Banner */
+  // Camera toggle handler with toast
+  const handleToggleCamera = async () => {
+    await toggleCamera();
+    showToast(cameraOff ? 'Camera on' : 'Camera off');
+  };
+
+  // Mic toggle handler with toast
+  const handleToggleMute = () => {
+    toggleMute();
+    showToast(muted ? 'Mic on' : 'You are muted');
+  };
+
+  // Speaker toggle handler with toast
+  const handleToggleSpeaker = () => {
+    toggleSpeaker();
+    showToast(speakerOn ? 'Speaker off' : 'Speaker on');
+  };
+
+  // Flip camera handler
+  const handleFlipCamera = async () => {
+    if (localStream && !cameraOff) {
+      try {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          const settings = videoTrack.getSettings?.();
+          const currentFacing = settings?.facingMode === 'user' ? 'environment' : 'user';
+          const newStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: currentFacing },
+          });
+          const newTrack = newStream.getVideoTracks()[0];
+          if (newTrack) {
+            videoTrack.stop();
+            localStream.removeTrack(videoTrack);
+            localStream.addTrack(newTrack);
+            showToast('Camera flipped');
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Flip camera error:', err);
+      }
+    }
+    showToast('Camera flipped');
+  };
+
+  // End call handler: only disconnects local user, leaves other members in call
+  const handleEndCall = async () => {
+    showToast('Call ended');
+    await leaveCall();
+  };
+
+  // Floating Incoming Call Banner
   if (incoming && !active) {
     return (
-      <div className="fixed top-3 inset-x-3 z-[100] mx-auto max-w-md animate-in fade-in slide-in-from-top-4 duration-300">
+      <div className="fixed top-3 inset-x-3 z-[150] mx-auto max-w-md animate-in fade-in slide-in-from-top-4 duration-300">
         <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-card/95 p-3 shadow-2xl backdrop-blur-md text-foreground">
           <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-primary/20 font-semibold text-primary shrink-0 ring-2 ring-primary/30">
             {groupAvatarUrl ? (
               <img src={groupAvatarUrl} alt="" className="h-full w-full object-cover" />
             ) : (
-              initials(groupName || 'G')
+              (groupName?.[0] || 'G').toUpperCase()
             )}
           </div>
           <div className="min-w-0 flex-1">
@@ -261,11 +310,11 @@ export const GroupCallOverlay: React.FC = () => {
     );
   }
 
-    if (!active) return null;
+  if (!active) return null;
 
   return (
     <>
-      {/* Permanent background audio playback for all remote participants */}
+      {/* Background audio playback for remote participants */}
       <div className="hidden pointer-events-none" aria-hidden="true">
         {Array.from(remoteStreams.entries()).map(([peerId, stream]) => (
           <PersistentAudioTrack key={`audio-${peerId}`} stream={stream} speakerOn={speakerOn} />
@@ -275,180 +324,173 @@ export const GroupCallOverlay: React.FC = () => {
       {minimized ? (
         <MessengerCallBubble
           avatarUrl={groupAvatarUrl}
-          title={groupName || "Group"}
+          title={groupName || 'Group'}
           kind={kind}
           elapsedSeconds={elapsedSeconds}
-          videoStream={kind === "video" ? (remoteStreams.values().next().value || localStream) : null}
+          videoStream={kind === 'video' ? remoteStreams.values().next().value || localStream : null}
           muted={muted}
           onToggleMute={toggleMute}
           onMaximize={() => setMinimized(false)}
           onEndCall={() => void leaveCall()}
         />
       ) : (
-        /* Full Screen Group Call View (Messenger Style) */
-    <div className="fixed inset-0 z-[120] flex flex-col select-none overflow-hidden animate-in fade-in duration-200 bg-[#0b141a]">
-      {/* BACKGROUND GRADIENT (Messenger look) */}
-      <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(180deg,#1b3a4b_0%,#0f2a36_45%,#0b141a_100%)]" />
+        /* Full Screen Cyber-Space Call Screen from User HTML */
+        <div className="gcall-screen">
+          {/* Top Header */}
+          <div className="gcall-top">
+            <div className="gcall-brand">
+              <div className="gcall-logo">
+                {groupAvatarUrl ? (
+                  <img src={groupAvatarUrl} alt={groupName} />
+                ) : (
+                  <span>{(groupName?.[0] || 'G').toUpperCase()}</span>
+                )}
+              </div>
+              <div className="gcall-bt">
+                <b>{groupName || 'Group Call'}</b>
+                <span>
+                  Group {cameraOff && kind !== 'video' ? 'audio' : 'video'} call · {participantCount}{' '}
+                  {participantCount === 1 ? 'member' : 'members'}
+                </span>
+              </div>
+            </div>
 
-      {/* TOP HEADER */}
-      <div className="relative z-30 flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),16px)] pb-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
-        <button
-          type="button"
-          onClick={() => setMinimized(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/15 transition-transform active:scale-95"
-          title="Back / Minimize to bubble"
-        >
-          <ChevronDown className="h-6 w-6" />
-        </button>
+            <div className="flex items-center gap-2">
+              {/* Running Call Timer with pulsing green dot */}
+              <div className="gcall-timer">
+                <i />
+                <span>{formatTime(elapsedSeconds)}</span>
+              </div>
 
-        <div className="flex flex-col items-center text-center">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-            </span>
-            <span className="text-sm font-bold text-white drop-shadow">
-              {groupName || 'Group Call'}
-            </span>
-          </div>
-          <span className="text-xs font-medium text-white/70">
-            {formatTime(elapsedSeconds)} · {participantCount} {participantCount === 1 ? 'member' : 'members'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <div className="flex h-10 items-center gap-1.5 rounded-full bg-white/10 px-3 text-white backdrop-blur-md border border-white/15">
-            <Users className="h-4.5 w-4.5 text-white/80" />
-            <span className="text-xs font-semibold text-white/90">{participantCount}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* CALL TILES & WAITING SCREEN */}
-      {remoteStreams.size === 0 ? (
-        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pb-28">
-          <div className="relative flex items-center justify-center">
-            {/* Animated Breathing Calling Ripples */}
-            <span className="absolute h-48 w-48 rounded-full bg-emerald-500/10 animate-ping duration-1000" />
-            <span className="absolute h-40 w-40 rounded-full bg-emerald-500/20 animate-pulse duration-700" />
-
-            <div className="relative z-10 flex h-28 w-28 sm:h-32 sm:w-32 items-center justify-center overflow-hidden rounded-full bg-white/15 text-3xl sm:text-4xl font-bold text-white ring-4 ring-emerald-500/50 shadow-2xl backdrop-blur-md">
-              {groupAvatarUrl ? (
-                <img src={groupAvatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                initials(groupName || 'G')
-              )}
+              {/* Minimize to Bubble Button */}
+              <button
+                type="button"
+                onClick={() => setMinimized(true)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-md border border-white/15 transition-transform active:scale-90"
+                title="Minimize to bubble"
+              >
+                <ChevronDown className="w-5 h-5 text-white" />
+              </button>
             </div>
           </div>
 
-          <h3 className="mt-6 text-2xl font-bold text-white tracking-tight drop-shadow">
-            {groupName || 'Group'}
-          </h3>
-          <p className="mt-2 text-sm font-medium text-white/70">
-            Ringing&hellip;
-          </p>
-          <p className="mt-1 text-xs text-white/50">
-            {kind === 'video' ? 'Group video call' : 'Group audio call'} &middot; {formatTime(elapsedSeconds)}
-          </p>
-        </div>
-      ) : (
-        <div className="relative z-10 flex-1 overflow-y-auto px-3 py-2 pb-32">
-          <div className="grid h-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <ParticipantTile
-              stream={screenStream || localStream}
-              label={localLabel}
+          {/* Participant Tiles Grid */}
+          <div
+            className={`gcall-grid ${
+              participantCount === 1 ? 'count-1' : participantCount === 2 ? 'count-2' : ''
+            }`}
+          >
+            {/* Tile 0: Local User (You) */}
+            <CallTile
+              id="local-user"
+              stream={localStream}
+              username={localUsername}
               avatarUrl={profile?.avatar_url}
-              videoMuted={true}
-              isMicMuted={muted}
-              showVideo={kind === 'video' && (!cameraOff || Boolean(screenStream))}
-              speakerOn={speakerOn}
-              index={0}
-              local
+              isLocal={true}
+              isMuted={muted}
+              isSpeaker={speakerOn}
+              hasVideo={!cameraOff && Boolean(localStream?.getVideoTracks().some(t => t.readyState === 'active'))}
+              isSpeaking={!muted && activeSpeakerIndex === 0}
+              tag="YOU"
+              themeIndex={0}
+              wide={participantCount === 1 || participantCount % 2 === 1}
             />
 
+            {/* Remote Participants */}
             {Array.from(remoteStreams.entries()).map(([peerId, stream], index) => {
               const peerAvatar = remoteAvatars.get(peerId);
-              const peerName = remoteLabels.get(peerId) || 'Participant';
+              const peerName = remoteLabels.get(peerId) || `Member ${index + 1}`;
+              const isPeerMuted = remoteMuted.get(peerId) || false;
+              const hasPeerVideo = stream.getVideoTracks().some(t => t.readyState === 'active' && t.enabled);
+
               return (
-                <ParticipantTile
+                <CallTile
                   key={peerId}
+                  id={peerId}
                   stream={stream}
-                  label={peerName}
+                  username={peerName}
                   avatarUrl={peerAvatar}
-                  showVideo={kind === 'video'}
-                  speakerOn={speakerOn}
-                  videoMuted={!speakerOn}
-                  isMicMuted={remoteMuted.get(peerId) || false}
-                  index={index + 1}
+                  isLocal={false}
+                  isMuted={isPeerMuted}
+                  isSpeaker={speakerOn}
+                  hasVideo={hasPeerVideo}
+                  isSpeaking={!isPeerMuted && activeSpeakerIndex === index + 1}
+                  tag="MEMBER"
+                  themeIndex={index + 1}
+                  wide={false}
                 />
               );
             })}
           </div>
-        </div>
-      )}
 
-      {/* FLOATING CONTROLS BOTTOM BAR */}
-      <div className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-4 sm:gap-7 px-4 pt-12 pb-[max(env(safe-area-inset-bottom),24px)] bg-gradient-to-t from-black/95 via-black/60 to-transparent pointer-events-none">
-        {/* Mute Button */}
-        <div className="pointer-events-auto">
-          <RoundCallButton
-            label={muted ? 'Unmute' : 'Mute'}
-            onClick={toggleMute}
-            variant={muted ? 'danger' : 'normal'}
-          >
-            {muted ? <MicOff className="h-6 w-6 text-white" /> : <Mic className="h-6 w-6 text-white" />}
-          </RoundCallButton>
-        </div>
-
-        {/* Camera Button (Video Call) */}
-        {kind === 'video' && (
-          <div className="pointer-events-auto">
-            <RoundCallButton
-              label={cameraOff ? 'Turn on' : 'Camera'}
-              onClick={toggleCamera}
-              variant={cameraOff ? 'danger' : 'normal'}
+          {/* Bottom Floating Control Bar */}
+          <div className="gcall-bar">
+            {/* Video Button */}
+            <button
+              type="button"
+              className={`gcall-ctl ${cameraOff ? '' : 'off'}`}
+              onClick={() => void handleToggleCamera()}
             >
-              {cameraOff ? <CameraOff className="h-6 w-6 text-white" /> : <Camera className="h-6 w-6 text-white" />}
-            </RoundCallButton>
-          </div>
-        )}
+              <div className="gcall-cb">
+                {cameraOff ? <VideoOff /> : <Video />}
+              </div>
+              <span>Video</span>
+            </button>
 
-        {/* Screen Share Button (Video Call) */}
-        {kind === 'video' && (
-          <div className="pointer-events-auto">
-            <RoundCallButton
-              label={screenSharing ? 'Stop' : 'Share'}
-              onClick={() => void toggleScreenShare()}
-              variant={screenSharing ? 'highlight' : 'normal'}
+            {/* Mute Button */}
+            <button
+              type="button"
+              className={`gcall-ctl ${muted ? 'off' : ''}`}
+              onClick={handleToggleMute}
             >
-              <Monitor className="h-6 w-6 text-white" />
-            </RoundCallButton>
+              <div className="gcall-cb">
+                {muted ? <MicOff /> : <Mic />}
+              </div>
+              <span>{muted ? 'Unmute' : 'Mute'}</span>
+            </button>
+
+            {/* Speaker Button */}
+            <button
+              type="button"
+              className={`gcall-ctl ${speakerOn ? 'off' : ''}`}
+              onClick={handleToggleSpeaker}
+            >
+              <div className="gcall-cb">
+                {speakerOn ? <Volume2 /> : <VolumeX />}
+              </div>
+              <span>Speaker</span>
+            </button>
+
+            {/* Flip Camera Button */}
+            <button
+              type="button"
+              className="gcall-ctl"
+              onClick={() => void handleFlipCamera()}
+            >
+              <div className="gcall-cb">
+                <RefreshCw />
+              </div>
+              <span>Flip</span>
+            </button>
+
+            {/* End Call Button */}
+            <button
+              type="button"
+              className="gcall-ctl end"
+              onClick={() => void handleEndCall()}
+            >
+              <div className="gcall-cb">
+                <PhoneOff />
+              </div>
+              <span>End</span>
+            </button>
           </div>
-        )}
 
-        {/* Speaker Button */}
-        <div className="pointer-events-auto">
-          <RoundCallButton
-            label={speakerOn ? 'Speaker' : 'Earpiece'}
-            onClick={toggleSpeaker}
-            variant={speakerOn ? 'active' : 'normal'}
-          >
-            {speakerOn ? <Volume2 className="h-6 w-6 text-white" /> : <VolumeX className="h-6 w-6 text-white" />}
-          </RoundCallButton>
+          {/* Action Toast Notification */}
+          <div className={`gcall-toast ${toastActive ? 'on' : ''}`}>
+            {toastMsg}
+          </div>
         </div>
-
-        {/* End Call Button */}
-        <div className="pointer-events-auto">
-          <RoundCallButton
-            label="End"
-            onClick={() => void leaveCall()}
-            variant="danger"
-          >
-            <PhoneOff className="h-6 w-6 text-white" />
-          </RoundCallButton>
-        </div>
-      </div>
-    </div>
       )}
     </>
   );
