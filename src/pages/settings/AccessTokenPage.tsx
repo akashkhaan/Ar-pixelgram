@@ -48,7 +48,14 @@ const AccessTokenPage: React.FC = () => {
   };
   useEffect(() => { load(); }, []);
 
-  const showErr = (e: any) => toast.error(ERR[e?.message] ?? e?.message ?? 'Kuch galat hua');
+  const showErr = (e: any) => {
+    const msg = e?.message || "";
+    if (msg.includes("rate limited") || msg.includes("30 seconds")) {
+      toast.error("Kripya 30 second ruk kar dobara try karein (security rate limit)");
+      return;
+    }
+    toast.error(ERR[msg] ?? msg ?? "Kuch galat hua");
+  };
 
   const onStart = async () => {
     setBusy(true);
