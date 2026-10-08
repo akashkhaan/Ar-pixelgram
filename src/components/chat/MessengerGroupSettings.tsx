@@ -1,4 +1,3 @@
-import ChatWallpaperModal from "./ChatWallpaperModal";
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -65,7 +64,8 @@ import { toast } from 'sonner';
 import { firstFrameSrc } from '@/lib/mediaUrl';
 
 export const MESSENGER_THEMES = [
-  { id: 'default', name: 'Messenger Blue', preview: 'from-[#0084FF] to-[#00C6FF]', bubble: 'bg-[#0084FF] text-white', accent: '#0084FF' },
+  { id: 'default', name: 'Pixelgram Neon', preview: 'from-[#FF3D7F] to-[#7C5CFF]', bubble: 'bg-gradient-to-r from-[#FF3D7F] to-[#7C5CFF] text-white shadow-sm shadow-[#FF3D7F]/20', accent: '#FF3D7F' },
+  { id: 'blue', name: 'Messenger Blue', preview: 'from-[#0084FF] to-[#00C6FF]', bubble: 'bg-[#0084FF] text-white', accent: '#0084FF' },
   { id: 'sunset', name: 'Sunset', preview: 'from-orange-500 to-pink-500', bubble: 'bg-gradient-to-r from-orange-500 to-pink-500 text-white', accent: '#FF6B6B' },
   { id: 'berry', name: 'Berry', preview: 'from-pink-500 to-purple-600', bubble: 'bg-gradient-to-r from-pink-500 to-purple-600 text-white', accent: '#D946EF' },
   { id: 'cyberpunk', name: 'Neon Cyberpunk', preview: 'from-fuchsia-500 to-cyan-500', bubble: 'bg-gradient-to-r from-fuchsia-500 to-cyan-500 text-white', accent: '#06B6D4' },
