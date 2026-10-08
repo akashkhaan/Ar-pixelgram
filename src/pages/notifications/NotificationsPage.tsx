@@ -31,13 +31,200 @@ const AV = [
   ['#06B6D4', '#7C5CFF'],
 ];
 
-const REELS = [
-  ['#FF8A00', '#E8175D'],
-  ['#7C5CFF', '#2F8BFF'],
-  ['#00B894', '#A3E635'],
-  ['#D946EF', '#FF8A00'],
-  ['#2F8BFF', '#00B894'],
-];
+// Video frame preview for reels / videos
+const VideoThumbnail: React.FC<{ videoUrl: string }> = ({ videoUrl }) => {
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!videoUrl) return;
+    let active = true;
+    const v = document.createElement('video');
+    v.crossOrigin = 'anonymous';
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'metadata';
+    v.src = videoUrl.includes('#') ? videoUrl : `${videoUrl}#t=0.001`;
+
+    const handleCapture = () => {
+      try {
+        if (!active) return;
+        if (v.videoWidth > 0 && v.videoHeight > 0) {
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.min(v.videoWidth, 240);
+          canvas.height = Math.min(v.videoHeight, 320);
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+            const data = canvas.toDataURL('image/jpeg', 0.85);
+            if (data && data.length > 80) {
+              setPosterUrl(data);
+              return;
+            }
+          }
+        }
+      } catch {
+        // Fallback to video element below if canvas is blocked
+      }
+    };
+
+    v.addEventListener('loadeddata', handleCapture, { once: true });
+    v.addEventListener('seeked', handleCapture, { once: true });
+    v.load();
+
+    return () => {
+      active = false;
+      v.removeEventListener('loadeddata', handleCapture);
+      v.removeEventListener('seeked', handleCapture);
+      v.src = '';
+    };
+  }, [videoUrl]);
+
+  if (posterUrl) {
+    return <img src={posterUrl} alt="Reel frame" className="w-full h-full object-cover" />;
+  }
+
+  return (
+    <video
+      src={videoUrl.includes('#') ? videoUrl : `${videoUrl}#t=0.001`}
+      preload="metadata"
+      muted
+      playsInline
+      className="w-full h-full object-cover pointer-events-none"
+    />
+  );
+};
+
+// Media thumbnail on the right side of notifications (Reel, Story, Post)
+const MediaThumbnail: React.FC<{
+  notif: Notification;
+  onOpenReel: (notif: Notification, e: React.MouseEvent) => void;
+  onOpenPost: (notif: Notification, e: React.MouseEvent) => void;
+  onOpenStory: (notif: Notification, e: React.MouseEvent) => void;
+}> = ({ notif, onOpenReel, onOpenPost, onOpenStory }) => {
+  const [imgError, setImgError] = useState(false);
+
+  const isReel =
+    notif.type === 'reel_like' ||
+    notif.type === 'reel_comment' ||
+    notif.type === 'new_reel' ||
+    notif.media_item?.kind === 'reel' ||
+    (notif.type === 'like' && notif.media_item?.media_type === 'video') ||
+    (notif.type === 'comment' && notif.media_item?.media_type === 'video');
+
+  const isStory =
+    notif.type === 'story_like' ||
+    notif.type === 'story_reply' ||
+    notif.type === 'new_story' ||
+    notif.media_item?.kind === 'story';
+
+  const imageUrl = !imgError
+    ? (notif.media_item?.thumbnail_url ||
+       notif.media_item?.image_url ||
+       notif.post?.image_url ||
+       null)
+    : null;
+
+  const videoUrl =
+    notif.media_item?.video_url ||
+    (isReel ? notif.media_item?.video_url : null);
+
+  const hasAnyMedia = !!(imageUrl || videoUrl || notif.post_id || notif.media_item || notif.post);
+  if (!hasAnyMedia) return null;
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isReel) {
+      onOpenReel(notif, e);
+    } else if (isStory) {
+      onOpenStory(notif, e);
+    } else {
+      onOpenPost(notif, e);
+    }
+  };
+
+  if (isReel) {
+    return (
+      <div
+        onClick={handleClick}
+        title="Watch reel"
+        className="reel cursor-pointer active:scale-95 transition-transform"
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt="Reel"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover"
+          />
+        ) : videoUrl ? (
+          <VideoThumbnail videoUrl={videoUrl} />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-[#1B1334]">
+            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white/40">
+              <path d="M6 4l14 8-14 8z" />
+            </svg>
+          </div>
+        )}
+        <svg viewBox="0 0 24 24">
+          <path d="M6 4l14 8-14 8z" />
+        </svg>
+      </div>
+    );
+  }
+
+  if (isStory) {
+    return (
+      <div
+        onClick={handleClick}
+        title="View story"
+        className="reel cursor-pointer active:scale-95 transition-transform"
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt="Story"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover"
+          />
+        ) : videoUrl ? (
+          <VideoThumbnail videoUrl={videoUrl} />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-[#1B1334]">
+            <div className="w-5 h-5 rounded-full border-2 border-white/40" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Regular post thumbnail (square)
+  return (
+    <div
+      onClick={handleClick}
+      title="View post"
+      className="post-thumb shrink-0 w-[44px] h-[44px] rounded-[10px] overflow-hidden bg-[#1B1334] shadow-[0_0_0_1px_rgba(255,255,255,0.14)] cursor-pointer active:scale-95 transition-transform"
+    >
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt="Post"
+          onError={() => setImgError(true)}
+          className="w-full h-full object-cover"
+        />
+      ) : videoUrl ? (
+        <VideoThumbnail videoUrl={videoUrl} />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-[#1B1334]">
+          <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-white/40 stroke-2 fill-none">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+};
 
 function hashUser(u: string): number {
   let h = 0;
@@ -418,7 +605,6 @@ const NotificationsPage: React.FC = () => {
     const avColors = AV[actorHash % AV.length];
     const isFollowType = notif.type === 'follow' || notif.type === 'follow_accepted';
     const isReqType = notif.type === 'follow_request';
-    const reelColors = REELS[hashUser(notif.post_id || notif.id) % REELS.length];
     const hasReel = isReelNotification(notif);
     const hasPost = isPostNotification(notif);
 
@@ -572,47 +758,21 @@ const NotificationsPage: React.FC = () => {
           </button>
         )}
 
-        {/* 3. Reel thumbnail */}
-        {!isReqType && !isFollowType && hasReel && (
-          <div
-            onClick={e => openReel(notif, e)}
-            title="Watch reel"
-            className="reel cursor-pointer active:scale-95 transition-transform"
-            style={
-              !notif.media_item?.thumbnail_url && !notif.media_item?.image_url
-                ? { background: `linear-gradient(160deg, ${reelColors[0]}, ${reelColors[1]})` }
-                : undefined
-            }
-          >
-            {(notif.media_item?.thumbnail_url || notif.media_item?.image_url) && (
-              <img
-                src={notif.media_item.thumbnail_url || notif.media_item.image_url || ''}
-                alt="Reel"
-                className="w-full h-full object-cover"
-              />
-            )}
-            <svg viewBox="0 0 24 24">
-              <path d="M6 4l14 8-14 8z" />
-            </svg>
-          </div>
-        )}
-
-        {/* 4. Post image thumbnail */}
-        {!isReqType && !isFollowType && !hasReel && hasPost && (
-          <div
-            onClick={e => {
+        {/* 3. Media Thumbnail (Reel / Post / Story) */}
+        {!isReqType && !isFollowType && (
+          <MediaThumbnail
+            notif={notif}
+            onOpenReel={openReel}
+            onOpenPost={(n, e) => {
               e.stopPropagation();
-              if (notif.post_id) navigate(`/post/${notif.post_id}`);
+              if (n.post_id) navigate(`/post/${n.post_id}`);
             }}
-            title="View post"
-            className="shrink-0 w-[46px] h-[46px] rounded-[10px] overflow-hidden shadow-[0_0_0_1px_rgba(255,255,255,0.14)] cursor-pointer active:scale-95 transition-transform"
-          >
-            <img
-              src={notif.post?.image_url || notif.media_item?.image_url || notif.media_item?.thumbnail_url || ''}
-              alt="Post"
-              className="w-full h-full object-cover"
-            />
-          </div>
+            onOpenStory={(n, e) => {
+              e.stopPropagation();
+              if (n.post_id) navigate(`/stories?id=${n.post_id}`);
+              else if (n.actor_id) navigate(`/stories?u=${n.actor_id}`);
+            }}
+          />
         )}
       </div>
     );
@@ -792,26 +952,39 @@ const NotificationsPage: React.FC = () => {
         .notifs-theme .reel {
           flex: none;
           position: relative;
-          width: 46px;
-          height: 62px;
-          border-radius: 11px;
+          width: 44px;
+          height: 60px;
+          border-radius: 10px;
           overflow: hidden;
+          background: #1B1334;
           box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
         }
         .notifs-theme .reel::after {
           content: "";
           position: absolute;
           inset: 0;
-          background: linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent 55%);
+          background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent 55%);
+          pointer-events: none;
         }
         .notifs-theme .reel svg {
           position: absolute;
-          z-index: 1;
+          z-index: 2;
           left: 5px;
           bottom: 5px;
-          width: 13px;
-          height: 13px;
+          width: 12px;
+          height: 12px;
           fill: #fff;
+          filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
+        }
+        .notifs-theme .post-thumb {
+          flex: none;
+          position: relative;
+          width: 44px;
+          height: 44px;
+          border-radius: 10px;
+          overflow: hidden;
+          background: #1B1334;
+          box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
         }
         .notifs-theme .btn {
           flex: none;
