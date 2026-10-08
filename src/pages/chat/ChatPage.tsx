@@ -98,6 +98,33 @@ const ChatPage: React.FC = () => {
   const [uploadingImage, setUploadingImage] = useState(false);
 
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [selectedMsgTimeId, setSelectedMsgTimeId] = useState<string | null>(null);
+
+  const renderMessageText = (text: string, isMe: boolean) => {
+    const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    const parts = text.split(urlPattern);
+    return parts.map((part, i) => {
+      if (/^https?:\/\/[^\s]+$/i.test(part) || /^www\.[^\s]+$/i.test(part)) {
+        const href = part.startsWith('http') ? part : `https://${part}`;
+        return (
+          <a
+            key={`link-${i}`}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              'underline underline-offset-2 break-all font-semibold transition-opacity hover:opacity-85',
+              isMe ? 'text-white underline-white' : 'text-sky-500 dark:text-sky-400'
+            )}
+          >
+            {part}
+          </a>
+        );
+      }
+      return <span key={`txt-${i}`}>{part}</span>;
+    });
+  };
 
   const handlePickMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -876,72 +903,73 @@ const ChatPage: React.FC = () => {
                       onCallBack={(k) => { if (receiverId) startCall(receiverId, k); }}
                     />
                   ) : (
-                    <div className={cn('flex items-end gap-1.5', isMe ? 'justify-end' : 'justify-start')}>
+                    <div className={cn('flex items-end gap-1.5 w-full', isMe ? 'justify-end' : 'justify-start')}>
                       {isSingleEmoji ? (
-                    <div className="text-5xl py-1 px-2 select-none hover:scale-110 active:scale-125 transition-transform">
-                      {msg.content.trim()}
-                    </div>
-                  ) : shareInfo ? (
-                    <div
-                      className={cn(
-                        'max-w-[85%] sm:max-w-[75%] p-1.5 rounded-[22px] text-sm shadow-sm transition-all',
-                        isMe
-                          ? cn('rounded-br-[5px] text-white', activeTheme.bubble)
-                          : 'bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40'
-                      )}
-                    >
-                      <InstagramSharedCard shareInfo={shareInfo} isMe={isMe} />
-                      <div
-                        className={cn(
-                          'flex items-center gap-1 justify-end px-2 pt-1 pb-0.5 text-[10px]',
-                          isMe ? 'text-white/80' : 'text-muted-foreground'
-                        )}
-                      >
-                        <span>{formatTime(msg.created_at)}</span>
-                        {isMe && (
-                          <span className={cn('font-bold', msg.is_seen ? 'text-sky-300' : 'text-white/70')}>
-                            {msg.is_seen ? '✓✓' : '✓'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-end">
-                      {isMediaMessage(msg.content) ? (
-                        <ChatMediaRenderer
-                          content={msg.content}
-                          isMe={isMe}
-                          activeBubbleClass={activeTheme.bubble}
-                        />
-                      ) : (
+                        <div className="text-5xl py-1 px-2 select-none hover:scale-110 active:scale-125 transition-transform">
+                          {msg.content.trim()}
+                        </div>
+                      ) : shareInfo ? (
                         <div
                           className={cn(
-                            'max-w-[78%] px-4 py-2.5 rounded-[20px] text-sm shadow-sm transition-all break-words',
+                            'w-full max-w-[340px] p-1.5 rounded-[22px] text-sm shadow-sm transition-all',
                             isMe
-                              ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
-                              : 'bg-muted/80 dark:bg-[#242526] text-foreground rounded-bl-[4px] border border-border/40'
+                              ? cn('rounded-br-[5px] text-white', activeTheme.bubble)
+                              : 'bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40'
                           )}
                         >
-                          <p className="leading-relaxed">{msg.content}</p>
+                          <InstagramSharedCard shareInfo={shareInfo} isMe={isMe} />
                           <div
                             className={cn(
-                              'flex items-center gap-1 justify-end mt-0.5 text-[9px]',
-                              isMe ? 'text-white/75' : 'text-muted-foreground'
+                              'flex items-center gap-1 justify-end px-2 pt-1 pb-0.5 text-[10px]',
+                              isMe ? 'text-white/80' : 'text-muted-foreground'
                             )}
                           >
                             <span>{formatTime(msg.created_at)}</span>
+                            {isMe && (
+                              <span className={cn('font-bold', msg.is_seen ? 'text-sky-300' : 'text-white/70')}>
+                                {msg.is_seen ? '✓✓' : '✓'}
+                              </span>
+                            )}
                           </div>
                         </div>
-                      )}
-                      {/* Messenger Delivered indicator (from Screenshot 2) */}
-                      {isMe && idx === visibleMessages.length - 1 && (
-                        <div className="text-[10px] text-muted-foreground/80 font-medium pr-1 pt-1 select-none">
-                          {msg.is_seen ? 'Seen' : 'Delivered'}
+                      ) : (
+                        <div className={cn('flex flex-col max-w-[78%] sm:max-w-[70%]', isMe ? 'items-end' : 'items-start')}>
+                          {isMediaMessage(msg.content) ? (
+                            <ChatMediaRenderer
+                              content={msg.content}
+                              isMe={isMe}
+                              activeBubbleClass={activeTheme.bubble}
+                            />
+                          ) : (
+                            <div
+                              onClick={() => setSelectedMsgTimeId(prev => prev === msg.id ? null : msg.id)}
+                              className={cn(
+                                'w-fit max-w-full px-4 py-2 rounded-[20px] text-[15px] leading-snug shadow-2xs transition-all cursor-pointer select-text',
+                                isMe
+                                  ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
+                                  : 'bg-[#efefef] dark:bg-[#262626] text-foreground rounded-bl-[4px] border border-border/30 dark:border-transparent'
+                              )}
+                            >
+                              <div className="whitespace-pre-wrap break-words [word-break:break-word] select-text">
+                                {renderMessageText(msg.content, isMe)}
+                              </div>
+                            </div>
+                          )}
+                          {/* Show exact timestamp on tap */}
+                          {selectedMsgTimeId === msg.id && (
+                            <div className="text-[10px] text-muted-foreground/80 px-1 pt-0.5 select-none animate-in fade-in duration-150">
+                              {formatTime(msg.created_at)}
+                            </div>
+                          )}
+                          {/* Messenger Delivered indicator on latest sent message */}
+                          {isMe && idx === visibleMessages.length - 1 && selectedMsgTimeId !== msg.id && (
+                            <div className="text-[11px] text-muted-foreground/80 font-medium pr-1 pt-0.5 select-none">
+                              {msg.is_seen ? 'Seen' : 'Delivered'}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
                   )}
               </React.Fragment>
             );
