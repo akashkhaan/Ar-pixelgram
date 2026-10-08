@@ -261,7 +261,7 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full relative overflow-hidden select-none my-1"
+      className="w-full relative overflow-hidden select-none my-1 bg-white dark:bg-[#0b0f19] border border-slate-200/80 dark:border-white/10 shadow-sm transition-colors duration-300"
       style={{
         height: `${Math.round(415 * scale)}px`,
         borderRadius: `${Math.round(36 * scale)}px`,
@@ -286,7 +286,7 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
         <div className="pxc-grid" />
 
         {/* Floating Particles Canvas */}
-        <canvas ref={canvasRef} width={784} height={415} className="absolute inset-0 pointer-events-none z-0" />
+        <canvas ref={canvasRef} width={784} height={415} className="absolute inset-0 pointer-events-none z-0 hidden dark:block" />
 
         {/* Glowing Conic Border Card */}
         <div className={`pxc-card ${cardShow ? 'show' : ''}`} />
@@ -320,7 +320,7 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
 
             {/* Back Face with Conic Spinning Ring */}
             <div className="face back">
-              <div className="pxc-ring" />
+              {/* ring removed */}
               <div
                 className="pxc-ph"
                 style={{

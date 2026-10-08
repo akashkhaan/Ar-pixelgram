@@ -459,48 +459,65 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [localStream, muted]);
 
   const toggleCamera = useCallback(async () => {
-    if (!localStream) return;
+    const peerId = state.peerId;
     const off = !cameraOff;
     if (off) {
-      localStream.getVideoTracks().forEach(t => {
-        t.enabled = false;
-        try { t.stop(); } catch {}
-        localStream.removeTrack(t);
-      });
+      if (localStream) {
+        localStream.getVideoTracks().forEach(t => {
+          t.enabled = false;
+          try { t.stop(); } catch {}
+          localStream.removeTrack(t);
+        });
+      }
       if (videoSenderRef.current) {
         await videoSenderRef.current.replaceTrack(null);
       }
       setCameraOff(true);
-      sendSignal({ type: "camera", cameraOff: true });
+      const remoteHasVid = Boolean(
+        remoteStream && remoteStream.getVideoTracks().some(t => t.enabled && t.readyState === 'live')
+      );
+      if (!remoteHasVid) {
+        setState(prev => ({ ...prev, kind: 'audio' }));
+      }
+      if (peerId) {
+        sendSignal(peerId, 'camera-toggle', { cameraOff: true }).catch(() => {});
+      }
     } else {
       try {
         const fresh = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facingFront ? "user" : "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: facingFront ? 'user' : 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
         const newTrack = fresh.getVideoTracks()[0];
         if (newTrack) {
-          localStream.getVideoTracks().forEach(t => {
-            try { t.stop(); } catch {}
-            localStream.removeTrack(t);
-          });
-          localStream.addTrack(newTrack);
+          let s = localStream;
+          if (!s) {
+            s = new MediaStream([newTrack]);
+          } else {
+            s.getVideoTracks().forEach(t => {
+              try { t.stop(); } catch {}
+              s.removeTrack(t);
+            });
+            s.addTrack(newTrack);
+          }
           camVideoTrackRef.current = newTrack;
           if (videoSenderRef.current) {
             await videoSenderRef.current.replaceTrack(newTrack);
           } else if (pcRef.current) {
-            videoSenderRef.current = pcRef.current.addTrack(newTrack, localStream);
+            videoSenderRef.current = pcRef.current.addTrack(newTrack, s);
           }
-          setLocalStream(new MediaStream(localStream.getTracks()));
+          setLocalStream(new MediaStream(s.getTracks()));
           setCameraOff(false);
-          setState(prev => ({ ...prev, kind: "video" }));
-          sendSignal({ type: "camera", cameraOff: false });
+          setState(prev => ({ ...prev, kind: 'video' }));
+          if (peerId) {
+            sendSignal(peerId, 'camera-toggle', { cameraOff: false }).catch(() => {});
+          }
         }
       } catch (err) {
-        console.warn("Camera on failed:", err);
+        console.warn('Camera on failed:', err);
       }
     }
-  }, [localStream, cameraOff, facingFront, sendSignal]);
+  }, [localStream, remoteStream, cameraOff, facingFront, state.peerId, sendSignal]);
 
   const toggleMinimize = useCallback(() => setMinimized(m => !m), []);
 
@@ -666,6 +683,16 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try { await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch { /* noop */ }
       } else {
         pendingIceRef.current.push(candidate);
+      }
+    });
+    ch.on('broadcast', { event: 'camera-toggle' }, ({ payload }) => {
+      const { cameraOff: remoteCamOff } = (payload || {}) as { cameraOff?: boolean };
+      if (remoteCamOff === false) {
+        setState(prev => ({ ...prev, kind: 'video' }));
+      } else if (remoteCamOff === true) {
+        if (cameraOff) {
+          setState(prev => ({ ...prev, kind: 'audio' }));
+        }
       }
     });
     ch.on('broadcast', { event: 'call-end' }, ({ payload }) => {
