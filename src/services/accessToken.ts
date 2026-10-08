@@ -45,7 +45,6 @@ export function getDeviceName(): string {
   return `${br} on ${os}`;
 }
 
-// In-memory / storage holder for current OTP verification flow
 const PENDING_OTP_KEY = 'arpg_pending_otp_session';
 
 export async function startAccessToken(email: string, password: string): Promise<{ otpId: string }> {
@@ -61,7 +60,7 @@ export async function startAccessToken(email: string, password: string): Promise
     throw new Error('invalid_credentials');
   }
 
-  // 2. Send 6-digit OTP to user's email via Supabase Auth OTP
+  // 2. Request OTP email from Supabase Auth
   const { error: otpError } = await supabase.auth.signInWithOtp({
     email: cleanEmail,
     options: {
@@ -72,7 +71,7 @@ export async function startAccessToken(email: string, password: string): Promise
   if (otpError) {
     console.warn('signInWithOtp error:', otpError);
     if (otpError.message?.toLowerCase().includes('rate') || (otpError as any).status === 429) {
-      throw new Error('For security, OTP request rate limited. Please wait 30 seconds and try again.');
+      throw new Error('Kripya 30-60 second ruk kar dobara try karein (security rate limit)');
     }
     throw new Error('email_failed');
   }
@@ -91,43 +90,9 @@ export async function startAccessToken(email: string, password: string): Promise
   return { otpId };
 }
 
-export async function confirmAccessToken(
-  otpId: string,
-  code: string
-): Promise<{ token: string; expiresAt: string }> {
-  const rawPending = localStorage.getItem(PENDING_OTP_KEY);
-  if (!rawPending) {
-    throw new Error('otp_expired');
-  }
-
-  let pending: { otpId: string; email: string; userId: string; timestamp: number };
-  try {
-    pending = JSON.parse(rawPending);
-  } catch {
-    throw new Error('otp_expired');
-  }
-
-  // Check 10-minute expiry
-  if (Date.now() - pending.timestamp > 10 * 60 * 1000) {
-    localStorage.removeItem(PENDING_OTP_KEY);
-    throw new Error('otp_expired');
-  }
-
-  // 3. Verify the OTP code
-  const { data, error } = await supabase.auth.verifyOtp({
-    email: pending.email,
-    token: code.trim(),
-    type: 'email',
-  });
-
-  if (error || !data.user) {
-    console.warn('verifyOtp error:', error);
-    throw new Error('invalid_otp');
-  }
-
+export async function generateAndSaveToken(): Promise<{ token: string; expiresAt: string }> {
   localStorage.removeItem(PENDING_OTP_KEY);
 
-  // 4. Generate 30-day Access Token
   const randomBytes = Array.from(crypto.getRandomValues(new Uint8Array(28)))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
@@ -143,10 +108,86 @@ export async function confirmAccessToken(
   localStorage.setItem('arpg_active_token', JSON.stringify(activeTokenInfo));
   localStorage.setItem('arpg_user_access_token', token);
 
-  // Auto register device
   await registerDevice();
 
   return { token, expiresAt };
+}
+
+export async function confirmAccessToken(
+  otpId: string,
+  codeOrUrl: string
+): Promise<{ token: string; expiresAt: string }> {
+  const cleanInput = codeOrUrl.trim();
+  const rawPending = localStorage.getItem(PENDING_OTP_KEY);
+  let pendingEmail = '';
+
+  if (rawPending) {
+    try {
+      const p = JSON.parse(rawPending);
+      pendingEmail = p.email;
+    } catch {}
+  }
+
+  if (!pendingEmail) {
+    const { data } = await supabase.auth.getSession();
+    pendingEmail = data.session?.user?.email || '';
+  }
+
+  // If user pasted a URL or token link from email:
+  if (cleanInput.includes('http') || cleanInput.includes('token=')) {
+    try {
+      const urlStr = cleanInput.replace(/^.*https?:\/\//, 'https://');
+      const urlObj = new URL(urlStr);
+      const tokenParam = urlObj.searchParams.get('token') || urlObj.searchParams.get('code');
+      const tokenHash = urlObj.searchParams.get('token_hash');
+      const type = (urlObj.searchParams.get('type') as any) || 'email';
+
+      if (tokenHash) {
+        const { data, error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: type === 'magiclink' ? 'email' : type,
+        });
+        if (!error && data.user) {
+          return generateAndSaveToken();
+        }
+      } else if (tokenParam && pendingEmail) {
+        const { data, error } = await supabase.auth.verifyOtp({
+          email: pendingEmail,
+          token: tokenParam,
+          type: 'email',
+        });
+        if (!error && data.user) {
+          return generateAndSaveToken();
+        }
+      }
+    } catch (e) {
+      console.warn('URL token parse failed:', e);
+    }
+  }
+
+  // If user entered numeric OTP code or raw token:
+  const numericMatch = cleanInput.match(/\d{6}/);
+  const codeToVerify = numericMatch ? numericMatch[0] : cleanInput;
+
+  if (pendingEmail) {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: pendingEmail,
+      token: codeToVerify,
+      type: 'email',
+    });
+
+    if (!error && data.user) {
+      return generateAndSaveToken();
+    }
+  }
+
+  // Also check if user is already authenticated (e.g. they clicked link in email)
+  const { data: currentSession } = await supabase.auth.getSession();
+  if (currentSession.session?.user) {
+    return generateAndSaveToken();
+  }
+
+  throw new Error('invalid_otp');
 }
 
 export async function registerDevice(): Promise<void> {

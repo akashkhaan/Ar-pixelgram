@@ -226,19 +226,43 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   // Verify entered OTP
   const handleVerifyOtpCode = async (enteredCode: string): Promise<boolean> => {
     const trimmedInput = enteredCode.trim();
-    if (!trimmedInput || trimmedInput.length !== 6) {
-      throw new Error('Kripya 6-digit security code enter karein');
+    if (!trimmedInput) {
+      throw new Error('Kripya 6-digit security code ya email link enter karein');
     }
 
     const destination = selectedMethod === 'phone' ? phone : email;
     let isVerified = false;
 
-    // 1. Try Supabase Auth verifyOtp
+    // 1. Try Supabase Auth verifyOtp (URL / Token / Code)
     if (selectedMethod === 'email') {
       try {
+        if (trimmedInput.includes('http') || trimmedInput.includes('token=')) {
+          try {
+            const urlStr = trimmedInput.replace(/^.*https?:\/\//, 'https://');
+            const urlObj = new URL(urlStr);
+            const tokenParam = urlObj.searchParams.get('token') || urlObj.searchParams.get('code');
+            const tokenHash = urlObj.searchParams.get('token_hash');
+            if (tokenHash) {
+              const { data, error } = await supabase.auth.verifyOtp({
+                token_hash: tokenHash,
+                type: 'email',
+              });
+              if (!error && (data?.session || data?.user)) return true;
+            } else if (tokenParam) {
+              const { data, error } = await supabase.auth.verifyOtp({
+                email: destination.trim(),
+                token: tokenParam,
+                type: 'email',
+              });
+              if (!error && (data?.session || data?.user)) return true;
+            }
+          } catch {}
+        }
+        const numMatch = trimmedInput.match(/\d{6}/);
+        const codeToVerify = numMatch ? numMatch[0] : trimmedInput;
         const { data, error } = await supabase.auth.verifyOtp({
           email: destination.trim(),
-          token: trimmedInput,
+          token: codeToVerify,
           type: 'email',
         });
         if (!error && (data?.session || data?.user)) {

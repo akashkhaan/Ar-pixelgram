@@ -100,12 +100,26 @@ const AccessTokenPage: React.FC = () => {
               </>
             )}
             {step === 'otp' && (
-              <>
-                <p className="text-sm text-muted-foreground">{email} par 6 digit OTP bheja gaya hai.</p>
-                <Input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="000000" />
-                <Button className="w-full" disabled={busy || code.length !== 6} onClick={onConfirm}>{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Verify karein</Button>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground"><span className="font-semibold text-foreground">{email}</span> par verification code / link bheja gaya hai.</p>
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs leading-relaxed text-muted-foreground">
+                  <p className="font-medium text-foreground mb-1">📌 OTP ya Link kaise dalein?</p>
+                  Supabase email me ya to <b>6-digit OTP code</b> bhejta hai ya direct <b>login link (URL)</b> bhejta hai. Aap chahe to email me aaya <b>6-digit code</b> dalein ya pura <b>link paste karein</b> — dono se verify ho jayega!
+                </div>
+                <div className="space-y-1.5">
+                  <Label>OTP Code ya Email Link</Label>
+                  <Input
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.trim())}
+                    placeholder="6 digit code (jaise 123456) ya link paste karein"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <Button className="w-full" disabled={busy || !code.trim()} onClick={onConfirm}>
+                  {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Verify karein
+                </Button>
                 <Button variant="ghost" className="w-full" onClick={() => setStep('creds')}>Wapas</Button>
-              </>
+              </div>
             )}
             {step === 'token' && (
               <>
