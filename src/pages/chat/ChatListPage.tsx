@@ -146,27 +146,45 @@ const ChatListPage: React.FC = () => {
           getMessagedProfiles(user.id),
           getMyGroups(user.id).catch(() => []),
         ]),
-        20000
+        10000,
+        [[], [], []]
       );
+
       setGroups(groupList);
-      const groupIds = groupList.map((g) => g.group.id);
-      if (groupIds.length > 0) {
-        const calls = await getActiveGroupCallsForUser(groupIds).catch(() => ({}));
-        setActiveGroupCalls(calls);
+
+      // Fetch active calls for all user groups
+      try {
+        const callsMap = await getActiveGroupCallsForUser(user.id);
+        setActiveGroupCalls(callsMap);
+      } catch (err) {
+        console.warn("Could not fetch active group calls:", err);
       }
+
+      // Combine profiles without duplicates
       const seen = new Set<string>();
       const combined: Profile[] = [];
-      for (const p of [...mutuals, ...messaged]) {
-        if (p && !seen.has(p.user_id)) {
-          seen.add(p.user_id);
+
+      for (const p of [...messaged, ...mutuals]) {
+        if (!seen.has(p.id) && p.id !== user.id) {
+          seen.add(p.id);
           combined.push(p);
         }
       }
-      const convs = await Promise.all(
+
+      // Load last message and unread count for each profile
+      const convs: ConversationItem[] = await Promise.all(
         combined.map(async (p) => {
-          const msgs = await getMessages(user.id, p.user_id);
-          const lastMessage = msgs[msgs.length - 1] || null;
-          const unreadCount = await getUnreadCount(user.id, p.user_id);
+          let lastMessage: Message | null = null;
+          let unreadCount = 0;
+          try {
+            const msgs = await getMessages(user.id, p.user_id);
+            if (msgs.length > 0) {
+              lastMessage = msgs[msgs.length - 1];
+            }
+            unreadCount = await getUnreadCount(user.id, p.user_id);
+          } catch {
+            /* ignore individual errors */
+          }
           return { profile: p, lastMessage, unreadCount };
         })
       );
@@ -203,6 +221,7 @@ const ChatListPage: React.FC = () => {
         })
       );
 
+      // Load notes
       loadNotes();
     } catch {
       /* ignore */
@@ -223,12 +242,12 @@ const ChatListPage: React.FC = () => {
         "postgres_changes",
         { event: "*", schema: "public", table: "online_status" },
         (payload) => {
-          const row = payload.new as { user_id: string; is_online: boolean; last_seen_at?: string };
-          if (row?.user_id) {
+          const row = payload.new as any;
+          if (row && row.user_id) {
             setOnlineStatuses((prev) => ({
               ...prev,
               [row.user_id]: {
-                is_online: row.is_online,
+                is_online: Boolean(row.is_online),
                 last_seen_at: row.last_seen_at,
               },
             }));
@@ -236,64 +255,92 @@ const ChatListPage: React.FC = () => {
         }
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
   }, []);
 
-  // Realtime subscription for group call status updates
+  // Realtime subscription for group call start/end
   useEffect(() => {
-    if (!groups.length) return;
-    const channel = supabase.channel("chat-list-group-calls");
-    groups.forEach(({ group }) => {
-      channel.on(
+    const channel = supabase
+      .channel("chatlist-group-calls-events")
+      .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "group_calls",
-          filter: `group_id=eq.${group.id}`,
-        },
-        async () => {
-          const groupIds = groups.map((g) => g.group.id);
-          const calls = await getActiveGroupCallsForUser(groupIds).catch(() => ({}));
-          setActiveGroupCalls(calls);
+        { event: "*", schema: "public", table: "group_calls" },
+        (payload) => {
+          const updatedCall = payload.new as GroupCall;
+          if (!updatedCall || !updatedCall.group_id) return;
+          if (payload.eventType === "DELETE" || updatedCall.status === "ended") {
+            setActiveGroupCalls((prev) => {
+              const next = { ...prev };
+              delete next[updatedCall.group_id];
+              return next;
+            });
+          } else if (updatedCall.status === "active") {
+            setActiveGroupCalls((prev) => ({
+              ...prev,
+              [updatedCall.group_id]: updatedCall,
+            }));
+          }
         }
-      );
-    });
-    channel.subscribe();
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [groups]);
+  }, []);
 
-  const activeGroups = useMemo(
-    () => groups.filter((g) => !ignoredGroupIds.includes(g.group.id)),
-    [groups, ignoredGroupIds]
-  );
-  const requestedGroups = useMemo(
-    () => groups.filter((g) => ignoredGroupIds.includes(g.group.id)),
-    [groups, ignoredGroupIds]
-  );
+  // Realtime subscription for new messages to update list
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("chat-list-incoming-messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `receiver_id=eq.${user.id}`,
+        },
+        () => {
+          load();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, load]);
+
+  const activeGroups = useMemo(() => {
+    return groups.filter((g) => !ignoredGroupIds.includes(g.group.id));
+  }, [groups, ignoredGroupIds]);
+
+  const requestedGroups = useMemo(() => {
+    return groups.filter((g) => ignoredGroupIds.includes(g.group.id));
+  }, [groups, ignoredGroupIds]);
 
   const handleUnignoreGroup = (groupId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const next = ignoredGroupIds.filter((id) => id !== groupId);
-    setIgnoredGroupIds(next);
-    localStorage.setItem("ignored_group_ids", JSON.stringify(next));
-    toast.success("Group restored to main chats");
-    if (next.length === 0) setChatFilter("all");
+    const updated = ignoredGroupIds.filter((id) => id !== groupId);
+    setIgnoredGroupIds(updated);
+    try {
+      localStorage.setItem("ignored_group_ids", JSON.stringify(updated));
+    } catch {}
+    toast.success("Group moved back to active chats");
   };
 
-  // Filtered lists
   const filteredConversations = useMemo(() => {
-    const valid = (conversations || []).filter((c) => c && c.lastMessage !== null);
-    if (!searchQuery.trim()) return valid;
+    if (!searchQuery.trim()) return conversations;
     const q = searchQuery.toLowerCase();
-    return valid.filter(
+    return conversations.filter(
       (c) =>
-        c.profile.username?.toLowerCase().includes(q) ||
-        c.profile.full_name?.toLowerCase().includes(q)
+        c.profile.username.toLowerCase().includes(q) ||
+        (c.profile.full_name && c.profile.full_name.toLowerCase().includes(q))
     );
   }, [conversations, searchQuery]);
 
@@ -361,7 +408,6 @@ const ChatListPage: React.FC = () => {
     }[] = [];
     const seen = new Set<string>();
 
-    // Add friend notes first
     friendNotes.forEach((n) => {
       if (n.profile && !seen.has(n.profile.user_id)) {
         seen.add(n.profile.user_id);
@@ -370,7 +416,6 @@ const ChatListPage: React.FC = () => {
       }
     });
 
-    // Add online conversation profiles
     conversations.forEach((c) => {
       if (!seen.has(c.profile.user_id)) {
         const presence = formatUserPresence(c.profile.user_id);
@@ -381,7 +426,6 @@ const ChatListPage: React.FC = () => {
       }
     });
 
-    // Add other recent conversation profiles up to 10
     conversations.forEach((c) => {
       if (!seen.has(c.profile.user_id) && list.length < 12) {
         seen.add(c.profile.user_id);
@@ -397,25 +441,28 @@ const ChatListPage: React.FC = () => {
     <MobileLayout hideHeader hideNav>
       <style>{`
         :root {
-          --msg-bg: #0E0820;
-          --msg-s1: #1A1233;
-          --msg-s2: #2A2050;
-          --msg-ink: #F7F3FF;
-          --msg-mute: #A99FD2;
-          --msg-line: rgba(255,255,255,.09);
-          --msg-pink: #FF3D7F;
-          --msg-vio: #7C5CFF;
-          --msg-green: #22D3A0;
-          --msg-grad: linear-gradient(135deg,#FF3D7F,#7C5CFF);
+          --bg: #0E0820;
+          --s1: #1A1233;
+          --s2: #2A2050;
+          --ink: #F7F3FF;
+          --mute: #A99FD2;
+          --line: rgba(255,255,255,.09);
+          --pink: #FF3D7F;
+          --vio: #7C5CFF;
+          --green: #22D3A0;
+          --grad: linear-gradient(135deg,#FF3D7F,#7C5CFF);
+          color-scheme: dark;
         }
-        .msg-page {
-          background: var(--msg-bg);
-          color: var(--msg-ink);
+        .msg-root-body {
+          background: var(--bg);
+          color: var(--ink);
           font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+          line-height: 1.35;
+          -webkit-font-smoothing: antialiased;
           min-height: 100vh;
           position: relative;
         }
-        .msg-page::before {
+        .msg-root-body::before {
           content: "";
           position: fixed;
           inset: 0;
@@ -424,29 +471,29 @@ const ChatListPage: React.FC = () => {
                       radial-gradient(460px 300px at -5% 120px, rgba(124,92,255,.22), transparent 70%);
           z-index: 0;
         }
-        .msg-wrap {
+        .wrap {
           position: relative;
           max-width: 580px;
           margin: 0 auto;
-          padding-bottom: 90px;
+          padding-bottom: 70px;
           z-index: 1;
         }
-        .msg-header {
+        header {
           position: sticky;
           top: 0;
-          z-index: 20;
+          z-index: 10;
           padding: 18px 16px 14px;
-          background: linear-gradient(to bottom, rgba(14,8,32,.95) 75%, rgba(14,8,32,0));
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
+          background: linear-gradient(to bottom, rgba(14,8,32,.94) 70%, rgba(14,8,32,0));
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
-        .msg-top {
+        .top {
           display: flex;
           align-items: center;
           gap: 12px;
-          margin-bottom: 14px;
+          margin-bottom: 16px;
         }
-        .msg-back-btn {
+        .top .back-btn {
           width: 42px;
           height: 42px;
           border-radius: 14px;
@@ -454,26 +501,28 @@ const ChatListPage: React.FC = () => {
           display: grid;
           place-items: center;
           flex: none;
-          color: var(--msg-ink);
-          transition: background .15s, transform .15s;
+          cursor: pointer;
+          border: 0;
+          color: var(--ink);
+          transition: transform .15s, background .15s;
         }
-        .msg-back-btn:active {
+        .top .back-btn:active {
           transform: scale(.92);
           background: rgba(255,255,255,.12);
         }
-        .msg-title {
+        h1 {
           font-size: 34px;
           font-weight: 800;
           letter-spacing: -.045em;
           line-height: 1;
-          color: var(--msg-ink);
+          color: var(--ink);
         }
-        .msg-count-pill {
+        #count {
           min-width: 32px;
           height: 32px;
           padding: 0 10px;
           border-radius: 99px;
-          background: var(--msg-grad);
+          background: var(--grad);
           color: #fff;
           font-weight: 800;
           font-size: 15px;
@@ -481,111 +530,148 @@ const ChatListPage: React.FC = () => {
           place-items: center;
           box-shadow: 0 6px 20px rgba(255,61,127,.45);
         }
-        .msg-new-btn {
+        .new {
           margin-left: auto;
-          width: 44px;
-          height: 44px;
+          width: 46px;
+          height: 46px;
           border-radius: 16px;
-          background: var(--msg-grad);
+          background: var(--grad);
           display: grid;
           place-items: center;
           box-shadow: 0 8px 22px rgba(124,92,255,.45);
           transition: transform .15s;
+          cursor: pointer;
+          border: 0;
           color: #fff;
         }
-        .msg-new-btn:active {
+        .new:active {
           transform: scale(.92) rotate(-6deg);
         }
-        .msg-search-box {
+        .new svg {
+          width: 20px;
+          height: 20px;
+          stroke: #fff;
+          stroke-width: 2.3;
+          fill: none;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        .search {
           display: flex;
           align-items: center;
           gap: 10px;
           background: rgba(255,255,255,.06);
-          border: 1px solid var(--msg-line);
+          border: 1px solid var(--line);
           border-radius: 18px;
           padding: 0 16px;
-          height: 48px;
+          height: 50px;
           transition: border-color .2s, background .2s;
         }
-        .msg-search-box:focus-within {
-          border-color: var(--msg-pink);
+        .search:focus-within {
+          border-color: var(--pink);
           background: rgba(255,255,255,.09);
         }
-        .msg-chips-container {
+        .search svg {
+          width: 18px;
+          height: 18px;
+          stroke: var(--mute);
+          stroke-width: 2.2;
+          fill: none;
+          stroke-linecap: round;
+        }
+        .search input {
+          flex: 1;
+          min-width: 0;
+          background: none;
+          border: 0;
+          outline: 0;
+          font-size: 15.5px;
+          color: var(--ink);
+        }
+        .search input::placeholder {
+          color: var(--mute);
+        }
+        .chips {
           display: flex;
           gap: 4px;
           margin-top: 12px;
           padding: 4px;
           background: rgba(255,255,255,.06);
-          border: 1px solid var(--msg-line);
+          border: 1px solid var(--line);
           border-radius: 18px;
         }
-        .msg-chip-item {
+        .chip {
           flex: 1;
-          padding: 9px 6px;
+          padding: 10px 6px;
           border-radius: 14px;
-          color: var(--msg-mute);
+          color: var(--mute);
           font-weight: 600;
-          font-size: 14px;
+          font-size: 14.5px;
           text-align: center;
           transition: background .2s, color .2s;
-          cursor: pointer;
           border: 0;
           background: none;
+          cursor: pointer;
         }
-        .msg-chip-item[aria-pressed="true"] {
-          background: var(--msg-grad);
+        .chip[aria-pressed="true"] {
+          background: var(--grad);
           color: #fff;
           box-shadow: 0 6px 16px rgba(255,61,127,.35);
         }
-        .msg-chip-item i {
+        .chip i {
           font-style: normal;
           margin-left: 6px;
-          opacity: .85;
+          opacity: .75;
           font-weight: 800;
         }
-        .msg-act-rail {
+        .act {
           display: flex;
           gap: 16px;
-          padding: 8px 18px 14px;
+          padding: 6px 18px 10px;
           overflow-x: auto;
           scrollbar-width: none;
         }
-        .msg-act-rail::-webkit-scrollbar {
+        .act::-webkit-scrollbar {
           display: none;
         }
-        .msg-act-item {
+        .act button {
           flex: none;
-          width: 68px;
+          width: 66px;
           text-align: center;
-          font-size: 12px;
-          color: var(--msg-mute);
+          font-size: 12.5px;
+          color: var(--mute);
           font-weight: 600;
-          background: none;
-          border: 0;
           cursor: pointer;
+          border: 0;
+          background: none;
           display: flex;
           flex-direction: column;
           align-items: center;
         }
-        .msg-act-av {
-          position: relative;
-          flex: none;
-          border-radius: 50%;
-          width: 58px;
-          height: 58px;
+        .act .av {
           margin: 0 auto 6px;
         }
-        .msg-act-av.ring::before,
-        .msg-row.unread .msg-av::before {
+        .act .av::before,
+        .row.unread > .av::before {
           content: "";
           position: absolute;
           inset: -3.5px;
           border-radius: 50%;
-          background: var(--msg-grad);
+          background: var(--grad);
           z-index: 0;
         }
-        .msg-av-ph {
+        .av {
+          position: relative;
+          flex: none;
+          border-radius: 50%;
+          width: 52px;
+          height: 52px;
+        }
+        .act .av {
+          width: 56px;
+          height: 56px;
+        }
+        .av .ph {
           position: relative;
           z-index: 1;
           display: block;
@@ -593,217 +679,211 @@ const ChatListPage: React.FC = () => {
           height: 100%;
           border-radius: 50%;
           overflow: hidden;
-          border: 2.5px solid var(--msg-bg);
-          background: var(--msg-s1);
+          border: 2.5px solid var(--bg);
+          background: var(--s1);
         }
-        .msg-av-ph img {
+        .av .ph img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           display: block;
         }
-        .msg-online-dot {
+        .av svg {
+          width: 100%;
+          height: 100%;
+          display: block;
+        }
+        .dot {
           position: absolute;
           z-index: 2;
           right: -1px;
           bottom: -1px;
-          width: 15px;
-          height: 15px;
+          width: 16px;
+          height: 16px;
           border-radius: 50%;
-          background: var(--msg-green);
-          border: 2.5px solid var(--msg-bg);
-          box-shadow: 0 0 10px var(--msg-green);
+          background: var(--green);
+          border: 3px solid var(--bg);
+          box-shadow: 0 0 10px var(--green);
         }
-        .msg-rows-list {
-          padding: 6px 14px;
+        .grp {
+          position: relative;
+          flex: none;
         }
-        .msg-row {
+        .grp .av {
+          position: absolute;
+        }
+        .grp .av .ph {
+          border-width: 3px;
+        }
+        .rows {
+          padding: 4px 12px;
+        }
+        .row {
           display: flex;
           align-items: center;
-          gap: 14px;
+          gap: 15px;
           width: 100%;
           padding: 13px 14px;
-          margin-bottom: 9px;
+          margin-bottom: 8px;
           border-radius: 24px;
           text-align: left;
           background: rgba(255,255,255,.04);
-          border: 1px solid var(--msg-line);
+          border: 1px solid var(--line);
           transition: background .2s, transform .15s, border-color .2s;
-          text-decoration: none;
+          cursor: pointer;
           color: inherit;
+          text-decoration: none;
         }
-        .msg-row:hover {
+        .row:hover {
           background: rgba(255,255,255,.08);
         }
-        .msg-row:active {
+        .row:active {
           transform: scale(.985);
         }
-        .msg-row.unread {
+        .row.unread {
           background: linear-gradient(135deg, rgba(255,61,127,.16), rgba(124,92,255,.14));
           border-color: rgba(255,61,127,.38);
         }
-        .msg-av {
-          position: relative;
-          flex: none;
-          border-radius: 50%;
-          width: 52px;
-          height: 52px;
-        }
-        .msg-mid {
+        .mid {
           flex: 1;
           min-width: 0;
         }
-        .msg-nm {
+        .nm {
           display: flex;
           align-items: center;
-          gap: 6px;
-          font-size: 16px;
+          gap: 7px;
+          font-size: 16.5px;
           font-weight: 600;
-          color: var(--msg-ink);
+          color: var(--ink);
         }
-        .msg-nm span {
+        .nm span {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        .msg-row.unread .msg-nm {
-          font-weight: 800;
-        }
-        .msg-lm {
-          font-size: 14px;
-          color: var(--msg-mute);
+        .lm {
+          font-size: 14.5px;
+          color: var(--mute);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
           margin-top: 3px;
         }
-        .msg-lm em {
+        .lm em {
           font-style: normal;
-          color: var(--msg-green);
+          color: var(--green);
           font-weight: 700;
         }
-        .msg-row.unread .msg-lm {
-          color: var(--msg-ink);
+        .row.unread .nm {
+          font-weight: 800;
+        }
+        .row.unread .lm {
+          color: var(--ink);
           font-weight: 600;
         }
-        .msg-meta {
+        .meta {
           flex: none;
           display: flex;
           flex-direction: column;
           align-items: flex-end;
           gap: 7px;
-          font-size: 12px;
-          color: var(--msg-mute);
+          font-size: 12.5px;
+          color: var(--mute);
           font-weight: 600;
         }
-        .msg-row.unread .msg-meta > span:first-child {
-          color: var(--msg-pink);
+        .row.unread .meta > span:first-child {
+          color: var(--pink);
           font-weight: 700;
         }
-        .msg-badge {
-          min-width: 22px;
-          height: 22px;
-          padding: 0 7px;
+        .badge {
+          min-width: 24px;
+          height: 24px;
+          padding: 0 8px;
           border-radius: 99px;
-          background: var(--msg-grad);
+          background: var(--grad);
           color: #fff;
           font-weight: 800;
-          font-size: 12px;
+          font-size: 13px;
           display: grid;
           place-items: center;
           box-shadow: 0 4px 14px rgba(255,61,127,.5);
         }
-        .msg-call-actions {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          margin-top: 2px;
-        }
-        .msg-call-btn {
+        .row-action-btn {
           width: 32px;
           height: 32px;
           border-radius: 50%;
-          background: rgba(255,255,255,.07);
-          border: 1px solid var(--msg-line);
+          background: rgba(255,255,255,.06);
           display: grid;
           place-items: center;
-          color: var(--msg-mute);
-          transition: background .15s, color .15s, transform .15s;
+          color: var(--mute);
+          transition: background .15s, color .15s;
+          border: 0;
+          cursor: pointer;
         }
-        .msg-call-btn:hover {
+        .row-action-btn:hover {
           background: rgba(255,61,127,.2);
           color: #fff;
-          border-color: rgba(255,61,127,.4);
         }
-        .msg-call-btn:active {
-          transform: scale(.9);
-        }
-        .msg-empty {
+        .empty {
           text-align: center;
-          padding: 70px 24px;
-          color: var(--msg-mute);
+          padding: 80px 30px;
+          color: var(--mute);
         }
-        .msg-empty p {
+        .empty p {
           font-size: 19px;
           font-weight: 800;
-          color: var(--msg-ink);
-          margin-bottom: 6px;
+          color: var(--ink);
+          margin-bottom: 4px;
         }
       `}</style>
 
       <PullToRefresh onRefresh={load}>
-        <div className="msg-page">
-          <div className="msg-wrap">
-            {/* STICKY HEADER */}
-            <header className="msg-header">
-              <div className="msg-top">
+        <div className="msg-root-body">
+          <div className="wrap">
+            {/* EXACT HTML HEADER */}
+            <header>
+              <div className="top">
                 <button
                   type="button"
                   onClick={goBack}
-                  className="msg-back-btn"
-                  aria-label="Back to home"
+                  className="back-btn"
+                  aria-label="Back"
+                  title="Back"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
 
-                <h1 className="msg-title">Messages</h1>
+                <h1>Messages</h1>
 
-                <div id="count" className="msg-count-pill">
+                <div id="count">
                   {totalUnreadCount > 0
                     ? totalUnreadCount
                     : (conversations.length + activeGroups.length) || 0}
                 </div>
 
-                {/* New chat / group compose button */}
+                {/* NEW COMPOSE BUTTON (Pen icon from HTML) */}
                 <div className="relative ml-auto">
                   <button
                     type="button"
                     onClick={() => setShowComposeMenu((v) => !v)}
-                    className="msg-new-btn"
-                    aria-label="Compose message or group"
+                    className="new"
+                    aria-label="New chat or group"
                     title="New chat or group"
                   >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="w-5 h-5 stroke-current"
-                      fill="none"
-                      strokeWidth="2.3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
+                    <svg viewBox="0 0 24 24">
                       <path d="M12 20h9" />
                       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                     </svg>
                   </button>
 
-                  {/* Dropdown Menu */}
+                  {/* Dropdown for compose */}
                   {showComposeMenu && (
                     <>
                       <div
                         className="fixed inset-0 z-40"
                         onClick={() => setShowComposeMenu(false)}
                       />
-                      <div className="absolute top-12 right-0 w-52 rounded-2xl border border-white/10 bg-[#1A1233]/95 backdrop-blur-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="absolute top-14 right-0 w-52 rounded-2xl border border-white/10 bg-[#1A1233]/95 backdrop-blur-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
                         <Link
                           to="/people"
                           onClick={() => setShowComposeMenu(false)}
@@ -830,15 +910,17 @@ const ChatListPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* SEARCH BAR */}
-              <div className="msg-search-box">
-                <Search className="w-4.5 h-4.5 text-[#A99FD2] shrink-0" />
+              {/* SEARCH BAR (.search) */}
+              <div className="search">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search messages..."
-                  className="flex-1 min-w-0 bg-transparent border-0 outline-none text-[15.5px] text-[#F7F3FF] placeholder:text-[#A99FD2]"
                 />
                 {searchQuery && (
                   <button
@@ -851,11 +933,11 @@ const ChatListPage: React.FC = () => {
                 )}
               </div>
 
-              {/* FILTER CHIPS */}
-              <div className="msg-chips-container">
+              {/* CHIPS FILTER (.chips) */}
+              <div className="chips">
                 <button
                   type="button"
-                  className="msg-chip-item"
+                  className="chip"
                   aria-pressed={chatFilter === "all"}
                   onClick={() => setChatFilter("all")}
                 >
@@ -863,7 +945,7 @@ const ChatListPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  className="msg-chip-item"
+                  className="chip"
                   aria-pressed={chatFilter === "unread"}
                   onClick={() => setChatFilter("unread")}
                 >
@@ -872,7 +954,7 @@ const ChatListPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  className="msg-chip-item"
+                  className="chip"
                   aria-pressed={chatFilter === "groups"}
                   onClick={() => setChatFilter("groups")}
                 >
@@ -882,7 +964,7 @@ const ChatListPage: React.FC = () => {
                 {requestedGroups.length > 0 && (
                   <button
                     type="button"
-                    className="msg-chip-item"
+                    className="chip"
                     aria-pressed={chatFilter === "requests"}
                     onClick={() => setChatFilter("requests")}
                   >
@@ -893,12 +975,12 @@ const ChatListPage: React.FC = () => {
               </div>
             </header>
 
-            {/* ACTIVE FRIENDS & THOUGHTS RAIL (.act) */}
+            {/* ACTIVE STORIES / CONTACTS RAIL (.act) */}
             {!searchQuery && (
-              <div className="msg-act-rail">
+              <div className="act">
                 {/* Current User Note / Story */}
-                <div
-                  className="msg-act-item"
+                <button
+                  type="button"
                   onClick={() => {
                     if (myNote) {
                       handleOpenNote(myNote);
@@ -907,7 +989,6 @@ const ChatListPage: React.FC = () => {
                     }
                   }}
                 >
-                  {/* Thought Bubble Preview if exists */}
                   {myNote ? (
                     <div className="relative mb-2 px-2.5 py-1 bg-[#1A1233]/95 border border-white/10 rounded-2xl shadow-lg max-w-[84px] text-center">
                       <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1A1233] border-r border-b border-white/10 rotate-45" />
@@ -927,8 +1008,8 @@ const ChatListPage: React.FC = () => {
                     </div>
                   )}
 
-                  <div className={`msg-act-av ${myNote ? "ring" : ""}`}>
-                    <div className="msg-av-ph">
+                  <div className={`av ${myNote ? "ring" : ""}`}>
+                    <div className="ph">
                       {myProfile?.avatar_url ? (
                         <img src={myProfile.avatar_url} alt="You" />
                       ) : (
@@ -943,14 +1024,14 @@ const ChatListPage: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <span className="truncate w-full">{myNote ? "Your note" : "Create"}</span>
-                </div>
+                  <span className="truncate w-full mt-1">{myNote ? "Your note" : "Create"}</span>
+                </button>
 
-                {/* Rail active friends */}
+                {/* Friend Contacts Rail */}
                 {railUsers.map(({ profile, note, isOnline }) => (
-                  <div
+                  <button
                     key={profile.user_id}
-                    className="msg-act-item"
+                    type="button"
                     onClick={() => {
                       if (note) {
                         handleOpenNote(note);
@@ -959,7 +1040,6 @@ const ChatListPage: React.FC = () => {
                       }
                     }}
                   >
-                    {/* Note bubble if friend has note */}
                     {note && (
                       <div className="relative mb-2 px-2.5 py-1 bg-[#1A1233]/95 border border-white/10 rounded-2xl shadow-lg max-w-[84px] text-center">
                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1A1233] border-r border-b border-white/10 rotate-45" />
@@ -975,8 +1055,8 @@ const ChatListPage: React.FC = () => {
                       </div>
                     )}
 
-                    <div className={`msg-act-av ${note ? "ring" : ""}`}>
-                      <div className="msg-av-ph">
+                    <div className="av">
+                      <div className="ph">
                         {profile.avatar_url ? (
                           <img src={profile.avatar_url} alt={profile.username} />
                         ) : (
@@ -985,21 +1065,21 @@ const ChatListPage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      {isOnline && <span className="msg-online-dot" />}
+                      {isOnline && <span className="dot" />}
                     </div>
-                    <span className="truncate w-full">{profile.username}</span>
-                  </div>
+                    <span className="truncate w-full mt-1">{profile.username}</span>
+                  </button>
                 ))}
               </div>
             )}
 
-            {/* CHAT ROWS CONTENT */}
-            <div className="msg-rows-list">
-              {/* REQUESTS FILTER */}
+            {/* EXACT HTML ROWS (.rows -> .row) */}
+            <div className="rows">
+              {/* REQUESTS VIEW */}
               {chatFilter === "requests" ? (
                 <div>
                   {requestedGroups.length === 0 ? (
-                    <div className="msg-empty">
+                    <div className="empty">
                       <p>No message requests</p>
                       <span>You have no ignored groups right now.</span>
                     </div>
@@ -1007,11 +1087,11 @@ const ChatListPage: React.FC = () => {
                     requestedGroups.map(({ group, member_count }) => (
                       <div
                         key={group.id}
-                        className="msg-row"
+                        className="row"
                         onClick={() => navigate(`/messages/t/${getGroupNumericUid(group.id)}`)}
                       >
-                        <div className="msg-av">
-                          <div className="msg-av-ph">
+                        <div className="av">
+                          <div className="ph">
                             {group.avatar_url ? (
                               <img src={group.avatar_url} alt={group.name} />
                             ) : (
@@ -1022,16 +1102,16 @@ const ChatListPage: React.FC = () => {
                           </div>
                         </div>
 
-                        <div className="msg-mid">
-                          <div className="msg-nm">
+                        <div className="mid">
+                          <div className="nm">
                             <span>{group.name}</span>
                           </div>
-                          <div className="msg-lm">
+                          <div className="lm">
                             {member_count} members · Ignored
                           </div>
                         </div>
 
-                        <div className="msg-meta">
+                        <div className="meta">
                           <button
                             type="button"
                             onClick={(e) => handleUnignoreGroup(group.id, e)}
@@ -1046,7 +1126,7 @@ const ChatListPage: React.FC = () => {
                   )}
                 </div>
               ) : chatFilter === "groups" ? (
-                /* GROUPS ONLY FILTER */
+                /* GROUPS TAB VIEW */
                 <div>
                   {loading && filteredGroups.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -1054,7 +1134,7 @@ const ChatListPage: React.FC = () => {
                       <span className="text-xs text-[#A99FD2] font-medium">Loading groups...</span>
                     </div>
                   ) : filteredGroups.length === 0 ? (
-                    <div className="msg-empty">
+                    <div className="empty">
                       <p>No groups found</p>
                       <span>Create a group to start group audio and video calls.</span>
                       <div className="mt-5">
@@ -1077,11 +1157,11 @@ const ChatListPage: React.FC = () => {
                       return (
                         <div
                           key={group.id}
-                          className="msg-row"
+                          className="row"
                           onClick={() => navigate(`/messages/t/${groupUid}`)}
                         >
-                          <div className="msg-av">
-                            <div className="msg-av-ph">
+                          <div className="av">
+                            <div className="ph">
                               {group.avatar_url ? (
                                 <img src={group.avatar_url} alt={group.name} />
                               ) : (
@@ -1091,12 +1171,12 @@ const ChatListPage: React.FC = () => {
                               )}
                             </div>
                             {(isCurrentUserInThisCall || !!activeCall) && (
-                              <span className="msg-online-dot animate-ping" />
+                              <span className="dot animate-ping" />
                             )}
                           </div>
 
-                          <div className="msg-mid">
-                            <div className="msg-nm">
+                          <div className="mid">
+                            <div className="nm">
                               <span>{group.name}</span>
                               {isCurrentUserInThisCall ? (
                                 <span className="text-[10.5px] font-bold text-[#22D3A0] px-2 py-0.5 rounded-full bg-[#22D3A0]/15 border border-[#22D3A0]/30 animate-pulse">
@@ -1108,44 +1188,21 @@ const ChatListPage: React.FC = () => {
                                 </span>
                               ) : null}
                             </div>
-                            <div className="msg-lm">
-                              {member_count} members
-                            </div>
+                            <div className="lm">{member_count} members</div>
                           </div>
 
-                          <div className="msg-meta">
-                            <div className="msg-call-actions">
-                              <button
-                                type="button"
-                                className="msg-call-btn"
-                                title="Group audio call"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (groupCall.active && groupCall.groupId === group.id) {
-                                    groupCall.setMinimized(false);
-                                  } else {
-                                    void groupCall.startCall(group.id, "audio");
-                                  }
-                                }}
-                              >
-                                <Phone className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                className="msg-call-btn"
-                                title="Group video call"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (groupCall.active && groupCall.groupId === group.id) {
-                                    groupCall.setMinimized(false);
-                                  } else {
-                                    void groupCall.startCall(group.id, "video");
-                                  }
-                                }}
-                              >
-                                <Video className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                          <div className="meta">
+                            <button
+                              type="button"
+                              className="row-action-btn"
+                              title="Direct message"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/messages/t/${groupUid}`);
+                              }}
+                            >
+                              <Video className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                       );
@@ -1153,7 +1210,7 @@ const ChatListPage: React.FC = () => {
                   )}
                 </div>
               ) : (
-                /* ALL & UNREAD FILTER */
+                /* ALL & UNREAD VIEW */
                 <div>
                   {loading && filteredConversations.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-3">
@@ -1161,7 +1218,7 @@ const ChatListPage: React.FC = () => {
                       <span className="text-xs text-[#A99FD2] font-medium">Loading messages...</span>
                     </div>
                   ) : (chatFilter === "unread" ? unreadConversations : filteredConversations).length === 0 ? (
-                    <div className="msg-empty">
+                    <div className="empty">
                       <p>
                         {chatFilter === "unread"
                           ? "No unread messages"
@@ -1188,19 +1245,20 @@ const ChatListPage: React.FC = () => {
                     </div>
                   ) : (
                     (chatFilter === "unread" ? unreadConversations : filteredConversations).map(
-                      ({ profile, lastMessage, unreadCount }) => {
+                      ({ profile, lastMessage, unreadCount }, idx) => {
                         const presence = formatUserPresence(profile.user_id);
                         const isUnread = unreadCount > 0;
 
                         return (
                           <div
                             key={profile.id}
-                            className={`msg-row ${isUnread ? "unread" : ""}`}
+                            className={`row ${isUnread ? "unread" : ""}`}
+                            style={{ ["--d" as any]: idx }}
                             onClick={() => navigate(`/chat/${profile.user_id}`)}
                           >
-                            {/* Avatar */}
-                            <div className="msg-av">
-                              <div className="msg-av-ph">
+                            {/* Avatar with gradient ring when unread */}
+                            <div className="av">
+                              <div className="ph">
                                 {profile.avatar_url ? (
                                   <img src={profile.avatar_url} alt={profile.username} />
                                 ) : (
@@ -1209,18 +1267,18 @@ const ChatListPage: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                              {presence.isOnline && <span className="msg-online-dot" />}
+                              {presence.isOnline && <span className="dot" />}
                             </div>
 
                             {/* Middle Information */}
-                            <div className="msg-mid">
-                              <div className="msg-nm">
+                            <div className="mid">
+                              <div className="nm">
                                 <span>{profile.full_name || profile.username}</span>
                                 {profile.is_verified && (
                                   <BadgeCheck className="w-4 h-4 text-[#7C5CFF] fill-[#7C5CFF]/20 shrink-0" />
                                 )}
                               </div>
-                              <div className="msg-lm">
+                              <div className="lm">
                                 {lastMessage ? (
                                   lastMessage.sender_id === user?.id ? (
                                     <>You: {lastMessage.content}</>
@@ -1235,39 +1293,26 @@ const ChatListPage: React.FC = () => {
                               </div>
                             </div>
 
-                            {/* Meta, Time, Unread Badge & Call Shortcuts */}
-                            <div className="msg-meta">
+                            {/* Meta & Unread Badge & Action shortcut */}
+                            <div className="meta">
                               <span>
                                 {lastMessage ? formatMessageTime(lastMessage.created_at) : ""}
                               </span>
 
                               {unreadCount > 0 ? (
-                                <div className="msg-badge">{unreadCount}</div>
+                                <div className="badge">{unreadCount}</div>
                               ) : (
-                                <div className="msg-call-actions">
-                                  <button
-                                    type="button"
-                                    className="msg-call-btn"
-                                    title="Voice call"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      void startCall(profile.user_id, "audio");
-                                    }}
-                                  >
-                                    <Phone className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="msg-call-btn"
-                                    title="Video call"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      void startCall(profile.user_id, "video");
-                                    }}
-                                  >
-                                    <Video className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                                <button
+                                  type="button"
+                                  className="row-action-btn"
+                                  title="Open chat"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/chat/${profile.user_id}`);
+                                  }}
+                                >
+                                  <Video className="w-4 h-4" />
+                                </button>
                               )}
                             </div>
                           </div>
@@ -1276,7 +1321,7 @@ const ChatListPage: React.FC = () => {
                     )
                   )}
 
-                  {/* Also show Groups underneath in 'All' tab if there are active groups */}
+                  {/* Also show Groups in 'All' tab if there are active groups */}
                   {chatFilter === "all" && !searchQuery && filteredGroups.length > 0 && (
                     <div className="mt-6 mb-2">
                       <div className="flex items-center justify-between px-2 mb-3">
@@ -1301,11 +1346,11 @@ const ChatListPage: React.FC = () => {
                         return (
                           <div
                             key={group.id}
-                            className="msg-row"
+                            className="row"
                             onClick={() => navigate(`/messages/t/${groupUid}`)}
                           >
-                            <div className="msg-av">
-                              <div className="msg-av-ph">
+                            <div className="av">
+                              <div className="ph">
                                 {group.avatar_url ? (
                                   <img src={group.avatar_url} alt={group.name} />
                                 ) : (
@@ -1315,12 +1360,12 @@ const ChatListPage: React.FC = () => {
                                 )}
                               </div>
                               {(isCurrentUserInThisCall || !!activeCall) && (
-                                <span className="msg-online-dot animate-ping" />
+                                <span className="dot animate-ping" />
                               )}
                             </div>
 
-                            <div className="msg-mid">
-                              <div className="msg-nm">
+                            <div className="mid">
+                              <div className="nm">
                                 <span>{group.name}</span>
                                 {isCurrentUserInThisCall ? (
                                   <span className="text-[10.5px] font-bold text-[#22D3A0] px-2 py-0.5 rounded-full bg-[#22D3A0]/15 border border-[#22D3A0]/30 animate-pulse">
@@ -1332,42 +1377,21 @@ const ChatListPage: React.FC = () => {
                                   </span>
                                 ) : null}
                               </div>
-                              <div className="msg-lm">{member_count} members</div>
+                              <div className="lm">{member_count} members</div>
                             </div>
 
-                            <div className="msg-meta">
-                              <div className="msg-call-actions">
-                                <button
-                                  type="button"
-                                  className="msg-call-btn"
-                                  title="Group audio call"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (groupCall.active && groupCall.groupId === group.id) {
-                                      groupCall.setMinimized(false);
-                                    } else {
-                                      void groupCall.startCall(group.id, "audio");
-                                    }
-                                  }}
-                                >
-                                  <Phone className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="msg-call-btn"
-                                  title="Group video call"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (groupCall.active && groupCall.groupId === group.id) {
-                                      groupCall.setMinimized(false);
-                                    } else {
-                                      void groupCall.startCall(group.id, "video");
-                                    }
-                                  }}
-                                >
-                                  <Video className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                            <div className="meta">
+                              <button
+                                type="button"
+                                className="row-action-btn"
+                                title="Open group"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/messages/t/${groupUid}`);
+                                }}
+                              >
+                                <Video className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
                         );

@@ -74,33 +74,6 @@ const ChatPage: React.FC = () => {
   const [blockedByOther, setBlockedByOther] = useState(false);
   const [onlineStatusState, setOnlineStatusState] = useState<{ is_online: boolean; last_seen_at?: string; last_seen?: string | null } | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
-  const [selectedMsgTimeId, setSelectedMsgTimeId] = useState<string | null>(null);
-
-  const renderMessageText = (text: string, isMe: boolean) => {
-    const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-    const parts = text.split(urlPattern);
-    return parts.map((part, i) => {
-      if (/^https?:\/\/[^\s]+$/i.test(part) || /^www\.[^\s]+$/i.test(part)) {
-        const href = part.startsWith('http') ? part : `https://${part}`;
-        return (
-          <a
-            key={`link-${i}`}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className={cn(
-              'underline underline-offset-2 break-all font-semibold transition-opacity hover:opacity-85',
-              isMe ? 'text-white underline-white' : 'text-sky-500 dark:text-sky-400'
-            )}
-          >
-            {part}
-          </a>
-        );
-      }
-      return <span key={`txt-${i}`}>{part}</span>;
-    });
-  };
 
   // Messenger Settings & Theme States
   const [showDetails, setShowDetails] = useState(false);
@@ -406,64 +379,261 @@ const ChatPage: React.FC = () => {
 
   return (
     <MobileLayout hideHeader hideNav noScroll>
-      <div className="flex flex-col h-full w-full min-h-0 overflow-hidden bg-background">
-        {/* Top bar (Glassmorphic & Modern Instagram Style) */}
-        <div className="shrink-0 z-30 flex items-center gap-2 px-3 py-2.5 border-b border-border/50 bg-background/95 backdrop-blur-xl shadow-xs">
+      <style>{`
+        .chat-wrap {
+          --bg: #0E0820;
+          --s1: #1A1233;
+          --s2: #2A2050;
+          --ink: #F7F3FF;
+          --mute: #A99FD2;
+          --line: rgba(255,255,255,.09);
+          --pink: #FF3D7F;
+          --vio: #7C5CFF;
+          --green: #22D3A0;
+          --grad: linear-gradient(135deg,#FF3D7F,#7C5CFF);
+          background: var(--bg);
+          color: var(--ink);
+          font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+        }
+        .chat-wrap .chh {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 14px;
+          border-bottom: 1px solid var(--line);
+          background: rgba(26,18,51,.85);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          z-index: 20;
+          flex-shrink: 0;
+        }
+        .chat-wrap .back {
+          width: 40px;
+          height: 40px;
+          border-radius: 14px;
+          background: rgba(255,255,255,.07);
+          display: grid;
+          place-items: center;
+          flex: none;
+          color: var(--ink);
+          border: 0;
+          cursor: pointer;
+          transition: transform .15s, background .15s;
+        }
+        .chat-wrap .back:active {
+          transform: scale(.92);
+          background: rgba(255,255,255,.12);
+        }
+        .chat-wrap .t {
+          flex: 1;
+          min-width: 0;
+          text-align: left;
+        }
+        .chat-wrap .t b {
+          display: block;
+          font-size: 16.5px;
+          font-weight: 800;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--ink);
+        }
+        .chat-wrap .t small {
+          color: var(--mute);
+          font-size: 12.5px;
+        }
+        .chat-wrap .t small.on {
+          color: var(--green);
+          font-weight: 600;
+        }
+        .chat-wrap .head-action-btn {
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background: rgba(255,255,255,.06);
+          border: 1px solid var(--line);
+          display: grid;
+          place-items: center;
+          color: var(--ink);
+          cursor: pointer;
+          transition: background .15s, color .15s, transform .15s;
+          flex-shrink: 0;
+        }
+        .chat-wrap .head-action-btn:hover {
+          background: rgba(255,61,127,.2);
+          color: #fff;
+          border-color: rgba(255,61,127,.4);
+        }
+        .chat-wrap .head-action-btn:active {
+          transform: scale(.9);
+        }
+        .chat-wrap #msgs {
+          flex: 1;
+          overflow-y: auto;
+          padding: 16px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          background-image: radial-gradient(rgba(255,255,255,.06) 1.2px, transparent 1.4px);
+          background-size: 20px 20px;
+        }
+        .chat-wrap .b {
+          max-width: 78%;
+          padding: 11px 15px;
+          font-size: 15px;
+          border-radius: 22px;
+          overflow-wrap: anywhere;
+          line-height: 1.4;
+        }
+        .chat-wrap .b.them {
+          background: rgba(255,255,255,.1);
+          border: 1px solid var(--line);
+          border-bottom-left-radius: 6px;
+          color: var(--ink);
+        }
+        .chat-wrap .b.me {
+          align-self: flex-end;
+          background: var(--grad);
+          border-bottom-right-radius: 6px;
+          box-shadow: 0 8px 20px rgba(124,92,255,.35);
+          color: #fff;
+        }
+        .chat-wrap .tm {
+          align-self: center;
+          font-size: 11.5px;
+          font-weight: 600;
+          color: var(--mute);
+          margin: 6px 0 8px;
+          padding: 4px 14px;
+          border-radius: 99px;
+          background: rgba(255,255,255,.07);
+        }
+        .chat-wrap .seen {
+          align-self: flex-end;
+          font-size: 11.5px;
+          color: var(--mute);
+          margin-right: 6px;
+          margin-top: 2px;
+        }
+        .chat-wrap .send-bar {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          background: rgba(26,18,51,.9);
+          border-top: 1px solid var(--line);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          flex-shrink: 0;
+        }
+        .chat-wrap .send-bar input {
+          flex: 1;
+          min-width: 0;
+          height: 48px;
+          background: rgba(255,255,255,.07);
+          border: 1px solid var(--line);
+          border-radius: 99px;
+          padding: 0 18px;
+          font-size: 15px;
+          outline: 0;
+          color: var(--ink);
+        }
+        .chat-wrap .send-bar input:focus {
+          border-color: var(--pink);
+        }
+        .chat-wrap .send-btn {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: var(--grad);
+          display: grid;
+          place-items: center;
+          flex: none;
+          box-shadow: 0 8px 22px rgba(255,61,127,.45);
+          transition: transform .15s;
+          border: 0;
+          cursor: pointer;
+          color: #fff;
+        }
+        .chat-wrap .send-btn:active {
+          transform: scale(.9);
+        }
+        .chat-wrap .tool-btn {
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background: rgba(255,255,255,.06);
+          display: grid;
+          place-items: center;
+          color: var(--mute);
+          border: 0;
+          cursor: pointer;
+          transition: transform .15s, color .15s, background .15s;
+          flex-shrink: 0;
+        }
+        .chat-wrap .tool-btn:hover {
+          color: var(--pink);
+          background: rgba(255,61,127,.15);
+        }
+        .chat-wrap .tool-btn:active {
+          transform: scale(.9);
+        }
+      `}</style>
+      <div className="chat-wrap">
+        {/* TOP BAR (.chh) */}
+        <div className="chh">
           <button
             onClick={goBack}
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 active:scale-95 text-foreground transition-all shrink-0"
+            className="back"
             aria-label="Back"
+            title="Back"
           >
-            <ArrowLeft className="w-5 h-5 text-foreground" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
 
           {/* Avatar & Name — click opens details */}
           <button
             onClick={() => setShowDetails(true)}
-            className="flex items-center gap-2.5 flex-1 min-w-0 text-left hover:opacity-90 active:scale-[0.99] transition-all"
+            className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer border-0 bg-transparent"
           >
             <div className="relative shrink-0">
               {otherProfile?.avatar_url ? (
                 <img
                   src={otherProfile.avatar_url}
                   alt=""
-                  className="w-10 h-10 rounded-full object-cover ring-1 ring-border/50 shadow-xs"
+                  className="w-10 h-10 rounded-full object-cover ring-2 ring-[#FF3D7F]/30"
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-violet-500/20 to-pink-500/20 flex items-center justify-center ring-1 ring-border/50">
-                  <span className="text-primary font-bold text-sm">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#7C5CFF]/30 to-[#FF3D7F]/30 flex items-center justify-center ring-2 ring-[#FF3D7F]/30">
+                  <span className="text-[#FF3D7F] font-bold text-sm">
                     {otherProfile?.username?.[0]?.toUpperCase()}
                   </span>
                 </div>
               )}
               {onlineStatusState?.is_online && (
-                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-background shadow-xs" />
+                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#22D3A0] ring-2 ring-[#0E0820] shadow-[0_0_8px_#22D3A0]" />
               )}
             </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-sm text-foreground truncate">{displayName}</span>
-                {otherProfile?.is_verified && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0 fill-sky-500/20" />}
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate">
-                {otherTyping ? (
-                  <span className="text-primary font-semibold animate-pulse">Typing…</span>
-                ) : onlineStatusState?.is_online ? (
-                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Active now
-                  </span>
-                ) : (
-                  <span>{statusText}</span>
-                )}
-              </div>
+            <div className="t">
+              <b>{displayName}</b>
+              {otherTyping ? (
+                <small className="on text-[#FF3D7F] animate-pulse">Typing…</small>
+              ) : onlineStatusState?.is_online ? (
+                <small className="on">Active now</small>
+              ) : (
+                <small>{statusText}</small>
+              )}
             </div>
           </button>
 
           {/* Audio Call button 📞 */}
           <button
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-foreground/80 hover:text-sky-500 active:scale-95 transition-all shrink-0"
+            className="head-action-btn"
             onClick={() => { if (receiverId) startCall(receiverId, 'audio'); }}
             disabled={blocked || blockedByOther}
             title="Audio call"
@@ -474,7 +644,7 @@ const ChatPage: React.FC = () => {
 
           {/* Video Call button 📹 */}
           <button
-            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-foreground/80 hover:text-sky-500 active:scale-95 transition-all shrink-0"
+            className="head-action-btn"
             onClick={() => { if (receiverId) startCall(receiverId, 'video'); }}
             disabled={blocked || blockedByOther}
             title="Video call"
@@ -483,43 +653,43 @@ const ChatPage: React.FC = () => {
             <Video className="w-4.5 h-4.5" />
           </button>
 
-          {/* 3-dots DropdownMenu with Wallpaper & Details & Block */}
+          {/* 3-dots DropdownMenu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-foreground/80 hover:text-primary active:scale-95 transition-all shrink-0"
+                className="head-action-btn"
                 title="More options"
                 aria-label="More options"
               >
                 <MoreVertical className="w-5 h-5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border-border bg-card">
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border-white/10 bg-[#1A1233]/95 backdrop-blur-xl text-[#F7F3FF]">
               <DropdownMenuItem
                 onClick={() => setShowWallpaperModal(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
               >
-                <ImageIcon className="w-4 h-4 text-primary" />
+                <ImageIcon className="w-4 h-4 text-[#FF3D7F]" />
                 <span>Wallpaper (इमेज / फोटो)</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowDetails(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
               >
-                <Info className="w-4 h-4 text-muted-foreground" />
+                <Info className="w-4 h-4 text-[#A99FD2]" />
                 <span>Conversation details</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowSearch(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
               >
-                <Search className="w-4 h-4 text-muted-foreground" />
+                <Search className="w-4 h-4 text-[#A99FD2]" />
                 <span>Search messages</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleBlock}
                 className={`cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 ${
-                  blocked ? 'text-green-600 focus:text-green-600' : 'text-destructive focus:text-destructive'
+                  blocked ? 'text-[#22D3A0]' : 'text-[#FF3D7F]'
                 }`}
               >
                 {blocked ? <ShieldOff className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
@@ -706,73 +876,72 @@ const ChatPage: React.FC = () => {
                       onCallBack={(k) => { if (receiverId) startCall(receiverId, k); }}
                     />
                   ) : (
-                    <div className={cn('flex items-end gap-1.5 w-full', isMe ? 'justify-end' : 'justify-start')}>
+                    <div className={cn('flex items-end gap-1.5', isMe ? 'justify-end' : 'justify-start')}>
                       {isSingleEmoji ? (
-                        <div className="text-5xl py-1 px-2 select-none hover:scale-110 active:scale-125 transition-transform">
-                          {msg.content.trim()}
-                        </div>
-                      ) : shareInfo ? (
+                    <div className="text-5xl py-1 px-2 select-none hover:scale-110 active:scale-125 transition-transform">
+                      {msg.content.trim()}
+                    </div>
+                  ) : shareInfo ? (
+                    <div
+                      className={cn(
+                        'max-w-[85%] sm:max-w-[75%] p-1.5 rounded-[22px] text-sm shadow-sm transition-all',
+                        isMe
+                          ? cn('rounded-br-[5px] text-white', activeTheme.bubble)
+                          : 'bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40'
+                      )}
+                    >
+                      <InstagramSharedCard shareInfo={shareInfo} isMe={isMe} />
+                      <div
+                        className={cn(
+                          'flex items-center gap-1 justify-end px-2 pt-1 pb-0.5 text-[10px]',
+                          isMe ? 'text-white/80' : 'text-muted-foreground'
+                        )}
+                      >
+                        <span>{formatTime(msg.created_at)}</span>
+                        {isMe && (
+                          <span className={cn('font-bold', msg.is_seen ? 'text-sky-300' : 'text-white/70')}>
+                            {msg.is_seen ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-end">
+                      {isMediaMessage(msg.content) ? (
+                        <ChatMediaRenderer
+                          content={msg.content}
+                          isMe={isMe}
+                          activeBubbleClass={activeTheme.bubble}
+                        />
+                      ) : (
                         <div
                           className={cn(
-                            'w-full max-w-[340px] p-1.5 rounded-[22px] text-sm shadow-sm transition-all',
+                            'max-w-[78%] px-4 py-2.5 rounded-[20px] text-sm shadow-sm transition-all break-words',
                             isMe
-                              ? cn('rounded-br-[5px] text-white', activeTheme.bubble)
-                              : 'bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40'
+                              ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
+                              : 'bg-muted/80 dark:bg-[#242526] text-foreground rounded-bl-[4px] border border-border/40'
                           )}
                         >
-                          <InstagramSharedCard shareInfo={shareInfo} isMe={isMe} />
+                          <p className="leading-relaxed">{msg.content}</p>
                           <div
                             className={cn(
-                              'flex items-center gap-1 justify-end px-2 pt-1 pb-0.5 text-[10px]',
-                              isMe ? 'text-white/80' : 'text-muted-foreground'
+                              'flex items-center gap-1 justify-end mt-0.5 text-[9px]',
+                              isMe ? 'text-white/75' : 'text-muted-foreground'
                             )}
                           >
                             <span>{formatTime(msg.created_at)}</span>
-                            {isMe && (
-                              <span className={cn('font-bold', msg.is_seen ? 'text-sky-300' : 'text-white/70')}>
-                                {msg.is_seen ? '✓✓' : '✓'}
-                              </span>
-                            )}
                           </div>
                         </div>
-                      ) : (
-                        <div className={cn('flex flex-col max-w-[78%] sm:max-w-[70%]', isMe ? 'items-end' : 'items-start')}>
-                          {isMediaMessage(msg.content) ? (
-                            <ChatMediaRenderer
-                              content={msg.content}
-                              isMe={isMe}
-                              activeBubbleClass={activeTheme.bubble}
-                            />
-                          ) : (
-                            <div
-                              onClick={() => setSelectedMsgTimeId(prev => prev === msg.id ? null : msg.id)}
-                              className={cn(
-                                'w-fit max-w-full px-4 py-2 rounded-[20px] text-[15px] leading-snug shadow-2xs transition-all cursor-pointer select-text',
-                                isMe
-                                  ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
-                                  : 'bg-[#efefef] dark:bg-[#262626] text-foreground rounded-bl-[4px] border border-border/30 dark:border-transparent'
-                              )}
-                            >
-                              <div className="whitespace-pre-wrap break-words [word-break:break-word] select-text">
-                                {renderMessageText(msg.content, isMe)}
-                              </div>
-                            </div>
-                          )}
-                          {/* Show exact timestamp on tap */}
-                          {selectedMsgTimeId === msg.id && (
-                            <div className="text-[10px] text-muted-foreground/80 px-1 pt-0.5 select-none animate-in fade-in duration-150">
-                              {formatTime(msg.created_at)}
-                            </div>
-                          )}
-                          {/* Messenger Delivered indicator on latest sent message */}
-                          {isMe && idx === visibleMessages.length - 1 && selectedMsgTimeId !== msg.id && (
-                            <div className="text-[11px] text-muted-foreground/80 font-medium pr-1 pt-0.5 select-none">
-                              {msg.is_seen ? 'Seen' : 'Delivered'}
-                            </div>
-                          )}
+                      )}
+                      {/* Messenger Delivered indicator (from Screenshot 2) */}
+                      {isMe && idx === visibleMessages.length - 1 && (
+                        <div className="text-[10px] text-muted-foreground/80 font-medium pr-1 pt-1 select-none">
+                          {msg.is_seen ? 'Seen' : 'Delivered'}
                         </div>
                       )}
                     </div>
+                  )}
+                </div>
                   )}
               </React.Fragment>
             );
@@ -846,86 +1015,88 @@ const ChatPage: React.FC = () => {
             />
 
             {/* Left Action Buttons */}
-            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               {/* 1. Plus Button (+) */}
               <button
                 type="button"
                 onClick={() => setShowWallpaperModal(true)}
-                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-[#0084FF] active:scale-90 transition-transform"
+                className="tool-btn"
                 title="Add Wallpaper / Custom Background"
               >
-                <Plus className="w-5 h-5 text-[#0084FF]" />
+                <Plus className="w-5 h-5 text-[#FF3D7F]" />
               </button>
 
               {/* 2. Camera Button (📷) */}
               <button
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
-                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-[#0084FF] active:scale-90 transition-transform"
+                className="tool-btn"
                 title="Camera (Photo/Video)"
                 disabled={blocked || blockedByOther}
               >
-                <Camera className="w-5 h-5 text-[#0084FF]" />
+                <Camera className="w-5 h-5" />
               </button>
 
               {/* 3. Gallery Button (🖼️) */}
               <button
                 type="button"
                 onClick={() => galleryInputRef.current?.click()}
-                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-[#0084FF] active:scale-90 transition-transform"
+                className="tool-btn"
                 title="Gallery (Photos & Videos)"
                 disabled={blocked || blockedByOther}
               >
-                <ImageIcon className="w-5 h-5 text-[#0084FF]" />
+                <ImageIcon className="w-5 h-5" />
               </button>
 
               {/* 4. Mic Button (🎙️) */}
               <button
                 type="button"
                 onClick={() => setIsRecordingVoice(true)}
-                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full hover:bg-muted/80 text-[#0084FF] active:scale-90 transition-transform"
+                className="tool-btn"
                 title="Record voice message"
                 disabled={blocked || blockedByOther}
               >
-                <Mic className="w-5 h-5 text-[#0084FF]" />
+                <Mic className="w-5 h-5" />
               </button>
             </div>
 
             {/* Pill Message Input */}
             <div className="relative flex-1 min-w-0 flex items-center">
-              <Input
+              <input
                 placeholder={blocked || blockedByOther ? 'Message unavailable' : 'Message…'}
                 value={content}
                 onChange={e => { setContent(e.target.value); handleTyping(); }}
-                className="w-full h-10 rounded-full bg-[#242526] dark:bg-[#242526] bg-muted/70 text-foreground placeholder:text-muted-foreground/80 px-4 pr-10 text-sm border-none focus-visible:ring-1 focus-visible:ring-[#0084FF] transition-all"
+                className="w-full h-11 rounded-full bg-white/7 border border-white/10 text-[#F7F3FF] placeholder:text-[#A99FD2] px-4 pr-10 text-sm outline-none focus:border-[#FF3D7F] transition-all"
                 maxLength={500}
                 disabled={blocked || blockedByOther}
               />
               <button
                 type="button"
                 onClick={() => setShowEmoji(!showEmoji)}
-                className="absolute right-2.5 w-7 h-7 flex items-center justify-center text-[#0084FF] hover:scale-110 active:scale-95 transition-transform"
+                className="absolute right-2.5 w-7 h-7 flex items-center justify-center text-[#A99FD2] hover:text-[#FF3D7F] transition-transform"
                 title="Emoji"
               >
-                <Smile className={cn('w-5 h-5 transition-transform', showEmoji ? 'text-sky-600 scale-110' : 'text-[#0084FF]')} />
+                <Smile className={cn('w-5 h-5 transition-transform', showEmoji ? 'text-[#FF3D7F] scale-110' : '')} />
               </button>
             </div>
 
             {/* Right Action Button (Send OR Quick Thumbs Up Emoji) */}
             {content.trim() ? (
-              <Button
+              <button
                 type="submit"
-                size="icon"
-                className="h-10 w-10 rounded-full shrink-0 bg-[#0084FF] hover:bg-[#0073e6] text-white shadow-md active:scale-90 transition-all"
+                className="send-btn"
                 disabled={!content.trim() || sending || blocked || blockedByOther}
+                title="Send message"
               >
-                <Send className="w-4 h-4" />
-              </Button>
+                <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                </svg>
+              </button>
             ) : (
               <button
                 type="button"
                 onClick={() => void handleSendQuickEmoji(chatEmoji)}
-                className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-muted/80 active:scale-130 transition-transform text-2xl select-none shrink-0"
+                className="h-11 w-11 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-125 transition-transform text-2xl select-none shrink-0"
                 title={`Send ${chatEmoji}`}
                 disabled={blocked || blockedByOther}
               >
