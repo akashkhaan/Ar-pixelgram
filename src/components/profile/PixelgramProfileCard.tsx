@@ -261,7 +261,7 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full relative overflow-hidden select-none my-1 bg-white dark:bg-[#0b0f19] border border-slate-200/80 dark:border-white/10 shadow-sm transition-colors duration-300"
+      className="w-full relative overflow-hidden select-none my-1 bg-white dark:bg-[#0b0f19] border-0 outline-none shadow-none transition-colors duration-300"
       style={{
         height: `${Math.round(415 * scale)}px`,
         borderRadius: `${Math.round(36 * scale)}px`,
