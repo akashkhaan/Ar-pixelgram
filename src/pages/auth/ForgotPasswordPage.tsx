@@ -1,3 +1,4 @@
+import { CountryPhoneInput } from "@/components/common/CountryPhoneInput";
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, KeyRound, Loader2, Mail, MessageCircle, ShieldCheck, User as UserIcon, BadgeCheck, Lock, ChevronRight, Eye, EyeOff } from 'lucide-react';
@@ -19,6 +20,7 @@ const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('identify');
   const [identifier, setIdentifier] = useState('');
+  const [identifyMode, setIdentifyMode] = useState<'username' | 'phone'>('username');
   const [loading, setLoading] = useState(false);
 
   // Accounts step
@@ -205,17 +207,52 @@ const ForgotPasswordPage: React.FC = () => {
 
           {step === 'identify' && (
             <form onSubmit={search} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="identifier">Email, number ya username</Label>
-                <Input
-                  id="identifier"
-                  value={identifier}
-                  onChange={e => setIdentifier(e.target.value)}
-                  placeholder="you@example.com / +91… / username"
-                  className="h-11"
-                  autoFocus
-                />
+              <div className="flex rounded-xl bg-muted/60 p-1 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => { setIdentifyMode('username'); setIdentifier(''); }}
+                  className={`flex-1 py-2 rounded-lg transition-all ${
+                    identifyMode === 'username' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Email / Username
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIdentifyMode('phone'); setIdentifier(''); }}
+                  className={`flex-1 py-2 rounded-lg transition-all ${
+                    identifyMode === 'phone' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Mobile Number
+                </button>
               </div>
+
+              {identifyMode === 'phone' ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="identifier-phone">Mobile number</Label>
+                  <CountryPhoneInput
+                    id="identifier-phone"
+                    value={identifier}
+                    onChange={(val) => setIdentifier(val)}
+                    placeholder="Mobile number daalein"
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Label htmlFor="identifier">Email ya username</Label>
+                  <Input
+                    id="identifier"
+                    value={identifier}
+                    onChange={e => setIdentifier(e.target.value)}
+                    placeholder="you@example.com / username"
+                    className="h-11"
+                    autoFocus
+                  />
+                </div>
+              )}
+
               <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
               </Button>

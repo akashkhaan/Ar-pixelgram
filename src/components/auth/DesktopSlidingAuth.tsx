@@ -1,3 +1,4 @@
+import { CountryPhoneInput } from "@/components/common/CountryPhoneInput";
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
@@ -25,6 +26,7 @@ export const DesktopSlidingAuth: React.FC<DesktopSlidingAuthProps> = ({ initialM
   const [regLastName, setRegLastName] = useState('');
   const [regUsername, setRegUsername] = useState('');
   const [regEmail, setRegEmail] = useState('');
+  const [contactMode, setContactMode] = useState<'email' | 'phone'>('email');
   const [regPassword, setRegPassword] = useState('');
   const [regShowPass, setRegShowPass] = useState(false);
   const [regLoading, setRegLoading] = useState(false);
@@ -139,8 +141,12 @@ export const DesktopSlidingAuth: React.FC<DesktopSlidingAuthProps> = ({ initialM
       toast.error('Username must be 3-20 characters (letters, numbers, _ and . allowed)');
       return;
     }
-    if (!regEmail.trim() || !regEmail.includes('@')) {
+    if (contactMode === 'email' && (!regEmail.trim() || !regEmail.includes('@'))) {
       toast.error('Please enter a valid email address');
+      return;
+    }
+    if (contactMode === 'phone' && (!regEmail.trim() || regEmail.length < 8)) {
+      toast.error('Please enter a valid mobile number');
       return;
     }
     if (regPassword.length < 6) {
@@ -164,8 +170,12 @@ export const DesktopSlidingAuth: React.FC<DesktopSlidingAuthProps> = ({ initialM
         return;
       }
 
+      const emailToUse = contactMode === 'email'
+        ? regEmail.trim().toLowerCase()
+        : `${cleanUsername}@pixelgram.app`;
+
       const { data, error } = await supabase.auth.signUp({
-        email: regEmail.trim().toLowerCase(),
+        email: emailToUse,
         password: regPassword,
         options: {
           data: {
@@ -259,17 +269,50 @@ export const DesktopSlidingAuth: React.FC<DesktopSlidingAuthProps> = ({ initialM
             </div>
 
             <div className="input-group">
-              <label>Email Address</label>
-              <div className="input-box">
-                <input
-                  type="email"
-                  placeholder="you@example.com"
-                  value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
-                  autoCapitalize="none"
-                  required
-                />
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-muted-foreground">Contact Detail</label>
+                <div className="flex gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => { setContactMode('email'); setRegEmail(''); }}
+                    className={`px-2.5 py-1 rounded-lg border text-xs transition-all ${
+                      contactMode === 'email' ? 'bg-primary text-white font-bold border-primary' : 'text-muted-foreground border-border hover:text-foreground'
+                    }`}
+                  >
+                    ✉️ Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setContactMode('phone'); setRegEmail(''); }}
+                    className={`px-2.5 py-1 rounded-lg border text-xs transition-all ${
+                      contactMode === 'phone' ? 'bg-primary text-white font-bold border-primary' : 'text-muted-foreground border-border hover:text-foreground'
+                    }`}
+                  >
+                    📱 Mobile Number
+                  </button>
+                </div>
               </div>
+
+              {contactMode === 'phone' ? (
+                <div className="mt-1">
+                  <CountryPhoneInput
+                    value={regEmail}
+                    onChange={(val) => setRegEmail(val)}
+                    placeholder="Enter mobile number"
+                  />
+                </div>
+              ) : (
+                <div className="input-box">
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={regEmail}
+                    onChange={(e) => setRegEmail(e.target.value)}
+                    autoCapitalize="none"
+                    required
+                  />
+                </div>
+              )}
             </div>
 
             <div className="input-group">

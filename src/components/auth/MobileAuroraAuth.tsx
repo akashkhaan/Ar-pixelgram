@@ -1,3 +1,4 @@
+import { CountryPhoneInput } from "@/components/common/CountryPhoneInput";
 import { saveCurrentAccount } from "@/lib/savedAccounts";
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -26,6 +27,7 @@ export const MobileAuroraAuth: React.FC<MobileAuroraAuthProps> = ({ initialMode 
   const [regLast, setRegLast] = useState('');
   const [regUser, setRegUser] = useState('');
   const [regContact, setRegContact] = useState('');
+  const [contactMode, setContactMode] = useState<'email' | 'phone'>('email');
   const [regPass, setRegPass] = useState('');
   const [regShowPass, setRegShowPass] = useState(false);
   const [regLoading, setRegLoading] = useState(false);
@@ -200,8 +202,12 @@ export const MobileAuroraAuth: React.FC<MobileAuroraAuthProps> = ({ initialMode 
       toast.error('Username must be 3-20 characters (letters, numbers, _ and . allowed)');
       return;
     }
-    if (!regContact.trim()) {
-      toast.error('Please enter your email or phone');
+    if (contactMode === 'email' && (!regContact.trim() || !regContact.includes('@'))) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+    if (contactMode === 'phone' && (!regContact.trim() || regContact.length < 8)) {
+      toast.error('Please enter your mobile number');
       return;
     }
     if (regPass.length < 6) {
@@ -451,21 +457,52 @@ export const MobileAuroraAuth: React.FC<MobileAuroraAuthProps> = ({ initialMode 
                 </svg>
               </div>
 
-              <div className="field stag" style={{ '--i': 3 } as React.CSSProperties}>
-                <input
-                  type="text"
-                  id="s-contact"
-                  placeholder=" "
-                  required
-                  autoComplete="email"
-                  value={regContact}
-                  onChange={(e) => setRegContact(e.target.value)}
-                />
-                <label htmlFor="s-contact">Email or Phone</label>
-                <svg className="ico" viewBox="0 0 24 24">
-                  <path d="M3 5h18a1 1 0 0 1 1 1v.5l-10 6-10-6V6a1 1 0 0 1 1-1zm-1 4.3V18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V9.3l-10 6z" />
-                </svg>
+              <div className="flex gap-2 mb-2 stag" style={{ '--i': 3 } as React.CSSProperties}>
+                <button
+                  type="button"
+                  onClick={() => { setContactMode('email'); setRegContact(''); }}
+                  className={`flex-1 py-1.5 px-3 text-xs rounded-xl border transition-all ${
+                    contactMode === 'email' ? 'border-primary bg-primary/20 text-white font-bold' : 'border-white/10 text-white/60 hover:text-white'
+                  }`}
+                >
+                  ✉️ Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setContactMode('phone'); setRegContact(''); }}
+                  className={`flex-1 py-1.5 px-3 text-xs rounded-xl border transition-all ${
+                    contactMode === 'phone' ? 'border-primary bg-primary/20 text-white font-bold' : 'border-white/10 text-white/60 hover:text-white'
+                  }`}
+                >
+                  📱 Mobile Number
+                </button>
               </div>
+
+              {contactMode === 'phone' ? (
+                <div className="stag mb-3" style={{ '--i': 3 } as React.CSSProperties}>
+                  <CountryPhoneInput
+                    value={regContact}
+                    onChange={(val) => setRegContact(val)}
+                    placeholder="Enter mobile number"
+                  />
+                </div>
+              ) : (
+                <div className="field stag" style={{ '--i': 3 } as React.CSSProperties}>
+                  <input
+                    type="email"
+                    id="s-contact"
+                    placeholder=" "
+                    required
+                    autoComplete="email"
+                    value={regContact}
+                    onChange={(e) => setRegContact(e.target.value)}
+                  />
+                  <label htmlFor="s-contact">Email address</label>
+                  <svg className="ico" viewBox="0 0 24 24">
+                    <path d="M3 5h18a1 1 0 0 1 1 1v.5l-10 6-10-6V6a1 1 0 0 1 1-1zm-1 4.3V18a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V9.3l-10 6z" />
+                  </svg>
+                </div>
+              )}
 
               <div className="field stag" style={{ '--i': 4 } as React.CSSProperties}>
                 <input

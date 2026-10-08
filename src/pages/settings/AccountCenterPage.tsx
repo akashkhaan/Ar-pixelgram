@@ -1,3 +1,4 @@
+import { CountryPhoneInput } from "@/components/common/CountryPhoneInput";
 import { FuturisticOtpCard } from "@/components/auth/FuturisticOtpCard";
 import useGoBack from '@/hooks/use-go-back';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -184,15 +185,26 @@ const AccountCenterPage: React.FC = () => {
           <div className="space-y-4">
             <div>
               <Label htmlFor={`add-${type}`}>{type === 'email' ? 'Email address' : 'Mobile number'}</Label>
-              <Input
-                id={`add-${type}`}
-                type={type === 'email' ? 'email' : 'tel'}
-                autoComplete={type === 'email' ? 'email' : 'tel'}
-                placeholder={type === 'email' ? 'name@example.com' : '+91 98765 43210'}
-                value={draft[type]}
-                onChange={event => setDraft(current => ({ ...current, [type]: event.target.value }))}
-                className="mt-2 h-12"
-              />
+              {type === "phone" ? (
+                <div className="mt-2">
+                  <CountryPhoneInput
+                    id={`add-${type}`}
+                    value={draft[type]}
+                    onChange={(full) => setDraft(current => ({ ...current, [type]: full }))}
+                    placeholder="Enter mobile number"
+                  />
+                </div>
+              ) : (
+                <Input
+                  id={`add-${type}`}
+                  type="email"
+                  autoComplete="email"
+                  placeholder="name@example.com"
+                  value={draft[type]}
+                  onChange={event => setDraft(current => ({ ...current, [type]: event.target.value }))}
+                  className="mt-2 h-12"
+                />
+              )}
             </div>
             <Button className="h-11 w-full font-semibold" onClick={() => handleSendOtp(type)} disabled={busy === type}>
               {busy === type && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
