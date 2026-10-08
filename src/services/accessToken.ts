@@ -1,6 +1,8 @@
 // Access token service (Facebook-style token + device management)
 import { supabase } from '@/db/supabase';
 
+const BASE = 'https://jfizzduvmzavtqwzqacy.supabase.co/functions/v1';
+
 export interface DeviceInfo {
   device_id: string;
   device_name: string | null;
@@ -49,8 +51,48 @@ const PENDING_OTP_KEY = 'arpg_pending_otp_session';
 
 export async function startAccessToken(email: string, password: string): Promise<{ otpId: string }> {
   const cleanEmail = email.trim().toLowerCase();
+  const deviceId = getDeviceId();
+  const deviceName = getDeviceName();
 
-  // 1. Verify user credentials first
+  // 1. First try Edge Function access-token-start (which sends real 6-digit OTP email via Resend)
+  try {
+    const res = await fetch(`${BASE}/access-token-start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password, deviceId, deviceName }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && data?.otpId) {
+      localStorage.setItem(
+        PENDING_OTP_KEY,
+        JSON.stringify({
+          otpId: data.otpId,
+          email: cleanEmail,
+          source: 'edge_function',
+          timestamp: Date.now(),
+        })
+      );
+      return { otpId: data.otpId };
+    }
+
+    if (data?.error === 'invalid_credentials') {
+      throw new Error('invalid_credentials');
+    }
+    if (data?.error === 'location_mismatch') {
+      throw Object.assign(new Error('location_mismatch'), { data });
+    }
+    if (data?.error === 'multiple_devices') {
+      throw Object.assign(new Error('multiple_devices'), { data });
+    }
+  } catch (err: any) {
+    if (err?.message === 'invalid_credentials' || err?.message === 'location_mismatch' || err?.message === 'multiple_devices') {
+      throw err;
+    }
+    console.warn('access-token-start edge function error, falling back to Supabase Auth OTP:', err);
+  }
+
+  // 2. Fallback to Supabase Auth OTP
   const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
     email: cleanEmail,
     password,
@@ -60,7 +102,6 @@ export async function startAccessToken(email: string, password: string): Promise
     throw new Error('invalid_credentials');
   }
 
-  // 2. Request OTP email from Supabase Auth
   const { error: otpError } = await supabase.auth.signInWithOtp({
     email: cleanEmail,
     options: {
@@ -83,6 +124,7 @@ export async function startAccessToken(email: string, password: string): Promise
       otpId,
       email: cleanEmail,
       userId: signInData.user.id,
+      source: 'auth_otp',
       timestamp: Date.now(),
     })
   );
@@ -120,20 +162,46 @@ export async function confirmAccessToken(
   const cleanInput = codeOrUrl.trim();
   const rawPending = localStorage.getItem(PENDING_OTP_KEY);
   let pendingEmail = '';
+  let source = 'edge_function';
 
   if (rawPending) {
     try {
       const p = JSON.parse(rawPending);
-      pendingEmail = p.email;
+      pendingEmail = p.email || '';
+      source = p.source || 'edge_function';
     } catch {}
   }
 
-  if (!pendingEmail) {
-    const { data } = await supabase.auth.getSession();
-    pendingEmail = data.session?.user?.email || '';
+  // 1. If edge function source and numeric OTP:
+  const numericMatch = cleanInput.match(/\d{6}/);
+  const codeToVerify = numericMatch ? numericMatch[0] : cleanInput;
+
+  if (source === 'edge_function' && codeToVerify.length === 6) {
+    try {
+      const res = await fetch(`${BASE}/access-token-confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otpId, code: codeToVerify, deviceId: getDeviceId() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.token) {
+        localStorage.removeItem(PENDING_OTP_KEY);
+        const activeTokenInfo = {
+          token_prefix: data.token.slice(0, 10),
+          device_name: getDeviceName(),
+          expires_at: data.expiresAt,
+        };
+        localStorage.setItem('arpg_active_token', JSON.stringify(activeTokenInfo));
+        localStorage.setItem('arpg_user_access_token', data.token);
+        await registerDevice();
+        return { token: data.token, expiresAt: data.expiresAt };
+      }
+    } catch (e) {
+      console.warn('access-token-confirm edge function error, falling back to auth verify:', e);
+    }
   }
 
-  // If user pasted a URL or token link from email:
+  // 2. If user pasted a URL or token link from email:
   if (cleanInput.includes('http') || cleanInput.includes('token=')) {
     try {
       const urlStr = cleanInput.replace(/^.*https?:\/\//, 'https://');
@@ -165,10 +233,7 @@ export async function confirmAccessToken(
     }
   }
 
-  // If user entered numeric OTP code or raw token:
-  const numericMatch = cleanInput.match(/\d{6}/);
-  const codeToVerify = numericMatch ? numericMatch[0] : cleanInput;
-
+  // 3. Fallback Supabase Auth verifyOtp
   if (pendingEmail) {
     const { data, error } = await supabase.auth.verifyOtp({
       email: pendingEmail,
@@ -181,7 +246,7 @@ export async function confirmAccessToken(
     }
   }
 
-  // Also check if user is already authenticated (e.g. they clicked link in email)
+  // 4. Also check if user is already authenticated
   const { data: currentSession } = await supabase.auth.getSession();
   if (currentSession.session?.user) {
     return generateAndSaveToken();
@@ -194,6 +259,23 @@ export async function registerDevice(): Promise<void> {
   const deviceId = getDeviceId();
   const deviceName = getDeviceName();
   const now = new Date().toISOString();
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user) {
+      await supabase.from('user_devices').upsert(
+        {
+          user_id: sessionData.session.user.id,
+          device_id: deviceId,
+          device_name: deviceName,
+          user_agent: navigator.userAgent,
+          last_seen_at: now,
+          logged_out_at: null,
+        },
+        { onConflict: 'user_id,device_id' }
+      );
+    }
+  } catch {}
 
   const devices = getStoredDevices();
   const existingIdx = devices.findIndex(d => d.device_id === deviceId);
@@ -259,6 +341,17 @@ export async function logoutDevices(deviceIds: string[]): Promise<void> {
   let devices = getStoredDevices();
   devices = devices.filter(d => !deviceIds.includes(d.device_id));
   saveStoredDevices(devices);
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData?.session?.user) {
+      await supabase
+        .from('user_devices')
+        .update({ logged_out_at: new Date().toISOString() })
+        .eq('user_id', sessionData.session.user.id)
+        .in('device_id', deviceIds);
+    }
+  } catch {}
 
   if (deviceIds.includes(currentId)) {
     localStorage.removeItem('arpg_active_token');
