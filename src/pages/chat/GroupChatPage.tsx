@@ -1,5 +1,6 @@
 import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
-import { ChatMediaRenderer } from '@/components/chat/ChatMediaRenderer';
+import { ChatMediaRenderer, isMediaMessage } from '@/components/chat/ChatMediaRenderer';
+import { cn } from '@/lib/utils';
 import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
 import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
@@ -87,28 +88,50 @@ const renderMessageContent = (text: string, mine: boolean, myUsername?: string) 
   const parts = text.split(/((?:^|\s)@[A-Za-z0-9_.-]+)/g);
   return parts.map((part, index) => {
     const trimmed = part.trim();
-    if (trimmed.startsWith('@')) {
+    if (trimmed.startsWith("@")) {
       const uname = trimmed.slice(1).toLowerCase();
       const isMe = myUsername && uname === myUsername.toLowerCase();
       return (
         <span
           key={index}
-          className={
-            'inline-flex items-center rounded px-1 py-0.5 font-semibold text-xs ' +
-            (isMe
+          className={cn(
+            "inline-flex items-center rounded px-1 py-0.5 font-semibold text-xs",
+            isMe
               ? mine
-                ? 'bg-white/30 text-white font-bold ring-1 ring-white/50'
-                : 'bg-primary/25 text-primary font-bold ring-1 ring-primary/40'
+                ? "bg-white/30 text-white font-bold ring-1 ring-white/50"
+                : "bg-primary/25 text-primary font-bold ring-1 ring-primary/40"
               : mine
-              ? 'bg-white/20 text-white'
-              : 'bg-blue-500/15 text-blue-600 dark:text-blue-400')
-          }
+              ? "bg-white/20 text-white"
+              : "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+          )}
         >
           {part}
         </span>
       );
     }
-    return part;
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    const subParts = part.split(urlRegex);
+    return subParts.map((sub, subIdx) => {
+      if (urlRegex.test(sub)) {
+        const href = sub.startsWith("http") ? sub : "https://" + sub;
+        return (
+          <a
+            key={}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              "underline underline-offset-2 break-all font-semibold transition-opacity hover:opacity-85",
+              mine ? "text-white underline-white" : "text-sky-500 dark:text-sky-400"
+            )}
+          >
+            {sub}
+          </a>
+        );
+      }
+      return <span key={index + "-" + subIdx}>{sub}</span>;
+    });
   });
 };
 
@@ -137,6 +160,7 @@ const GroupChatPage: React.FC = () => {
   const [showMessageSearch, setShowMessageSearch] = useState(false);
   const [content, setContent] = useState('');
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
+  const [selectedMsgTimeId, setSelectedMsgTimeId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -708,7 +732,7 @@ const GroupChatPage: React.FC = () => {
             Messages in this group are visible only to its members.
           </div>
 
-          {visibleMessages.map(message => {
+          {visibleMessages.map((message, messageIndex) => {
             const mine = message.sender_id === user?.id;
             const sender = profileMap.get(message.sender_id);
             const replied = message.reply_to_id ? messages.find(item => item.id === message.reply_to_id) : null;
@@ -736,53 +760,83 @@ const GroupChatPage: React.FC = () => {
                       {message.content.trim()}
                     </div>
                   ) : (
-                    <div
-                      className={
-                        'rounded-2xl px-3 py-2 text-sm ' +
-                        (mine ? `rounded-br-sm ${activeTheme.bubble}` : 'rounded-bl-sm bg-muted text-foreground')
-                      }
-                    >
-                      {replied && (
-                        <button
-                          type="button"
-                          onClick={() => document.getElementById('group-message-' + replied.id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                          className={
-                            'mb-1 block w-full rounded border-l-2 px-2 py-1 text-left text-xs ' +
-                            (mine ? 'border-primary-foreground/60 bg-primary-foreground/10' : 'border-primary bg-background/50')
-                          }
-                        >
-                          <span className="block font-medium">Reply</span>
-                          <span className="block truncate opacity-75">{replied.content}</span>
-                        </button>
-                      )}
-
+                    <div className={cn("flex flex-col", mine ? "items-end" : "items-start")}>
                       {(() => {
                         const shareInfo = parseSharedContent(message.content);
                         if (shareInfo) {
                           return (
-                            <div id={'group-message-' + message.id} className="py-0.5">
+                            <div
+                              id={"group-message-" + message.id}
+                              className={cn(
+                                "max-w-[85%] sm:max-w-[75%] p-1.5 rounded-[22px] text-sm shadow-sm transition-all",
+                                mine
+                                  ? cn("rounded-br-[5px] text-white", activeTheme.bubble)
+                                  : "bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40"
+                              )}
+                            >
                               <InstagramSharedCard shareInfo={shareInfo} isMe={mine} />
                             </div>
                           );
                         }
-                        const mediaElement = <ChatMediaRenderer content={message.content} isMe={mine} activeBubbleClass={groupTheme.bubble} />;
-                        if (mediaElement) {
-                          return <div id={'group-message-' + message.id} className="py-0.5">{mediaElement}</div>;
+                        if (isMediaMessage(message.content)) {
+                          return (
+                            <div id={"group-message-" + message.id} className="py-0.5">
+                              <ChatMediaRenderer
+                                content={message.content}
+                                isMe={mine}
+                                activeBubbleClass={activeTheme.bubble}
+                              />
+                            </div>
+                          );
                         }
                         return (
-                          <p id={'group-message-' + message.id} className="break-words">
-                            {renderMessageContent(message.content, mine, myProfile?.username)}
-                          </p>
+                          <div
+                            id={"group-message-" + message.id}
+                            onClick={() => setSelectedMsgTimeId(prev => prev === message.id ? null : message.id)}
+                            className={cn(
+                              "max-w-[78%] px-3.5 py-2 rounded-[18px] text-[14.5px] leading-snug shadow-2xs transition-all break-words cursor-pointer select-text",
+                              mine
+                                ? cn("rounded-br-[4px] text-white", activeTheme.bubble)
+                                : "bg-muted/80 dark:bg-[#262626] text-foreground rounded-bl-[4px] border border-border/40"
+                            )}
+                          >
+                            {replied && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  document.getElementById("group-message-" + replied.id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                                }}
+                                className={cn(
+                                  "mb-1.5 block w-full rounded border-l-2 px-2 py-1 text-left text-xs",
+                                  mine
+                                    ? "border-primary-foreground/60 bg-primary-foreground/10 text-white"
+                                    : "border-primary bg-background/50 text-foreground"
+                                )}
+                              >
+                                <span className="block font-medium">Reply</span>
+                                <span className="block truncate opacity-75">{replied.content}</span>
+                              </button>
+                            )}
+                            <div className="leading-snug">
+                              {renderMessageContent(message.content, mine, myProfile?.username)}
+                            </div>
+                          </div>
                         );
                       })()}
-
-                      <div className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
-                        <span>
-                          {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                        {message.edited_at && <span>edited</span>}
-                        {mine && <Check className="h-3 w-3" />}
-                      </div>
+                      {/* Show exact timestamp on tap */}
+                      {selectedMsgTimeId === message.id && (
+                        <div className="text-[10px] text-muted-foreground/80 px-1 pt-0.5 select-none animate-in fade-in duration-150">
+                          {new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {message.edited_at && " (edited)"}
+                        </div>
+                      )}
+                      {/* Group message status for latest sent message */}
+                      {mine && messageIndex === visibleMessages.length - 1 && selectedMsgTimeId !== message.id && (
+                        <div className="text-[10px] text-muted-foreground/80 font-medium pr-1 pt-0.5 select-none">
+                          Sent
+                        </div>
+                      )}
                     </div>
                   )}
 

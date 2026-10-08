@@ -10,11 +10,28 @@ interface ChatMediaRendererProps {
   onOpenMedia?: (url: string, type: 'photo' | 'video') => void;
 }
 
+export const isDirectMediaUrl = (url: string): { isMedia: boolean; type?: 'image' | 'video' | 'audio' } => {
+  if (!url) return { isMedia: false };
+  const clean = url.trim();
+  const isAudio = /\.(webm|mp3|wav|ogg|m4a)(\?.*)?$/i.test(clean);
+  if (isAudio) return { isMedia: true, type: 'audio' };
+
+  const isImage = /\.(jpe?g|png|webp|gif|svg|bmp)(\?.*)?$/i.test(clean) ||
+    /\/storage\/v1\/object\/public\/(posts|avatars|stories|chat_media)\//i.test(clean);
+  if (isImage) return { isMedia: true, type: 'image' };
+
+  const isVideo = /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(clean) ||
+    /\/storage\/v1\/object\/public\/(reels|videos)\//i.test(clean);
+  if (isVideo) return { isMedia: true, type: 'video' };
+
+  return { isMedia: false };
+};
+
 export const isMediaMessage = (text: string): boolean => {
   if (!text) return false;
   const t = text.trim();
   if (t.startsWith('🎙️') || t.startsWith('📎 ')) return true;
-  return /^(https?:\/\/[^\s]+)$/i.test(t);
+  return isDirectMediaUrl(t).isMedia;
 };
 
 export const ChatMediaRenderer: React.FC<ChatMediaRendererProps> = ({
@@ -191,6 +208,23 @@ export const ChatMediaRenderer: React.FC<ChatMediaRendererProps> = ({
         </div>
       );
     }
+  }
+
+  // Link fallback so URL messages are never invisible
+  if (/^https?:\/\//i.test(raw)) {
+    return (
+      <a
+        href={raw}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[18px] text-xs font-semibold underline break-all',
+          isMe ? 'text-white' : 'text-sky-500'
+        )}
+      >
+        <span>{raw}</span>
+      </a>
+    );
   }
 
   // Normal text fallback

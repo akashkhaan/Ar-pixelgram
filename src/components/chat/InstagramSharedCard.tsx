@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Film, BadgeCheck, ExternalLink, User, Loader2, Tv } from 'lucide-react';
+import { Play, Film, BadgeCheck, ExternalLink, User, Loader2, Tv, Users } from 'lucide-react';
 import { getReelById, getProfile, type Reel, type Profile } from '@/services/api';
 import { resolveFacebookIdToUserId } from '@/lib/facebookProfileUrl';
 import { supabase } from '@/db/supabase';
@@ -20,11 +20,12 @@ const videoCache = new Map<string, AppVideo>();
 
 export interface ParsedShareInfo {
   isShare: boolean;
-  type: 'reel' | 'profile' | 'post' | 'video';
+  type: 'reel' | 'profile' | 'post' | 'video' | 'group_invite' | 'link';
   id: string;
   isNumericProfileId?: boolean;
   customText?: string;
   rawUrl: string;
+  domain?: string;
 }
 
 /**
@@ -112,6 +113,40 @@ export function parseSharedContent(content: string): ParsedShareInfo | null {
       id: videoId,
       customText: cleanText || undefined,
       rawUrl,
+    };
+  }
+
+  // 6. Group invite URL: /group/join/UUID or https://.../group/join/UUID
+  const groupInviteMatch = content.match(/(?:https?:\/\/[^\s/]+)?\/group\/join\/([a-zA-Z0-9_\-]+)/i);
+  if (groupInviteMatch) {
+    const rawUrl = groupInviteMatch[0];
+    const inviteId = groupInviteMatch[1];
+    let cleanText = content.replace(rawUrl, '').trim();
+    return {
+      isShare: true,
+      type: 'group_invite',
+      id: inviteId,
+      customText: cleanText || undefined,
+      rawUrl,
+    };
+  }
+
+  // 7. Standalone URL: https://... or http://...
+  const urlMatch = content.trim().match(/^(https?:\/\/[^\s]+)$/i);
+  if (urlMatch) {
+    const rawUrl = urlMatch[0];
+    let domain = 'link';
+    try {
+      domain = new URL(rawUrl).hostname.replace(/^www\./, '');
+    } catch {
+      domain = 'link';
+    }
+    return {
+      isShare: true,
+      type: 'link',
+      id: rawUrl,
+      rawUrl,
+      domain,
     };
   }
 
@@ -665,6 +700,82 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 5. GROUP INVITE CARD (Instagram DM Style)
+  // ==========================================
+  if (shareInfo.type === 'group_invite') {
+    const handleJoinClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigate('/group/join/' + shareInfo.id);
+    };
+    return (
+      <div className="space-y-1.5">
+        {shareInfo.customText && (
+          <p className="break-words text-sm font-medium px-1">{shareInfo.customText}</p>
+        )}
+        <div
+          onClick={handleJoinClick}
+          className="group relative w-60 sm:w-64 rounded-2xl overflow-hidden bg-card text-card-foreground shadow-md border border-border/60 cursor-pointer select-none transition-all active:scale-[0.98] hover:border-primary/50"
+        >
+          {/* Header Banner */}
+          <div className="p-4 bg-gradient-to-tr from-violet-600 via-indigo-600 to-pink-500 text-white flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/80">
+                Group Invite
+              </div>
+              <h4 className="font-bold text-sm text-white truncate drop-shadow">
+                Pixelgram Group
+              </h4>
+            </div>
+          </div>
+          {/* Invite description */}
+          <div className="p-3 bg-card space-y-1">
+            <p className="text-xs text-muted-foreground line-clamp-2">
+              You are invited to join this group chat on Pixelgram. Tap to join!
+            </p>
+          </div>
+          {/* Join action */}
+          <div className="px-3.5 py-2.5 bg-primary/10 border-t border-border/50 flex items-center justify-between text-xs font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+            <span>Join Group</span>
+            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 6. LINK PREVIEW CARD (Clean Instagram DM Style)
+  // ==========================================
+  if (shareInfo.type === 'link') {
+    const domain = shareInfo.domain || 'link';
+    return (
+      <div className="space-y-1">
+        {shareInfo.customText && (
+          <p className="break-words text-sm px-1">{shareInfo.customText}</p>
+        )}
+        <a
+          href={shareInfo.rawUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-2.5 p-3 rounded-2xl bg-black/10 dark:bg-white/10 hover:bg-black/15 transition-all text-current max-w-xs break-all group"
+        >
+          <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-500 flex items-center justify-center shrink-0 shadow-2xs">
+            <ExternalLink className="w-4 h-4 transition-transform group-hover:scale-110" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-bold truncate opacity-90">{domain}</div>
+            <div className="text-[11px] underline opacity-75 truncate">{shareInfo.rawUrl}</div>
+          </div>
+        </a>
       </div>
     );
   }

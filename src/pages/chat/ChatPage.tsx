@@ -74,6 +74,33 @@ const ChatPage: React.FC = () => {
   const [blockedByOther, setBlockedByOther] = useState(false);
   const [onlineStatusState, setOnlineStatusState] = useState<{ is_online: boolean; last_seen_at?: string; last_seen?: string | null } | null>(null);
   const [otherTyping, setOtherTyping] = useState(false);
+  const [selectedMsgTimeId, setSelectedMsgTimeId] = useState<string | null>(null);
+
+  const renderMessageText = (text: string, isMe: boolean) => {
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) => {
+      if (urlRegex.test(part)) {
+        const href = part.startsWith('http') ? part : `https://${part}`;
+        return (
+          <a
+            key={i}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              'underline underline-offset-2 break-all font-semibold transition-opacity hover:opacity-85',
+              isMe ? 'text-white underline-white' : 'text-sky-500 dark:text-sky-400'
+            )}
+          >
+            {part}
+          </a>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
 
   // Messenger Settings & Theme States
   const [showDetails, setShowDetails] = useState(false);
@@ -709,7 +736,7 @@ const ChatPage: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-end">
+                    <div className={cn('flex flex-col', isMe ? 'items-end' : 'items-start')}>
                       {isMediaMessage(msg.content) ? (
                         <ChatMediaRenderer
                           content={msg.content}
@@ -718,27 +745,28 @@ const ChatPage: React.FC = () => {
                         />
                       ) : (
                         <div
+                          onClick={() => setSelectedMsgTimeId(prev => prev === msg.id ? null : msg.id)}
                           className={cn(
-                            'max-w-[78%] px-4 py-2.5 rounded-[20px] text-sm shadow-sm transition-all break-words',
+                            'max-w-[78%] px-3.5 py-2 rounded-[18px] text-[14.5px] leading-snug shadow-2xs transition-all break-words cursor-pointer select-text',
                             isMe
                               ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
-                              : 'bg-muted/80 dark:bg-[#242526] text-foreground rounded-bl-[4px] border border-border/40'
+                              : 'bg-muted/80 dark:bg-[#262626] text-foreground rounded-bl-[4px] border border-border/40'
                           )}
                         >
-                          <p className="leading-relaxed">{msg.content}</p>
-                          <div
-                            className={cn(
-                              'flex items-center gap-1 justify-end mt-0.5 text-[9px]',
-                              isMe ? 'text-white/75' : 'text-muted-foreground'
-                            )}
-                          >
-                            <span>{formatTime(msg.created_at)}</span>
+                          <div className="leading-snug">
+                            {renderMessageText(msg.content, isMe)}
                           </div>
                         </div>
                       )}
-                      {/* Messenger Delivered indicator (from Screenshot 2) */}
-                      {isMe && idx === visibleMessages.length - 1 && (
-                        <div className="text-[10px] text-muted-foreground/80 font-medium pr-1 pt-1 select-none">
+                      {/* Show exact timestamp on tap */}
+                      {selectedMsgTimeId === msg.id && (
+                        <div className="text-[10px] text-muted-foreground/80 px-1 pt-0.5 select-none animate-in fade-in duration-150">
+                          {formatTime(msg.created_at)}
+                        </div>
+                      )}
+                      {/* Messenger Delivered indicator on latest sent message */}
+                      {isMe && idx === visibleMessages.length - 1 && selectedMsgTimeId !== msg.id && (
+                        <div className="text-[10px] text-muted-foreground/80 font-medium pr-1 pt-0.5 select-none">
                           {msg.is_seen ? 'Seen' : 'Delivered'}
                         </div>
                       )}
