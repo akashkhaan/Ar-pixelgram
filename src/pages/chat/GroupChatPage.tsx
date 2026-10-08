@@ -116,7 +116,7 @@ const renderMessageContent = (text: string, mine: boolean, myUsername?: string) 
         const href = sub.startsWith("http") ? sub : "https://" + sub;
         return (
           <a
-            key={}
+            key={index + "-link-" + subIdx}
             href={href}
             target="_blank"
             rel="noopener noreferrer"
