@@ -1,52 +1,29 @@
-import { MessengerCallBubble } from './MessengerCallBubble';
-// Messenger-style call UI — full screen call, incoming ringer, minimized pill.
 import React, { useEffect, useRef, useState } from 'react';
 import { useCall } from '@/contexts/CallContext';
 import {
-  Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Minimize2, Maximize2,
-  Monitor, MonitorOff, Circle, Square, Volume2, VolumeX, SwitchCamera, MessageCircle,
+  PhoneOff,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  Volume2,
+  VolumeX,
+  RefreshCw,
+  ChevronDown,
+  MessageCircle,
+  Phone,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { MessengerCallBubble } from './MessengerCallBubble';
 
 const fmt = (secs: number) => {
-  const m = Math.floor(secs / 60).toString().padStart(2, '0');
-  const s = Math.floor(secs % 60).toString().padStart(2, '0');
+  const m = Math.floor(secs / 60)
+    .toString()
+    .padStart(2, '0');
+  const s = Math.floor(secs % 60)
+    .toString()
+    .padStart(2, '0');
   return `${m}:${s}`;
 };
-
-const Avatar: React.FC<{ url?: string | null; name?: string | null; size: string; ring?: boolean }> = ({ url, name, size, ring }) => (
-  url ? (
-    <img src={url} alt="" className={cn(size, 'rounded-full object-cover shadow-2xl', ring && 'ring-4 ring-white/25')} />
-  ) : (
-    <div className={cn(size, 'rounded-full bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-2xl', ring && 'ring-4 ring-white/25')}>
-      <span className="text-[2.5rem] leading-none">{name?.[0]?.toUpperCase() || '?'}</span>
-    </div>
-  )
-);
-
-// Round control button (Messenger style: translucent circle + label)
-const Ctl: React.FC<{
-  onClick?: () => void; active?: boolean; label: string; disabled?: boolean;
-  children: React.ReactNode; big?: boolean; tone?: 'default' | 'danger' | 'accept';
-}> = ({ onClick, active, label, disabled, children, big, tone = 'default' }) => (
-  <div className="flex flex-col items-center gap-1.5">
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className={cn(
-        'rounded-full flex items-center justify-center transition-all active:scale-90 disabled:opacity-50 shadow-lg',
-        big ? 'w-[68px] h-[68px]' : 'w-14 h-14',
-        tone === 'danger' && 'bg-gradient-to-br from-rose-500 to-red-600 text-white',
-        tone === 'accept' && 'bg-gradient-to-br from-emerald-400 to-green-600 text-white',
-        tone === 'default' && (active ? 'bg-white text-neutral-900' : 'bg-white/15 text-white backdrop-blur-xl ring-1 ring-white/20 hover:bg-white/25'),
-      )}
-    >
-      {children}
-    </button>
-    <span className="text-[11px] text-white/70">{label}</span>
-  </div>
-);
 
 export const CallOverlay: React.FC = () => {
   const call = useCall();
@@ -55,82 +32,119 @@ export const CallOverlay: React.FC = () => {
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [elapsed, setElapsed] = useState(0);
 
+  // Bind local video stream
   useEffect(() => {
     if (localVideoRef.current && call.localStream) {
       localVideoRef.current.srcObject = call.localStream;
-      localVideoRef.current.play?.().catch(() => {});
+      localVideoRef.current.play().catch(() => {});
     }
-  }, [call.localStream]);
+  }, [call.localStream, call.cameraOff]);
 
+  // Bind remote video stream
   useEffect(() => {
-    if (!call.remoteStream) return;
-    if (call.kind === 'video') {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = call.remoteStream;
-        remoteVideoRef.current.play?.().catch(() => {});
-      }
-      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-    } else if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = call.remoteStream;
-      remoteAudioRef.current.play?.().catch(() => {});
+    if (remoteVideoRef.current && call.remoteStream) {
+      remoteVideoRef.current.srcObject = call.remoteStream;
+      remoteVideoRef.current.play().catch(() => {});
     }
   }, [call.remoteStream, call.kind]);
 
-  // Speaker / earpiece routing
+  // Bind remote audio stream & speaker routing (earpiece vs loudspeaker)
   useEffect(() => {
-    const el = call.kind === 'video' ? remoteVideoRef.current : remoteAudioRef.current;
+    const el = remoteAudioRef.current;
     if (!el) return;
-    el.volume = call.speakerOn ? 1 : 0.35;
+
+    if (call.remoteStream && el.srcObject !== call.remoteStream) {
+      el.srcObject = call.remoteStream;
+      el.play().catch(() => {});
+    }
+
+    // Normal ear-call vs Loudspeaker:
+    // When speaker is ON: 1.0 (loudspeaker)
+    // When speaker is OFF: 0.25 (earpiece receiver)
+    el.volume = call.speakerOn ? 1.0 : 0.25;
+
     const anyEl = el as HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
     if (typeof anyEl.setSinkId === 'function') {
       anyEl.setSinkId(call.speakerOn ? 'default' : 'communications').catch(() => {});
     }
-  }, [call.speakerOn, call.kind, call.remoteStream]);
 
+    // Native Android wrapper
+    const android = (window as unknown as { AndroidAudio?: { setSpeakerphoneOn?: (on: boolean) => void } }).AndroidAudio;
+    android?.setSpeakerphoneOn?.(call.speakerOn);
+  }, [call.speakerOn, call.remoteStream]);
+
+  // Call timer
   useEffect(() => {
-    if (call.status !== 'active' || !call.startedAt) { setElapsed(0); return; }
+    if (call.status !== 'active' || !call.startedAt) {
+      setElapsed(0);
+      return;
+    }
     const start = call.startedAt;
-    const id = window.setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 500);
+    const update = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    update();
+    const id = window.setInterval(update, 500);
     return () => clearInterval(id);
   }, [call.status, call.startedAt]);
 
-  const visible = call.status === 'ringing-out' || call.status === 'connecting' || call.status === 'active' || call.status === 'ended';
-  // Intercept back button when 1-on-1 call is full screen so call stays active and minimizes into floating bubble
+  const visible =
+    call.status === 'ringing-out' ||
+    call.status === 'connecting' ||
+    call.status === 'active' ||
+    call.status === 'ended';
+
+  // Intercept back button when call is full screen so call stays active and minimizes into floating bubble
   useEffect(() => {
     if (!visible || call.minimized) return;
-
     window.history.pushState({ in1on1Call: true }, '');
 
     const handlePopState = () => {
       call.toggleMinimize();
     };
 
-    const handleNativeBack = () => {
-      call.toggleMinimize();
-    };
-
     window.addEventListener('popstate', handlePopState);
-    window.addEventListener('appCallBackPressed', handleNativeBack);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [visible, call.minimized, call]);
 
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('appCallBackPressed', handleNativeBack);
-    };
-  }, [visible, call.minimized, call.toggleMinimize]);
   if (!visible) return null;
 
-  const hasLocalVideo = !call.cameraOff && Boolean(call.localStream?.getVideoTracks().some(t => t.readyState === "live" && t.enabled !== false));
-  const hasRemoteVideo = Boolean(call.remoteStream?.getVideoTracks().some(t => t.readyState === "live" && t.enabled !== false));
-  const showVideo = call.kind === "video" || hasLocalVideo || hasRemoteVideo;
-  const statusText =
-    call.status === 'ringing-out' ? 'Ringing…' :
-    call.status === 'connecting' ? 'Connecting…' :
-    call.status === 'active' ? fmt(elapsed) :
-    call.endedReason || 'Call ended';
-  const connecting = call.status === 'ringing-out' || call.status === 'connecting';
-  const name = call.peerProfile?.full_name || call.peerProfile?.username || 'Unknown';
+  const hasLocalVideo =
+    !call.cameraOff &&
+    Boolean(
+      call.localStream?.getVideoTracks().some(
+        t => (t.readyState === 'live' || (t.readyState as string) === 'active') && t.enabled !== false
+      )
+    );
 
-  // Minimized floating Messenger-style Call Head
+  const hasRemoteVideo = Boolean(
+    call.remoteStream?.getVideoTracks().some(
+      t => (t.readyState === 'live' || (t.readyState as string) === 'active') && t.enabled !== false
+    )
+  );
+
+  const name =
+    call.peerProfile?.username ||
+    call.peerProfile?.full_name ||
+    'Pixelgram User';
+
+  const avatarUrl = call.peerProfile?.avatar_url || '';
+
+  // Status subtitle
+  const statusSubtitle =
+    call.status === 'ringing-out'
+      ? 'Calling…'
+      : call.status === 'connecting'
+      ? 'Connecting…'
+      : call.status === 'active'
+      ? fmt(elapsed)
+      : call.endedReason || 'Call ended';
+
+  // Badge state
+  const isConnected = call.status === 'active';
+  const isEnded = call.status === 'ended';
+  const badgeClass = isEnded ? 'pcall-badge end' : isConnected ? 'pcall-badge on' : 'pcall-badge';
+  const badgeText = isEnded ? 'Ended' : isConnected ? 'Connected' : 'Ringing';
+
+  // Minimized floating Messenger-style Call Bubble
   if (call.minimized) {
     return (
       <>
@@ -138,9 +152,9 @@ export const CallOverlay: React.FC = () => {
         <MessengerCallBubble
           avatarUrl={call.peerProfile?.avatar_url}
           title={name}
-          kind={call.kind}
+          kind={hasRemoteVideo || hasLocalVideo ? 'video' : 'audio'}
           elapsedSeconds={elapsed}
-          videoStream={call.kind === "video" ? (call.remoteStream || call.localStream) : null}
+          videoStream={hasRemoteVideo ? call.remoteStream : hasLocalVideo ? call.localStream : null}
           muted={call.muted}
           onToggleMute={call.toggleMute}
           onMaximize={call.toggleMinimize}
@@ -151,113 +165,172 @@ export const CallOverlay: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] text-white flex flex-col overflow-hidden select-none">
-      {/* Background */}
-      {showVideo ? (
-        <video ref={remoteVideoRef} autoPlay playsInline
-          className="absolute inset-0 w-full h-full object-cover bg-black" />
-      ) : (
-        <div className="absolute inset-0 overflow-hidden">
-          {call.peerProfile?.avatar_url ? (
-            <img
-              src={call.peerProfile.avatar_url}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover brightness-[0.65]"
-            />
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/15 to-black/85" />
-        </div>
-      )}
-      <audio ref={remoteAudioRef} autoPlay />
+    <div className="pcall-app">
+      {/* Background audio playback */}
+      <audio ref={remoteAudioRef} autoPlay playsInline />
 
-      <div className="relative flex-1 flex flex-col">
-        {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-4 z-10"
-          style={{ paddingTop: 'max(env(safe-area-inset-top,0px),16px)' }}>
-          <button onClick={call.toggleMinimize}
-            className="w-10 h-10 rounded-full bg-white/10 backdrop-blur ring-1 ring-white/20 flex items-center justify-center hover:bg-white/20">
-            <Minimize2 className="w-5 h-5" />
-          </button>
-          {call.recording && (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/90 text-xs font-medium shadow-lg">
-              <span className="w-2 h-2 rounded-full bg-white animate-pulse" /> REC
-            </div>
-          )}
-        </div>
-
-        {/* Callee identity */}
-        <div className={cn('px-6 text-center', showVideo ? 'pt-20' : 'pt-24')}>
-          <p className="text-2xl font-semibold drop-shadow-lg">{name}</p>
-          <p className={cn('mt-1 text-sm tabular-nums', call.status === 'active' ? 'text-emerald-300' : 'text-white/70')}>
-            {showVideo ? 'Video call' : 'Voice call'} · {statusText}
-          </p>
-        </div>
-
-        {!showVideo && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="relative">
-              {connecting && (
-                <>
-                  <span className="absolute inset-0 rounded-full bg-white/10 animate-ping" />
-                  <span className="absolute -inset-5 rounded-full bg-white/5 animate-ping [animation-delay:250ms]" />
-                </>
-              )}
-              <Avatar url={call.peerProfile?.avatar_url} name={call.peerProfile?.username} size="relative w-40 h-40" ring />
-            </div>
-          </div>
-        )}
-
-        {/* Self preview */}
-        {showVideo && call.localStream && (
-          <video ref={localVideoRef} autoPlay playsInline muted
-            className="absolute bottom-56 right-4 w-28 h-40 rounded-2xl object-cover ring-1 ring-white/30 shadow-2xl bg-black z-20" />
-        )}
-
-        {/* Controls */}
+      <div className={`pcall-box ${isEnded ? 'over' : ''}`}>
+        {/* Remote Person Full Tile / Profile Photo Background */}
         <div
-          className={cn(
-            'z-20 px-5 pt-6 flex flex-col items-center gap-5',
-            showVideo ? 'absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent' : 'mt-auto',
+          className="pcall-remote"
+          style={{
+            backgroundImage: !hasRemoteVideo && avatarUrl ? `url(${avatarUrl})` : undefined,
+          }}
+        >
+          {/* If remote camera is active, display live remote video */}
+          {hasRemoteVideo && (
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className="absolute inset-0 w-full h-full object-cover z-0"
+            />
           )}
-          style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),32px)' }}>
 
-          {/* Secondary row */}
-          {call.status === 'active' && (
-            <div className="flex items-end justify-center gap-5">
-              {showVideo && (
-                <Ctl onClick={call.toggleScreenShare} active={call.screenSharing} label="Share">
-                  {call.screenSharing ? <MonitorOff className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
-                </Ctl>
-              )}
-              {showVideo && (
-                <Ctl onClick={call.flipCamera} label="Flip" disabled={call.screenSharing}>
-                  <SwitchCamera className="w-5 h-5" />
-                </Ctl>
-              )}
-              <Ctl onClick={call.toggleRecording} active={call.recording} label={call.recording ? 'Stop' : 'Record'}>
-                {call.recording ? <Square className="w-5 h-5" fill="currentColor" /> : <Circle className="w-5 h-5" fill="currentColor" />}
-              </Ctl>
+          {/* Fallback pattern if no avatar */}
+          {!hasRemoteVideo && !avatarUrl && (
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black flex items-center justify-center">
+              <span className="text-7xl font-bold text-white/40">
+                {(name?.[0] || 'U').toUpperCase()}
+              </span>
             </div>
           )}
+        </div>
 
-          {/* Primary row */}
-          <div className="flex items-end justify-center gap-5">
-            <Ctl onClick={call.toggleSpeaker} active={!call.speakerOn} label={call.speakerOn ? 'Speaker' : 'Earpiece'}>
-              {call.speakerOn ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
-            </Ctl>
-            <Ctl onClick={call.toggleMute} active={call.muted} label={call.muted ? 'Unmute' : 'Mute'}>
-              {call.muted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-            </Ctl>
-            <Ctl onClick={call.toggleCamera} active={call.cameraOff} label={call.cameraOff ? "Camera on" : "Camera off"}>
-              {call.cameraOff ? <VideoOff className="w-6 h-6" /> : <Video className="w-6 h-6" />}
-            </Ctl>
-            <Ctl onClick={call.endCall} disabled={call.status === 'ended'} tone="danger" big label="End">
-              <PhoneOff className="w-7 h-7" />
-            </Ctl>
+        {/* Local Camera Self Preview (Picture-in-Picture) */}
+        {hasLocalVideo && call.localStream && (
+          <div className="absolute bottom-36 right-4 w-28 h-40 rounded-2xl overflow-hidden ring-2 ring-white/30 shadow-2xl bg-black z-20">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+
+        {/* Top Bar */}
+        <div className="pcall-top">
+          <button
+            type="button"
+            className="pcall-back"
+            onClick={call.toggleMinimize}
+            title="Minimize call"
+          >
+            <ChevronDown className="w-6 h-6 stroke-[2.4]" />
+          </button>
+
+          <div className="pcall-who">
+            <b>{name}</b>
+            <span id="sub">{statusSubtitle}</span>
+          </div>
+
+          <div className={badgeClass} id="badge">
+            <i />
+            <span id="btxt">{badgeText}</span>
           </div>
         </div>
+
+        {/* Name Tag on Tile */}
+        <div className="pcall-tag" id="tag">
+          <span>@{name}</span>
+          {call.speakerOn && (
+            <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-black/40 px-2 py-0.5 rounded-full border border-emerald-500/30">
+              <Volume2 className="w-3 h-3" />
+              <span>Speaker on</span>
+            </span>
+          )}
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <rect x="9" y="3" width="6" height="11" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+          </svg>
+        </div>
+
+        {/* Bottom Control Bar */}
+        <div className="pcall-bar" id="bar">
+          {/* Mute Button */}
+          <button
+            type="button"
+            className={`pcall-b ${call.muted ? 'on' : ''}`}
+            onClick={call.toggleMute}
+            title={call.muted ? 'Unmute' : 'Mute'}
+          >
+            {call.muted ? (
+              <MicOff className="w-6 h-6 stroke-[2]" />
+            ) : (
+              <Mic className="w-6 h-6 stroke-[2]" />
+            )}
+          </button>
+
+          {/* Camera Button */}
+          <button
+            type="button"
+            className={`pcall-b ${!call.cameraOff ? 'on' : ''}`}
+            onClick={() => void call.toggleCamera()}
+            title={call.cameraOff ? 'Turn on camera' : 'Turn off camera'}
+          >
+            {!call.cameraOff ? (
+              <Video className="w-6 h-6 stroke-[2]" />
+            ) : (
+              <VideoOff className="w-6 h-6 stroke-[2]" />
+            )}
+          </button>
+
+          {/* End Call Button */}
+          <button
+            type="button"
+            className="pcall-b end"
+            onClick={call.endCall}
+            disabled={call.status === 'ended'}
+            title="End call"
+          >
+            <PhoneOff className="w-7 h-7 fill-white stroke-none" />
+          </button>
+
+          {/* Speaker Button */}
+          <button
+            type="button"
+            className={`pcall-b ${call.speakerOn ? 'on' : ''}`}
+            onClick={call.toggleSpeaker}
+            title={call.speakerOn ? 'Earpiece' : 'Speaker'}
+          >
+            {call.speakerOn ? (
+              <Volume2 className="w-6 h-6 stroke-[2]" />
+            ) : (
+              <VolumeX className="w-6 h-6 stroke-[2]" />
+            )}
+          </button>
+
+          {/* Flip Camera Button */}
+          <button
+            type="button"
+            className="pcall-b"
+            onClick={() => void call.flipCamera()}
+            title="Flip camera"
+          >
+            <RefreshCw className="w-5 h-5 stroke-[2]" />
+          </button>
+        </div>
+
+        {/* Call Ended Screen */}
+        {isEnded && (
+          <div className="pcall-over" id="over">
+            <h2>Call ended</h2>
+            <p id="dur">
+              {elapsed > 0 ? `Duration ${fmt(elapsed)}` : 'Not answered'}
+            </p>
+            {call.peerId && (
+              <button
+                type="button"
+                id="again"
+                onClick={() => void call.startCall(call.peerId!, call.kind)}
+              >
+                Call again
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -266,54 +339,87 @@ export const CallOverlay: React.FC = () => {
 export const IncomingCallModal: React.FC = () => {
   const call = useCall();
   if (call.status !== 'ringing-in') return null;
-  const name = call.peerProfile?.full_name || call.peerProfile?.username || 'Unknown';
+  const name =
+    call.peerProfile?.username ||
+    call.peerProfile?.full_name ||
+    'Unknown';
+
+  const avatarUrl = call.peerProfile?.avatar_url || '';
 
   return (
-    <div className="fixed inset-0 z-[101] text-white flex flex-col overflow-hidden">
-      {/* Messenger-style DP Background */}
-      <div className="absolute inset-0 overflow-hidden">
-        {call.peerProfile?.avatar_url ? (
-          <img
-            src={call.peerProfile.avatar_url}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover brightness-[0.65]"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/15 to-black/85" />
-      </div>
-
-      <div className="relative flex-1 flex flex-col items-center justify-center gap-5 px-8">
-        <div className="relative">
-          <span className="absolute inset-0 rounded-full bg-white/10 animate-ping" />
-          <span className="absolute -inset-5 rounded-full bg-white/5 animate-ping [animation-delay:250ms]" />
-          <Avatar url={call.peerProfile?.avatar_url} name={call.peerProfile?.username} size="relative w-36 h-36" ring />
+    <div className="fixed inset-0 z-[125] flex items-center justify-center bg-[#050309] text-white select-none overflow-hidden font-sans">
+      <div className="relative w-full max-w-[430px] h-full max-h-[900px] overflow-hidden bg-[#0a0710] flex flex-col justify-between">
+        {/* Full DP Background */}
+        <div
+          className="absolute inset-0 bg-cover bg-center filter saturate-110"
+          style={{
+            backgroundImage: avatarUrl ? `url(${avatarUrl})` : undefined,
+          }}
+        >
+          {!avatarUrl && (
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-black" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-b from-[rgba(10,7,16,0.75)] via-[rgba(10,7,16,0.3)] to-[rgba(10,7,16,0.92)]" />
         </div>
-        <div className="text-center">
-          <p className="text-2xl font-semibold">{name}</p>
-          <p className="mt-1 text-white/70 text-sm">
-            {call.kind === 'video' ? 'Incoming video call' : 'Incoming voice call'}
-          </p>
+
+        {/* Top Section */}
+        <div className="relative z-10 pt-16 px-6 text-center">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md text-xs font-medium text-emerald-400 mb-4 border border-white/10">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Incoming {call.kind === 'video' ? 'Video' : 'Voice'} Call</span>
+          </div>
+          <h2 className="text-2xl font-bold drop-shadow-md">{name}</h2>
           {call.peerProfile?.username && (
-            <p className="text-white/40 text-xs mt-0.5">@{call.peerProfile.username}</p>
+            <p className="text-white/60 text-sm mt-0.5">@{call.peerProfile.username}</p>
           )}
         </div>
-      </div>
 
-      <div className="relative px-10 pb-12 flex items-end justify-between"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),48px)' }}>
-        <Ctl onClick={() => call.rejectCall('declined')} tone="danger" big label="Decline">
-          <PhoneOff className="w-7 h-7" />
-        </Ctl>
-        <div className="flex flex-col items-center gap-1.5 pb-2 opacity-60">
-          <MessageCircle className="w-5 h-5" />
-          <span className="text-[11px] text-white/70">Message</span>
+        {/* Center Pulsing Avatar */}
+        <div className="relative z-10 flex items-center justify-center my-auto">
+          <div className="relative">
+            <span className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping duration-1000" />
+            <span className="absolute -inset-4 rounded-full bg-emerald-500/10 animate-pulse" />
+            <div className="relative w-36 h-36 rounded-full overflow-hidden border-4 border-white/20 shadow-2xl bg-white/10 flex items-center justify-center">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-5xl font-bold text-white">
+                  {(name?.[0] || 'U').toUpperCase()}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="animate-bounce">
-          <Ctl onClick={call.acceptCall} tone="accept" big label="Accept">
-            {call.kind === 'video' ? <Video className="w-7 h-7" /> : <Phone className="w-7 h-7" />}
-          </Ctl>
+
+        {/* Bottom Actions */}
+        <div className="relative z-10 px-8 pb-12 flex items-center justify-between">
+          {/* Decline Button */}
+          <button
+            type="button"
+            onClick={() => call.rejectCall('declined')}
+            className="flex flex-col items-center gap-1.5 cursor-pointer"
+          >
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-rose-500 to-red-600 flex items-center justify-center shadow-lg shadow-rose-500/40 text-white active:scale-90 transition-transform">
+              <PhoneOff className="w-7 h-7 stroke-[2]" />
+            </div>
+            <span className="text-xs text-white/80 font-medium">Decline</span>
+          </button>
+
+          {/* Accept Button */}
+          <button
+            type="button"
+            onClick={call.acceptCall}
+            className="flex flex-col items-center gap-1.5 cursor-pointer animate-bounce"
+          >
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/40 text-white active:scale-90 transition-transform">
+              {call.kind === 'video' ? (
+                <Video className="w-7 h-7 stroke-[2]" />
+              ) : (
+                <Phone className="w-7 h-7 stroke-[2]" />
+              )}
+            </div>
+            <span className="text-xs text-white/80 font-medium">Accept</span>
+          </button>
         </div>
       </div>
     </div>
