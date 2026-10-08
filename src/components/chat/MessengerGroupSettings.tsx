@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import ChatWallpaperModal from './ChatWallpaperModal';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
