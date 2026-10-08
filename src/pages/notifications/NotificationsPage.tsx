@@ -111,6 +111,24 @@ const TagIcon: React.FC<{ type: Notification['type'] }> = ({ type }) => {
     );
   }
 
+  if (type === 'message' || type === 'group_message') {
+    return (
+      <span className="tag" style={{ background: '#38BDF8' }} title="Message">
+        <svg viewBox="0 0 24 24" className="w-[11px] h-[11px]">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    );
+  }
+  if (type === 'new_reel' || type === 'new_post' || type === 'new_story' || type === 'new_video') {
+    return (
+      <span className="tag" style={{ background: '#F59E0B' }} title="New">
+        <svg viewBox="0 0 24 24" className="w-[11px] h-[11px]">
+          <polygon points="5 3 19 12 5 21 5 3" fill="#fff" />
+        </svg>
+      </span>
+    );
+  }
   // fallback/system/default
   return (
     <span className="tag" style={{ background: '#6366F1' }} title="Alert">
@@ -310,6 +328,21 @@ const NotificationsPage: React.FC = () => {
         return;
       case 'like':
       case 'comment':
+        if (isReelNotification(notif)) {
+          if (notif.post_id) {
+            navigate(`/reels?r=${notif.post_id}${notif.type === 'comment' ? '&comments=1' : ''}`);
+          } else {
+            navigate('/reels');
+          }
+          return;
+        }
+        if (notif.post_id) navigate(`/post/${notif.post_id}`);
+        else if (notif.actor_id) navigate(`/profile/${notif.actor_id}`);
+        return;
+      case 'new_reel':
+        if (notif.post_id) navigate(`/reels?r=${notif.post_id}`);
+        else navigate('/reels');
+        return;
       case 'new_post':
         if (notif.post_id) navigate(`/post/${notif.post_id}`);
         else if (notif.actor_id) navigate(`/profile/${notif.actor_id}`);
@@ -362,6 +395,7 @@ const NotificationsPage: React.FC = () => {
     return (
       notif.type === 'reel_like' ||
       notif.type === 'reel_comment' ||
+      notif.type === 'new_reel' ||
       notif.media_item?.kind === 'reel' ||
       (notif.type === 'like' && notif.media_item?.media_type === 'video') ||
       (notif.type === 'comment' && notif.media_item?.media_type === 'video')
@@ -446,25 +480,55 @@ const NotificationsPage: React.FC = () => {
           {notif.type === 'reel_like' && ' liked your reel.'}
           {notif.type === 'like' && (hasReel ? ' liked your reel.' : ' liked your post.')}
           {notif.type === 'story_like' && ' liked your story.'}
-          {notif.type === 'reel_comment' && ' commented:'}
-          {notif.type === 'comment' && (hasReel ? ' commented:' : ' commented on your post:')}
+          {notif.type === 'reel_comment' && ' commented on your reel:'}
+          {notif.type === 'comment' && (hasReel ? ' commented on your reel:' : ' commented on your post:')}
           {notif.type === 'comment_reply' && ' replied to your comment:'}
           {notif.type === 'story_reply' && ' replied to your story:'}
           {(notif.type === 'mention' || notif.type === 'group_mention') && ' mentioned you in a comment:'}
           {notif.type === 'new_story' && ' added a new story.'}
+          {notif.type === 'new_reel' && ' shared a new reel.'}
+          {notif.type === 'new_post' && ' shared a new post.'}
+          {notif.type === 'new_video' && ' uploaded a new video.'}
+          {notif.type === 'message' && ' sent you a message:'}
+          {notif.type === 'group_message' && ' sent a group message:'}
+          {notif.type === 'group_call' && ' started a group call.'}
           {notif.type === 'verified' && ' verified your account.'}
           {notif.type === 'broadcast' && `: ${notif.message || ''}`}
+          {!isReqType &&
+            notif.type !== 'follow' &&
+            notif.type !== 'follow_accepted' &&
+            notif.type !== 'reel_like' &&
+            notif.type !== 'like' &&
+            notif.type !== 'story_like' &&
+            notif.type !== 'reel_comment' &&
+            notif.type !== 'comment' &&
+            notif.type !== 'comment_reply' &&
+            notif.type !== 'story_reply' &&
+            notif.type !== 'mention' &&
+            notif.type !== 'group_mention' &&
+            notif.type !== 'new_story' &&
+            notif.type !== 'new_reel' &&
+            notif.type !== 'new_post' &&
+            notif.type !== 'new_video' &&
+            notif.type !== 'message' &&
+            notif.type !== 'group_message' &&
+            notif.type !== 'group_call' &&
+            notif.type !== 'verified' &&
+            notif.type !== 'broadcast' &&
+            (notif.message ? `: ${notif.message}` : ' sent you a notification.')}
 
           <span className="t"> {timeAgo}</span>
 
-          {/* Comment text snippet */}
+          {/* Comment / message text snippet */}
           {notif.message &&
             (notif.type === 'comment' ||
               notif.type === 'reel_comment' ||
               notif.type === 'comment_reply' ||
               notif.type === 'story_reply' ||
               notif.type === 'mention' ||
-              notif.type === 'group_mention') && <span className="cm">{notif.message}</span>}
+              notif.type === 'group_mention' ||
+              notif.type === 'message' ||
+              notif.type === 'group_message') && <span className="cm">{notif.message}</span>}
         </div>
 
         {/* Side Actions or Media Thumbnail */}

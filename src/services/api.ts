@@ -817,11 +817,28 @@ export async function createNotification(
   const reelUrl = postId
     ? `/reels?r=${postId}${isReelComment ? '&comments=1' : ''}`
     : '/reels';
+  const pushBody = (message && message.trim())
+    ? message
+    : (type === 'reel_like' ? `${who} liked your reel.`
+      : type === 'like' ? `${who} liked your post.`
+      : type === 'story_like' ? `${who} liked your story.`
+      : type === 'story_reply' ? `${who} replied to your story.`
+      : type === 'reel_comment' ? `${who} commented on your reel.`
+      : type === 'comment' ? `${who} commented on your post.`
+      : type === 'comment_reply' ? `${who} replied to your comment.`
+      : type === 'follow' ? `${who} started following you.`
+      : type === 'follow_request' ? `${who} sent you a follow request.`
+      : type === 'follow_accepted' ? `${who} accepted your follow request.`
+      : type === 'new_reel' ? `${who} shared a new reel.`
+      : type === 'new_post' ? `${who} shared a new post.`
+      : type === 'new_story' ? `${who} added a new story.`
+      : `${who} sent you a notification.`);
+
   supabase.functions.invoke('send-call-push', {
     body: {
       receiverId: userId,
       title,
-      body: message || '',
+      body: pushBody,
       tag: `${type}-${postId || commentId || actorId || Date.now()}`,
       data: {
         url: type === 'message' && actorId

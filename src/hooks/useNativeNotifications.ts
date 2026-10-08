@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/db/supabase';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
@@ -38,14 +39,42 @@ function titleFor(type: string, who: string): string {
     case 'follow': return `${who} started following you 👤`;
     case 'follow_request': return `${who} sent you a follow request 📩`;
     case 'follow_accepted': return `${who} accepted your follow request ✅`;
-    case 'message': return `${who} sent a message 💬`;
+    case 'message': return `${who} sent you a message 💬`;
     case 'group_mention': return `🏷️ ${who} mentioned you in a group`;
     case 'group_call': return `📞 Group call from ${who}`;
     case 'group_message': return `👥 Group message from ${who}`;
     case 'new_story': return `${who} added a new story 📸`;
     case 'new_post': return `${who} shared a new post 📷`;
     case 'new_reel': return `${who} shared a new reel 🎬`;
-    default: return 'Pixelgram';
+    case 'new_video': return `${who} uploaded a new video 🎥`;
+    case 'verified': return `Account verified 🎉`;
+    default: return `${who} sent you a notification`;
+  }
+}
+
+function bodyFor(type: string, who: string, message?: string | null): string {
+  if (message && message.trim()) return message;
+  switch (type) {
+    case 'like': return `${who} liked your post.`;
+    case 'reel_like': return `${who} liked your reel.`;
+    case 'story_like': return `${who} liked your story.`;
+    case 'story_reply': return `${who} replied to your story.`;
+    case 'comment': return `${who} commented on your post.`;
+    case 'reel_comment': return `${who} commented on your reel.`;
+    case 'comment_reply': return `${who} replied to your comment.`;
+    case 'follow': return `${who} started following you.`;
+    case 'follow_request': return `${who} requested to follow you.`;
+    case 'follow_accepted': return `${who} accepted your follow request.`;
+    case 'message': return `${who} sent you a message.`;
+    case 'group_mention': return `${who} mentioned you in a group.`;
+    case 'group_call': return `Incoming group call from ${who}`;
+    case 'group_message': return `New message from ${who}`;
+    case 'new_story': return `${who} added a new story.`;
+    case 'new_post': return `${who} shared a new post.`;
+    case 'new_reel': return `${who} shared a new reel.`;
+    case 'new_video': return `${who} uploaded a new video.`;
+    case 'verified': return `Your account has been verified.`;
+    default: return `${who} sent you a notification.`;
   }
 }
 
@@ -139,7 +168,9 @@ export function useNativeNotifications(userId: string | undefined) {
           const title = isCall
             ? `${who} — ${row.message?.startsWith('📵') ? 'Missed call 📵' : 'Incoming call 📞'}`
             : titleFor(row.type, who);
-          const body = row.message || (row.type === 'message' ? 'New message received' : 'Pixelgram');
+          const body = isCall
+            ? (row.message || 'Call notification')
+            : bodyFor(row.type, who, row.message);
 
           notifyLocal({
             title,
@@ -154,6 +185,23 @@ export function useNativeNotifications(userId: string | undefined) {
               { action: 'decline_call', title: '❌ End' },
             ] : undefined,
           });
+
+          // In-app floating toast banner when app is open
+          if (!isCall && typeof window !== 'undefined') {
+            try {
+              toast(title, {
+                description: body !== title ? body : undefined,
+                duration: 4000,
+                action: {
+                  label: 'View',
+                  onClick: () => {
+                    const target = urlFor(row);
+                    if (target) window.location.href = target;
+                  },
+                },
+              });
+            } catch { /* noop */ }
+          }
         },
       )
       .subscribe();

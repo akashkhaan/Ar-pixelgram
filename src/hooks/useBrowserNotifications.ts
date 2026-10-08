@@ -15,6 +15,7 @@ const titleFor = (n: Notification, actorName?: string): string => {
     case 'comment':      return `${who} commented on your post`;
     case 'reel_comment': return `${who} commented on your reel`;
     case 'comment_reply':return `${who} replied to your comment`;
+    case 'story_reply':  return `${who} replied to your story`;
     case 'follow':       return `${who} started following you`;
     case 'follow_request': return `${who} sent a follow request`;
     case 'follow_accepted': return `${who} accepted your follow request`;
@@ -22,8 +23,33 @@ const titleFor = (n: Notification, actorName?: string): string => {
     case 'group_mention':return `${who} mentioned you in a group 🏷️`;
     case 'group_call':   return `📞 Group call from ${who}`;
     case 'group_message':return `New group message from ${who} 👥`;
+    case 'new_story':    return `${who} added a new story`;
+    case 'new_reel':     return `${who} shared a new reel`;
+    case 'new_post':     return `${who} shared a new post`;
     case 'broadcast':    return 'Pixelgram';
-    default:             return 'Pixelgram';
+    default:             return `${who} sent you a notification`;
+  }
+};
+
+const bodyFor = (n: Notification, actorName?: string): string => {
+  const who = actorName || 'Someone';
+  if (n.message && n.message.trim()) return n.message;
+  switch (n.type) {
+    case 'like':         return `${who} liked your post.`;
+    case 'reel_like':    return `${who} liked your reel.`;
+    case 'story_like':   return `${who} liked your story.`;
+    case 'comment':      return `${who} commented on your post.`;
+    case 'reel_comment': return `${who} commented on your reel.`;
+    case 'comment_reply':return `${who} replied to your comment.`;
+    case 'story_reply':  return `${who} replied to your story.`;
+    case 'follow':       return `${who} started following you.`;
+    case 'follow_request': return `${who} requested to follow you.`;
+    case 'follow_accepted': return `${who} accepted your follow request.`;
+    case 'message':      return `${who} sent you a message.`;
+    case 'new_story':    return `${who} added a new story.`;
+    case 'new_reel':     return `${who} shared a new reel.`;
+    case 'new_post':     return `${who} shared a new post.`;
+    default:             return `${who} interacted with you on Pixelgram.`;
   }
 };
 
@@ -49,7 +75,7 @@ export function useBrowserNotifications(userId: string | undefined) {
           }
           try {
             new Notification(titleFor(n, actorName), {
-              body: n.message || '',
+              body: bodyFor(n, actorName),
               icon: '/images/logo/logo-icon.svg',
               tag: n.id,
             });
