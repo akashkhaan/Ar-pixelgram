@@ -377,14 +377,27 @@ const GroupChatPage: React.FC = () => {
       if (callPanelRef.current) {
         await callPanelRef.current.startCall(kind);
         toast.dismiss('starting-call-toast');
+      } else if (group) {
+        await groupCall.startCall(group.id, group.name, group.avatar_url, members, kind);
+        toast.dismiss('starting-call-toast');
       } else {
-        toast.error('Call panel is connecting, please tap again in a moment.', { id: 'starting-call-toast' });
+        toast.error('Group data load ho raha hai, please wait...', { id: 'starting-call-toast' });
       }
     } catch (err: any) {
       console.error('Call start failed:', err);
+      // Fallback direct startCall attempt if callPanelRef failed
+      if (group) {
+        try {
+          await groupCall.startCall(group.id, group.name, group.avatar_url, members, kind);
+          toast.dismiss('starting-call-toast');
+          return;
+        } catch (fallbackErr: any) {
+          console.error('Direct call start fallback failed:', fallbackErr);
+        }
+      }
       toast.error(err?.message || 'Call start nahi hui', { id: 'starting-call-toast' });
     }
-  }, []);
+  }, [group, groupCall, members]);
 
   // Member search for adding
   useEffect(() => {
@@ -783,43 +796,6 @@ const GroupChatPage: React.FC = () => {
           >
             <Video className="w-4.5 h-4.5" />
           </button>
-
-          {/* 3-dots DropdownMenu with Wallpaper & Group Details */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="head-action-btn"
-                aria-label="Group options"
-                title="More options"
-              >
-                <MoreVertical className="w-5 h-5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border-white/10 bg-[#1A1233]/95 backdrop-blur-xl text-[#F7F3FF]">
-              <DropdownMenuItem
-                onClick={() => setShowGroupWallpaperModal(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
-              >
-                <ImageIcon className="w-4 h-4 text-[#FF3D7F]" />
-                <span>Wallpaper (इमेज / फोटो)</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setShowInfo(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
-              >
-                <Info className="w-4 h-4 text-[#A99FD2]" />
-                <span>Group info (ग्रुप जानकारी)</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setShowMessageSearch(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
-              >
-                <Search className="w-4 h-4 text-[#A99FD2]" />
-                <span>Search in group</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </header>
 
         {/* IN-CONVERSATION SEARCH BAR */}
