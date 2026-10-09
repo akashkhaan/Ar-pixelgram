@@ -41,7 +41,8 @@ export async function getMyGroups(userId: string): Promise<GroupSummary[]> {
   return rows.flatMap(row => {
     const group = Array.isArray(row.groups) ? row.groups[0] : row.groups;
     if (group) {
-      getGroupNumericUid(group.id);
+      const uid = getGroupNumericUid(group.id);
+      try { localStorage.setItem('group_uid_lookup_' + uid, group.id); } catch { /* ignore */ }
     }
     return group ? [{ group, role: row.role, member_count: countMap.get(row.group_id) || 1 }] : [];
   });
@@ -99,18 +100,24 @@ export async function getGroupPermissions(groupId: string): Promise<GroupPermiss
 }
 
 export async function updateGroupPermissions(groupId: string, updates: Partial<Omit<GroupPermissions, 'group_id' | 'updated_at'>>): Promise<void> {
-  const { error } = await supabase.from('group_permissions').update({ ...updates, updated_at: new Date().toISOString() }).eq('group_id', groupId);
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) return;
+  const { error } = await supabase.from('group_permissions').update({ ...updates, updated_at: new Date().toISOString() }).eq('group_id', actualId);
   throwIfError(error);
 }
 
 export async function getGroupMedia(groupId: string): Promise<GroupMedia[]> {
-  const { data, error } = await supabase.from('group_media').select('*').eq('group_id', groupId).order('created_at', { ascending: false }).limit(100);
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) return [];
+  const { data, error } = await supabase.from('group_media').select('*').eq('group_id', actualId).order('created_at', { ascending: false }).limit(100);
   throwIfError(error);
   return (data || []) as GroupMedia[];
 }
 
 export async function getGroupPinnedMessages(groupId: string): Promise<GroupPinnedMessage[]> {
-  const { data: pins, error: pinError } = await supabase.from('group_message_pins').select('*').eq('group_id', groupId).order('pinned_at', { ascending: false });
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) return [];
+  const { data: pins, error: pinError } = await supabase.from('group_message_pins').select('*').eq('group_id', actualId).order('pinned_at', { ascending: false });
   throwIfError(pinError);
   const rows = (pins || []) as Array<Omit<GroupPinnedMessage, 'message'>>;
   if (!rows.length) return [];
@@ -121,6 +128,8 @@ export async function getGroupPinnedMessages(groupId: string): Promise<GroupPinn
 }
 
 export async function sendGroupMessage(groupId: string, content: string, replyToId?: string | null, mentionUserIds: string[] = []): Promise<GroupMessage> {
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) throw new Error('Invalid group');
   const { data: auth } = await supabase.auth.getUser();
   const sender = auth.user;
   if (!sender) throw new Error('Not authenticated');
@@ -133,7 +142,7 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
   // 1. Try secure RPC first
   try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('send_group_message', {
-      p_group_id: groupId,
+      p_group_id: actualId,
       p_content: cleanContent,
       p_reply_to_id: replyToId || null,
       p_mention_user_ids: mentionedIds,
@@ -150,7 +159,7 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
     const { data, error } = await supabase
       .from('group_messages')
       .insert({
-        group_id: groupId,
+        group_id: actualId,
         sender_id: sender.id,
         content: cleanContent,
         reply_to_id: replyToId || null,
@@ -163,7 +172,7 @@ export async function sendGroupMessage(groupId: string, content: string, replyTo
     if (mentionedIds.length) {
       try {
         await supabase.from('group_message_mentions').upsert(
-          mentionedIds.map(userId => ({ message_id: message!.id, group_id: groupId, user_id: userId })),
+          mentionedIds.map(userId => ({ message_id: message!.id, group_id: actualId, user_id: userId })),
           { onConflict: 'message_id,user_id' },
         );
       } catch (mentionError) {
@@ -271,7 +280,7 @@ export async function toggleGroupReaction(messageId: string, reaction: string, e
 export async function pinGroupMessage(groupId: string, messageId: string): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Not authenticated');
-  const { error } = await supabase.from('group_message_pins').upsert({ group_id: groupId, message_id: messageId, pinned_by: auth.user.id });
+  const { error } = await supabase.from('group_message_pins').upsert({ group_id: actualId, message_id: messageId, pinned_by: auth.user.id });
   throwIfError(error);
 }
 
@@ -281,30 +290,36 @@ export async function unpinGroupMessage(messageId: string): Promise<void> {
 }
 
 export async function addGroupMember(groupId: string, userId: string): Promise<void> {
-  const { error } = await supabase.rpc('add_group_member', { p_group_id: groupId, p_user_id: userId });
+  const { error } = await supabase.rpc('add_group_member', { p_group_id: actualId, p_user_id: userId });
   throwIfError(error);
 }
 
 export async function removeGroupMember(groupId: string, userId: string): Promise<void> {
-  const { error } = await supabase.rpc('remove_group_member', { p_group_id: groupId, p_user_id: userId });
+  const { error } = await supabase.rpc('remove_group_member', { p_group_id: actualId, p_user_id: userId });
   throwIfError(error);
 }
 
 export async function leaveGroup(groupId: string): Promise<void> {
-  const { error } = await supabase.rpc('leave_group', { p_group_id: groupId });
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) throw new Error('Invalid group');
+  const { error } = await supabase.rpc('leave_group', { p_group_id: actualId });
   throwIfError(error);
 }
 
 export async function updateGroup(groupId: string, updates: Partial<Pick<Group, 'name' | 'description' | 'avatar_url'>>): Promise<void> {
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) throw new Error('Invalid group');
   const payload: Record<string, any> = {};
   if (updates.name !== undefined) payload.name = updates.name.trim();
   if (updates.description !== undefined) payload.description = updates.description ? updates.description.trim() : null;
   if (updates.avatar_url !== undefined) payload.avatar_url = updates.avatar_url;
-  const { error } = await supabase.from('groups').update(payload).eq('id', groupId);
+  const { error } = await supabase.from('groups').update(payload).eq('id', actualId);
   throwIfError(error);
 }
 
 export async function uploadGroupAvatar(groupId: string, file: File): Promise<string> {
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) throw new Error('Invalid group');
   const auth = (await supabase.auth.getUser()).data.user;
   if (!auth) throw new Error('Not authenticated');
   if (!file.type.startsWith('image/')) throw new Error('Group photo must be an image');
@@ -317,7 +332,7 @@ export async function uploadGroupAvatar(groupId: string, file: File): Promise<st
 
   for (const bucket of candidateBuckets) {
     try {
-      const storagePath = `groups/${groupId}/${fileName}`;
+      const storagePath = `groups/${actualId}/${fileName}`;
       const { error: uploadError } = await supabase.storage.from(bucket).upload(storagePath, file, {
         contentType: file.type,
         upsert: true,
@@ -340,13 +355,15 @@ export async function uploadGroupAvatar(groupId: string, file: File): Promise<st
     throw lastError || new Error('Group photo upload failed');
   }
 
-  const { error: updateError } = await supabase.from('groups').update({ avatar_url: publicUrl }).eq('id', groupId);
+  const { error: updateError } = await supabase.from('groups').update({ avatar_url: publicUrl }).eq('id', actualId);
   throwIfError(updateError);
   return publicUrl;
 }
 
 export async function rotateGroupInvite(groupId: string): Promise<string> {
-  const { data, error } = await supabase.rpc('rotate_group_invite', { p_group_id: groupId });
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) throw new Error('Invalid group');
+  const { data, error } = await supabase.rpc('rotate_group_invite', { p_group_id: actualId });
   throwIfError(error);
   return data as string;
 }
@@ -373,6 +390,8 @@ export async function joinGroupByInvite(token: string): Promise<string> {
 }
 
 export async function sendGroupFileMessage(groupId: string, file: File): Promise<GroupMessage> {
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) throw new Error('Invalid group');
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Not authenticated');
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -410,19 +429,18 @@ export async function sendGroupFileMessage(groupId: string, file: File): Promise
   }
 
   const mediaType = file.type.startsWith('image/') ? 'photo' : file.type.startsWith('video/') ? 'video' : 'file';
-  const { data: message, error: messageError } = await supabase.from('group_messages').insert({ group_id: groupId, sender_id: auth.user.id, content: '📎 ' + file.name + '\n' + publicUrl }).select('*').single();
+  const { data: message, error: messageError } = await supabase.from('group_messages').insert({ group_id: actualId, sender_id: auth.user.id, content: '📎 ' + file.name + '\n' + publicUrl }).select('*').single();
   throwIfError(messageError);
   try {
-    await supabase.from('group_media').insert({ group_id: groupId, message_id: message.id, uploader_id: auth.user.id, media_type: mediaType, storage_path: storagePath, public_url: publicUrl, file_name: file.name, mime_type: file.type || null, file_size: file.size });
+    await supabase.from('group_media').insert({ group_id: actualId, message_id: message.id, uploader_id: auth.user.id, media_type: mediaType, storage_path: storagePath, public_url: publicUrl, file_name: file.name, mime_type: file.type || null, file_size: file.size });
   } catch { /* optional */ }
   return message as GroupMessage;
 }
 
 export async function getActiveGroupCall(groupId: string): Promise<GroupCall | null> {
-  const { data, error } = await supabase
-    .from('group_calls')
-    .select('*')
-    .eq('group_id', groupId)
+  const actualId = await resolveGroupId(groupId);
+  if (!actualId || !actualId.includes('-')) return null;
+  const { data, error } = await supabase.from('group_calls').select('*').eq('group_id', actualId)
     .in('status', ['ringing', 'active'])
     .is('ended_at', null)
     .order('created_at', { ascending: false })
@@ -462,7 +480,7 @@ export async function createGroupCall(groupId: string, kind: 'audio' | 'video'):
   if (!auth) throw new Error('Not authenticated');
   const { data, error } = await supabase
     .from('group_calls')
-    .insert({ group_id: groupId, started_by: auth.id, kind, status: 'ringing' })
+    .insert({ group_id: actualId, started_by: auth.id, kind, status: 'ringing' })
     .select('id')
     .single();
   throwIfError(error);

@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import {
   getGroupNumericUid,
   resolveGroupId,
+  resolveGroupIdSync,
 } from '@/services/groupUid';
 import GroupCallPanel, { GroupCallPanelHandle } from '@/components/call/GroupCallPanel';
 import { useGroupCall } from '@/contexts/GroupCallContext';
@@ -113,16 +114,37 @@ const renderMessageContent = (text: string, mine: boolean, myUsername?: string) 
 
 const GroupChatPage: React.FC = () => {
   const { groupId: rawGroupId } = useParams<{ groupId: string }>();
-  const [resolvedGroupId, setResolvedGroupId] = useState<string>(rawGroupId || '');
+
+  // Synchronously resolve if cached in memory/localStorage or already a UUID
+  const initialResolved = useMemo(() => {
+    if (!rawGroupId) return "";
+    if (rawGroupId.includes("-")) return rawGroupId;
+    return resolveGroupIdSync(rawGroupId);
+  }, [rawGroupId]);
+
+  const [resolvedGroupId, setResolvedGroupId] = useState<string>(initialResolved);
 
   useEffect(() => {
     if (!rawGroupId) return;
+    if (rawGroupId.includes("-")) {
+      setResolvedGroupId(rawGroupId);
+      return;
+    }
+    const sync = resolveGroupIdSync(rawGroupId);
+    if (sync && sync.includes("-")) {
+      setResolvedGroupId(sync);
+      return;
+    }
     void resolveGroupId(rawGroupId).then(id => {
-      if (id) setResolvedGroupId(id);
+      if (id && id.includes("-")) {
+        setResolvedGroupId(id);
+      } else {
+        setLoading(false);
+      }
     });
   }, [rawGroupId]);
 
-  const groupId = resolvedGroupId || rawGroupId;
+  const groupId = (resolvedGroupId && resolvedGroupId.includes("-")) ? resolvedGroupId : (rawGroupId && rawGroupId.includes("-") ? rawGroupId : "");
   const { user, profile: myProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -216,7 +238,24 @@ const GroupChatPage: React.FC = () => {
   const goBack = useGoBack('/chat');
   const handleBack = () => { goBack(); };
 
-  const currentMember = useMemo(() => members.find(member => member.user_id === user?.id), [members, user]);
+  const currentMember = useMemo(() => {
+    const found = members.find(member => member.user_id === user?.id);
+    if (found) return found;
+    if (group && user && (group.owner_id === user.id || group.id)) {
+      return {
+        group_id: group.id,
+        user_id: user.id,
+        role: (group.owner_id === user.id ? "owner" : "member") as GroupRole,
+        can_send_messages: true,
+        can_send_media: true,
+        can_call: true,
+        can_invite: true,
+        joined_at: group.created_at,
+        profile: myProfile,
+      };
+    }
+    return undefined;
+  }, [members, user, group, myProfile]);
   const canManage = currentMember?.role === 'owner' || currentMember?.role === 'admin';
   const profileMap = useMemo(() => new Map(members.map(member => [member.user_id, member.profile])), [members]);
   const activeTheme = useMemo(() => MESSENGER_THEMES.find(t => t.id === groupTheme) || MESSENGER_THEMES[0], [groupTheme]);
@@ -246,7 +285,7 @@ const GroupChatPage: React.FC = () => {
   }, [mentionQuery, members, user?.id]);
 
   const load = useCallback(async () => {
-    if (!groupId) return;
+    if (!groupId || !groupId.includes('-')) return;
     try {
       const [nextGroup, nextMembers, nextMessages] = await Promise.all([
         getGroup(groupId),
@@ -279,11 +318,15 @@ const GroupChatPage: React.FC = () => {
     }
   }, [groupId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (groupId) {
+      void load();
+    }
+  }, [groupId, load]);
 
   // Realtime call tracking
   useEffect(() => {
-    if (!groupId) return;
+    if (!groupId || !groupId.includes('-')) return;
     void getActiveGroupCall(groupId).then(setActiveGroupCall).catch(() => {});
     const channel = supabase
       .channel('group-call-' + groupId)
@@ -296,7 +339,7 @@ const GroupChatPage: React.FC = () => {
 
   // Realtime message updates
   useEffect(() => {
-    if (!groupId) return;
+    if (!groupId || !groupId.includes('-')) return;
     const channel = supabase
       .channel('group-chat-' + groupId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'group_messages', filter: 'group_id=eq.' + groupId }, () => {
@@ -467,7 +510,7 @@ const GroupChatPage: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || (!groupId && rawGroupId)) {
     return (
       <MobileLayout hideHeader hideNav noScroll>
         <div className="flex min-h-[100dvh] items-center justify-center">
@@ -477,7 +520,7 @@ const GroupChatPage: React.FC = () => {
     );
   }
 
-  if (!group || !currentMember) {
+  if (!group) {
     return (
       <MobileLayout hideHeader hideNav>
         <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 p-6 text-center">
