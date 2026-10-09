@@ -3,6 +3,7 @@ import { useCall } from "@/contexts/CallContext";
 import {
   ArrowLeft,
   BadgeCheck,
+  Info,
   Check,
   CheckCheck,
   MessageCircle,
@@ -30,8 +31,9 @@ import {
   getMessages,
   getMutualFollows,
   getUnreadCount,
+  searchProfiles,
 } from "@/services/api";
-import { getActiveGroupCallsForUser, getMyGroups } from "@/services/groups";
+import { getActiveGroupCallsForUser, getMyGroups, createGroup, addGroupMember } from "@/services/groups";
 import { getGroupNumericUid } from "@/services/groupUid";
 import {
   getFeedNotes,
@@ -66,6 +68,13 @@ const ChatListPage: React.FC = () => {
   const [onlineStatuses, setOnlineStatuses] = useState<Record<string, { is_online: boolean; last_seen_at?: string }>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [showComposeMenu, setShowComposeMenu] = useState(false);
+  const [showNewChatDrawer, setShowNewChatDrawer] = useState(false);
+  const [selectedPeople, setSelectedPeople] = useState<Profile[]>([]);
+  const [peopleSearchQuery, setPeopleSearchQuery] = useState("");
+  const [allContacts, setAllContacts] = useState<Profile[]>([]);
+  const [searchedProfiles, setSearchedProfiles] = useState<Profile[]>([]);
+  const [isSearchingPeople, setIsSearchingPeople] = useState(false);
+  const [isCreatingChatOrGroup, setIsCreatingChatOrGroup] = useState(false);
 
   // Notes state
   const [myNote, setMyNote] = useState<UserNote | null>(null);
@@ -170,6 +179,7 @@ const ChatListPage: React.FC = () => {
           combined.push(p);
         }
       }
+      setAllContacts(combined);
 
       // Load last message and unread count for each profile
       const convs: ConversationItem[] = await Promise.all(
@@ -835,6 +845,115 @@ const ChatListPage: React.FC = () => {
           color: var(--ink);
           margin-bottom: 4px;
         }
+        #newc {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          background: var(--bg);
+          display: none;
+          flex-direction: column;
+          padding-top: env(safe-area-inset-top, 0px);
+          padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        #newc.open {
+          display: flex;
+        }
+        .ch {
+          max-width: 580px;
+          width: 100%;
+          margin: 0 auto;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          position: relative;
+        }
+        .chh {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 14px;
+          border-bottom: 1px solid var(--line);
+          background: rgba(26,18,51,.7);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+        }
+        .chh .back {
+          width: 42px;
+          height: 42px;
+          border-radius: 14px;
+          background: rgba(255,255,255,.07);
+          display: grid;
+          place-items: center;
+          flex: none;
+          color: var(--ink);
+          border: 0;
+          cursor: pointer;
+        }
+        .chh .t {
+          flex: 1;
+          min-width: 0;
+        }
+        .chh .t b {
+          display: block;
+          font-size: 17.5px;
+          font-weight: 800;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--ink);
+        }
+        .chh .t small {
+          color: var(--mute);
+          font-size: 13px;
+        }
+        .go {
+          flex: none;
+          padding: 11px 20px;
+          border-radius: 99px;
+          background: var(--grad);
+          color: #fff;
+          font-weight: 800;
+          font-size: 15px;
+          box-shadow: 0 6px 18px rgba(255,61,127,.4);
+          border: 0;
+          cursor: pointer;
+          transition: opacity .15s;
+        }
+        .go:disabled {
+          background: var(--s2);
+          color: var(--mute);
+          box-shadow: none;
+          cursor: default;
+          opacity: .6;
+        }
+        .npad {
+          padding: 14px 14px 4px;
+        }
+        .sel {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 12px;
+        }
+        .sel button {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          padding: 5px 13px 5px 5px;
+          border-radius: 99px;
+          background: rgba(255,61,127,.16);
+          border: 1px solid rgba(255,61,127,.4);
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--ink);
+          cursor: pointer;
+        }
+        .sel button span {
+          opacity: .8;
+          font-size: 14px;
+          line-height: 1;
+        }
       `}</style>
 
       <PullToRefresh onRefresh={load}>
@@ -865,7 +984,7 @@ const ChatListPage: React.FC = () => {
                 <div className="relative ml-auto">
                   <button
                     type="button"
-                    onClick={() => setShowComposeMenu((v) => !v)}
+                    onClick={() => setShowNewChatDrawer(true)}
                     className="new"
                     aria-label="New chat or group"
                     title="New chat or group"
@@ -1192,17 +1311,41 @@ const ChatListPage: React.FC = () => {
                           </div>
 
                           <div className="meta">
-                            <button
-                              type="button"
-                              className="row-action-btn"
-                              title="Direct message"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/messages/t/${groupUid}`);
-                              }}
-                            >
-                              <Video className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                className="row-action-btn"
+                                title="Group audio call"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void groupCall.startCall(group.id, group.name, group.avatar_url, [], 'audio');
+                                }}
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="row-action-btn"
+                                title="Group video call"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void groupCall.startCall(group.id, group.name, group.avatar_url, [], 'video');
+                                }}
+                              >
+                                <Video className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="row-action-btn"
+                                title="Group info"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/messages/t/${groupUid}?info=1`);
+                                }}
+                              >
+                                <Info className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );
@@ -1402,7 +1545,153 @@ const ChatListPage: React.FC = () => {
               )}
             </div>
 
-            {/* Modals for Instagram-style notes */}
+  
+            {/* NEW MESSAGE / CREATE GROUP DRAWER (#newc) */}
+            <section id="newc" className={showNewChatDrawer ? "open" : ""} aria-hidden={!showNewChatDrawer}>
+              <div className="ch">
+                <div className="chh">
+                  <button
+                    type="button"
+                    className="back"
+                    onClick={() => {
+                      setShowNewChatDrawer(false);
+                      setSelectedPeople([]);
+                      setPeopleSearchQuery("");
+                    }}
+                    aria-label="Close"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-5 h-5">
+                      <path d="M19 12H5M12 19l-7-7 7-7" strokeWidth="2.6" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button>
+                  <div className="t">
+                    <b>New message</b>
+                    <small id="subt">
+                      {selectedPeople.length === 0
+                        ? "Select people to start a chat"
+                        : selectedPeople.length === 1
+                        ? `${selectedPeople[0].full_name || selectedPeople[0].username} selected`
+                        : `${selectedPeople.length} people selected - Group chat`}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className="go"
+                    id="goBtn"
+                    disabled={selectedPeople.length === 0 || isCreatingChatOrGroup}
+                    onClick={handleStartChatOrGroup}
+                  >
+                    {selectedPeople.length > 1 ? "Create Group" : "Chat"}
+                  </button>
+                </div>
+                <div className="npad">
+                  <div className="search">
+                    <svg viewBox="0 0 24 24">
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      id="nSearch"
+                      value={peopleSearchQuery}
+                      onChange={(e) => setPeopleSearchQuery(e.target.value)}
+                      placeholder="Search people..."
+                    />
+                    {peopleSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setPeopleSearchQuery("")}
+                        className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[#A99FD2] hover:text-[#F7F3FF]"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {selectedPeople.length > 0 && (
+                    <div className="sel" id="selectedChips">
+                      {selectedPeople.map((p) => (
+                        <button
+                          type="button"
+                          key={p.id}
+                          onClick={() => toggleSelectPerson(p)}
+                          title={`Remove ${p.username}`}
+                        >
+                          <div className="w-5 h-5 rounded-full overflow-hidden bg-[#2A2050] shrink-0">
+                            {p.avatar_url ? (
+                              <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-[10px] text-white font-bold bg-[#FF3D7F]">
+                                {(p.full_name || p.username || "U").charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <span>@{p.username}</span>
+                          <span className="text-white/60 hover:text-white ml-0.5">✕</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="rows" id="peopleRows" style={{ overflowY: "auto", flex: 1 }}>
+                  {isSearchingPeople ? (
+                    <div className="empty">
+                      <p>Searching...</p>
+                    </div>
+                  ) : filteredPeopleList.length === 0 ? (
+                    <div className="empty">
+                      <p>No people found</p>
+                      <span>Try searching by username or name</span>
+                    </div>
+                  ) : (
+                    filteredPeopleList.map((p, idx) => {
+                      const isSelected = selectedPeople.some((s) => s.id === p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          className={`row ${isSelected ? "unread" : ""}`}
+                          style={{ ["--d" as any]: idx }}
+                          onClick={() => toggleSelectPerson(p)}
+                          role="button"
+                          tabIndex={0}
+                        >
+                          <div className="av" style={{ width: 44, height: 44 }}>
+                            <div className="ph">
+                              {p.avatar_url ? (
+                                <img src={p.avatar_url} alt={p.username} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center font-bold text-white bg-gradient-to-tr from-[#FF3D7F] to-[#7C5CFF]">
+                                  {(p.full_name || p.username || "U").charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mid">
+                            <div className="nm">
+                              <span>{p.full_name || p.username}</span>
+                              {p.is_verified && <BadgeCheck className="w-4 h-4 text-[#FF3D7F]" />}
+                            </div>
+                            <div className="lm">@{p.username}</div>
+                          </div>
+                          <div className="meta">
+                            <div
+                              className={`w-6 h-6 rounded-full border flex items-center justify-center transition-colors ${
+                                isSelected
+                                  ? "bg-[#FF3D7F] border-[#FF3D7F] text-white"
+                                  : "border-white/20 bg-white/5"
+                              }`}
+                            >
+                              {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </section>
+
+          {/* Modals for Instagram-style notes */}
             {user && (
               <CreateNoteModal
                 open={createNoteOpen}
