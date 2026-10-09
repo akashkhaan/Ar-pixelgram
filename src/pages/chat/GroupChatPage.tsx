@@ -539,31 +539,207 @@ const GroupChatPage: React.FC = () => {
 
   return (
     <MobileLayout hideHeader hideNav noScroll>
-      <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-background">
-        {/* CHAT HEADER (Messenger Style: Back, Group info button, Call 📞, Video 📹, Info ⓘ) */}
-        <header className="z-20 flex shrink-0 items-center gap-1 sm:gap-2 border-b border-border bg-card/95 px-2 py-2 backdrop-blur">
+      <style>{`
+        .group-chat-wrap {
+          --bg: #0E0820;
+          --s1: #1A1233;
+          --s2: #2A2050;
+          --ink: #F7F3FF;
+          --mute: #A99FD2;
+          --line: rgba(255,255,255,.09);
+          --pink: #FF3D7F;
+          --vio: #7C5CFF;
+          --green: #22D3A0;
+          --grad: linear-gradient(135deg,#FF3D7F,#7C5CFF);
+          background: var(--bg);
+          color: var(--ink);
+          font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+        }
+        .group-chat-wrap .chh {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          border-bottom: 1px solid var(--line);
+          background: rgba(26,18,51,.85);
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          z-index: 20;
+          flex-shrink: 0;
+        }
+        .group-chat-wrap .back {
+          width: 40px;
+          height: 40px;
+          border-radius: 14px;
+          background: rgba(255,255,255,.07);
+          display: grid;
+          place-items: center;
+          flex: none;
+          color: var(--ink);
+          border: 0;
+          cursor: pointer;
+          transition: transform .15s, background .15s;
+        }
+        .group-chat-wrap .back:active {
+          transform: scale(.92);
+          background: rgba(255,255,255,.12);
+        }
+        .group-chat-wrap .t {
+          flex: 1;
+          min-width: 0;
+          text-align: left;
+        }
+        .group-chat-wrap .t b {
+          display: block;
+          font-size: 16px;
+          font-weight: 800;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: var(--ink);
+        }
+        .group-chat-wrap .t small {
+          color: var(--mute);
+          font-size: 12px;
+        }
+        .group-chat-wrap .head-action-btn {
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background: rgba(255,255,255,.06);
+          border: 1px solid var(--line);
+          display: grid;
+          place-items: center;
+          color: var(--ink);
+          cursor: pointer;
+          transition: background .15s, color .15s, transform .15s;
+          flex-shrink: 0;
+        }
+        .group-chat-wrap .head-action-btn:hover {
+          background: rgba(255,61,127,.2);
+          color: #fff;
+          border-color: rgba(255,61,127,.4);
+        }
+        .group-chat-wrap .head-action-btn:active {
+          transform: scale(.9);
+        }
+        .group-chat-wrap #group-msgs {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          padding: 16px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          background-image: radial-gradient(rgba(255,255,255,.06) 1.2px, transparent 1.4px);
+          background-size: 20px 20px;
+        }
+        .group-chat-wrap .tm {
+          align-self: center;
+          font-size: 11.5px;
+          font-weight: 600;
+          color: var(--mute);
+          margin: 6px 0 8px;
+          padding: 4px 14px;
+          border-radius: 99px;
+          background: rgba(255,255,255,.07);
+        }
+        .group-chat-wrap .send-bar {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          background: rgba(26,18,51,.9);
+          border-top: 1px solid var(--line);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          flex-shrink: 0;
+          z-index: 20;
+        }
+        .group-chat-wrap .send-bar input {
+          flex: 1;
+          min-width: 0;
+          height: 44px;
+          background: rgba(255,255,255,.07);
+          border: 1px solid var(--line);
+          border-radius: 99px;
+          padding: 0 16px;
+          font-size: 14.5px;
+          outline: 0;
+          color: var(--ink);
+        }
+        .group-chat-wrap .send-bar input:focus {
+          border-color: var(--pink);
+        }
+        .group-chat-wrap .send-btn {
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          background: var(--grad);
+          display: grid;
+          place-items: center;
+          flex: none;
+          box-shadow: 0 8px 22px rgba(255,61,127,.45);
+          transition: transform .15s;
+          border: 0;
+          cursor: pointer;
+          color: #fff;
+        }
+        .group-chat-wrap .send-btn:active {
+          transform: scale(.9);
+        }
+        .group-chat-wrap .tool-btn {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          background: rgba(255,255,255,.06);
+          display: grid;
+          place-items: center;
+          color: var(--mute);
+          border: 0;
+          cursor: pointer;
+          transition: transform .15s, color .15s, background .15s;
+          flex-shrink: 0;
+        }
+        .group-chat-wrap .tool-btn:hover {
+          color: var(--pink);
+          background: rgba(255,61,127,.15);
+        }
+        .group-chat-wrap .tool-btn:active {
+          transform: scale(.9);
+        }
+      `}</style>
+      <div className="group-chat-wrap">
+        {/* CHAT HEADER */}
+        <header className="chh">
           <button
             type="button"
             onClick={handleBack}
-            className="rounded-full p-2 hover:bg-muted text-foreground transition-colors"
+            className="back"
             aria-label="Back"
+            title="Back"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
 
           {/* Center: Tap to open Messenger Group Details */}
           <button
             type="button"
             onClick={() => setShowInfo(true)}
-            className="flex min-w-0 flex-1 items-center gap-2 text-left hover:opacity-90 transition-opacity"
+            className="flex min-w-0 flex-1 items-center gap-2.5 text-left cursor-pointer border-0 bg-transparent hover:opacity-90 transition-opacity"
           >
-            <Avatar profile={group.avatar_url ? ({ avatar_url: group.avatar_url, username: group.name } as Profile) : null} />
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold leading-tight">{group.name}</span>
-              <span className="block truncate text-xs text-muted-foreground mt-0.5">
+            <Avatar profile={group.avatar_url ? ({ avatar_url: group.avatar_url, username: group.name } as Profile) : null} size="w-10 h-10 ring-2 ring-[#FF3D7F]/30" />
+            <div className="t">
+              <b>{group.name}</b>
+              <small>
                 {members.length} {members.length === 1 ? 'member' : 'members'}
-              </span>
-            </span>
+              </small>
+            </div>
           </button>
 
           {/* Call button 📞 */}
@@ -576,15 +752,15 @@ const GroupChatPage: React.FC = () => {
                 void handleStartCall('audio');
               }
             }}
-            className={`rounded-full p-2 transition-all ${
+            className={`head-action-btn transition-all ${
               (groupCall.active && groupCall.groupId === group.id) || activeGroupCall?.kind === 'audio'
-                ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
-                : 'hover:bg-muted text-sky-500'
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
+                : ''
             }`}
             aria-label="Audio call"
             title={groupCall.active && groupCall.groupId === group.id ? "Return to call" : "Start audio call"}
           >
-            <Phone className="h-5 w-5 fill-sky-500/20" />
+            <Phone className="w-4.5 h-4.5" />
           </button>
 
           {/* Video button 📹 */}
@@ -597,15 +773,15 @@ const GroupChatPage: React.FC = () => {
                 void handleStartCall('video');
               }
             }}
-            className={`rounded-full p-2 transition-all ${
+            className={`head-action-btn transition-all ${
               (groupCall.active && groupCall.groupId === group.id && groupCall.kind === 'video') || activeGroupCall?.kind === 'video'
-                ? 'bg-emerald-500/20 text-emerald-500 ring-2 ring-emerald-500 animate-pulse'
-                : 'hover:bg-muted text-sky-500'
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
+                : ''
             }`}
             aria-label="Video call"
             title={groupCall.active && groupCall.groupId === group.id ? "Return to call" : "Start video call"}
           >
-            <Video className="h-5 w-5 fill-sky-500/20" />
+            <Video className="w-4.5 h-4.5" />
           </button>
 
           {/* 3-dots DropdownMenu with Wallpaper & Group Details */}
@@ -613,56 +789,54 @@ const GroupChatPage: React.FC = () => {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="rounded-full p-2 hover:bg-muted text-sky-500 transition-colors"
+                className="head-action-btn"
                 aria-label="Group options"
                 title="More options"
               >
-                <MoreVertical className="h-5 w-5" />
+                <MoreVertical className="w-5 h-5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border-border bg-card">
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border-white/10 bg-[#1A1233]/95 backdrop-blur-xl text-[#F7F3FF]">
               <DropdownMenuItem
                 onClick={() => setShowGroupWallpaperModal(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
               >
-                <ImageIcon className="w-4 h-4 text-primary" />
+                <ImageIcon className="w-4 h-4 text-[#FF3D7F]" />
                 <span>Wallpaper (इमेज / फोटो)</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowInfo(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
               >
-                <Info className="w-4 h-4 text-muted-foreground" />
+                <Info className="w-4 h-4 text-[#A99FD2]" />
                 <span>Group info (ग्रुप जानकारी)</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowMessageSearch(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
               >
-                <Search className="w-4 h-4 text-muted-foreground" />
+                <Search className="w-4 h-4 text-[#A99FD2]" />
                 <span>Search in group</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
 
-
-
         {/* IN-CONVERSATION SEARCH BAR */}
         {showMessageSearch && (
-          <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2 animate-in slide-in-from-top-2 duration-150">
-            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+          <div className="flex items-center gap-2 border-b border-white/10 bg-[#1A1233]/80 backdrop-blur-md px-3 py-2 animate-in slide-in-from-top-2 duration-150 shrink-0">
+            <Search className="h-4 w-4 text-[#A99FD2] shrink-0" />
             <Input
               autoFocus
               value={messageQuery}
               onChange={e => setMessageQuery(e.target.value)}
               placeholder="Search in conversation..."
-              className="h-8 rounded-lg text-xs bg-background"
+              className="h-8.5 rounded-xl text-xs bg-white/5 border-white/10 text-[#F7F3FF] focus-visible:ring-1 focus-visible:ring-[#FF3D7F]"
             />
             <button
               type="button"
               onClick={() => { setShowMessageSearch(false); setMessageQuery(''); }}
-              className="p-1 rounded-full hover:bg-muted text-muted-foreground"
+              className="p-1.5 rounded-full hover:bg-white/10 text-[#A99FD2] hover:text-[#F7F3FF]"
               aria-label="Close search"
             >
               <X className="h-4 w-4" />
@@ -735,7 +909,7 @@ const GroupChatPage: React.FC = () => {
 
         {/* MESSAGES LIST */}
         <div
-          className="flex-1 min-h-0 space-y-2 overflow-y-auto overscroll-contain p-3 relative"
+          id="group-msgs"
           style={
             groupWallpaper
               ? {
@@ -748,9 +922,9 @@ const GroupChatPage: React.FC = () => {
           }
         >
           {groupWallpaper && (
-            <div className="absolute inset-0 bg-background/50 dark:bg-background/70 backdrop-blur-[0.5px] pointer-events-none" />
+            <div className="absolute inset-0 bg-[#0E0820]/60 backdrop-blur-[0.5px] pointer-events-none" />
           )}
-          <div className="mx-auto max-w-sm rounded-xl bg-primary/8 px-3 py-2 text-center text-xs text-muted-foreground">
+          <div className="tm">
             Messages in this group are visible only to its members.
           </div>
 
@@ -775,7 +949,7 @@ const GroupChatPage: React.FC = () => {
                 <div key={message.id} className={'group flex items-end gap-2 ' + (mine ? 'justify-end' : 'justify-start')}>
                   {!mine && <Avatar profile={sender} size="w-7 h-7" />}
                   <div className={cn("relative flex flex-col max-w-[78%] sm:max-w-[70%]", mine ? "items-end" : "items-start")}>
-                    {!mine && <p className="mb-1 px-2 text-[11px] font-medium text-primary">{displayName}</p>}
+                    {!mine && <p className="mb-1 px-2 text-[11px] font-semibold text-[#FF3D7F]">{displayName}</p>}
 
                     {isSingleEmoji ? (
                     <div id={'group-message-' + message.id} className="text-4xl py-1 px-2 select-none">
@@ -971,47 +1145,43 @@ const GroupChatPage: React.FC = () => {
               void handleQuickSendEmoji(groupEmoji);
             }
           }}
-          className="z-20 flex shrink-0 items-center gap-1.5 border-t border-border bg-card/95 px-2.5 py-2 backdrop-blur"
+          className="send-bar"
         >
           <label
-            className="cursor-pointer rounded-full p-2 hover:bg-muted text-sky-500 hover:text-sky-600 transition-colors shrink-0"
+            className="tool-btn"
             title="Attach file"
           >
             <Paperclip className="h-5 w-5" />
             <input type="file" className="hidden" onChange={handleFile} disabled={uploading || sending} />
           </label>
           <div className="relative flex-1 min-w-0">
-            <Input
+            <input
               value={content}
               onChange={event => handleContentChange(event.target.value)}
               placeholder="Type a message..."
               maxLength={2000}
-              className="h-10 rounded-full bg-muted/60 border-none px-4 text-sm focus-visible:ring-1 focus-visible:ring-primary w-full"
             />
           </div>
           {/* Quick Emoji Button */}
           <button
             type="button"
             onClick={() => void handleQuickSendEmoji(groupEmoji)}
-            className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-125 transition-transform text-xl select-none shrink-0"
+            className="tool-btn text-xl select-none"
             title={`Send ${groupEmoji}`}
           >
             {groupEmoji}
           </button>
           {/* Always Visible Send Button */}
-          <Button
+          <button
             type="submit"
-            size="icon"
-            className={`h-10 w-10 rounded-full shrink-0 transition-all ${
-              content.trim() || uploading
-                ? "bg-sky-500 hover:bg-sky-600 text-white shadow-md active:scale-95"
-                : "bg-muted text-muted-foreground hover:bg-sky-500 hover:text-white"
+            className={`send-btn transition-transform ${
+              content.trim() || uploading ? "opacity-100" : "opacity-75"
             }`}
             disabled={sending || uploading}
             title="Send message"
           >
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
+          </button>
         </form>
 
         {/* 5. MESSENGER GROUP SETTINGS MODAL / PAGE (Exact Replica of Video 00:09) */}
