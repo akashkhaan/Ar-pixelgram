@@ -39,7 +39,6 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCall } from '@/contexts/CallContext';
 import { supabase } from '@/db/supabase';
-import useGoBack from '@/hooks/use-go-back';
 import { cn } from '@/lib/utils';
 import {
   blockUser,
@@ -63,7 +62,7 @@ const ChatPage: React.FC = () => {
   const { receiverId } = useParams<{ receiverId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const goBack = useGoBack("/chat");
+  const goBack = () => navigate('/chat', { replace: true });
   const { startCall } = useCall();
   const [messages, setMessages] = useState<Message[]>([]);
   const [otherProfile, setOtherProfile] = useState<Profile | null>(null);

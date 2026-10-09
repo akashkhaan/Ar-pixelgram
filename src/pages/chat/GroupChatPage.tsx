@@ -39,7 +39,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import useGoBack from '@/hooks/use-go-back';
 import { cn } from '@/lib/utils';
 import { uploadChatMedia } from '@/services/api';
 import {
@@ -238,7 +237,7 @@ const GroupChatPage: React.FC = () => {
   const callPanelRef = useRef<GroupCallPanelHandle>(null);
   const groupCall = useGroupCall();
 
-  const goBack = useGoBack('/chat');
+  const goBack = () => navigate('/chat', { replace: true });
   const handleBack = () => { goBack(); };
 
   const currentMember = useMemo(() => {
