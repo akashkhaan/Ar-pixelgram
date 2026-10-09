@@ -356,7 +356,9 @@ const GroupChatPage: React.FC = () => {
   }, [groupId]);
 
   // Auto-scroll on new messages
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length, loading]);
 
   // Auto-join call if navigated with autoJoin=1
   useEffect(() => {
@@ -536,7 +538,7 @@ const GroupChatPage: React.FC = () => {
   }
 
   return (
-    <MobileLayout hideHeader hideNav>
+    <MobileLayout hideHeader hideNav noScroll>
       <div className="flex h-full w-full min-h-0 flex-col overflow-hidden bg-background">
         {/* CHAT HEADER (Messenger Style: Back, Group info button, Call 📞, Video 📹, Info ⓘ) */}
         <header className="z-20 flex shrink-0 items-center gap-1 sm:gap-2 border-b border-border bg-card/95 px-2 py-2 backdrop-blur">
