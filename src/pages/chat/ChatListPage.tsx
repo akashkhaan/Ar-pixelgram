@@ -370,6 +370,100 @@ const ChatListPage: React.FC = () => {
     [conversations]
   );
 
+  useEffect(() => {
+    if (!peopleSearchQuery.trim()) {
+      setSearchedProfiles([]);
+      setIsSearchingPeople(false);
+      return;
+    }
+    let active = true;
+    setIsSearchingPeople(true);
+    const timer = setTimeout(async () => {
+      try {
+        const results = await searchProfiles(peopleSearchQuery.trim(), 20);
+        if (active) {
+          setSearchedProfiles(results.filter((p) => p.user_id !== user?.id));
+        }
+      } catch (err) {
+        console.warn("Failed to search profiles:", err);
+      } finally {
+        if (active) setIsSearchingPeople(false);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [peopleSearchQuery, user]);
+
+  const filteredPeopleList = useMemo(() => {
+    if (peopleSearchQuery.trim()) {
+      const q = peopleSearchQuery.trim().toLowerCase();
+      const localMatches = allContacts.filter(
+        (p) =>
+          (p.username && p.username.toLowerCase().includes(q)) ||
+          (p.full_name && p.full_name.toLowerCase().includes(q))
+      );
+      const seen = new Set<string>();
+      const combinedList: Profile[] = [];
+      for (const p of [...localMatches, ...searchedProfiles]) {
+        if (!seen.has(p.id) && p.user_id !== user?.id) {
+          seen.add(p.id);
+          combinedList.push(p);
+        }
+      }
+      return combinedList;
+    }
+    return allContacts;
+  }, [allContacts, peopleSearchQuery, searchedProfiles, user]);
+
+  const toggleSelectPerson = (p: Profile) => {
+    setSelectedPeople((prev) => {
+      const exists = prev.some((x) => x.id === p.id);
+      if (exists) {
+        return prev.filter((x) => x.id !== p.id);
+      }
+      return [...prev, p];
+    });
+  };
+
+  const handleStartChatOrGroup = async () => {
+    if (selectedPeople.length === 0 || isCreatingChatOrGroup) return;
+    if (selectedPeople.length === 1) {
+      setShowNewChatDrawer(false);
+      const target = selectedPeople[0];
+      setSelectedPeople([]);
+      setPeopleSearchQuery("");
+      navigate(`/chat/${target.user_id}`);
+      return;
+    }
+    setIsCreatingChatOrGroup(true);
+    try {
+      const groupName = `${myProfile?.full_name?.split(" ")[0] || "Chat"} & ${selectedPeople
+        .map((p) => p.full_name?.split(" ")[0] || p.username)
+        .join(", ")}`.slice(0, 32);
+      const newGroupId = await createGroup(groupName, "Group created from chat");
+      if (newGroupId) {
+        for (const p of selectedPeople) {
+          try {
+            await addGroupMember(newGroupId, p.user_id);
+          } catch (mErr) {
+            console.warn("Could not add member:", mErr);
+          }
+        }
+        setShowNewChatDrawer(false);
+        setSelectedPeople([]);
+        setPeopleSearchQuery("");
+        const numericUid = await getGroupNumericUid(newGroupId);
+        navigate(`/messages/t/${numericUid || newGroupId}`);
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create group");
+    } finally {
+      setIsCreatingChatOrGroup(false);
+    }
+  };
+
   const formatUserPresence = (userId?: string) => {
     if (!userId) return { isOnline: false, text: "" };
     const status = onlineStatuses[userId];

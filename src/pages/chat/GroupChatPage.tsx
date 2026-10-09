@@ -771,7 +771,7 @@ const GroupChatPage: React.FC = () => {
                               "w-fit max-w-full px-4 py-2 rounded-[20px] text-[15px] leading-snug shadow-2xs transition-all cursor-pointer select-text",
                               mine
                                 ? cn("rounded-br-[4px] text-white", activeTheme.bubble)
-                                : "bg-[#efefef] dark:bg-[#262626] text-foreground rounded-bl-[4px] border border-border/30 dark:border-transparent"
+                                : "bg-white/10 text-[#F7F3FF] rounded-bl-[4px] border border-white/10 dark:border-white/10 shadow-2xs"
                             )}
                           >
                             {replied && (
