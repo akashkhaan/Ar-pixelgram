@@ -1255,6 +1255,10 @@ const GroupChatPage: React.FC = () => {
           memberQuery={memberQuery}
           setMemberQuery={setMemberQuery}
           memberResults={memberResults}
+          messages={messages}
+          groupNumericUid={groupNumericUid}
+          groupWallpaper={groupWallpaper}
+          onWallpaperChange={handleSelectGroupWallpaper}
         />
       </div>
             <ChatWallpaperModal
