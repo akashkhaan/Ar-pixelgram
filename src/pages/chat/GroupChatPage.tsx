@@ -1,5 +1,5 @@
 import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
-import { ChatMediaRenderer } from '@/components/chat/ChatMediaRenderer';
+import { ChatMediaRenderer, isMediaMessage } from '@/components/chat/ChatMediaRenderer';
 import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
 import { InstagramSharedCard, parseSharedContent } from '@/components/chat/InstagramSharedCard';
@@ -10,6 +10,7 @@ import {
   Info,
   Loader2,
   Mic,
+  MoreVertical,
   Paperclip,
   Phone,
   Pin,
@@ -39,6 +40,8 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import useGoBack from '@/hooks/use-go-back';
+import { cn } from '@/lib/utils';
+import { uploadChatMedia } from '@/services/api';
 import {
   addGroupMember,
   getActiveGroupCall,
@@ -172,7 +175,7 @@ const GroupChatPage: React.FC = () => {
       const url = await uploadChatMedia(audioBlob, user.id, `group_voice_${Date.now()}.webm`);
       const durationText = `${Math.floor(durationSecs / 60)}:${durationSecs % 60 < 10 ? '0' : ''}${durationSecs % 60}`;
       const content = `🎙️ Voice message (${durationText})\n${url}`;
-      await sendGroupTextMessage(groupId, content);
+      await sendGroupMessage(groupId, content);
       setIsRecordingVoice(false);
       await load();
       toast.success('Voice message sent');
