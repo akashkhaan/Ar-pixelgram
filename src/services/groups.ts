@@ -1,8 +1,12 @@
 import { supabase } from '@/db/supabase';
-import { createNotification, sendPushTo, phonePreview } from '@/services/api';
+import { createNotification, sendPushTo } from '@/services/api';
 import { getGroupNumericUid, resolveGroupId } from '@/services/groupUid';
 import type { Profile } from '@/types/types';
 import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary, GroupCall } from '@/types/groups';
+
+function phonePreview(text: string): string {
+  return text.length > 80 ? text.slice(0, 77) + '...' : text;
+}
 
 interface GroupMemberRow extends Omit<GroupMember, 'profile'> { profile?: Profile | null }
 
@@ -278,9 +282,11 @@ export async function toggleGroupReaction(messageId: string, reaction: string, e
 }
 
 export async function pinGroupMessage(groupId: string, messageId: string): Promise<void> {
+  const actualId = await resolveGroupId(groupId);
+  const targetGroupId = (actualId && actualId.includes('-')) ? actualId : groupId;
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error('Not authenticated');
-  const { error } = await supabase.from('group_message_pins').upsert({ group_id: actualId, message_id: messageId, pinned_by: auth.user.id });
+  const { error } = await supabase.from('group_message_pins').upsert({ group_id: targetGroupId, message_id: messageId, pinned_by: auth.user.id });
   throwIfError(error);
 }
 
@@ -290,12 +296,16 @@ export async function unpinGroupMessage(messageId: string): Promise<void> {
 }
 
 export async function addGroupMember(groupId: string, userId: string): Promise<void> {
-  const { error } = await supabase.rpc('add_group_member', { p_group_id: actualId, p_user_id: userId });
+  const actualId = await resolveGroupId(groupId);
+  const targetGroupId = (actualId && actualId.includes('-')) ? actualId : groupId;
+  const { error } = await supabase.rpc('add_group_member', { p_group_id: targetGroupId, p_user_id: userId });
   throwIfError(error);
 }
 
 export async function removeGroupMember(groupId: string, userId: string): Promise<void> {
-  const { error } = await supabase.rpc('remove_group_member', { p_group_id: actualId, p_user_id: userId });
+  const actualId = await resolveGroupId(groupId);
+  const targetGroupId = (actualId && actualId.includes('-')) ? actualId : groupId;
+  const { error } = await supabase.rpc('remove_group_member', { p_group_id: targetGroupId, p_user_id: userId });
   throwIfError(error);
 }
 
@@ -476,11 +486,13 @@ export async function getActiveGroupCallsForUser(groupIds: string[]): Promise<Re
 }
 
 export async function createGroupCall(groupId: string, kind: 'audio' | 'video'): Promise<string> {
+  const actualId = await resolveGroupId(groupId);
+  const targetGroupId = (actualId && actualId.includes('-')) ? actualId : groupId;
   const auth = (await supabase.auth.getUser()).data.user;
   if (!auth) throw new Error('Not authenticated');
   const { data, error } = await supabase
     .from('group_calls')
-    .insert({ group_id: actualId, started_by: auth.id, kind, status: 'ringing' })
+    .insert({ group_id: targetGroupId, started_by: auth.id, kind, status: 'ringing' })
     .select('id')
     .single();
   throwIfError(error);
