@@ -144,7 +144,7 @@ const SettingsPage: React.FC = () => {
 
   if (section === 'help') {
     return (
-      <MobileLayout hideNav>
+      <MobileLayout hideNav hideHeader>
         <div className="p-4 page-transition wrap">
           <button onClick={() => setSection('main')} className="flex items-center gap-2 mb-5 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
@@ -170,7 +170,7 @@ const SettingsPage: React.FC = () => {
 
   if (section === 'report') {
     return (
-      <MobileLayout hideNav>
+      <MobileLayout hideNav hideHeader>
         <ReportProblemSection
           userId={user?.id || ''}
           onBack={() => setSection('main')}
@@ -182,7 +182,7 @@ const SettingsPage: React.FC = () => {
 
   if (section === 'verification') {
     return (
-      <MobileLayout hideNav>
+      <MobileLayout hideNav hideHeader>
         <div className="p-4 page-transition wrap">
           <button onClick={() => setSection('main')} className="flex items-center gap-2 mb-5 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
@@ -214,7 +214,7 @@ const SettingsPage: React.FC = () => {
 
   // Exact UI matching user's HTML specification
   return (
-    <MobileLayout>
+    <MobileLayout hideHeader>
       <div className="setsm-root wrap pb-28">
         
         {/* Title Header */}
