@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import ChatWallpaperModal from './ChatWallpaperModal';
+import { HelloTuneSettings } from './HelloTuneSettings';
 import { useNavigate } from 'react-router-dom';
 import { Image as ImageIcon, Upload } from 'lucide-react';
 import {
@@ -19,8 +20,11 @@ import {
   Check,
   X,
   BadgeCheck,
+  Music2,
 } from 'lucide-react';
 import type { Profile } from '@/types/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { getHelloTuneFromProfile, isHelloTuneActive, type HelloTuneRecord } from '@/services/helloTunes';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -51,6 +55,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { MESSENGER_THEMES, POPULAR_EMOJIS } from './MessengerGroupSettings';
 import { toast } from 'sonner';
+
+const remainingDays = (expiresAt: string) =>
+  Math.max(0, Math.ceil((Date.parse(expiresAt) - Date.now()) / (24 * 60 * 60 * 1000)));
 
 interface MessengerDirectSettingsProps {
   isOpen: boolean;
@@ -90,6 +97,7 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
   onWallpaperChange,
 }) => {
   const navigate = useNavigate();
+  const { user: currentUser, profile: currentUserProfile } = useAuth();
 
   const [showThemeDialog, setShowThemeDialog] = useState(false);
   const [showEmojiDialog, setShowEmojiDialog] = useState(false);
@@ -97,7 +105,13 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+  const [showHelloTuneSettings, setShowHelloTuneSettings] = useState(false);
+  const [myHelloTune, setMyHelloTune] = useState<HelloTuneRecord | null>(() => getHelloTuneFromProfile(currentUserProfile));
   const themeGalleryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMyHelloTune(getHelloTuneFromProfile(currentUserProfile));
+  }, [currentUserProfile]);
 
   const handleThemeGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -177,19 +191,41 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
   const activeTheme = MESSENGER_THEMES.find(t => t.id === chatTheme) || MESSENGER_THEMES[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background text-foreground overflow-y-auto animate-in fade-in duration-200 select-none">
+    <div className="direct-settings-root fixed inset-0 z-50 flex flex-col overflow-y-auto animate-in fade-in duration-200 select-none">
+      <style>{`
+        .direct-settings-root{--ds-bg:#0e0820;--ds-card:#19122f;--ds-stroke:#302451;--ds-ink:#f7f3ff;--ds-muted:#a99fd2;background:radial-gradient(ellipse at 82% 0%,rgba(124,92,255,.17),transparent 34%),radial-gradient(ellipse at 2% 48%,rgba(255,61,127,.08),transparent 34%),var(--ds-bg);color:var(--ds-ink);font-family:inherit;overscroll-behavior:contain}
+        .direct-settings-root .direct-settings-header{border-color:rgba(169,159,210,.14);background:rgba(14,8,32,.86);backdrop-filter:blur(18px)}
+        .direct-settings-root .direct-settings-icon-button{border:1px solid rgba(169,159,210,.15);background:rgba(255,255,255,.035);color:var(--ds-ink)}
+        .direct-settings-root .direct-settings-hero{width:min(100%,560px);margin:0 auto;padding-top:25px}
+        .direct-settings-root .direct-settings-avatar{box-shadow:0 0 0 4px rgba(124,92,255,.18),0 14px 36px rgba(4,2,16,.4)}
+        .direct-settings-root .direct-settings-avatar-image{border-color:#21183d}
+        .direct-settings-root .direct-settings-name{color:var(--ds-ink)}
+        .direct-settings-root .direct-settings-status{color:var(--ds-muted)}
+        .direct-settings-root .direct-settings-actions{width:min(100%,360px)}
+        .direct-settings-root .direct-settings-action-icon{border:1px solid rgba(169,159,210,.17);background:linear-gradient(145deg,#251b48,#19132f);box-shadow:0 7px 16px rgba(0,0,0,.2)}
+        .direct-settings-root .direct-settings-action-icon svg{color:#d9ceff!important}
+        .direct-settings-root .direct-settings-action-label{color:#e4dcf8}
+        .direct-settings-root .direct-settings-sections{width:min(100%,560px);padding-bottom:calc(36px + env(safe-area-inset-bottom))}
+        .direct-settings-root .direct-settings-card{border-color:rgba(169,159,210,.15);background:linear-gradient(145deg,rgba(31,23,57,.95),rgba(23,17,44,.95));box-shadow:0 12px 28px rgba(3,2,12,.18)}
+        .direct-settings-root .direct-settings-row{color:var(--ds-ink);border-color:rgba(169,159,210,.11)}
+        .direct-settings-root .direct-settings-row:hover{background:rgba(124,92,255,.09)}
+        .direct-settings-root .direct-settings-row-title{color:var(--ds-ink)}
+        .direct-settings-root .direct-settings-row-subtitle{color:var(--ds-muted)}
+        .direct-settings-root .direct-settings-section-title{color:#c6b8ee}
+        .direct-settings-root .direct-settings-accent{color:#c5aaff}
+      `}</style>
       {/* 1. TOP BAR */}
-      <header className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border bg-background/95 px-3 py-2.5 backdrop-blur">
+      <header className="direct-settings-header sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border bg-background/95 px-3 py-2.5 backdrop-blur">
         <button
           type="button"
           onClick={onClose}
-          className="rounded-full p-2 hover:bg-muted text-foreground transition-colors"
+          className="direct-settings-icon-button rounded-full p-2 hover:bg-muted text-foreground transition-colors"
           aria-label="Back"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
 
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider direct-settings-accent">
           Conversation Details
         </p>
 
@@ -197,7 +233,7 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="rounded-full p-2 hover:bg-muted text-foreground transition-colors"
+              className="direct-settings-icon-button rounded-full p-2 hover:bg-muted text-foreground transition-colors"
               aria-label="More options"
             >
               <MoreVertical className="h-5 w-5" />
@@ -247,83 +283,83 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
       </header>
 
       {/* 2. PROFILE HERO */}
-      <div className="flex flex-col items-center px-4 pt-6 pb-4 text-center">
+      <div className="direct-settings-hero flex flex-col items-center px-4 pt-6 pb-4 text-center">
         <div
           onClick={() => { onClose(); navigate(`/profile/${profile.user_id}`); }}
-          className="relative cursor-pointer group"
+          className="direct-settings-avatar relative cursor-pointer group rounded-full"
         >
           {profile.avatar_url ? (
             <img
               src={profile.avatar_url}
               alt={profile.username}
-              className="h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover shadow-xl ring-4 ring-background border border-border"
+              className="direct-settings-avatar-image h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover shadow-xl ring-4 ring-background border border-border"
             />
           ) : (
-            <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-3xl shadow-xl ring-4 ring-background border border-border">
+            <div className="direct-settings-avatar-image h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-3xl shadow-xl ring-4 ring-background border border-border">
               {profile.username?.[0]?.toUpperCase() || 'U'}
             </div>
           )}
         </div>
 
         <div className="flex items-center justify-center gap-1.5 mt-3">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+          <h1 className="direct-settings-name text-xl sm:text-2xl font-bold text-foreground tracking-tight">
             {nickname || profile.username}
           </h1>
           {profile.is_verified && <BadgeCheck className="h-5 w-5 text-sky-500 shrink-0" />}
         </div>
 
-        <p className="mt-0.5 text-xs text-muted-foreground font-medium">
+        <p className="direct-settings-status mt-0.5 text-xs text-muted-foreground font-medium">
           {statusText || 'Active now'}
         </p>
 
         {/* 4 ACTION BUTTONS */}
-        <div className="mt-5 grid grid-cols-4 gap-4 w-full max-w-xs">
+        <div className="direct-settings-actions mt-5 grid grid-cols-4 gap-4 w-full max-w-xs">
           <button
             type="button"
             onClick={() => { onClose(); onStartCall('audio'); }}
-            className="flex flex-col items-center gap-1.5 group cursor-pointer"
+            className="direct-settings-action flex flex-col items-center gap-1.5 group cursor-pointer"
           >
-            <div className="h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
+            <div className="direct-settings-action-icon h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
               <Phone className="h-5 w-5 text-sky-500 fill-sky-500/20" />
             </div>
-            <span className="text-[11px] font-medium text-foreground">Audio</span>
+            <span className="direct-settings-action-label text-[11px] font-medium text-foreground">Audio</span>
           </button>
 
           <button
             type="button"
             onClick={() => { onClose(); onStartCall('video'); }}
-            className="flex flex-col items-center gap-1.5 group cursor-pointer"
+            className="direct-settings-action flex flex-col items-center gap-1.5 group cursor-pointer"
           >
-            <div className="h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
+            <div className="direct-settings-action-icon h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
               <Video className="h-5 w-5 text-sky-500 fill-sky-500/20" />
             </div>
-            <span className="text-[11px] font-medium text-foreground">Video</span>
+            <span className="direct-settings-action-label text-[11px] font-medium text-foreground">Video</span>
           </button>
 
           <button
             type="button"
             onClick={() => { onClose(); navigate(`/profile/${profile.user_id}`); }}
-            className="flex flex-col items-center gap-1.5 group cursor-pointer"
+            className="direct-settings-action flex flex-col items-center gap-1.5 group cursor-pointer"
           >
-            <div className="h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
+            <div className="direct-settings-action-icon h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
               <User className="h-5 w-5 text-sky-500" />
             </div>
-            <span className="text-[11px] font-medium text-foreground">Profile</span>
+            <span className="direct-settings-action-label text-[11px] font-medium text-foreground">Profile</span>
           </button>
 
           <button
             type="button"
             onClick={handleToggleMute}
-            className="flex flex-col items-center gap-1.5 group cursor-pointer"
+            className="direct-settings-action flex flex-col items-center gap-1.5 group cursor-pointer"
           >
-            <div className="h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
+            <div className="direct-settings-action-icon h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
               {isMuted ? (
                 <BellOff className="h-5 w-5 text-red-500" />
               ) : (
                 <Bell className="h-5 w-5 text-sky-500 fill-sky-500/20" />
               )}
             </div>
-            <span className="text-[11px] font-medium text-foreground">
+            <span className="direct-settings-action-label text-[11px] font-medium text-foreground">
               {isMuted ? 'Unmute' : 'Mute'}
             </span>
           </button>
@@ -331,15 +367,15 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
       </div>
 
       {/* 3. SETTINGS ROWS */}
-      <div className="px-4 pb-12 max-w-lg mx-auto w-full space-y-5">
-        <div className="rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
+      <div className="direct-settings-sections px-4 pb-12 max-w-lg mx-auto w-full space-y-5">
+        <div className="direct-settings-card rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
           {/* Theme */}
           <button
             type="button"
             onClick={() => setShowThemeDialog(true)}
-            className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
           >
-            <span className="text-sm font-medium text-foreground">Theme</span>
+            <span className="direct-settings-row-title text-sm font-medium text-foreground">Theme</span>
             <div className="flex items-center gap-2">
               {currentWallpaper ? (
                 <div className="h-6 w-6 rounded-full overflow-hidden border border-border shadow-xs">
@@ -358,15 +394,15 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
           <button
             type="button"
             onClick={() => setShowWallpaperModal(true)}
-            className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
           >
             <div className="flex items-center gap-2.5">
               <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                 <ImageIcon className="h-4 w-4" />
               </div>
               <div>
-                <span className="text-sm font-medium text-foreground block">Wallpaper / Background Image</span>
-                <span className="text-[11px] text-muted-foreground">Gallery ya preset se photo lagayein</span>
+                <span className="direct-settings-row-title text-sm font-medium text-foreground block">Wallpaper / Background Image</span>
+                <span className="direct-settings-row-subtitle text-[11px] text-muted-foreground">Gallery ya preset se photo lagayein</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -385,9 +421,9 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
           <button
             type="button"
             onClick={() => setShowEmojiDialog(true)}
-            className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
           >
-            <span className="text-sm font-medium text-foreground">Emoji</span>
+            <span className="direct-settings-row-title text-sm font-medium text-foreground">Emoji</span>
             <div className="flex items-center gap-2">
               <span className="text-xl leading-none">{chatEmoji}</span>
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -398,30 +434,50 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
           <button
             type="button"
             onClick={() => { setTempNick(nickname); setShowNicknameDialog(true); }}
-            className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
           >
             <div>
-              <p className="text-sm font-medium text-foreground">Nickname</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="direct-settings-row-title text-sm font-medium text-foreground">Nickname</p>
+              <p className="direct-settings-row-subtitle text-xs text-muted-foreground">
                 {nickname ? `"${nickname}"` : 'Set nickname'}
               </p>
             </div>
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </button>
+
+          {/* Caller playback tune */}
+          <button
+            type="button"
+            onClick={() => setShowHelloTuneSettings(true)}
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="rounded-xl bg-primary/10 p-2 text-primary"><Music2 className="h-4 w-4" /></div>
+              <div className="min-w-0">
+                <p className="direct-settings-row-title text-sm font-medium">Hello Tune</p>
+                <p className="direct-settings-row-subtitle truncate text-xs">
+                  {myHelloTune && isHelloTuneActive(myHelloTune)
+                    ? `${myHelloTune.title} · ${remainingDays(myHelloTune.expiresAt)} din baaki`
+                    : 'Choose what callers hear while ringing'}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
         </div>
 
         {/* More Actions */}
         <div className="space-y-1.5">
-          <p className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="direct-settings-section-title px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             More Actions
           </p>
-          <div className="rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
+          <div className="direct-settings-card rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
             <button
               type="button"
               onClick={() => { onClose(); onStartSearch(); }}
-              className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+              className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
             >
-              <span className="text-sm font-medium text-foreground">Search in Conversation</span>
+              <span className="direct-settings-row-title text-sm font-medium text-foreground">Search in Conversation</span>
               <Search className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
@@ -429,14 +485,14 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
 
         {/* Privacy */}
         <div className="space-y-1.5">
-          <p className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="direct-settings-section-title px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Privacy & Support
           </p>
-          <div className="rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
-            <div className="flex w-full items-center justify-between px-4 py-3.5">
+          <div className="direct-settings-card rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
+              <div className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5">
               <div>
-                <p className="text-sm font-medium text-foreground">Notifications</p>
-                <p className="text-xs text-muted-foreground">{isMuted ? 'Muted' : 'On'}</p>
+                <p className="direct-settings-row-title text-sm font-medium text-foreground">Notifications</p>
+                <p className="direct-settings-row-subtitle text-xs text-muted-foreground">{isMuted ? 'Muted' : 'On'}</p>
               </div>
               <Switch checked={!isMuted} onCheckedChange={handleToggleMute} />
             </div>
@@ -444,13 +500,13 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
             <button
               type="button"
               onClick={onToggleBlock}
-              className={`flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left ${
+              className={`direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left ${
                 blocked ? 'text-green-600' : 'text-destructive'
               }`}
             >
               <div>
                 <p className="text-sm font-semibold">{blocked ? 'Unblock user' : 'Block user'}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="direct-settings-row-subtitle text-xs text-muted-foreground">
                   {blocked ? 'Allow messages & calls' : 'Stop messages & calls'}
                 </p>
               </div>
@@ -656,6 +712,13 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <HelloTuneSettings
+        isOpen={showHelloTuneSettings}
+        onClose={() => setShowHelloTuneSettings(false)}
+        userId={currentUser?.id || ''}
+        currentTune={myHelloTune}
+        onSaved={setMyHelloTune}
+      />
           {/* Wallpaper Picker Modal */}
       <ChatWallpaperModal
         open={showWallpaperModal}

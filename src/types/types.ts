@@ -14,6 +14,14 @@ export interface Profile {
   account_status?: 'active' | 'suspended' | 'locked' | 'permanently_disabled';
   status_reason?: string | null;
   status_updated_at?: string | null;
+  hello_tune_track_id?: string | null;
+  hello_tune_url?: string | null;
+  hello_tune_path?: string | null;
+  hello_tune_title?: string | null;
+  hello_tune_artist?: string | null;
+  hello_tune_start_seconds?: number | null;
+  hello_tune_duration_seconds?: number | null;
+  hello_tune_expires_at?: string | null;
 }
 
 export interface Post {

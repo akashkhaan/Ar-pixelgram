@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, createNotification, sendMessage, saveCallLog, formatCallDuration, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
 import type { Profile } from '@/types/types';
+import { getHelloTuneFromProfile, isHelloTuneActive } from '@/services/helloTunes';
 
 export type CallKind = 'audio' | 'video';
 export type CallStatus = 'idle' | 'ringing-out' | 'ringing-in' | 'connecting' | 'active' | 'ended';
@@ -28,6 +29,7 @@ interface CallContextValue extends CallState {
   screenSharing: boolean;
   recording: boolean;
   startCall: (peerId: string, kind: CallKind) => Promise<void>;
+  playRingtone: () => void;
   acceptCall: () => Promise<void>;
   rejectCall: (reason?: 'declined' | 'no-answer') => void;
   endCall: () => void;
@@ -245,6 +247,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (state.status !== 'idle' && state.status !== 'ended') return;
     try {
       const peerProfile = await getProfile(peerId);
+      const peerTune = getHelloTuneFromProfile(peerProfile);
+      const hasActiveHelloTune = isHelloTuneActive(peerTune);
       setState({ status: 'ringing-out', kind, peerId, peerProfile, startedAt: null });
       const stream = await getMedia(kind);
       const pc = buildPc(peerId); pcRef.current = pc;
@@ -254,7 +258,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      playRingtone();
+      if (!hasActiveHelloTune) playRingtone();
       pendingOfferRef.current = offer;
       await sendSignal(peerId, 'call-invite', { kind, offer });
       // Retry every 2s until answer/reject/timeout — lets the receiver pick
@@ -783,10 +787,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = useMemo<CallContextValue>(() => ({
     ...state, localStream, remoteStream, muted, cameraOff,
     minimized, screenSharing, recording,
-    startCall, acceptCall, rejectCall, endCall, toggleMute, toggleCamera,
+    startCall, playRingtone, acceptCall, rejectCall, endCall, toggleMute, toggleCamera,
     toggleMinimize, toggleScreenShare, toggleRecording,
     speakerOn, toggleSpeaker, facingFront, flipCamera,
-  }), [state, localStream, remoteStream, muted, cameraOff, minimized, screenSharing, recording, startCall, acceptCall, rejectCall, endCall, toggleMute, toggleCamera, toggleMinimize, toggleScreenShare, toggleRecording, speakerOn, toggleSpeaker, facingFront, flipCamera]);
+  }), [state, localStream, remoteStream, muted, cameraOff, minimized, screenSharing, recording, startCall, playRingtone, acceptCall, rejectCall, endCall, toggleMute, toggleCamera, toggleMinimize, toggleScreenShare, toggleRecording, speakerOn, toggleSpeaker, facingFront, flipCamera]);
 
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 };

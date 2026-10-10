@@ -14,6 +14,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { MessengerCallBubble } from './MessengerCallBubble';
+import { getHelloTuneFromProfile, isHelloTuneActive, playCallerHelloTune } from '@/services/helloTunes';
 
 const fmt = (secs: number) => {
   const m = Math.floor(secs / 60)
@@ -31,6 +32,29 @@ export const CallOverlay: React.FC = () => {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const [elapsed, setElapsed] = useState(0);
+
+  // On the caller's side, play the callee's active Hello Tune as ringback.
+  // If the tune cannot be loaded or played, keep the existing WebAudio ringtone.
+  useEffect(() => {
+    if (call.status !== 'ringing-out') return;
+    const tune = getHelloTuneFromProfile(call.peerProfile);
+    if (!isHelloTuneActive(tune)) return;
+
+    let cancelled = false;
+    let stopTune = () => {};
+    void playCallerHelloTune(tune).then(stop => {
+      if (cancelled) stop();
+      else stopTune = stop;
+    }).catch(error => {
+      console.warn('Hello Tune playback failed; using ringtone fallback:', error);
+      if (!cancelled) call.playRingtone();
+    });
+
+    return () => {
+      cancelled = true;
+      stopTune();
+    };
+  }, [call.status, call.peerProfile, call.playRingtone]);
 
   // Bind local video stream
   useEffect(() => {
