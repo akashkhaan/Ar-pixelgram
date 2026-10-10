@@ -1,7 +1,7 @@
 import FacebookSwitchAccountModal from '@/components/profile/FacebookSwitchAccountModal';
 import { logInToAnotherAccount } from '@/lib/savedAccounts';
 import InstagramIcon from "@/components/icons/InstagramIcon";
-import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Users, Globe, HelpCircle, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2 } from 'lucide-react';
+import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Users, Globe, HelpCircle, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2, Check, Plus } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -9,7 +9,6 @@ import MobileLayout from '@/components/layouts/MobileLayout';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import useGoBack from '@/hooks/use-go-back';
@@ -17,6 +16,70 @@ import { getMyVerificationRequest, submitVerificationRequest } from '@/services/
 import type { VerificationRequest } from '@/types/types';
 import ReportProblemSection from './ReportProblemSection';
 
+const P = {
+  home: '<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  video: '<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M10 9l5 3-5 3z"/>',
+  people: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.5 18.5a6 6 0 0 1 11 0"/>',
+  stories: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-5.4A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01" stroke-width="2.8"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  chd: '<path d="M6 9l6 6 6-6"/>',
+  chr: '<path d="M9 5l7 7-7 7"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10z"/>',
+  at: '<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01"/>',
+  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+  shieldck: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0M16 4.5a3.5 3.5 0 0 1 0 7M22 20a7 7 0 0 0-4-6.3"/>',
+  badge: '<path d="M12 2l2.4 1.7 2.9-.1 1 2.8 2.4 1.7-.9 2.8.9 2.8-2.4 1.7-1 2.8-2.9-.1L12 22l-2.4-1.7-2.9.1-1-2.8-2.4-1.7.9-2.8-.9-2.8 2.4-1.7 1-2.8 2.9.1z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>'
+};
+
+const I = (name: keyof typeof P) => (
+  <svg viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: P[name] }} />
+);
+
+const LogoSvg = () => (
+  <svg viewBox="0 0 120 120">
+    <defs>
+      <linearGradient id="l_grad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stopColor="#FF3D7F" />
+        <stop offset="0.55" stopColor="#FF8A00" />
+        <stop offset="1" stopColor="#7C5CFF" />
+      </linearGradient>
+    </defs>
+    <rect width="120" height="120" fill="#0B0616" />
+    <text x="60" y="70" textAnchor="middle" fontSize="50" fontWeight="800" fill="url(#l_grad)" letterSpacing="-2" fontFamily="inherit">
+      AR
+    </text>
+    <text x="60" y="92" textAnchor="middle" fontSize="9" letterSpacing="2" fontWeight="700" fill="#e9d5ff" fontFamily="inherit">
+      PIXELGRAM
+    </text>
+  </svg>
+);
+
+const InstagramSvg = () => (
+  <svg viewBox="0 0 48 48">
+    <defs>
+      <linearGradient id="ig_grad" x1="0" y1="1" x2="1" y2="0">
+        <stop offset="0" stopColor="#FEDA75" />
+        <stop offset="0.3" stopColor="#FA7E1E" />
+        <stop offset="0.6" stopColor="#D62976" />
+        <stop offset="1" stopColor="#4F5BD5" />
+      </linearGradient>
+    </defs>
+    <rect width="48" height="48" fill="url(#ig_grad)" />
+    <rect x="12" y="12" width="24" height="24" rx="7" fill="none" stroke="#fff" strokeWidth="3" />
+    <circle cx="24" cy="24" r="6" fill="none" stroke="#fff" strokeWidth="3" />
+    <circle cx="31.5" cy="16.5" r="1.8" fill="#fff" stroke="none" />
+  </svg>
+);
 
 const SettingsPage: React.FC = () => {
   const { user, profile, signOut } = useAuth();
@@ -26,110 +89,29 @@ const SettingsPage: React.FC = () => {
   const [darkMode, setDarkMode] = useState(document.documentElement.classList.contains('dark'));
   const [section, setSection] = useState<'main' | 'help' | 'report' | 'verification'>('main');
   const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [pfxOpen, setPfxOpen] = useState(false);
+  const [swxOpen, setSwxOpen] = useState(false);
   const [verificationRequest, setVerificationRequest] = useState<VerificationRequest | null>(null);
   const [verifyReason, setVerifyReason] = useState('');
   const [loading, setLoading] = useState(false);
-  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     if (user) getMyVerificationRequest(user.id).then(setVerificationRequest);
   }, [user]);
 
-  // Live timer for real-time countdown
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // 30-day (1 month) verification timeline & auto-expiry calculations
-  const approvedAtRaw = verificationRequest?.reviewed_at || (profile?.is_verified ? (profile?.created_at || '2026-10-02T10:00:00Z') : null);
-  const approvedDate = approvedAtRaw ? new Date(approvedAtRaw) : new Date();
-  // 30 days = 1 month validity
-  const expiryDate = new Date(approvedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const diffMs = expiryDate.getTime() - now;
-  const isExpired = approvedAtRaw ? diffMs <= 0 : false;
-  const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  const hoursLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
-  const minutesLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
-  const secondsLeft = Math.max(0, Math.floor((diffMs % (1000 * 60)) / 1000));
-
-  const isVerifiedActive = Boolean((profile?.is_verified || verificationRequest?.status === 'approved') && !isExpired);
-
-  // 3-Phase Ghost Vanish rotating card:
-  // Box 30s ke baad bhoot ki tarah gayab hoga, fir 2nd box aayega (6s), fir 3rd box (6s), fir wapas 1st box
-  type CardPhase = 'main_box' | 'welcome_gov' | 'user_greeting';
-  const [cardPhase, setCardPhase] = useState<CardPhase>('main_box');
-  const [ghostState, setGhostState] = useState<'visible' | 'vanishing' | 'appearing'>('visible');
-
-  useEffect(() => {
-    let timer: any;
-    if (cardPhase === 'main_box') {
-      // 30 seconds tak rahega, fir bhoot ki tarah gayab hoga
-      timer = setTimeout(() => {
-        setGhostState('vanishing');
-        setTimeout(() => {
-          setCardPhase('welcome_gov');
-          setGhostState('appearing');
-          setTimeout(() => setGhostState('visible'), 650);
-        }, 700);
-      }, 30000);
-    } else if (cardPhase === 'welcome_gov') {
-      // 6 seconds tak welcome gov box rahega, fir gayab
-      timer = setTimeout(() => {
-        setGhostState('vanishing');
-        setTimeout(() => {
-          setCardPhase('user_greeting');
-          setGhostState('appearing');
-          setTimeout(() => setGhostState('visible'), 650);
-        }, 700);
-      }, 6000);
-    } else if (cardPhase === 'user_greeting') {
-      // 6 seconds tak user profile + Enjoy username rahega, fir gayab
-      timer = setTimeout(() => {
-        setGhostState('vanishing');
-        setTimeout(() => {
-          setCardPhase('main_box');
-          setGhostState('appearing');
-          setTimeout(() => setGhostState('visible'), 650);
-        }, 700);
-      }, 6000);
-    }
-    return () => clearTimeout(timer);
-  }, [cardPhase]);
-
-  // Auto-expire tick after 1 month (gayab ho jaye)
-  useEffect(() => {
-    if (profile?.is_verified && isExpired && user) {
-      import('@/services/api').then(({ supabase }) => {
-        supabase.from('profiles').update({ is_verified: false }).eq('user_id', user.id);
-      }).catch(console.error);
-    }
-  }, [profile?.is_verified, isExpired, user]);
-
-  const formatFriendlyDate = (d: Date) => {
-    try {
-      return d.toLocaleDateString('hi-IN', { day: 'numeric', month: 'long', year: 'numeric' });
-    } catch {
-      return d.toLocaleDateString();
-    }
-  };
-
-  const formatFriendlyTime = (d: Date) => {
-    try {
-      return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-    } catch {
-      return '';
-    }
-  };
-
-  const toggleTheme = (val: boolean) => {
+  const toggleTheme = () => {
+    const val = !darkMode;
     setDarkMode(val);
-    if (val) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
+    if (val) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
   };
 
   const handleDeleteAccount = async () => {
-    // Sign out and show message (actual deletion requires server-side)
     toast.info('Account deletion request submitted. Our team will process it shortly.');
     await signOut();
     navigate('/login');
@@ -155,21 +137,19 @@ const SettingsPage: React.FC = () => {
   if (section === 'help') {
     return (
       <MobileLayout hideNav>
-        <div className="p-4 page-transition">
+        <div className="p-4 page-transition setsm-wrap">
           <button onClick={() => setSection('main')} className="flex items-center gap-2 mb-5 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
           </button>
           <h2 className="text-xl font-bold text-foreground mb-5">Help Center</h2>
           <div className="space-y-4">
             {[
-              { q: 'Email ya phone number kaise add karein?', a: 'Settings → Account Center me jaakar email ya number daalein, OTP verify karein. Max 5 email aur 5 number. Verified email/number se wahi password daal kar login bhi ho jayega.' },
-              { q: 'Password bhool gaye?', a: 'Login screen par "Forgot password" par tap karein aur OTP se naya password set karein.' },
-              { q: 'How to make my account private?', a: 'Go to Edit Profile and toggle "Private Account". Only approved followers can see your posts.' },
-              { q: 'How to get verified?', a: 'Submit a verification request with a valid reason. Our team reviews within 3-5 business days.' },
-              { q: 'How to delete my account?', a: 'Scroll to the bottom of Settings and tap "Delete Account". This action is permanent.' },
-              { q: 'How does chatting work?', a: 'You can only chat with mutual followers — people you follow who also follow you back.' },
+              { q: 'Blue tick kaise renew karein?', a: 'Settings mein Verification box ke Renew Tick button par tap karein. Renew hote hi 30 din ke liye tick active ho jata hai.' },
+              { q: 'Account recover kaise karein?', a: 'Account Center mein apna email aur phone number add karke rakhein, taaki zarurat par recover kar sakein.' },
+              { q: 'Token aur devices kaise manage karein?', a: 'Access Token mein sab logged-in devices dikhte hain. Kisi bhi device ko wahin se logout kar sakte hain.' },
+              { q: 'Kisi ko report kaise karein?', a: 'Uske profile ya chat ke 3-dot menu mein Report user chunein.' },
             ].map(({ q, a }) => (
-              <div key={q} className="glass-card rounded-xl p-4 space-y-1">
+              <div key={q} className="setsm-card p-4 space-y-1">
                 <p className="font-semibold text-sm text-foreground">{q}</p>
                 <p className="text-sm text-muted-foreground text-pretty">{a}</p>
               </div>
@@ -195,471 +175,318 @@ const SettingsPage: React.FC = () => {
   if (section === 'verification') {
     return (
       <MobileLayout hideNav>
-        <div className="p-4 page-transition">
+        <div className="p-4 page-transition setsm-wrap">
           <button onClick={() => setSection('main')} className="flex items-center gap-2 mb-5 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
           </button>
           <h2 className="text-xl font-bold text-foreground mb-2">Verification Request</h2>
           <p className="text-sm text-muted-foreground mb-5 text-pretty">Get a blue checkmark to show your account is authentic.</p>
 
-          {profile?.is_verified ? (
-            <div className="flex flex-col items-center py-12 text-center">
-              <BadgeCheck className="w-16 h-16 text-primary mb-3" />
-              <h3 className="font-bold text-foreground text-lg">Already Verified!</h3>
-              <p className="text-sm text-muted-foreground">Your account has a verified badge.</p>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Why should your account be verified?</Label>
+              <Textarea
+                placeholder="Explain your public presence, notable work, or why verification is important for your account…"
+                value={verifyReason}
+                onChange={e => setVerifyReason(e.target.value)}
+                rows={5}
+                maxLength={500}
+                className="resize-none in"
+              />
             </div>
-          ) : verificationRequest && verificationRequest.status !== 'rejected' ? (
-            <div className="glass-card rounded-xl p-5 text-center">
-              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-3
-                ${verificationRequest.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                  verificationRequest.status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                <BadgeCheck className="w-4 h-4" />
-                {verificationRequest.status.charAt(0).toUpperCase() + verificationRequest.status.slice(1)}
-              </div>
-              <p className="text-sm text-muted-foreground text-pretty">
-                {verificationRequest.status === 'pending'
-                  ? 'Your request is under review. We\'ll notify you soon.'
-                  : 'Congratulations! Your account is verified.'}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {verificationRequest?.status === 'rejected' && (
-                <div className="rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-900/20 p-4 text-center space-y-1">
-                  <div className="inline-flex items-center gap-2 text-sm font-medium text-red-700 dark:text-red-400">
-                    <BadgeCheck className="w-4 h-4" /> Rejected
-                  </div>
-                  <p className="text-sm text-muted-foreground text-pretty">
-                    Your last request was not approved. You can submit a new request below.
-                  </p>
-                </div>
-              )}
-              <div className="space-y-1.5">
-                <Label>Why should your account be verified?</Label>
-                <Textarea
-                  placeholder="Explain your public presence, notable work, or why verification is important for your account…"
-                  value={verifyReason}
-                  onChange={e => setVerifyReason(e.target.value)}
-                  rows={5}
-                  maxLength={500}
-                  className="resize-none"
-                />
-              </div>
-              <Button className="w-full h-11 font-semibold" onClick={handleSubmitVerification} disabled={loading || !verifyReason.trim()}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BadgeCheck className="w-4 h-4 mr-2" />}
-                Submit Request
-              </Button>
-            </div>
-          )}
+            <Button className="w-full h-11 font-semibold btn" onClick={handleSubmitVerification} disabled={loading || !verifyReason.trim()}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <BadgeCheck className="w-4 h-4 mr-2" />}
+              Submit Request
+            </Button>
+          </div>
         </div>
       </MobileLayout>
     );
   }
 
-  // Main settings
+  // Main settings: USER'S EXACT SETSM LAYOUT & CLASSES
   return (
     <MobileLayout>
-      <div className="p-4 page-transition space-y-5">
-        <div className="flex items-center gap-3">
+      <div className="p-4 page-transition setsm-wrap space-y-3.5 pb-24">
+        
+        {/* Title Header */}
+        <div className="flex items-center gap-3.5 py-3">
           <button
             type="button"
             onClick={handleBack}
-            className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
-            aria-label="Go back"
+            className="w-11 h-11 rounded-[15px] bg-[var(--card)] border border-[var(--line)] grid place-items-center cursor-pointer"
+            aria-label="Back"
           >
-            <ArrowLeft className="w-5 h-5 text-foreground" />
+            {I('back')}
           </button>
-          <h2 className="text-xl font-bold text-foreground">Settings</h2>
+          <h1 className="text-[34px] font-[800] tracking-tight text-[var(--ink)]">Settings</h1>
         </div>
 
-        {/* Profile info & Switch Account (Facebook Menu Style from Screenshot) */}
-        <div className="space-y-2.5">
-          {/* Card 1: Profile Card */}
-          <div
-            onClick={() => setShowSwitchModal(true)}
-            className="flex items-center justify-between gap-3 glass-card rounded-2xl p-3.5 hover:bg-muted/70 active:scale-[0.99] transition-all cursor-pointer border border-border/50 shadow-xs"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover shrink-0 ring-1 ring-border/50" />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                  <span className="text-primary font-bold text-lg">{profile?.username?.[0]?.toUpperCase()}</span>
-                </div>
-              )}
-              <div className="flex-1 min-w-0 text-left">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <p className="font-bold text-[15px] text-foreground truncate">{profile?.full_name || profile?.username}</p>
-                  {isVerifiedActive && (
-                    <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500 shrink-0 inline-block drop-shadow-xs" stroke="#fff" />
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground truncate">View your profile</p>
-              </div>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-muted/90 flex items-center justify-center text-muted-foreground">
-              <ChevronDown className="w-5 h-5" />
-            </div>
-          </div>
-
-          {/* Card 2: Switch Account Card (from Screenshot) */}
-          <div
-            onClick={() => setShowSwitchModal(true)}
-            className="flex items-center justify-between gap-3 glass-card rounded-2xl p-3.5 hover:bg-muted/70 active:scale-[0.99] transition-all cursor-pointer border border-border/50 shadow-xs"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-full p-[2px] premium-rainbow-border flex items-center justify-center shrink-0 shadow-sm">
-                <div className="w-full h-full rounded-full bg-card dark:bg-zinc-800 flex items-center justify-center">
-                  <Users className="w-5 h-5 premium-rainbow-icon" />
-                </div>
-              </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="font-bold text-[15px] premium-rainbow-text">Switch account</p>
-                <p className="text-xs text-muted-foreground">Tap to switch or add another account</p>
-              </div>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-muted/90 flex items-center justify-center text-muted-foreground">
-              <ChevronDown className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-
-        {/* Appearance */}
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-            <div className="flex items-center gap-3">
-              {darkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-primary" />}
-              <div>
-                <p className="text-sm font-medium text-foreground">Dark Mode</p>
-                <p className="text-xs text-muted-foreground">{darkMode ? 'Dark theme active' : 'Light theme active'}</p>
-              </div>
-            </div>
-            <Switch checked={darkMode} onCheckedChange={toggleTheme} />
-          </div>
-        </div>
-
-        {/* Dashboard Card with Ghost Vanish & Materialize (Bhoot ki tarah gayab hona) */}
-        <div className="frame">
-          <div className={`dash relative overflow-hidden h-[185px] min-h-[185px] max-h-[185px] flex flex-col justify-between ${ghostState === "vanishing" ? "ghost-disappear" : ghostState === "appearing" ? "ghost-appear" : ""}`}>
-            {/* Top Bar with Dynamic Avatar & Verification Button */}
-            <div className="bar">
-              <b>Pixelgram</b>
-              <span className="inline-flex items-center gap-1">
-                <span>{profile?.username || 'username'}</span>
-                {isVerifiedActive && (
-                  <BadgeCheck className="w-3.5 h-3.5 text-sky-300 fill-sky-400 shrink-0" stroke="#fff" />
+        {/* 1. Profile Card with Collapsible Details */}
+        <div className="setsm-card">
+          <div className="setsm-pfr">
+            <button
+              type="button"
+              className="setsm-main"
+              onClick={() => navigate('/profile')}
+            >
+              <span className="setsm-avt">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <LogoSvg />
                 )}
               </span>
-              <button
-                type="button"
-                onClick={() => setSection('verification')}
-                className="flex items-center gap-1 text-white hover:text-sky-200 active:scale-95 transition-all font-medium cursor-pointer shrink-0"
-                title="Verification Status"
-              >
-                <BadgeCheck className="w-3.5 h-3.5 text-sky-300" />
-                <span>Verification</span>
-              </button>
-              <div className="flex items-center shrink-0">
-                {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt="Profile"
-                    className="avatar rounded-full object-cover shrink-0 ring-1 ring-white/60"
-                  />
-                ) : (
-                  <svg className="avatar" viewBox="0 0 32 32" aria-label="profile">
-                    <circle cx="16" cy="16" r="16" fill="#fff" />
-                    <circle cx="16" cy="12" r="5" fill="#2563eb" />
-                    <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
-                  </svg>
-                )}
+              <span className="setsm-tx">
+                <b>{profile?.full_name || profile?.username || 'Ar pixelgram'}</b>
+                <small>View your profile</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`setsm-chv ${pfxOpen ? 'open' : ''}`}
+              onClick={() => setPfxOpen(!pfxOpen)}
+              aria-label="Expand profile"
+            >
+              {I('chd')}
+            </button>
+          </div>
+          <div className={`setsm-acc ${pfxOpen ? 'open' : ''}`}>
+            <div>
+              <div className="setsm-chips">
+                <span>@{profile?.username || 'ar_pixelgram'}</span>
+                <span className="warn">Blue tick: Expired</span>
+                <span>Account: <b>Public</b></span>
               </div>
             </div>
-
-            {/* Phase Content */}
-            <div className="flex-1 flex flex-col">
-              {/* PHASE 1: Main Verification Box (30s) */}
-              {cardPhase === 'main_box' && (
-                isVerifiedActive ? (
-                  <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
-                    {/* Active Badge Title & Validity Badge */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-md shrink-0">
-                          <BadgeCheck className="w-5 h-5 text-[#2563eb] fill-[#2563eb]" stroke="#fff" />
-                        </div>
-                        <div className="min-w-0 text-left">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-[13px] tracking-wide text-white truncate">Official Blue Tick Active</span>
-                            <span className="px-1.5 py-0.5 bg-emerald-400/25 text-emerald-300 border border-emerald-400/40 rounded-full text-[9px] font-bold shrink-0">Active</span>
-                          </div>
-                          <p className="text-[11px] text-blue-100/90 truncate">Konse tick: Blue Verified Badge (30 Din Validity)</p>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <span className="text-[11px] font-black text-amber-300 bg-black/25 px-2 py-0.5 rounded-md border border-amber-300/30">
-                          {daysLeft} Din bache
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Kab mila aur Kab hatega Timings */}
-                    <div className="grid grid-cols-2 gap-2 my-1 bg-black/25 p-2 rounded-xl border border-white/10 text-left">
-                      <div>
-                        <p className="text-[10px] text-blue-200 font-medium">Kab Mila (Issued):</p>
-                        <p className="text-[11px] font-bold text-white leading-tight">{formatFriendlyDate(approvedDate)}</p>
-                        <p className="text-[9px] text-blue-200/80">{formatFriendlyTime(approvedDate)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-amber-200 font-medium">Kab Hatega (Expiry):</p>
-                        <p className="text-[11px] font-bold text-amber-300 leading-tight">{formatFriendlyDate(expiryDate)}</p>
-                        <p className="text-[9px] text-amber-200/80">{formatFriendlyTime(expiryDate)}</p>
-                      </div>
-                    </div>
-
-                    {/* Daily Auto-Decrement Status Bar */}
-                    <div className="bg-black/25 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[11px] border border-white/15">
-                      <div className="flex items-center gap-1 text-white font-medium truncate">
-                        <span className="animate-pulse">⏳</span>
-                        <span>Khatam hone me: <b className="text-amber-300 font-bold">{daysLeft} din {hoursLeft}h {minutesLeft}m {secondsLeft}s</b> bache</span>
-                      </div>
-                      <span className="text-[9px] text-blue-200 shrink-0 font-medium">1 Mahine me auto-expire</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
-                    <div className="flex items-center justify-between gap-2 text-left">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 shrink-0">
-                          <BadgeCheck className="w-4 h-4 text-sky-200" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-[13px] text-white truncate">
-                            {verificationRequest?.status === 'pending'
-                              ? '⏳ Verification Request Pending'
-                              : isExpired
-                              ? '⚠️ Blue Tick Expired (30 Din pure)'
-                              : 'Get Official Blue Tick'}
-                          </p>
-                          <p className="text-[11px] text-blue-100/80 truncate">
-                            {verificationRequest?.status === 'pending'
-                              ? 'Request review mein hai, approve hote hi 30 din ka tick shuru hoga'
-                              : isExpired
-                              ? 'Aapka 1 mahine ka blue tick khatam ho gaya hai. Dobara request karein'
-                              : 'Request karein — 1 mahine automatic validity ke sath'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="bg-black/25 p-2 rounded-xl border border-white/10 flex items-center justify-between gap-2">
-                      <div className="text-[11px] text-blue-100 truncate text-left">
-                        <span className="font-semibold text-white">Tick Validity:</span> 1 Mahina (30 Din Auto-Countdown)
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSection('verification')}
-                        className="px-3 py-1 bg-white text-slate-900 rounded-lg text-xs font-bold shadow hover:bg-slate-100 active:scale-95 transition-all shrink-0 flex items-center gap-1 cursor-pointer"
-                      >
-                        <BadgeCheck className="w-3.5 h-3.5 text-pink-600" />
-                        <span>{verificationRequest?.status === 'pending' ? 'View Status' : isExpired ? 'Renew Tick' : 'Request Tick'}</span>
-                      </button>
-                    </div>
-                  </div>
-                )
-              )}
-
-              {/* PHASE 2: Official Indian Social Media & New Delhi Government Site */}
-              {cardPhase === 'welcome_gov' && (
-                <div className="flex-1 px-3.5 py-2.5 flex items-center justify-between gap-3 text-white relative overflow-hidden backdrop-blur-[2px]">
-                  {/* Subtle Tricolor Ambient Light */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-orange-500/15 via-white/10 to-emerald-500/15 pointer-events-none" />
-
-                  {/* LEFT SIDE: National Seal & Official Badge */}
-                  <div className="flex flex-col items-center justify-center shrink-0 w-20 text-center">
-                    <div className="w-13 h-13 rounded-2xl bg-black/30 backdrop-blur-md border border-white/25 flex items-center justify-center shadow-md mb-1">
-                      <span className="text-2xl">🇮🇳</span>
-                    </div>
-                    <span className="text-[9px] font-extrabold text-amber-200 uppercase tracking-wider">Official</span>
-                  </div>
-
-                  {/* RIGHT SIDE: Text Description */}
-                  <div className="flex-1 min-w-0 text-left flex flex-col justify-center gap-0.5">
-                    <div className="inline-flex items-center gap-1 self-start px-2 py-0.5 rounded-full bg-black/30 border border-white/20 text-[9px] font-bold text-amber-200 shadow-xs">
-                      <Sparkles className="w-2.5 h-2.5 text-amber-300" />
-                      <span>Certified Platform</span>
-                    </div>
-
-                    <h3 className="text-[14px] sm:text-[15px] font-black text-white drop-shadow-md tracking-tight leading-tight truncate">
-                      Welcome back pixelgram
-                    </h3>
-
-                    <p className="text-[11px] font-semibold text-emerald-200 leading-tight">
-                      Indian social media and new delhi government site
-                    </p>
-
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-white/80 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-                      <span className="truncate">Digital India • Safe &amp; Trusted Community</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* PHASE 3: User Avatar & Name on LEFT, Enjoy Text on RIGHT (Same Compact Size) */}
-              {cardPhase === 'user_greeting' && (
-                <div className="flex-1 px-3.5 py-2.5 flex items-center justify-between gap-3.5 text-white relative overflow-hidden backdrop-blur-[2px]">
-                  {/* LEFT SIDE: Profile Photo & Username */}
-                  <div className="flex flex-col items-center justify-center shrink-0 w-20 text-center">
-                    <div className="relative mb-1">
-                      <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-amber-300 via-pink-400 to-cyan-300 shadow-md shadow-pink-500/20">
-                        <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 flex items-center justify-center">
-                          {profile?.avatar_url ? (
-                            <img
-                              src={profile.avatar_url}
-                              alt={profile.username || 'user'}
-                              className="w-full h-full object-cover rounded-full"
-                            />
-                          ) : (
-                            <svg className="w-full h-full" viewBox="0 0 32 32">
-                              <circle cx="16" cy="16" r="16" fill="#fff" />
-                              <circle cx="16" cy="12" r="5" fill="#2563eb" />
-                              <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
-                            </svg>
-                          )}
-                        </div>
-                      </div>
-                      {profile?.is_verified && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-white flex items-center justify-center shadow">
-                          <BadgeCheck className="w-3.5 h-3.5 text-sky-500 fill-sky-500" stroke="#fff" />
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-[10px] font-bold text-white truncate max-w-[80px] drop-shadow-sm inline-flex items-center justify-center gap-0.5">
-                      <span>@{profile?.username || 'user'}</span>
-                      {isVerifiedActive && (
-                        <BadgeCheck className="w-3 h-3 text-sky-300 fill-sky-400 shrink-0" stroke="#fff" />
-                      )}
-                    </span>
-                  </div>
-
-                  {/* RIGHT SIDE: Enjoy Greeting & Text */}
-                  <div className="flex-1 min-w-0 text-left flex flex-col justify-center gap-0.5">
-                    <div className="inline-flex items-center gap-1 self-start px-2 py-0.5 rounded-full bg-black/30 border border-white/20 text-[9px] text-amber-200 font-semibold shadow-xs">
-                      <Sparkles className="w-2.5 h-2.5 text-amber-300" />
-                      <span>Special Member Access</span>
-                    </div>
-
-                    <h3 className="text-[14px] sm:text-[15px] font-black text-white drop-shadow-md tracking-tight leading-tight truncate">
-                      Enjoy @{profile?.username || 'user'} ✨
-                    </h3>
-
-                    <p className="text-[11px] text-white/90 font-medium leading-tight">
-                      Pixelgram par aapka swagat hai • Have fun &amp; enjoy your time!
-                    </p>
-
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-emerald-300 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
-                      <span className="truncate">VIP Experience Active</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-
           </div>
         </div>
 
-        {/* Menu items */}
-        {[
-          { icon: AtSign, label: 'Account Center', desc: 'Email aur phone number add/manage karein', onClick: () => navigate('/settings/account-center'), danger: false },
-          { icon: Globe, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language'), danger: false },
-          { icon: KeyRound, label: 'Access Token', desc: '30 din ka token, devices aur logout manage karein', onClick: () => navigate('/settings/access-token'), danger: false },
-          { icon: HelpCircle, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help'), danger: false },
-          { icon: Flag, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report'), danger: false },
-          {
-            customIcon: <InstagramIcon size={26} />,
-            label: 'Owner contact',
-            desc: 'Click on join pixelgram owner connect',
-            href: 'https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==',
-            badge: 'Instagram',
-            danger: false,
-          },
-          { icon: Shield, label: 'Privacy', desc: 'Manage your privacy settings', onClick: () => navigate('/edit-profile'), danger: false },
-        ].map((item: any) => {
-          if (item.href) {
-            return (
-              <a
-                key={item.label}
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors group cursor-pointer border border-pink-500/20"
-              >
-                {item.customIcon}
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">{item.label}</p>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-pink-500/15 via-rose-500/15 to-amber-500/15 text-pink-600 dark:text-pink-400 border border-pink-500/20">
-                      {item.badge}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
-              </a>
-            );
-          }
-          const { icon: Icon, label, desc, onClick, danger } = item;
-          return (
-            <button key={label} onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors">
-              <Icon className={`w-5 h-5 shrink-0 ${danger ? 'text-destructive' : 'text-primary'}`} />
-              <div className="flex-1 min-w-0 text-left">
-                <p className={`text-sm font-medium ${danger ? 'text-destructive' : 'text-foreground'}`}>{label}</p>
-                <p className="text-xs text-muted-foreground">{desc}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+        {/* 2. Switch Account Card with Spinning Cyan-Emerald Ring */}
+        <div className="setsm-card" style={{ borderColor: 'rgba(34,211,160,.35)' }}>
+          <div className="setsm-pfr">
+            <button
+              type="button"
+              className="setsm-main"
+              onClick={() => setSwxOpen(!swxOpen)}
+            >
+              <span className="sw-ring">
+                <span>{I('users')}</span>
+              </span>
+              <span className="setsm-tx">
+                <b className="setsm-grt">Switch account</b>
+                <small>Tap to switch or add another account</small>
+              </span>
             </button>
-          );
-        })}
-
-        {/* Admin Panel — only visible for admin users */}
-        {profile?.is_admin && (
-          <button
-            onClick={() => navigate('/admin')}
-            className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-primary/10 transition-colors border border-primary/40"
-          >
-            <LayoutDashboard className="w-5 h-5 shrink-0 text-primary" />
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-medium text-primary">Admin Panel</p>
-              <p className="text-xs text-muted-foreground">Manage the platform</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-primary shrink-0" />
-          </button>
-        )}
-
-        {/* Logout */}
-        <button onClick={signOut} className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors">
-          <LogOut className="w-5 h-5 shrink-0 text-destructive" />
-          <div className="flex-1 text-left">
-            <p className="text-sm font-medium text-destructive">Sign Out</p>
+            <button
+              type="button"
+              className={`setsm-chv ${swxOpen ? 'open' : ''}`}
+              onClick={() => setSwxOpen(!swxOpen)}
+              aria-label="Expand accounts"
+            >
+              {I('chd')}
+            </button>
           </div>
+          <div className={`setsm-acc ${swxOpen ? 'open' : ''}`}>
+            <div>
+              <div className="p-3 pt-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSwitchModal(true)}
+                  className="w-full py-2.5 px-3 rounded-2xl bg-[var(--acc)]/10 text-[var(--acc)] font-bold text-sm flex items-center justify-center gap-2 border border-[var(--line)]"
+                >
+                  <Plus className="w-4 h-4" /> Open Switch Account Modal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Dark Mode Toggle Card */}
+        <button
+          type="button"
+          className="setsm-card setsm-row"
+          onClick={toggleTheme}
+        >
+          <span className="setsm-ti">{I('sun')}</span>
+          <span className="setsm-tx">
+            <b>Dark Mode</b>
+            <small>{darkMode ? 'Dark theme active' : 'Light theme active'}</small>
+          </span>
+          <span className={`setsm-tg ${darkMode ? 'on' : ''}`}>
+            <i>
+              <svg className="su" viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: P.sun }} />
+              <svg className="mo" viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: P.moon }} />
+            </i>
+          </span>
         </button>
 
-        {/* Delete account */}
+        {/* 4. Verification Box – User's Exact Design */}
+        <div className="vb">
+          <div className="vi">
+            <div className="vh">
+              <span>Pixelgram</span>
+              <span>{profile?.username || 'ar_pixelgram'}</span>
+              <span className="chk">{I('badge')}Verification</span>
+              <span className="vav">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <LogoSvg />
+                )}
+              </span>
+            </div>
+            <div className="vbody">
+              <span className="vic">{I('shieldck')}</span>
+              <div className="vt">
+                <b>⚠️ Blue Tick Expired (30 Din pure)</b>
+                <p>Aapka 1 mahine ka blue tick khatam ho gaya hai. Dobara blue tick pane ke liye Renew Tick par tap karein.</p>
+              </div>
+            </div>
+            <div className="vbar">
+              <span><b>Tick Validity:</b> 1 Mahina (30 Din pure)</span>
+              <button
+                type="button"
+                className="renew"
+                onClick={() => setSection('verification')}
+              >
+                {I('badge')} Renew Tick
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. Account Center */}
+        <button
+          type="button"
+          className="setsm-card setsm-row"
+          onClick={() => navigate('/settings/account-center')}
+        >
+          <span className="setsm-ti">{I('at')}</span>
+          <span className="setsm-tx">
+            <b>Account Center</b>
+            <small>Email aur phone number add/manage karein</small>
+          </span>
+          <span className="setsm-cv">{I('chr')}</span>
+        </button>
+
+        {/* 6. Language */}
+        <button
+          type="button"
+          className="setsm-card setsm-row"
+          onClick={() => navigate('/settings/language')}
+        >
+          <span className="setsm-ti">{I('globe')}</span>
+          <span className="setsm-tx">
+            <b>Language</b>
+            <small>App ki bhasha chunein / Select your language</small>
+          </span>
+          <span className="setsm-cv">{I('chr')}</span>
+        </button>
+
+        {/* 7. Access Token */}
+        <button
+          type="button"
+          className="setsm-card setsm-row"
+          onClick={() => navigate('/settings/access-token')}
+        >
+          <span className="setsm-ti">{I('key')}</span>
+          <span className="setsm-tx">
+            <b>Access Token</b>
+            <small>30 din ka token, devices aur logout manage karein</small>
+          </span>
+          <span className="setsm-cv">{I('chr')}</span>
+        </button>
+
+        {/* 8. Help Center */}
+        <button
+          type="button"
+          className="setsm-card setsm-row"
+          onClick={() => setSection('help')}
+        >
+          <span className="setsm-ti">{I('help')}</span>
+          <span className="setsm-tx">
+            <b>Help Center</b>
+            <small>FAQs and support</small>
+          </span>
+          <span className="setsm-cv">{I('chr')}</span>
+        </button>
+
+        {/* 9. Report a Problem */}
+        <button
+          type="button"
+          className="setsm-card setsm-row"
+          onClick={() => setSection('report')}
+        >
+          <span className="setsm-ti">{I('flag')}</span>
+          <span className="setsm-tx">
+            <b>Report a Problem</b>
+            <small>Let us know what's wrong</small>
+          </span>
+          <span className="setsm-cv">{I('chr')}</span>
+        </button>
+
+        {/* 10. Owner contact */}
+        <a
+          className="setsm-card setsm-row setsm-own"
+          href="https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg=="
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span className="w-[52px] h-[52px] rounded-[16px] overflow-hidden shrink-0 shadow-md">
+            <InstagramSvg />
+          </span>
+          <span className="setsm-tx">
+            <b>
+              Owner contact
+              <span className="setsm-pill">Instagram</span>
+            </b>
+            <small>Click on join pixelgram owner connect</small>
+          </span>
+          <span className="setsm-cv">{I('chr')}</span>
+        </a>
+
+        {/* 11. Privacy */}
+        <button
+          type="button"
+          className="setsm-card setsm-row"
+          onClick={() => navigate('/edit-profile')}
+        >
+          <span className="setsm-ti">{I('shield')}</span>
+          <span className="setsm-tx">
+            <b>Privacy</b>
+            <small>Manage your privacy settings</small>
+          </span>
+          <span className="setsm-cv">{I('chr')}</span>
+        </button>
+
+        {/* 12. Sign Out */}
+        <button
+          type="button"
+          className="setsm-card setsm-row setsm-dg"
+          onClick={signOut}
+        >
+          <span className="setsm-ti">{I('logout')}</span>
+          <span className="setsm-tx">
+            <b>Sign Out</b>
+          </span>
+        </button>
+
+        {/* 13. Delete Account */}
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <button className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-destructive/5 transition-colors">
-              <Trash2 className="w-5 h-5 shrink-0 text-destructive" />
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-destructive">Delete Account</p>
-                <p className="text-xs text-muted-foreground">This action is permanent</p>
-              </div>
+            <button
+              type="button"
+              className="setsm-card setsm-row setsm-dg"
+            >
+              <span className="setsm-ti">{I('trash')}</span>
+              <span className="setsm-tx">
+                <b>Delete Account</b>
+                <small>This action is permanent</small>
+              </span>
             </button>
           </AlertDialogTrigger>
-          <AlertDialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
+          <AlertDialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg rounded-3xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Account?</AlertDialogTitle>
               <AlertDialogDescription>
@@ -667,14 +494,16 @@ const SettingsPage: React.FC = () => {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <AlertDialogCancel className="rounded-2xl">Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-2xl">
                 Delete Account
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
       </div>
+
       <FacebookSwitchAccountModal
         isOpen={showSwitchModal}
         onClose={() => setShowSwitchModal(false)}
