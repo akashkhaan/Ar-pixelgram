@@ -1,7 +1,6 @@
 import FacebookSwitchAccountModal from '@/components/profile/FacebookSwitchAccountModal';
-import { logInToAnotherAccount } from '@/lib/savedAccounts';
 import InstagramIcon from "@/components/icons/InstagramIcon";
-import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Users, Globe, HelpCircle, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2, Check, Plus } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Loader2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -42,20 +41,29 @@ const P = {
 };
 
 const I = (name: keyof typeof P) => (
-  <svg viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: P[name] }} />
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ fill: 'none', stroke: 'currentColor', strokeWidth: 2 }}
+    dangerouslySetInnerHTML={{ __html: P[name] }}
+  />
 );
 
 const LogoSvg = () => (
-  <svg viewBox="0 0 120 120">
+  <svg viewBox="0 0 120 120" style={{ fill: 'none' }}>
     <defs>
-      <linearGradient id="l_grad" x1="0" y1="0" x2="1" y2="1">
+      <linearGradient id="l_grad_repo" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stopColor="#FF3D7F" />
         <stop offset="0.55" stopColor="#FF8A00" />
         <stop offset="1" stopColor="#7C5CFF" />
       </linearGradient>
     </defs>
     <rect width="120" height="120" fill="#0B0616" />
-    <text x="60" y="70" textAnchor="middle" fontSize="50" fontWeight="800" fill="url(#l_grad)" letterSpacing="-2" fontFamily="inherit">
+    <text x="60" y="70" textAnchor="middle" fontSize="50" fontWeight="800" fill="url(#l_grad_repo)" letterSpacing="-2" fontFamily="inherit">
       AR
     </text>
     <text x="60" y="92" textAnchor="middle" fontSize="9" letterSpacing="2" fontWeight="700" fill="#e9d5ff" fontFamily="inherit">
@@ -65,16 +73,16 @@ const LogoSvg = () => (
 );
 
 const InstagramSvg = () => (
-  <svg viewBox="0 0 48 48">
+  <svg viewBox="0 0 48 48" style={{ fill: 'none' }}>
     <defs>
-      <linearGradient id="ig_grad" x1="0" y1="1" x2="1" y2="0">
+      <linearGradient id="ig_grad_repo" x1="0" y1="1" x2="1" y2="0">
         <stop offset="0" stopColor="#FEDA75" />
         <stop offset="0.3" stopColor="#FA7E1E" />
         <stop offset="0.6" stopColor="#D62976" />
         <stop offset="1" stopColor="#4F5BD5" />
       </linearGradient>
     </defs>
-    <rect width="48" height="48" fill="url(#ig_grad)" />
+    <rect width="48" height="48" fill="url(#ig_grad_repo)" />
     <rect x="12" y="12" width="24" height="24" rx="7" fill="none" stroke="#fff" strokeWidth="3" />
     <circle cx="24" cy="24" r="6" fill="none" stroke="#fff" strokeWidth="3" />
     <circle cx="31.5" cy="16.5" r="1.8" fill="#fff" stroke="none" />
@@ -137,7 +145,7 @@ const SettingsPage: React.FC = () => {
   if (section === 'help') {
     return (
       <MobileLayout hideNav>
-        <div className="p-4 page-transition setsm-wrap">
+        <div className="p-4 page-transition wrap">
           <button onClick={() => setSection('main')} className="flex items-center gap-2 mb-5 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
           </button>
@@ -149,7 +157,7 @@ const SettingsPage: React.FC = () => {
               { q: 'Token aur devices kaise manage karein?', a: 'Access Token mein sab logged-in devices dikhte hain. Kisi bhi device ko wahin se logout kar sakte hain.' },
               { q: 'Kisi ko report kaise karein?', a: 'Uske profile ya chat ke 3-dot menu mein Report user chunein.' },
             ].map(({ q, a }) => (
-              <div key={q} className="setsm-card p-4 space-y-1">
+              <div key={q} className="card p-4 space-y-1">
                 <p className="font-semibold text-sm text-foreground">{q}</p>
                 <p className="text-sm text-muted-foreground text-pretty">{a}</p>
               </div>
@@ -175,7 +183,7 @@ const SettingsPage: React.FC = () => {
   if (section === 'verification') {
     return (
       <MobileLayout hideNav>
-        <div className="p-4 page-transition setsm-wrap">
+        <div className="p-4 page-transition wrap">
           <button onClick={() => setSection('main')} className="flex items-center gap-2 mb-5 text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
           </button>
@@ -204,56 +212,56 @@ const SettingsPage: React.FC = () => {
     );
   }
 
-  // Main settings: USER'S EXACT SETSM LAYOUT & CLASSES
+  // Exact UI matching user's HTML specification
   return (
     <MobileLayout>
-      <div className="p-4 page-transition setsm-wrap space-y-3.5 pb-24">
+      <div className="setsm-root wrap pb-28">
         
         {/* Title Header */}
-        <div className="flex items-center gap-3.5 py-3">
+        <div className="ttl">
           <button
             type="button"
+            className="back"
             onClick={handleBack}
-            className="w-11 h-11 rounded-[15px] bg-[var(--card)] border border-[var(--line)] grid place-items-center cursor-pointer"
             aria-label="Back"
           >
             {I('back')}
           </button>
-          <h1 className="text-[34px] font-[800] tracking-tight text-[var(--ink)]">Settings</h1>
+          <h1 className="setsm-h1">Settings</h1>
         </div>
 
-        {/* 1. Profile Card with Collapsible Details */}
-        <div className="setsm-card">
-          <div className="setsm-pfr">
+        {/* 1. Profile Card with Expandable Details */}
+        <div className="card">
+          <div className="pfr">
             <button
               type="button"
-              className="setsm-main"
+              className="main"
               onClick={() => navigate('/profile')}
             >
-              <span className="setsm-avt">
+              <span className="avt">
                 {profile?.avatar_url ? (
                   <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <LogoSvg />
                 )}
               </span>
-              <span className="setsm-tx">
+              <span className="tx">
                 <b>{profile?.full_name || profile?.username || 'Ar pixelgram'}</b>
                 <small>View your profile</small>
               </span>
             </button>
             <button
               type="button"
-              className={`setsm-chv ${pfxOpen ? 'open' : ''}`}
+              className={`chv ${pfxOpen ? 'open' : ''}`}
               onClick={() => setPfxOpen(!pfxOpen)}
               aria-label="Expand profile"
             >
               {I('chd')}
             </button>
           </div>
-          <div className={`setsm-acc ${pfxOpen ? 'open' : ''}`}>
+          <div className={`acc ${pfxOpen ? 'open' : ''}`}>
             <div>
-              <div className="setsm-chips">
+              <div className="chips">
                 <span>@{profile?.username || 'ar_pixelgram'}</span>
                 <span className="warn">Blue tick: Expired</span>
                 <span>Account: <b>Public</b></span>
@@ -263,39 +271,56 @@ const SettingsPage: React.FC = () => {
         </div>
 
         {/* 2. Switch Account Card with Spinning Cyan-Emerald Ring */}
-        <div className="setsm-card" style={{ borderColor: 'rgba(34,211,160,.35)' }}>
-          <div className="setsm-pfr">
+        <div className="card" style={{ borderColor: 'rgba(34,211,160,.35)' }}>
+          <div className="pfr">
             <button
               type="button"
-              className="setsm-main"
+              className="main"
               onClick={() => setSwxOpen(!swxOpen)}
             >
               <span className="sw-ring">
                 <span>{I('users')}</span>
               </span>
-              <span className="setsm-tx">
-                <b className="setsm-grt">Switch account</b>
+              <span className="tx">
+                <b className="grt">Switch account</b>
                 <small>Tap to switch or add another account</small>
               </span>
             </button>
             <button
               type="button"
-              className={`setsm-chv ${swxOpen ? 'open' : ''}`}
+              className={`chv ${swxOpen ? 'open' : ''}`}
               onClick={() => setSwxOpen(!swxOpen)}
               aria-label="Expand accounts"
             >
               {I('chd')}
             </button>
           </div>
-          <div className={`setsm-acc ${swxOpen ? 'open' : ''}`}>
+          <div className={`acc ${swxOpen ? 'open' : ''}`}>
             <div>
-              <div className="p-3 pt-0">
+              <div className="accl">
                 <button
                   type="button"
+                  className="ai on"
                   onClick={() => setShowSwitchModal(true)}
-                  className="w-full py-2.5 px-3 rounded-2xl bg-[var(--acc)]/10 text-[var(--acc)] font-bold text-sm flex items-center justify-center gap-2 border border-[var(--line)]"
                 >
-                  <Plus className="w-4 h-4" /> Open Switch Account Modal
+                  <span className="avt">
+                    {profile?.avatar_url ? (
+                      <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <LogoSvg />
+                    )}
+                  </span>
+                  <span className="tx">
+                    <b>{profile?.full_name || profile?.username || 'Ar pixelgram'}</b>
+                    <small>@{profile?.username || 'ar_pixelgram'} · Active</small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="ai add"
+                  onClick={() => setShowSwitchModal(true)}
+                >
+                  {I('users')} Switch or Add account
                 </button>
               </div>
             </div>
@@ -305,18 +330,36 @@ const SettingsPage: React.FC = () => {
         {/* 3. Dark Mode Toggle Card */}
         <button
           type="button"
-          className="setsm-card setsm-row"
+          className="card row"
           onClick={toggleTheme}
         >
-          <span className="setsm-ti">{I('sun')}</span>
-          <span className="setsm-tx">
+          <span className="ti">{I('sun')}</span>
+          <span className="tx">
             <b>Dark Mode</b>
-            <small>{darkMode ? 'Dark theme active' : 'Light theme active'}</small>
+            <small id="dsub">{darkMode ? 'Dark theme active' : 'Light theme active'}</small>
           </span>
-          <span className={`setsm-tg ${darkMode ? 'on' : ''}`}>
+          <span className={`tg ${darkMode ? 'on' : ''}`} id="dtg">
             <i>
-              <svg className="su" viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: P.sun }} />
-              <svg className="mo" viewBox="0 0 24 24" dangerouslySetInnerHTML={{ __html: P.moon }} />
+              <svg
+                className="su"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                dangerouslySetInnerHTML={{ __html: P.sun }}
+              />
+              <svg
+                className="mo"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                dangerouslySetInnerHTML={{ __html: P.moon }}
+              />
             </i>
           </span>
         </button>
@@ -359,115 +402,115 @@ const SettingsPage: React.FC = () => {
         {/* 5. Account Center */}
         <button
           type="button"
-          className="setsm-card setsm-row"
+          className="card row"
           onClick={() => navigate('/settings/account-center')}
         >
-          <span className="setsm-ti">{I('at')}</span>
-          <span className="setsm-tx">
+          <span className="ti">{I('at')}</span>
+          <span className="tx">
             <b>Account Center</b>
             <small>Email aur phone number add/manage karein</small>
           </span>
-          <span className="setsm-cv">{I('chr')}</span>
+          <span className="cv">{I('chr')}</span>
         </button>
 
         {/* 6. Language */}
         <button
           type="button"
-          className="setsm-card setsm-row"
+          className="card row"
           onClick={() => navigate('/settings/language')}
         >
-          <span className="setsm-ti">{I('globe')}</span>
-          <span className="setsm-tx">
+          <span className="ti">{I('globe')}</span>
+          <span className="tx">
             <b>Language</b>
             <small>App ki bhasha chunein / Select your language</small>
           </span>
-          <span className="setsm-cv">{I('chr')}</span>
+          <span className="cv">{I('chr')}</span>
         </button>
 
         {/* 7. Access Token */}
         <button
           type="button"
-          className="setsm-card setsm-row"
+          className="card row"
           onClick={() => navigate('/settings/access-token')}
         >
-          <span className="setsm-ti">{I('key')}</span>
-          <span className="setsm-tx">
+          <span className="ti">{I('key')}</span>
+          <span className="tx">
             <b>Access Token</b>
             <small>30 din ka token, devices aur logout manage karein</small>
           </span>
-          <span className="setsm-cv">{I('chr')}</span>
+          <span className="cv">{I('chr')}</span>
         </button>
 
         {/* 8. Help Center */}
         <button
           type="button"
-          className="setsm-card setsm-row"
+          className="card row"
           onClick={() => setSection('help')}
         >
-          <span className="setsm-ti">{I('help')}</span>
-          <span className="setsm-tx">
+          <span className="ti">{I('help')}</span>
+          <span className="tx">
             <b>Help Center</b>
             <small>FAQs and support</small>
           </span>
-          <span className="setsm-cv">{I('chr')}</span>
+          <span className="cv">{I('chr')}</span>
         </button>
 
         {/* 9. Report a Problem */}
         <button
           type="button"
-          className="setsm-card setsm-row"
+          className="card row"
           onClick={() => setSection('report')}
         >
-          <span className="setsm-ti">{I('flag')}</span>
-          <span className="setsm-tx">
+          <span className="ti">{I('flag')}</span>
+          <span className="tx">
             <b>Report a Problem</b>
             <small>Let us know what's wrong</small>
           </span>
-          <span className="setsm-cv">{I('chr')}</span>
+          <span className="cv">{I('chr')}</span>
         </button>
 
         {/* 10. Owner contact */}
         <a
-          className="setsm-card setsm-row setsm-own"
+          className="card row own"
           href="https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg=="
           target="_blank"
           rel="noopener noreferrer"
         >
-          <span className="w-[52px] h-[52px] rounded-[16px] overflow-hidden shrink-0 shadow-md">
+          <span className="ig">
             <InstagramSvg />
           </span>
-          <span className="setsm-tx">
+          <span className="tx">
             <b>
               Owner contact
-              <span className="setsm-pill">Instagram</span>
+              <span className="pill">Instagram</span>
             </b>
             <small>Click on join pixelgram owner connect</small>
           </span>
-          <span className="setsm-cv">{I('chr')}</span>
+          <span className="cv">{I('chr')}</span>
         </a>
 
         {/* 11. Privacy */}
         <button
           type="button"
-          className="setsm-card setsm-row"
+          className="card row"
           onClick={() => navigate('/edit-profile')}
         >
-          <span className="setsm-ti">{I('shield')}</span>
-          <span className="setsm-tx">
+          <span className="ti">{I('shield')}</span>
+          <span className="tx">
             <b>Privacy</b>
             <small>Manage your privacy settings</small>
           </span>
-          <span className="setsm-cv">{I('chr')}</span>
+          <span className="cv">{I('chr')}</span>
         </button>
 
         {/* 12. Sign Out */}
         <button
           type="button"
-          className="setsm-card setsm-row setsm-dg"
+          className="card row dg"
           onClick={signOut}
         >
-          <span className="setsm-ti">{I('logout')}</span>
-          <span className="setsm-tx">
+          <span className="ti">{I('logout')}</span>
+          <span className="tx">
             <b>Sign Out</b>
           </span>
         </button>
@@ -477,10 +520,10 @@ const SettingsPage: React.FC = () => {
           <AlertDialogTrigger asChild>
             <button
               type="button"
-              className="setsm-card setsm-row setsm-dg"
+              className="card row dg"
             >
-              <span className="setsm-ti">{I('trash')}</span>
-              <span className="setsm-tx">
+              <span className="ti">{I('trash')}</span>
+              <span className="tx">
                 <b>Delete Account</b>
                 <small>This action is permanent</small>
               </span>

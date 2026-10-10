@@ -2944,3 +2944,22 @@ button.setsm-card:active {
   border: 1px solid rgba(214, 41, 118, 0.3);
   vertical-align: 2px;
 }
+
+/* CRITICAL FIX: Ensure all SETSM icons have fill none and visible stroke */
+.setsm-root svg:not([data-nofix="true"]),
+.setsm-root .ti svg,
+.setsm-root .cv svg,
+.setsm-root .back svg,
+.setsm-root .chv svg {
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 2 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+.setsm-h1 {
+  font-size: 34px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.04em !important;
+}
