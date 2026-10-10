@@ -1,5 +1,5 @@
 import FacebookSwitchAccountModal from '@/components/profile/FacebookSwitchAccountModal';
-import { ArrowLeft, BadgeCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Loader2, Sparkles } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -520,6 +520,94 @@ const SettingsPage: React.FC = () => {
     if (user) getMyVerificationRequest(user.id).then(setVerificationRequest);
   }, [user]);
 
+  const [now, setNow] = useState(Date.now());
+
+  // Live timer for real-time countdown
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 30-day (1 month) verification timeline & auto-expiry calculations
+  const approvedAtRaw = verificationRequest?.reviewed_at || (profile?.is_verified ? (profile?.created_at || "2026-10-02T10:00:00Z") : null);
+  const approvedDate = approvedAtRaw ? new Date(approvedAtRaw) : new Date();
+  // 30 days = 1 month validity
+  const expiryDate = new Date(approvedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const diffMs = expiryDate.getTime() - now;
+  const isExpired = approvedAtRaw ? diffMs <= 0 : false;
+  const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  const hoursLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
+  const minutesLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
+  const secondsLeft = Math.max(0, Math.floor((diffMs % (1000 * 60)) / 1000));
+  const isVerifiedActive = Boolean((profile?.is_verified || verificationRequest?.status === "approved") && !isExpired);
+
+  // 3-Phase Ghost Vanish rotating card:
+  // Box 30s ke baad bhoot ki tarah gayab hoga, fir 2nd box aayega (6s), fir 3rd box (6s), fir wapas 1st box
+  type CardPhase = "main_box" | "welcome_gov" | "user_greeting";
+  const [cardPhase, setCardPhase] = useState<CardPhase>("main_box");
+  const [ghostState, setGhostState] = useState<"visible" | "vanishing" | "appearing">("visible");
+
+  useEffect(() => {
+    let timer: any;
+    if (cardPhase === "main_box") {
+      // 30 seconds tak rahega, fir bhoot ki tarah gayab hoga
+      timer = setTimeout(() => {
+        setGhostState("vanishing");
+        setTimeout(() => {
+          setCardPhase("welcome_gov");
+          setGhostState("appearing");
+          setTimeout(() => setGhostState("visible"), 650);
+        }, 700);
+      }, 30000);
+    } else if (cardPhase === "welcome_gov") {
+      // 6 seconds tak welcome gov box rahega, fir gayab
+      timer = setTimeout(() => {
+        setGhostState("vanishing");
+        setTimeout(() => {
+          setCardPhase("user_greeting");
+          setGhostState("appearing");
+          setTimeout(() => setGhostState("visible"), 650);
+        }, 700);
+      }, 6000);
+    } else if (cardPhase === "user_greeting") {
+      // 6 seconds tak user profile + Enjoy username rahega, fir gayab
+      timer = setTimeout(() => {
+        setGhostState("vanishing");
+        setTimeout(() => {
+          setCardPhase("main_box");
+          setGhostState("appearing");
+          setTimeout(() => setGhostState("visible"), 650);
+        }, 700);
+      }, 6000);
+    }
+    return () => clearTimeout(timer);
+  }, [cardPhase]);
+
+  // Auto-expire tick after 1 month (gayab ho jaye)
+  useEffect(() => {
+    if (profile?.is_verified && isExpired && user) {
+      import("@/services/api").then(({ supabase }) => {
+        supabase.from("profiles").update({ is_verified: false }).eq("user_id", user.id);
+      }).catch(console.error);
+    }
+  }, [profile?.is_verified, isExpired, user]);
+
+  const formatFriendlyDate = (d: Date) => {
+    try {
+      return d.toLocaleDateString("hi-IN", { day: "numeric", month: "long", year: "numeric" });
+    } catch {
+      return d.toLocaleDateString();
+    }
+  };
+
+  const formatFriendlyTime = (d: Date) => {
+    try {
+      return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+    } catch {
+      return d.toLocaleTimeString();
+    }
+  };
+
   const toggleTheme = () => {
     const val = !darkMode;
     setDarkMode(val);
@@ -727,35 +815,222 @@ const SettingsPage: React.FC = () => {
         </button>
 
         {/* 4. Verification Box */}
-        <div className="vb">
-          <div className="vi">
-            <div className="vh">
-              <span>Pixelgram</span>
-              <span>{profile?.username || 'ar_pixelgram'}</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                {I('badge')} Verification
+        {/* 4. Verification Box (Original 3-Phase Ghost Vanish Automatic Rotating Box) */}
+        <div className="frame" style={{ margin: "14px 0" }}>
+          <div className={`dash relative overflow-hidden h-[185px] min-h-[185px] max-h-[185px] flex flex-col justify-between ${ghostState === "vanishing" ? "ghost-disappear" : ghostState === "appearing" ? "ghost-appear" : ""}`}>
+            {/* Top Bar with Dynamic Avatar & Verification Button */}
+            <div className="bar">
+              <b>Pixelgram</b>
+              <span className="inline-flex items-center gap-1">
+                <span>{profile?.username || "username"}</span>
+                {isVerifiedActive && (
+                  <BadgeCheck className="w-3.5 h-3.5 text-sky-300 fill-sky-400 shrink-0" stroke="#fff" />
+                )}
               </span>
-              <span style={{ marginLeft: 'auto', width: 22, height: 22, borderRadius: '50%', overflow: 'hidden' }}>
-                <LogoSvg />
-              </span>
-            </div>
-            <div className="vbody">
-              <span className="vic">{I('shieldck')}</span>
-              <div className="vt">
-                <b>⚠️ Blue Tick Expired (30 Din pure)</b>
-                <p>Aapka 1 mahine ka blue tick khatam ho gaya hai. Dobara blue tick pane ke liye Renew Tick par tap karein.</p>
-              </div>
-            </div>
-            <div className="vbar">
-              <span><b>Tick Validity:</b> 1 Mahina (30 Din pure)</span>
               <button
                 type="button"
-                className="renew"
-                onClick={() => setSection('verification')}
+                onClick={() => setSection("verification")}
+                className="flex items-center gap-1 text-white hover:text-sky-200 active:scale-95 transition-all font-medium cursor-pointer shrink-0"
+                title="Verification Status"
               >
-                {I('badge')} Renew Tick
+                <BadgeCheck className="w-3.5 h-3.5 text-sky-300" />
+                <span>Verification</span>
               </button>
+              <div className="flex items-center shrink-0">
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Profile"
+                    className="avatar rounded-full object-cover shrink-0 ring-1 ring-white/60"
+                  />
+                ) : (
+                  <svg className="avatar" viewBox="0 0 32 32" aria-label="profile">
+                    <circle cx="16" cy="16" r="16" fill="#fff" />
+                    <circle cx="16" cy="12" r="5" fill="#2563eb" />
+                    <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
+                  </svg>
+                )}
+              </div>
             </div>
+
+            {/* Phase Content */}
+            {cardPhase === "main_box" && (
+              isVerifiedActive ? (
+                <div className="flex-1 p-2.5 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
+                  {/* Status Banner */}
+                  <div className="flex items-center justify-between gap-2 text-left">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-emerald-500/30 flex items-center justify-center border border-emerald-400/50 shrink-0">
+                        <BadgeCheck className="w-4 h-4 text-emerald-300 fill-emerald-400" stroke="#fff" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-[13px] text-white truncate">Verified Account</p>
+                          <span className="text-[9px] font-semibold bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 rounded border border-emerald-400/40">Active</span>
+                        </div>
+                        <p className="text-[11px] text-blue-100/90 truncate">Konse tick: Blue Verified Badge (30 Din Validity)</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[11px] font-black text-amber-300 bg-black/25 px-2 py-0.5 rounded-md border border-amber-300/30">
+                        {daysLeft} Din bache
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Kab mila aur Kab hatega Timings */}
+                  <div className="grid grid-cols-2 gap-2 my-1 bg-black/25 p-2 rounded-xl border border-white/10 text-left">
+                    <div>
+                      <p className="text-[10px] text-blue-200 font-medium">Kab Mila (Issued):</p>
+                      <p className="text-[11px] font-bold text-white leading-tight">{formatFriendlyDate(approvedDate)}</p>
+                      <p className="text-[9px] text-blue-200/80">{formatFriendlyTime(approvedDate)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-amber-200 font-medium">Kab Hatega (Expiry):</p>
+                      <p className="text-[11px] font-bold text-amber-300 leading-tight">{formatFriendlyDate(expiryDate)}</p>
+                      <p className="text-[9px] text-amber-200/80">{formatFriendlyTime(expiryDate)}</p>
+                    </div>
+                  </div>
+
+                  {/* Daily Auto-Decrement Status Bar */}
+                  <div className="bg-black/25 rounded-lg px-2.5 py-1.5 flex items-center justify-between text-[11px] border border-white/15">
+                    <div className="flex items-center gap-1 text-white font-medium truncate">
+                      <span className="animate-pulse">⏳</span>
+                      <span>Khatam hone me: <b className="text-amber-300 font-bold">{daysLeft} din {hoursLeft}h {minutesLeft}m {secondsLeft}s</b> bache</span>
+                    </div>
+                    <span className="text-[9px] text-blue-200 shrink-0 font-medium">1 Mahine me auto-expire</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 p-3 flex flex-col justify-between text-white bg-transparent backdrop-blur-[2px]">
+                  <div className="flex items-center justify-between gap-2 text-left">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 shrink-0">
+                        <BadgeCheck className="w-4 h-4 text-sky-200" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-[13px] text-white truncate">
+                          {verificationRequest?.status === "pending"
+                            ? "⏳ Verification Request Pending"
+                            : isExpired
+                            ? "⚠️ Blue Tick Expired (30 Din pure)"
+                            : "Get Official Blue Tick"}
+                        </p>
+                        <p className="text-[11px] text-blue-100/80 truncate">
+                          {verificationRequest?.status === "pending"
+                            ? "Request review mein hai, approve hote hi 30 din ka tick shuru hoga"
+                            : isExpired
+                            ? "Aapka 1 mahine ka blue tick khatam ho gaya hai. Dobara request karein"
+                            : "Request karein — 1 mahine automatic validity ke sath"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-black/25 p-2 rounded-xl border border-white/10 flex items-center justify-between gap-2">
+                    <div className="text-[11px] text-blue-100 truncate text-left">
+                      <span className="font-semibold text-white">Tick Validity:</span> 1 Mahina (30 Din Auto-Countdown)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSection("verification")}
+                      className="px-3 py-1 bg-white text-slate-900 rounded-lg text-xs font-bold shadow hover:bg-slate-100 active:scale-95 transition-all shrink-0 flex items-center gap-1 cursor-pointer"
+                    >
+                      <BadgeCheck className="w-3.5 h-3.5 text-pink-600" />
+                      <span>{verificationRequest?.status === "pending" ? "View Status" : isExpired ? "Renew Tick" : "Request Tick"}</span>
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* PHASE 2: Official Indian Social Media & New Delhi Government Site */}
+            {cardPhase === "welcome_gov" && (
+              <div className="flex-1 px-3.5 py-2.5 flex items-center justify-between gap-3 text-white relative overflow-hidden backdrop-blur-[2px]">
+                {/* Subtle Tricolor Ambient Light */}
+                <div className="absolute inset-0 bg-gradient-to-r from-orange-500/15 via-white/10 to-emerald-500/15 pointer-events-none" />
+                {/* LEFT SIDE: National Seal & Official Badge */}
+                <div className="flex flex-col items-center justify-center shrink-0 w-20 text-center">
+                  <div className="w-13 h-13 rounded-2xl bg-black/30 backdrop-blur-md border border-white/25 flex items-center justify-center shadow-md mb-1">
+                    <span className="text-2xl">🇮🇳</span>
+                  </div>
+                  <span className="text-[9px] font-extrabold text-amber-200 uppercase tracking-wider">Official</span>
+                </div>
+                {/* RIGHT SIDE: Text Description */}
+                <div className="flex-1 min-w-0 text-left flex flex-col justify-center gap-0.5">
+                  <div className="inline-flex items-center gap-1 self-start px-2 py-0.5 rounded-full bg-black/30 border border-white/20 text-[9px] font-bold text-amber-200 shadow-xs">
+                    <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                    <span>Certified Platform</span>
+                  </div>
+                  <h3 className="text-[14px] sm:text-[15px] font-black text-white drop-shadow-md tracking-tight leading-tight truncate">
+                    Welcome back pixelgram
+                  </h3>
+                  <p className="text-[11px] font-semibold text-emerald-200 leading-tight">
+                    Indian social media and new delhi government site
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-white/80 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                    <span className="truncate">Digital India • Safe &amp; Trusted Community</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PHASE 3: User Avatar & Name on LEFT, Enjoy Text on RIGHT (Same Compact Size) */}
+            {cardPhase === "user_greeting" && (
+              <div className="flex-1 px-3.5 py-2.5 flex items-center justify-between gap-3.5 text-white relative overflow-hidden backdrop-blur-[2px]">
+                {/* LEFT SIDE: Profile Photo & Username */}
+                <div className="flex flex-col items-center justify-center shrink-0 w-20 text-center">
+                  <div className="relative mb-1">
+                    <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-amber-300 via-pink-400 to-cyan-300 shadow-md shadow-pink-500/20">
+                      <div className="w-full h-full rounded-full overflow-hidden bg-slate-900 flex items-center justify-center">
+                        {profile?.avatar_url ? (
+                          <img
+                            src={profile.avatar_url}
+                            alt={profile.username || "user"}
+                            className="w-full h-full object-cover rounded-full"
+                          />
+                        ) : (
+                          <svg className="w-full h-full" viewBox="0 0 32 32">
+                            <circle cx="16" cy="16" r="16" fill="#fff" />
+                            <circle cx="16" cy="12" r="5" fill="#2563eb" />
+                            <path d="M6 27c1.5-5.5 6-8 10-8s8.5 2.5 10 8a16 16 0 0 1-20 0z" fill="#2563eb" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    {profile?.is_verified && (
+                      <div className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-white flex items-center justify-center shadow">
+                        <BadgeCheck className="w-3.5 h-3.5 text-sky-500 fill-sky-500" stroke="#fff" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-bold text-white truncate max-w-[80px] drop-shadow-sm inline-flex items-center justify-center gap-0.5">
+                    <span>@{profile?.username || "user"}</span>
+                    {isVerifiedActive && (
+                      <BadgeCheck className="w-3 h-3 text-sky-300 fill-sky-400 shrink-0" stroke="#fff" />
+                    )}
+                  </span>
+                </div>
+                {/* RIGHT SIDE: Enjoy Greeting & Text */}
+                <div className="flex-1 min-w-0 text-left flex flex-col justify-center gap-0.5">
+                  <div className="inline-flex items-center gap-1 self-start px-2 py-0.5 rounded-full bg-black/30 border border-white/20 text-[9px] text-amber-200 font-semibold shadow-xs">
+                    <Sparkles className="w-2.5 h-2.5 text-amber-300" />
+                    <span>Special Member Access</span>
+                  </div>
+                  <h3 className="text-[14px] sm:text-[15px] font-black text-white drop-shadow-md tracking-tight leading-tight truncate">
+                    Enjoy @{profile?.username || "user"} ✨
+                  </h3>
+                  <p className="text-[11px] text-white/90 font-medium leading-tight">
+                    Pixelgram par aapka swagat hai • Have fun &amp; enjoy your time!
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-[9px] text-emerald-300 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                    <span className="truncate">VIP Experience Active</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
