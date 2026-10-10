@@ -1,0 +1,735 @@
+import React, { useEffect, useState, useRef } from 'react';
+import ChatWallpaperModal from './ChatWallpaperModal';
+import { HelloTuneSettings } from './HelloTuneSettings';
+import { useNavigate } from 'react-router-dom';
+import { Image as ImageIcon, Upload } from 'lucide-react';
+import {
+  ArrowLeft,
+  MoreVertical,
+  Phone,
+  Video,
+  User,
+  Bell,
+  BellOff,
+  ChevronRight,
+  Search,
+  ShieldOff,
+  Ban,
+  Flag,
+  Trash2,
+  Check,
+  X,
+  BadgeCheck,
+  Music2,
+} from 'lucide-react';
+import type { Profile } from '@/types/types';
+import { useAuth } from '@/contexts/AuthContext';
+import { getHelloTuneFromProfile, isHelloTuneActive, type HelloTuneRecord } from '@/services/helloTunes';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { MESSENGER_THEMES, POPULAR_EMOJIS } from './MessengerGroupSettings';
+import { toast } from 'sonner';
+
+const remainingDays = (expiresAt: string) =>
+  Math.max(0, Math.ceil((Date.parse(expiresAt) - Date.now()) / (24 * 60 * 60 * 1000)));
+
+interface MessengerDirectSettingsProps {
+  isOpen: boolean;
+  onClose: () => void;
+  profile: Profile | null;
+  statusText: string;
+  blocked: boolean;
+  onToggleBlock: () => void;
+  onStartCall: (kind: 'audio' | 'video') => void;
+  onStartSearch: () => void;
+  chatTheme: string;
+  onThemeChange: (theme: string) => void;
+  chatEmoji: string;
+  onEmojiChange: (emoji: string) => void;
+  nickname: string;
+  onNicknameChange: (nick: string) => void;
+  currentWallpaper?: string | null;
+  onWallpaperChange?: (url: string | null) => void;
+}
+
+export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = ({
+  isOpen,
+  onClose,
+  profile,
+  statusText,
+  blocked,
+  onToggleBlock,
+  onStartCall,
+  onStartSearch,
+  chatTheme,
+  onThemeChange,
+  chatEmoji,
+  onEmojiChange,
+  nickname,
+  onNicknameChange,
+  currentWallpaper,
+  onWallpaperChange,
+}) => {
+  const navigate = useNavigate();
+  const { user: currentUser, profile: currentUserProfile } = useAuth();
+
+  const [showThemeDialog, setShowThemeDialog] = useState(false);
+  const [showEmojiDialog, setShowEmojiDialog] = useState(false);
+  const [showNicknameDialog, setShowNicknameDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+  const [showHelloTuneSettings, setShowHelloTuneSettings] = useState(false);
+  const [myHelloTune, setMyHelloTune] = useState<HelloTuneRecord | null>(() => getHelloTuneFromProfile(currentUserProfile));
+  const themeGalleryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMyHelloTune(getHelloTuneFromProfile(currentUserProfile));
+  }, [currentUserProfile]);
+
+  const handleThemeGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1280;
+        const MAX_HEIGHT = 1920;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        onWallpaperChange?.(dataUrl);
+        setShowThemeDialog(false);
+        toast.success('Gallery photo set as chat theme/background!');
+      };
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+  const [tempNick, setTempNick] = useState(nickname);
+  const [reportReason, setReportReason] = useState('');
+
+  const [isMuted, setIsMuted] = useState(() => {
+    try {
+      if (!profile) return false;
+      const mutedList = JSON.parse(localStorage.getItem('muted_direct_ids') || '[]');
+      return mutedList.includes(profile.user_id);
+    } catch {
+      return false;
+    }
+  });
+
+  if (!isOpen || !profile) return null;
+
+  const handleToggleMute = () => {
+    try {
+      const mutedList: string[] = JSON.parse(localStorage.getItem('muted_direct_ids') || '[]');
+      let updated: string[];
+      if (isMuted) {
+        updated = mutedList.filter(id => id !== profile.user_id);
+        setIsMuted(false);
+        toast.success('Chat unmuted');
+      } else {
+        updated = [...mutedList, profile.user_id];
+        setIsMuted(true);
+        toast.success('Chat muted');
+      }
+      localStorage.setItem('muted_direct_ids', JSON.stringify(updated));
+    } catch {
+      setIsMuted(!isMuted);
+    }
+  };
+
+  const activeTheme = MESSENGER_THEMES.find(t => t.id === chatTheme) || MESSENGER_THEMES[0];
+
+  return (
+    <div className="direct-settings-root fixed inset-0 z-50 flex flex-col overflow-y-auto animate-in fade-in duration-200 select-none">
+      <style>{`
+        .direct-settings-root{--ds-bg:#0e0820;--ds-card:#19122f;--ds-stroke:#302451;--ds-ink:#f7f3ff;--ds-muted:#a99fd2;background:radial-gradient(ellipse at 82% 0%,rgba(124,92,255,.17),transparent 34%),radial-gradient(ellipse at 2% 48%,rgba(255,61,127,.08),transparent 34%),var(--ds-bg);color:var(--ds-ink);font-family:inherit;overscroll-behavior:contain}
+        .direct-settings-root .direct-settings-header{border-color:rgba(169,159,210,.14);background:rgba(14,8,32,.86);backdrop-filter:blur(18px)}
+        .direct-settings-root .direct-settings-icon-button{border:1px solid rgba(169,159,210,.15);background:rgba(255,255,255,.035);color:var(--ds-ink)}
+        .direct-settings-root .direct-settings-hero{width:min(100%,560px);margin:0 auto;padding-top:25px}
+        .direct-settings-root .direct-settings-avatar{box-shadow:0 0 0 4px rgba(124,92,255,.18),0 14px 36px rgba(4,2,16,.4)}
+        .direct-settings-root .direct-settings-avatar-image{border-color:#21183d}
+        .direct-settings-root .direct-settings-name{color:var(--ds-ink)}
+        .direct-settings-root .direct-settings-status{color:var(--ds-muted)}
+        .direct-settings-root .direct-settings-actions{width:min(100%,360px)}
+        .direct-settings-root .direct-settings-action-icon{border:1px solid rgba(169,159,210,.17);background:linear-gradient(145deg,#251b48,#19132f);box-shadow:0 7px 16px rgba(0,0,0,.2)}
+        .direct-settings-root .direct-settings-action-icon svg{color:#d9ceff!important}
+        .direct-settings-root .direct-settings-action-label{color:#e4dcf8}
+        .direct-settings-root .direct-settings-sections{width:min(100%,560px);padding-bottom:calc(36px + env(safe-area-inset-bottom))}
+        .direct-settings-root .direct-settings-card{border-color:rgba(169,159,210,.15);background:linear-gradient(145deg,rgba(31,23,57,.95),rgba(23,17,44,.95));box-shadow:0 12px 28px rgba(3,2,12,.18)}
+        .direct-settings-root .direct-settings-row{color:var(--ds-ink);border-color:rgba(169,159,210,.11)}
+        .direct-settings-root .direct-settings-row:hover{background:rgba(124,92,255,.09)}
+        .direct-settings-root .direct-settings-row-title{color:var(--ds-ink)}
+        .direct-settings-root .direct-settings-row-subtitle{color:var(--ds-muted)}
+        .direct-settings-root .direct-settings-section-title{color:#c6b8ee}
+        .direct-settings-root .direct-settings-accent{color:#c5aaff}
+      `}</style>
+      {/* 1. TOP BAR */}
+      <header className="direct-settings-header sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border bg-background/95 px-3 py-2.5 backdrop-blur">
+        <button
+          type="button"
+          onClick={onClose}
+          className="direct-settings-icon-button rounded-full p-2 hover:bg-muted text-foreground transition-colors"
+          aria-label="Back"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider direct-settings-accent">
+          Conversation Details
+        </p>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="direct-settings-icon-button rounded-full p-2 hover:bg-muted text-foreground transition-colors"
+              aria-label="More options"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5 shadow-2xl border-border bg-card">
+            <DropdownMenuItem
+              onClick={() => setShowWallpaperModal(true)}
+              className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5"
+            >
+              <ImageIcon className="h-4 w-4 text-primary" />
+              <span>Wallpaper (इमेज / फोटो)</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => { onClose(); navigate(`/profile/${profile.user_id}`); }}
+              className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl"
+            >
+              View profile
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => setShowDeleteDialog(true)}
+              className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl text-destructive focus:text-destructive"
+            >
+              Delete conversation
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator className="my-1" />
+
+            <DropdownMenuItem
+              onClick={onToggleBlock}
+              className={`cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl ${
+                blocked ? 'text-green-600 focus:text-green-600' : 'text-destructive focus:text-destructive'
+              }`}
+            >
+              {blocked ? 'Unblock user' : 'Block user'}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => setShowReportDialog(true)}
+              className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl"
+            >
+              Report user
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </header>
+
+      {/* 2. PROFILE HERO */}
+      <div className="direct-settings-hero flex flex-col items-center px-4 pt-6 pb-4 text-center">
+        <div
+          onClick={() => { onClose(); navigate(`/profile/${profile.user_id}`); }}
+          className="direct-settings-avatar relative cursor-pointer group rounded-full"
+        >
+          {profile.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt={profile.username}
+              className="direct-settings-avatar-image h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover shadow-xl ring-4 ring-background border border-border"
+            />
+          ) : (
+            <div className="direct-settings-avatar-image h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-3xl shadow-xl ring-4 ring-background border border-border">
+              {profile.username?.[0]?.toUpperCase() || 'U'}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-center gap-1.5 mt-3">
+          <h1 className="direct-settings-name text-xl sm:text-2xl font-bold text-foreground tracking-tight">
+            {nickname || profile.username}
+          </h1>
+          {profile.is_verified && <BadgeCheck className="h-5 w-5 text-sky-500 shrink-0" />}
+        </div>
+
+        <p className="direct-settings-status mt-0.5 text-xs text-muted-foreground font-medium">
+          {statusText || 'Active now'}
+        </p>
+
+        {/* 4 ACTION BUTTONS */}
+        <div className="direct-settings-actions mt-5 grid grid-cols-4 gap-4 w-full max-w-xs">
+          <button
+            type="button"
+            onClick={() => { onClose(); onStartCall('audio'); }}
+            className="direct-settings-action flex flex-col items-center gap-1.5 group cursor-pointer"
+          >
+            <div className="direct-settings-action-icon h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
+              <Phone className="h-5 w-5 text-sky-500 fill-sky-500/20" />
+            </div>
+            <span className="direct-settings-action-label text-[11px] font-medium text-foreground">Audio</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { onClose(); onStartCall('video'); }}
+            className="direct-settings-action flex flex-col items-center gap-1.5 group cursor-pointer"
+          >
+            <div className="direct-settings-action-icon h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
+              <Video className="h-5 w-5 text-sky-500 fill-sky-500/20" />
+            </div>
+            <span className="direct-settings-action-label text-[11px] font-medium text-foreground">Video</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { onClose(); navigate(`/profile/${profile.user_id}`); }}
+            className="direct-settings-action flex flex-col items-center gap-1.5 group cursor-pointer"
+          >
+            <div className="direct-settings-action-icon h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
+              <User className="h-5 w-5 text-sky-500" />
+            </div>
+            <span className="direct-settings-action-label text-[11px] font-medium text-foreground">Profile</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleToggleMute}
+            className="direct-settings-action flex flex-col items-center gap-1.5 group cursor-pointer"
+          >
+            <div className="direct-settings-action-icon h-12 w-12 rounded-full bg-muted/80 group-hover:bg-muted group-active:scale-95 flex items-center justify-center transition-all shadow-sm border border-border/50">
+              {isMuted ? (
+                <BellOff className="h-5 w-5 text-red-500" />
+              ) : (
+                <Bell className="h-5 w-5 text-sky-500 fill-sky-500/20" />
+              )}
+            </div>
+            <span className="direct-settings-action-label text-[11px] font-medium text-foreground">
+              {isMuted ? 'Unmute' : 'Mute'}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* 3. SETTINGS ROWS */}
+      <div className="direct-settings-sections px-4 pb-12 max-w-lg mx-auto w-full space-y-5">
+        <div className="direct-settings-card rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
+          {/* Theme */}
+          <button
+            type="button"
+            onClick={() => setShowThemeDialog(true)}
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+          >
+            <span className="direct-settings-row-title text-sm font-medium text-foreground">Theme</span>
+            <div className="flex items-center gap-2">
+              {currentWallpaper ? (
+                <div className="h-6 w-6 rounded-full overflow-hidden border border-border shadow-xs">
+                  <img src={currentWallpaper} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <span
+                  className={`h-5 w-5 rounded-full bg-gradient-to-tr ${activeTheme.preview} shadow-sm ring-1 ring-black/10`}
+                />
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </button>
+
+          {/* Wallpaper / Background Image */}
+          <button
+            type="button"
+            onClick={() => setShowWallpaperModal(true)}
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                <ImageIcon className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="direct-settings-row-title text-sm font-medium text-foreground block">Wallpaper / Background Image</span>
+                <span className="direct-settings-row-subtitle text-[11px] text-muted-foreground">Gallery ya preset se photo lagayein</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {currentWallpaper ? (
+                <div className="h-7 w-7 rounded-xl overflow-hidden border border-border shadow-xs">
+                  <img src={currentWallpaper} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">Default</span>
+              )}
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </button>
+
+          {/* Emoji */}
+          <button
+            type="button"
+            onClick={() => setShowEmojiDialog(true)}
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+          >
+            <span className="direct-settings-row-title text-sm font-medium text-foreground">Emoji</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xl leading-none">{chatEmoji}</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </button>
+
+          {/* Nickname */}
+          <button
+            type="button"
+            onClick={() => { setTempNick(nickname); setShowNicknameDialog(true); }}
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+          >
+            <div>
+              <p className="direct-settings-row-title text-sm font-medium text-foreground">Nickname</p>
+              <p className="direct-settings-row-subtitle text-xs text-muted-foreground">
+                {nickname ? `"${nickname}"` : 'Set nickname'}
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
+
+          {/* Caller playback tune */}
+          <button
+            type="button"
+            onClick={() => setShowHelloTuneSettings(true)}
+            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="rounded-xl bg-primary/10 p-2 text-primary"><Music2 className="h-4 w-4" /></div>
+              <div className="min-w-0">
+                <p className="direct-settings-row-title text-sm font-medium">Hello Tune</p>
+                <p className="direct-settings-row-subtitle truncate text-xs">
+                  {myHelloTune && isHelloTuneActive(myHelloTune)
+                    ? `${myHelloTune.title} · ${remainingDays(myHelloTune.expiresAt)} din baaki`
+                    : 'Choose what callers hear while ringing'}
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* More Actions */}
+        <div className="space-y-1.5">
+          <p className="direct-settings-section-title px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            More Actions
+          </p>
+          <div className="direct-settings-card rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
+            <button
+              type="button"
+              onClick={() => { onClose(); onStartSearch(); }}
+              className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
+            >
+              <span className="direct-settings-row-title text-sm font-medium text-foreground">Search in Conversation</span>
+              <Search className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+
+        {/* Privacy */}
+        <div className="space-y-1.5">
+          <p className="direct-settings-section-title px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Privacy & Support
+          </p>
+          <div className="direct-settings-card rounded-2xl border border-border/60 bg-card overflow-hidden divide-y divide-border/40 shadow-sm">
+              <div className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5">
+              <div>
+                <p className="direct-settings-row-title text-sm font-medium text-foreground">Notifications</p>
+                <p className="direct-settings-row-subtitle text-xs text-muted-foreground">{isMuted ? 'Muted' : 'On'}</p>
+              </div>
+              <Switch checked={!isMuted} onCheckedChange={handleToggleMute} />
+            </div>
+
+            <button
+              type="button"
+              onClick={onToggleBlock}
+              className={`direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left ${
+                blocked ? 'text-green-600' : 'text-destructive'
+              }`}
+            >
+              <div>
+                <p className="text-sm font-semibold">{blocked ? 'Unblock user' : 'Block user'}</p>
+                <p className="direct-settings-row-subtitle text-xs text-muted-foreground">
+                  {blocked ? 'Allow messages & calls' : 'Stop messages & calls'}
+                </p>
+              </div>
+              {blocked ? <ShieldOff className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* DIALOGS */}
+      <Dialog open={showThemeDialog} onOpenChange={setShowThemeDialog}>
+        <DialogContent className="max-w-xs sm:max-w-sm rounded-2xl p-5 bg-card border-border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Choose Chat Theme</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2.5 py-3">
+            {MESSENGER_THEMES.map(theme => (
+              <button
+                key={theme.id}
+                type="button"
+                onClick={() => { onThemeChange(theme.id); setShowThemeDialog(false); }}
+                className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${
+                  chatTheme === theme.id && !currentWallpaper ? 'border-primary bg-primary/10 ring-2 ring-primary/30' : 'border-border hover:bg-muted'
+                }`}
+              >
+                <span className={`h-6 w-6 rounded-full bg-gradient-to-tr ${theme.preview} shrink-0 shadow-sm`} />
+                <span className="text-xs font-semibold text-foreground truncate">{theme.name}</span>
+              </button>
+            ))}
+
+            {/* 8TH ITEM: Gallery Photo / Image */}
+            <button
+              type="button"
+              onClick={() => themeGalleryInputRef.current?.click()}
+              className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left ${
+                currentWallpaper
+                  ? 'border-primary bg-primary/10 ring-2 ring-primary/30 shadow-xs'
+                  : 'border-dashed border-primary/60 hover:bg-muted/80 active:scale-95'
+              }`}
+            >
+              {currentWallpaper ? (
+                <div className="h-6 w-6 rounded-full overflow-hidden border border-border shadow-xs shrink-0">
+                  <img src={currentWallpaper} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <span className="h-6 w-6 rounded-full bg-gradient-to-tr from-fuchsia-500 via-rose-500 to-amber-400 flex items-center justify-center text-white shrink-0 shadow-sm">
+                  <ImageIcon className="w-3.5 h-3.5" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-semibold text-foreground truncate block">Gallery Photo</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Gallery Photo Actions inside Theme Dialog */}
+          <div className="pt-2 border-t border-border space-y-2">
+            <input
+              type="file"
+              ref={themeGalleryInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleThemeGalleryUpload}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => themeGalleryInputRef.current?.click()}
+              className="w-full rounded-xl border-dashed border-primary/50 hover:border-primary text-xs font-semibold flex items-center justify-center gap-2 h-9 text-primary"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Choose Photo from Gallery (गैलरी से फोटो लगाएं)</span>
+            </Button>
+
+            {currentWallpaper && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onWallpaperChange?.(null);
+                  toast.success('Custom photo removed');
+                }}
+                className="w-full text-xs text-destructive hover:bg-destructive/10 h-8 rounded-xl font-medium"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                Remove Custom Photo (फोटो हटाएं)
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEmojiDialog} onOpenChange={setShowEmojiDialog}>
+        <DialogContent className="max-w-xs sm:max-w-sm rounded-2xl p-5 bg-card border-border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Choose Quick Emoji</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-6 gap-2 py-3 text-2xl justify-items-center">
+            {POPULAR_EMOJIS.map(emoji => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => { onEmojiChange(emoji); setShowEmojiDialog(false); }}
+                className={`h-11 w-11 rounded-xl flex items-center justify-center transition-transform hover:scale-125 active:scale-95 ${
+                  chatEmoji === emoji ? 'bg-primary/20 ring-2 ring-primary' : 'hover:bg-muted'
+                }`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showNicknameDialog} onOpenChange={setShowNicknameDialog}>
+        <DialogContent className="max-w-xs sm:max-w-sm rounded-2xl p-5 bg-card border-border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Edit Nickname</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Only you will see this nickname in your chat
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={tempNick}
+              onChange={e => setTempNick(e.target.value)}
+              placeholder="Enter nickname..."
+              className="rounded-xl"
+              maxLength={24}
+            />
+          </div>
+          <DialogFooter className="flex-row justify-end gap-2 mt-2">
+            <Button variant="ghost" onClick={() => setShowNicknameDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                onNicknameChange(tempNick.trim());
+                setShowNicknameDialog(false);
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="max-w-xs sm:max-w-sm rounded-2xl p-6 bg-card border-border shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-bold">Delete conversation?</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              This will remove this conversation from your chat list.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-row items-center justify-end gap-3 mt-4">
+            <AlertDialogCancel className="border-none bg-transparent text-muted-foreground font-semibold">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowDeleteDialog(false);
+                toast.success('Conversation deleted');
+                onClose();
+                navigate('/chat');
+              }}
+              className="bg-destructive hover:bg-destructive/90 text-white font-bold"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent className="max-w-xs sm:max-w-sm rounded-2xl p-5 bg-card border-border shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold">Report User</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              value={reportReason}
+              onChange={e => setReportReason(e.target.value)}
+              placeholder="Describe the issue..."
+              className="rounded-xl"
+            />
+          </div>
+          <DialogFooter className="flex-row justify-end gap-2 mt-2">
+            <Button variant="ghost" onClick={() => setShowReportDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowReportDialog(false);
+                toast.success('Report submitted. Thank you for your feedback.');
+              }}
+              disabled={!reportReason.trim()}
+            >
+              Submit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <HelloTuneSettings
+        isOpen={showHelloTuneSettings}
+        onClose={() => setShowHelloTuneSettings(false)}
+        userId={currentUser?.id || ''}
+        currentTune={myHelloTune}
+        onSaved={setMyHelloTune}
+      />
+          {/* Wallpaper Picker Modal */}
+      <ChatWallpaperModal
+        open={showWallpaperModal}
+        onOpenChange={setShowWallpaperModal}
+        currentWallpaper={currentWallpaper || null}
+        onSelectWallpaper={(url) => {
+          onWallpaperChange?.(url);
+        }}
+      />
+    </div>
+  );
+};
+
+export default MessengerDirectSettings;
