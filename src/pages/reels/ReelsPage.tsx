@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff, UserCheck, Wifi, WifiOff } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, getFollowers, getFollowing, type Reel } from '@/services/api';
-import { offlineManager, type OfflineNetworkState } from '@/services/offlineNetworkManager';
+import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, type Reel } from '@/services/api';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
@@ -540,11 +539,9 @@ const ReelCard: React.FC<{
 };
 
 const ReelsPage: React.FC = () => {
-  const { user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [offlineState, setOfflineState] = useState<OfflineNetworkState>(() => offlineManager.getState());
   const [reels, setReels] = useState<Reel[]>(() => {
     try {
       const cached = sessionStorage.getItem('pixelgram_cached_reels');
@@ -563,62 +560,21 @@ const ReelsPage: React.FC = () => {
   const [navHidden, setNavHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
 
-  useEffect(() => {
-    return offlineManager.subscribe((st) => {
-      setOfflineState(st);
-    });
-  }, []);
-
   const loadReels = useCallback(async () => {
     try {
-      const state = offlineManager.getState();
       const targetId = searchParams.get('r');
       const wantsComments = searchParams.get('comments') === '1';
       const commentIdParam = searchParams.get('c');
+      let data = await withTimeout(getReelsFeed(10), 10000);
 
-      // Without Network (India Network Shutdown / Offline):
-      // Home feed will strictly show reels from followers and following list!
-      if (state.effectiveOffline) {
-        const cached = (offlineManager.getCachedReels() || []) as Reel[];
-        const filtered = offlineManager.filterReelsForOffline(cached as any, user?.id || '') as Reel[];
-        setReels(filtered.length > 0 ? filtered : cached);
-        reelsCountRef.current = filtered.length;
-        setLoading(false);
-        return;
-      }
-
-      // Online: load all community reels
-      let data = await withTimeout(getReelsFeed(20), 10000);
-
-      // Deep link from a notification/share link
+      // Deep link from a notification/share link — if that reel isn't in the
+      // first page, fetch it directly and pin it to the front.
       if (targetId && !data.some(r => r.id === targetId)) {
         const target = await withTimeout(getReelById(targetId), 10000).catch(() => null);
         if (target) data = [target, ...data];
       }
 
       setReels(data);
-      // Cache reels in local offline storage
-      offlineManager.cacheReels(data as any);
-
-      // Cache followers and following for offline filtering
-      if (user?.id) {
-        Promise.all([
-          getFollowers(user.id).catch(() => []),
-          getFollowing(user.id).catch(() => []),
-        ]).then(([followers, following]) => {
-          const map = new Map<string, any>();
-          (followers || []).forEach((f: any) => map.set(f.user_id, { ...f, relation: 'follower' }));
-          (following || []).forEach((f: any) => {
-            if (map.has(f.user_id)) {
-              map.set(f.user_id, { ...f, relation: 'both' });
-            } else {
-              map.set(f.user_id, { ...f, relation: 'following' });
-            }
-          });
-          offlineManager.saveNetworkContacts(Array.from(map.values()));
-        }).catch(() => {});
-      }
-
       try {
         if (data && data.length > 0) {
           sessionStorage.setItem('pixelgram_cached_reels', JSON.stringify(data.slice(0, 15)));
@@ -642,19 +598,12 @@ const ReelsPage: React.FC = () => {
         setSearchParams({}, { replace: true });
       }
     } catch {
-      // Fallback to offline cached reels if network request fails
-      const cached = (offlineManager.getCachedReels() || []) as Reel[];
-      const filtered = offlineManager.filterReelsForOffline(cached as any, user?.id || '') as Reel[];
-      if (filtered.length > 0 || cached.length > 0) {
-        setReels(filtered.length > 0 ? filtered : cached);
-      } else {
-        toast.error('Network unavailable. Connect to load reels.');
-      }
+      toast.error('Failed to load reels');
     } finally {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => { loadReels(); }, [loadReels]);
 
@@ -757,16 +706,6 @@ const ReelsPage: React.FC = () => {
 
   return (
     <div className="fixed inset-0 h-full w-full bg-black overflow-hidden">
-      {offlineState.effectiveOffline && (
-        <div className="absolute top-4 left-3 right-3 z-30 pointer-events-none flex justify-center">
-          <div className="pointer-events-auto bg-black/80 backdrop-blur-md border border-rose-500/50 text-rose-200 text-xs px-3.5 py-1.5 rounded-full flex items-center gap-2 shadow-xl">
-            <WifiOff className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
-            <span className="font-bold text-[11px]">
-              ⚡ {offlineState.userRegion} Outage: Followers &amp; Following Reels Only
-            </span>
-          </div>
-        </div>
-      )}
       <div
         ref={containerRef}
         onScroll={handleScroll}
@@ -805,32 +744,6 @@ const ReelsPage: React.FC = () => {
           );
         })}
       </div>
-
-      {/* Network Offline / Online Status Indicator */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 max-w-[92%] w-auto pointer-events-auto">
-        {offlineState.effectiveOffline ? (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-950/85 backdrop-blur-md border border-rose-500/60 shadow-lg text-rose-200 text-[11px] font-semibold">
-            <WifiOff className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-            <span className="truncate">⚡ Offline Mode (Network Band): Only Followers & Following</span>
-            <button
-              onClick={() => { offlineManager.setSimulatedOffline(false); loadReels(); }}
-              className="ml-1 text-[10px] bg-rose-500/30 hover:bg-rose-500/50 text-white px-2 py-0.5 rounded-full cursor-pointer"
-            >
-              Online
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => { offlineManager.setSimulatedOffline(true); loadReels(); }}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/20 text-emerald-400 text-[11px] font-medium shadow-md transition-all cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Online (Sabhi Reels)</span>
-            <span className="text-[10px] text-white/50 ml-0.5">· Test Offline</span>
-          </button>
-        )}
-      </div>
-
       <BottomNav overlay hidden={navHidden} />
     </div>
   );
