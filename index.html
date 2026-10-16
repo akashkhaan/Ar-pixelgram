@@ -1,21 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark" style="background-color: #0B0B0F; color-scheme: dark;">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GitHub & Vercel Repo Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B0B0F" />
+    <meta name="color-scheme" content="dark" />
+    <title>Pixelgram</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
-    <meta name="description" content="Fix, edit, commit, and push code directly to GitHub repositories with automatic Vercel deployment diagnostic tools." />
-    <meta property="og:title" content="GitHub & Vercel Repo Manager" />
-    <meta property="og:description" content="Fix, edit, commit, and push code directly to GitHub repositories with automatic Vercel deployment diagnostic tools." />
+    <meta name="description" content="Pixelgram - Short videos, reels, calls, and chats" />
+    <meta property="og:title" content="Pixelgram" />
+    <meta property="og:description" content="Pixelgram - Short videos, reels, calls, and chats" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      html, body, #root {
+        background-color: #0B0B0F !important;
+        color: #ffffff;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        min-height: 100%;
+        overflow-x: hidden;
+      }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="dark bg-[#0B0B0F] text-foreground select-none" style="background-color: #0B0B0F !important;">
+    <div id="root" style="background-color: #0B0B0F !important; min-height: 100vh;"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

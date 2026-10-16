@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, type Reel } from '@/services/api';
+import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, cleanDisplayCaption, type Reel } from '@/services/api';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
@@ -40,6 +40,7 @@ const ReelCard: React.FC<{
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const isOwner = user?.id === reel.user_id;
   const [followStatus, setFollowStatus] = useState<'accepted' | 'pending' | null>(null);
+  const [captionExpanded, setCaptionExpanded] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
   const [isBufferingSlow, setIsBufferingSlow] = useState(false);
@@ -476,9 +477,29 @@ const ReelCard: React.FC<{
             </button>
           )}
         </div>
-        {reel.caption && (
-          <p className="text-white/90 text-sm line-clamp-2 leading-relaxed">{reel.caption}</p>
-        )}
+        {(() => {
+          const cleanCap = cleanDisplayCaption(reel.caption);
+          if (!cleanCap) return null;
+          return (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setCaptionExpanded(prev => !prev);
+              }}
+              className="cursor-pointer max-w-[85%] select-none active:opacity-90 group"
+              title="Tap to expand full caption"
+            >
+              <p className={`text-white/95 text-sm leading-relaxed transition-all ${captionExpanded ? "line-clamp-none max-h-48 overflow-y-auto pr-2 scrollbar-thin" : "line-clamp-2"}`}>
+                {cleanCap}
+              </p>
+              {cleanCap.length > 50 && (
+                <span className="text-[11px] font-bold text-white/60 group-hover:text-white/90 mt-0.5 inline-block">
+                  {captionExpanded ? '...less' : '...more'}
+                </span>
+              )}
+            </div>
+          );
+        })()}
         {isOwner && (
           <p className="text-white/70 text-xs flex items-center gap-1">
             👁 {viewsCount > 999 ? (viewsCount / 1000).toFixed(1) + 'k' : viewsCount} views

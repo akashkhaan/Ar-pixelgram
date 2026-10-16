@@ -61,6 +61,14 @@ export async function getAllProfiles(page = 0, pageSize = 20): Promise<Profile[]
 }
 
 // ===================== POSTS =====================
+export function cleanDisplayCaption(caption?: string | null): string {
+  if (!caption) return '';
+  return caption
+    .replace(/<!--pixelgram_music:[\s\S]*?(?:-->|$)/gi, '')
+    .replace(/<!--[\s\S]*?(?:-->|$)/gi, '')
+    .trim();
+}
+
 export function encodePostMusic(caption: string | null, music: ReelMusic): string {
   const meta = {
     _m: 1,
@@ -77,29 +85,28 @@ export function encodePostMusic(caption: string | null, music: ReelMusic): strin
 }
 
 export function decodePostMusic(post: Post): Post {
-  if (post.music_preview_url || post.music_title) {
-    return post;
+  const clean = cleanDisplayCaption(post.caption);
+  const match = (post.caption || '').match(/<!--pixelgram_music:([\s\S]*?)-->/);
+  if (match) {
+    try {
+      const meta = JSON.parse(match[1]);
+      return {
+        ...post,
+        caption: clean || null,
+        music_track_id: post.music_track_id || meta.id,
+        music_title: post.music_title || meta.title,
+        music_artist: post.music_artist || meta.artist,
+        music_artwork_url: post.music_artwork_url || meta.artwork,
+        music_preview_url: post.music_preview_url || meta.previewUrl,
+        music_start_ms: post.music_start_ms ?? (meta.startMs || 0),
+        music_duration_ms: post.music_duration_ms ?? meta.durationMs,
+      };
+    } catch {}
   }
-  if (!post.caption) return post;
-  const match = post.caption.match(/<!--pixelgram_music:(\{.*?\})-->/s);
-  if (!match) return post;
-  try {
-    const meta = JSON.parse(match[1]);
-    const cleanCaption = post.caption.replace(/<!--pixelgram_music:(\{.*?\})-->/s, '').trim();
-    return {
-      ...post,
-      caption: cleanCaption || null,
-      music_track_id: meta.id,
-      music_title: meta.title,
-      music_artist: meta.artist,
-      music_artwork_url: meta.artwork,
-      music_preview_url: meta.previewUrl,
-      music_start_ms: meta.startMs || 0,
-      music_duration_ms: meta.durationMs,
-    };
-  } catch {
-    return post;
-  }
+  return {
+    ...post,
+    caption: clean || null,
+  };
 }
 
 export async function createPost(
@@ -328,30 +335,29 @@ export async function isSaved(postId: string, userId: string): Promise<boolean> 
 
 // ===================== STORIES =====================
 export function decodeStoryMusic(story: Story): Story {
-  if (story.music_preview_url || story.music_title) {
-    return story;
+  const clean = cleanDisplayCaption(story.caption);
+  const match = (story.caption || '').match(/<!--pixelgram_music:([\s\S]*?)-->/);
+  if (match) {
+    try {
+      const meta = JSON.parse(match[1]);
+      return {
+        ...story,
+        caption: clean || null,
+        music_track_id: story.music_track_id || meta.id,
+        music_title: story.music_title || meta.title,
+        music_artist: story.music_artist || meta.artist,
+        music_artwork_url: story.music_artwork_url || meta.artwork,
+        music_preview_url: story.music_preview_url || meta.previewUrl,
+        music_start_ms: story.music_start_ms ?? (meta.startMs || 0),
+        music_duration_ms: story.music_duration_ms ?? meta.durationMs,
+        mute_original: story.mute_original ?? meta.muteOriginal,
+      };
+    } catch {}
   }
-  if (!story.caption) return story;
-  const match = story.caption.match(/<!--pixelgram_music:({.*?})-->/s);
-  if (!match) return story;
-  try {
-    const meta = JSON.parse(match[1]);
-    const cleanCaption = story.caption.replace(/<!--pixelgram_music:({.*?})-->/s, "").trim();
-    return {
-      ...story,
-      caption: cleanCaption || null,
-      music_track_id: meta.id,
-      music_title: meta.title,
-      music_artist: meta.artist,
-      music_artwork_url: meta.artwork,
-      music_preview_url: meta.previewUrl,
-      music_start_ms: meta.startMs || 0,
-      music_duration_ms: meta.durationMs,
-      mute_original: meta.muteOriginal,
-    };
-  } catch {
-    return story;
-  }
+  return {
+    ...story,
+    caption: clean || null,
+  };
 }
 
 export async function createStory(
@@ -1444,30 +1450,29 @@ export interface Reel {
 }
 
 export function decodeReelMusic(reel: Reel): Reel {
-  if (reel.music_preview_url || reel.music_title) {
-    return reel;
+  const clean = cleanDisplayCaption(reel.caption);
+  const match = (reel.caption || '').match(/<!--pixelgram_music:([\s\S]*?)-->/);
+  if (match) {
+    try {
+      const meta = JSON.parse(match[1]);
+      return {
+        ...reel,
+        caption: clean,
+        music_track_id: reel.music_track_id || meta.id,
+        music_title: reel.music_title || meta.title,
+        music_artist: reel.music_artist || meta.artist,
+        music_artwork_url: reel.music_artwork_url || meta.artwork,
+        music_preview_url: reel.music_preview_url || meta.previewUrl,
+        music_start_ms: reel.music_start_ms ?? (meta.startMs || 0),
+        music_duration_ms: reel.music_duration_ms ?? meta.durationMs,
+        mute_original: reel.mute_original ?? meta.muteOriginal,
+      };
+    } catch {}
   }
-  if (!reel.caption) return reel;
-  const match = reel.caption.match(/<!--pixelgram_music:({.*?})-->/s);
-  if (!match) return reel;
-  try {
-    const meta = JSON.parse(match[1]);
-    const cleanCaption = reel.caption.replace(/<!--pixelgram_music:({.*?})-->/s, "").trim();
-    return {
-      ...reel,
-      caption: cleanCaption || "",
-      music_track_id: meta.id,
-      music_title: meta.title,
-      music_artist: meta.artist,
-      music_artwork_url: meta.artwork,
-      music_preview_url: meta.previewUrl,
-      music_start_ms: meta.startMs || 0,
-      music_duration_ms: meta.durationMs,
-      mute_original: meta.muteOriginal,
-    };
-  } catch {
-    return reel;
-  }
+  return {
+    ...reel,
+    caption: clean,
+  };
 }
 
 export async function getReelsFeed(limit = 20, offset = 0): Promise<Reel[]> {
@@ -1533,9 +1538,9 @@ export async function createReel(
   thumbnailUrl?: string,
   music?: ReelMusic | null,
 ): Promise<void> {
-  const finalCaption = music ? encodePostMusic(caption, music) : caption;
+  const cleanCap = cleanDisplayCaption(caption);
   const base = {
-    user_id: userId, video_url: videoUrl, caption: finalCaption, thumbnail_url: thumbnailUrl || null,
+    user_id: userId, video_url: videoUrl, caption: cleanCap, thumbnail_url: thumbnailUrl || null,
   };
   const withMusic = music
     ? {
@@ -1552,12 +1557,16 @@ export async function createReel(
     : base;
   let { data: created, error } = await supabase.from("reels").insert(withMusic).select("id").maybeSingle();
   if (error && music) {
-    const { data: retried, error: retryError } = await supabase.from("reels").insert(base).select("id").maybeSingle();
+    const fallbackCaption = encodePostMusic(cleanCap, music);
+    const { data: retried, error: retryError } = await supabase.from("reels").insert({
+      ...base,
+      caption: fallbackCaption,
+    }).select("id").maybeSingle();
     created = retried;
     error = retryError;
   }
   if (error) throw error;
-  if (userId) void notifyFollowersOfNewContent(userId, "new_reel", created?.id, caption);
+  if (userId) void notifyFollowersOfNewContent(userId, "new_reel", created?.id, cleanCap);
 }
 export async function toggleReelLike(reelId: string, userId: string, isLiked: boolean): Promise<void> {
   try {

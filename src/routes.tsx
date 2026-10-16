@@ -1,3 +1,4 @@
+import RootRedirect from './components/common/RootRedirect';
 import type { ReactNode } from 'react';
 import LoginPage from './pages/auth/LoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
@@ -53,7 +54,7 @@ export interface RouteConfig {
 
 export const routes: RouteConfig[] = [
   // Public routes
-  { name: 'Root', path: '/', element: <LoginPage />, public: true },
+  { name: 'Root', path: '/', element: <RootRedirect />, public: true },
   { name: 'Login', path: '/login', element: <LoginPage />, public: true },
   { name: 'Forgot Password', path: '/forgot-password', element: <ForgotPasswordPage />, public: true },
   { name: 'Register', path: '/register', element: <RegisterPage />, public: true },

@@ -26,12 +26,50 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
+function getInitialCachedUser(): User | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const directKey = 'sb-jfizzduvmzavtqwzqacy-auth-token';
+    const directRaw = localStorage.getItem(directKey);
+    if (directRaw) {
+      const parsed = JSON.parse(directRaw);
+      if (parsed?.user) return parsed.user as User;
+    }
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.user) return parsed.user as User;
+        }
+      }
+    }
+    const savedRaw = localStorage.getItem('pixelgram_saved_accounts');
+    if (savedRaw) {
+      const list = JSON.parse(savedRaw);
+      if (Array.isArray(list) && list.length > 0 && list[0]?.user_id) {
+        return {
+          id: list[0].user_id,
+          email: list[0].email,
+          user_metadata: {
+            username: list[0].username,
+            full_name: list[0].full_name,
+            avatar_url: list[0].avatar_url,
+          },
+        } as unknown as User;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(getInitialCachedUser);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => !getInitialCachedUser());
 
   // Register service worker + subscribe this device to Web Push so incoming
   // calls & messages can wake the phone even when the app is closed/locked.

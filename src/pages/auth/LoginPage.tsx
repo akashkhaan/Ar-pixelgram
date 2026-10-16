@@ -2,7 +2,8 @@ import { saveCurrentAccount } from "@/lib/savedAccounts";
 import MobileAuroraAuth from '@/components/auth/MobileAuroraAuth';
 import DesktopSlidingAuth from '@/components/auth/DesktopSlidingAuth';
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
 import { getProfile } from '@/services/api';
 import { withTimeout } from '@/lib/withTimeout';
@@ -13,6 +14,10 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
+  const { user, loading: authLoading } = useAuth();
+  if (user) {
+    return <Navigate to="/home" replace />;
+  }
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
