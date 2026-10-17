@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ArrowLeft, Loader2, Music2, Play, Pause, Bookmark, Eye, Film } from 'lucide-react';
 import { getSavedSongs, saveSong, unsaveSong } from '@/services/savedSongs';
 import type { MusicTrack } from '@/services/music';
+import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { toast } from 'sonner';
 import { firstFrameSrc } from '@/lib/mediaUrl';
 
@@ -17,7 +18,7 @@ const SongPage: React.FC = () => {
   const goBack = useGoBack("/home");
   const [reels, setReels] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [playing, setPlaying] = useState(false);
+  const { currentTrack: activeTrack, isPlaying, playTrack, pause, resume } = useAudioPlayer();
   const [saved, setSaved] = useState(false);
   const audioRef = React.useRef<HTMLAudioElement>(null);
 
@@ -88,11 +89,17 @@ const SongPage: React.FC = () => {
     navigate('/create-reel', { state: { track } });
   };
 
+  const isThisPlaying = activeTrack?.id === trackId && isPlaying;
   const togglePlay = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (a.paused) { a.play().catch(() => {}); setPlaying(true); }
-    else { a.pause(); setPlaying(false); }
+    const track = asTrack();
+    if (!track) return;
+    if (activeTrack?.id === track.id && isPlaying) {
+      pause();
+    } else if (activeTrack?.id === track.id && !isPlaying) {
+      resume();
+    } else {
+      void playTrack(track);
+    }
   };
 
   return (
@@ -125,7 +132,7 @@ const SongPage: React.FC = () => {
                     onClick={togglePlay}
                     className="absolute inset-0 flex items-center justify-center bg-black/35 text-white"
                   >
-                    {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+                    {isThisPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
                   </button>
                 )}
               </div>
@@ -157,7 +164,7 @@ const SongPage: React.FC = () => {
               </button>
             </div>
 
-            {preview && <audio ref={audioRef} src={preview} onEnded={() => setPlaying(false)} />}
+            
 
             {/* Original owner */}
             {owner && (

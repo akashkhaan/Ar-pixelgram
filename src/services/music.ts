@@ -4,6 +4,7 @@
 // Personalized by Earth location (State, Region, Country) with unlimited A-Z search.
 
 export interface MusicTrack {
+  isFullSong?: boolean;
   id: string;
   title: string;
   artist: string;
@@ -413,6 +414,85 @@ export async function detectMusicLocale(): Promise<MusicLocale> {
   return fallback;
 }
 
+function decodeHtml(html: string): string {
+  if (!html) return '';
+  return html
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .trim();
+}
+
+function extractSaavnImage(img: any): string {
+  if (Array.isArray(img)) {
+    const high = img.find((i: any) => i.quality === '500x500') || img[img.length - 1];
+    return high?.link || '';
+  }
+  if (typeof img === 'string') return img;
+  return '';
+}
+
+function extractSaavnAudio(downloadUrl: any): string {
+  if (Array.isArray(downloadUrl)) {
+    const best =
+      downloadUrl.find((d: any) => d.quality === '320kbps') ||
+      downloadUrl.find((d: any) => d.quality === '160kbps') ||
+      downloadUrl.find((d: any) => d.quality === '96kbps') ||
+      downloadUrl[downloadUrl.length - 1];
+    return best?.link || '';
+  }
+  if (typeof downloadUrl === 'string') return downloadUrl;
+  return '';
+}
+
+function mapSaavnTracks(items: any[]): MusicTrack[] {
+  const seen = new Set<string>();
+  const out: MusicTrack[] = [];
+  for (const r of items) {
+    if (!r) continue;
+    const audioUrl = extractSaavnAudio(r.downloadUrl || r.url);
+    if (!audioUrl) continue;
+    const id = 'saavn_' + (r.id || r.name);
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const durSec = typeof r.duration === 'string' ? parseInt(r.duration, 10) : Number(r.duration || 30);
+    const durationMs = (!isNaN(durSec) && durSec > 0 ? durSec : 30) * 1000;
+    const title = decodeHtml(r.name || r.title || 'Untitled Track');
+    const artist = decodeHtml(r.primaryArtists || r.artists || r.singers || 'Unknown Artist');
+    const artwork = extractSaavnImage(r.image) || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
+
+    out.push({
+      id,
+      title,
+      artist,
+      album: decodeHtml(r.album?.name || r.album || ''),
+      artwork,
+      previewUrl: audioUrl,
+      durationMs,
+      reelsCount: fakeReelsCount(r.id || title),
+      isFullSong: true,
+    });
+  }
+  return out;
+}
+
+async function fetchSaavn(query: string, signal?: AbortSignal): Promise<MusicTrack[]> {
+  try {
+    const url = 'https://jiosaavn-api-unofficial.vercel.app/search/songs?query=' + encodeURIComponent(query);
+    const res = await fetch(url, { signal });
+    if (!res.ok) return [];
+    const data = (await res.json()) as any;
+    const list = data.results || data.data?.results || (Array.isArray(data) ? data : []);
+    return mapSaavnTracks(list);
+  } catch {
+    return [];
+  }
+}
+
 async function itunes(
   term: string,
   limit: number,
@@ -426,7 +506,7 @@ async function itunes(
     limit: String(Math.min(200, limit)),
   });
   if (countryCode) params.set('country', countryCode);
-  const url = `${ITUNES}?${params.toString()}`;
+  const url = ITUNES + '?' + params.toString();
   const res = await fetch(url, { signal });
   if (!res.ok) return [];
   const json = (await res.json()) as { results?: ItunesResult[] };
@@ -434,7 +514,7 @@ async function itunes(
 }
 
 /**
- * Unlimited Search: returns extensive songs (A to Z) without corrupting query with location tags.
+ * Unlimited Search: returns extensive songs (A to Z) with Full Songs via JioSaavn + iTunes catalogs.
  */
 export async function searchMusic(
   query: string,
@@ -444,22 +524,24 @@ export async function searchMusic(
   const q = query.trim();
   if (!q) return [];
   try {
-    // Search with limit 200 (iTunes API maximum)
-    // 1) Direct global search
-    // 2) Country specific search
-    // 3) Attribute song term search
     const country = locale?.countryCode || 'IN';
-    const [res1, res2] = await Promise.all([
-      itunes(q, 150, signal),
-      itunes(q, 100, signal, country),
+    // Query JioSaavn (Full 320kbps songs + regional hits) and iTunes in parallel
+    const [saavnResults, itunesGlobal, itunesCountry] = await Promise.all([
+      fetchSaavn(q, signal),
+      itunes(q, 80, signal),
+      itunes(q, 60, signal, country),
     ]);
 
-    const merged = [...res1, ...res2];
+    const merged = [...saavnResults, ...itunesGlobal, ...itunesCountry];
     const seen = new Set<string>();
+    const seenTitles = new Set<string>();
     const out: MusicTrack[] = [];
+
     for (const t of merged) {
-      if (!seen.has(t.id)) {
+      const cleanTitleKey = (t.title.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + t.artist.toLowerCase().slice(0, 10));
+      if (!seen.has(t.id) && !seenTitles.has(cleanTitleKey)) {
         seen.add(t.id);
+        seenTitles.add(cleanTitleKey);
         out.push(t);
       }
     }
@@ -470,35 +552,40 @@ export async function searchMusic(
 }
 
 /**
- * Top trending hits personalized for user's State and Country.
+ * Top trending hits personalized for user's State and Country with Full Songs.
  */
 export async function getTrendingMusic(signal?: AbortSignal, locale?: MusicLocale): Promise<MusicTrack[]> {
   try {
     const loc = locale || getDefaultMusicLocale();
     const terms = uniqueTerms([
-      ...loc.localTerms.slice(0, 5),
-      ...(loc.regionName ? [`${loc.regionName} latest songs`, `${loc.regionName} hits`] : []),
-      `${loc.countryName} latest songs`,
+      ...(loc.regionName ? [loc.regionName + ' latest songs', loc.regionName + ' hits'] : []),
+      ...loc.localTerms.slice(0, 4),
       'bollywood latest songs',
       'trending songs',
-    ]).slice(0, 6);
+      'punjabi hits',
+      'viral reels songs',
+    ]).slice(0, 5);
 
-    const lists = await Promise.all(
-      terms.map((term) => itunes(term, 20, signal, loc.countryCode).catch(() => [] as MusicTrack[])),
-    );
+    const [saavnLists, itunesLists] = await Promise.all([
+      Promise.all(terms.map((term) => fetchSaavn(term, signal).catch(() => [] as MusicTrack[]))),
+      Promise.all(terms.slice(0, 3).map((term) => itunes(term, 20, signal, loc.countryCode).catch(() => [] as MusicTrack[]))),
+    ]);
 
-    const merged = lists.flat();
+    const merged = [...saavnLists.flat(), ...itunesLists.flat()];
     const seen = new Set<string>();
+    const seenTitles = new Set<string>();
     const out: MusicTrack[] = [];
     for (const t of merged) {
-      if (!seen.has(t.id)) {
+      const cleanTitleKey = (t.title.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + t.artist.toLowerCase().slice(0, 10));
+      if (!seen.has(t.id) && !seenTitles.has(cleanTitleKey)) {
         seen.add(t.id);
+        seenTitles.add(cleanTitleKey);
         out.push(t);
       }
     }
-    return out;
+    return out.length > 0 ? out : ORIGINAL_AUDIOS;
   } catch {
-    return [];
+    return ORIGINAL_AUDIOS;
   }
 }
 

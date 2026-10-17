@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
   Flame,
   Radio,
+  SkipForward,
 } from 'lucide-react';
 import {
   searchMusic,
@@ -83,10 +84,18 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   const [locationLoading, setLocationLoading] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
-  // Selected track for preview / bottom mini player
+  const {
+    currentTrack: globalTrack,
+    isPlaying,
+    currentTime,
+    duration: playerDuration,
+    playTrack,
+    pause,
+    resume,
+    playNext,
+  } = useAudioPlayer();
   const [selectedTrack, setSelectedTrack] = useState<MusicTrack | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const activeAudioTrack = globalTrack || selectedTrack;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Carousel current index
@@ -162,13 +171,9 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
     return () => clearInterval(timer);
   }, [trendingTracks.length]);
 
-  // Stop audio on close
+  // Keep playback running in background even if sheet closes (Vidmate/Instagram style)
   useEffect(() => {
-    if (open) return;
-    audioRef.current?.pause();
-    audioRef.current = null;
-    setSelectedTrack(null);
-    setIsPlaying(false);
+    if (!open) return;
   }, [open]);
 
   const savedIds = useMemo(() => new Set(saved.map((s) => s.id)), [saved]);
@@ -203,10 +208,8 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   };
 
   const handleContinue = (track?: MusicTrack) => {
-    const target = track || selectedTrack;
+    const target = track || activeAudioTrack || selectedTrack;
     if (!target) return;
-    audioRef.current?.pause();
-    setIsPlaying(false);
     onSelect(target);
   };
 
@@ -499,15 +502,15 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
         {/* Track List */}
         {!loading && displayList.length > 0 && (
           <div className="divide-y divide-white/5 px-2">
-            {displayList.map((track) => {
-              const isSelected = selectedTrack?.id === track.id;
+            {displayList.map((track, idx) => {
+              const isSelected = activeAudioTrack?.id === track.id;
               const isCurrentlyPlaying = isSelected && isPlaying;
               const isSaved = savedIds.has(track.id);
 
               return (
                 <div
                   key={track.id}
-                  onClick={() => togglePreview(track)}
+                  onClick={() => togglePreview(track, displayList, idx)}
                   className={`flex items-center gap-3.5 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
                     isSelected ? 'bg-white/10' : 'hover:bg-white/5 active:bg-white/10'
                   }`}
@@ -546,6 +549,11 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                       <span>{track.reelsCount || '600K'} reels</span>
                       <span>•</span>
                       <span>{formatMusicDuration(track.durationMs)}</span>
+                      {(track.isFullSong || track.durationMs > 35000) && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                          Full Song
+                        </span>
+                      )}
                     </div>
                   </div>
 
