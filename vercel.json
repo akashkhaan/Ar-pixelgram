@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/saavn/(.*)",
+      "destination": "https://www.jiosaavn.com/$1"
+    },
+    {
       "source": "/AR-Pixelgram.apk",
       "destination": "/AR-Pixelgram.apk"
     },

@@ -28,6 +28,7 @@ import {
   getCountryName,
   getCountryTerms,
   ORIGINAL_AUDIOS,
+  getRealReelsCounts,
   type MusicLocale,
   type MusicTrack,
 } from '@/services/music';
@@ -79,6 +80,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [trendingTracks, setTrendingTracks] = useState<MusicTrack[]>([]);
   const [saved, setSaved] = useState<MusicTrack[]>([]);
+  const [realReelCounts, setRealReelCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [locale, setLocale] = useState<MusicLocale>(() => getDefaultMusicLocale());
   const [locationLoading, setLocationLoading] = useState(false);
@@ -114,6 +116,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
         if (active) setLocationLoading(false);
       });
     getSavedSongs().then(setSaved);
+    getRealReelsCounts().then(setRealReelCounts).catch(() => {});
     return () => {
       active = false;
     };
@@ -443,9 +446,18 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                       <span className="px-2 py-0.5 rounded-md bg-primary/20 text-primary text-[10px] font-bold tracking-wide uppercase">
                         Featured
                       </span>
-                      <span className="text-[11px] text-white/60">
-                        {featured[carouselIndex].reelsCount} reels
-                      </span>
+                      {(() => {
+                        const feat = featured[carouselIndex];
+                        const rCount = realReelCounts[feat.id] || realReelCounts[feat.title.toLowerCase().trim()] || 0;
+                        if (rCount > 0) {
+                          return (
+                            <span className="text-[11px] text-white/60">
+                              {rCount} {rCount === 1 ? 'reel' : 'reels'}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <p className="font-bold text-sm text-white truncate">
                       {featured[carouselIndex].title}
@@ -545,8 +557,18 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                     </p>
                     <div className="flex items-center gap-1.5 text-xs text-white/55 truncate mt-0.5">
                       <span className="truncate">{track.artist}</span>
-                      <span>•</span>
-                      <span>{track.reelsCount || '600K'} reels</span>
+                      {(() => {
+                        const rCount = realReelCounts[track.id] || realReelCounts[track.title.toLowerCase().trim()] || 0;
+                        if (rCount > 0) {
+                          return (
+                            <>
+                              <span>•</span>
+                              <span className="text-white/80 font-medium">{rCount} {rCount === 1 ? 'reel' : 'reels'}</span>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
                       <span>•</span>
                       <span>{formatMusicDuration(track.durationMs)}</span>
                       {(track.isFullSong || track.durationMs > 35000) && (

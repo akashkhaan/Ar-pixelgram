@@ -67,9 +67,7 @@ export function cleanDisplayCaption(caption?: string | null): string {
     .replace(/<!--pixelgram_music:[\s\S]*?(?:-->|$)/gi, '')
     .replace(/<!--[\s\S]*?(?:-->|$)/gi, '')
     .replace(/\{"_m":1,[\s\S]*?\}/g, '')
-    .replace(/(?:?
-)*(?:🎵|🎶|Audio:|Music:|Song:|Track:)\s*[^
-]*/gi, '')
+    .replace(new RegExp('(?:[\r\n\s]*)(?:🎵|🎶|Audio:|Music:|Song:|Track:)[\s\S]*', 'gi'), '')
     .trim();
 }
 

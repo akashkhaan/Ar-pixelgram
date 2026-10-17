@@ -60,7 +60,16 @@ const SongPage: React.FC = () => {
 
   const asTrack = (): MusicTrack | null => {
     if (!trackId || !preview) return null;
-    return { id: trackId, title, artist, artwork: artwork || '', previewUrl: preview, durationMs: 30000 };
+    const dur = first?.music_duration_ms || (isOriginal ? 30000 : 180000);
+    return {
+      id: trackId,
+      title,
+      artist,
+      artwork: artwork || '',
+      previewUrl: preview,
+      durationMs: dur,
+      isFullSong: !isOriginal,
+    };
   };
 
   // Saved songs list se pata karo ki ye gana pehle se save hai ya nahi
