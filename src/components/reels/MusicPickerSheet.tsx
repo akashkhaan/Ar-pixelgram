@@ -182,20 +182,17 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
 
   const savedIds = useMemo(() => new Set(saved.map((s) => s.id)), [saved]);
 
-  const togglePreview = (track: MusicTrack) => {
-    if (selectedTrack?.id === track.id && isPlaying) {
-      audioRef.current?.pause();
-      setIsPlaying(false);
+  const togglePreview = (track: MusicTrack, queue?: MusicTrack[], index?: number) => {
+    setSelectedTrack(track);
+    if (globalTrack?.id === track.id) {
+      if (isPlaying) {
+        pause();
+      } else {
+        resume();
+      }
       return;
     }
-
-    audioRef.current?.pause();
-    const audio = new Audio(track.previewUrl);
-    audio.play().catch(() => toast.error('Preview could not play'));
-    audio.onended = () => setIsPlaying(false);
-    audioRef.current = audio;
-    setSelectedTrack(track);
-    setIsPlaying(true);
+    void playTrack(track, queue || displayList, index);
   };
 
   const toggleSave = async (track: MusicTrack, e: React.MouseEvent) => {
@@ -214,6 +211,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   const handleContinue = (track?: MusicTrack) => {
     const target = track || activeAudioTrack || selectedTrack;
     if (!target) return;
+    pause();
     onSelect(target);
   };
 
@@ -425,7 +423,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
               {featured[carouselIndex] && (
                 <div
                   className="flex items-center gap-3.5 cursor-pointer"
-                  onClick={() => togglePreview(featured[carouselIndex])}
+                  onClick={() => togglePreview(featured[carouselIndex], featured, carouselIndex)}
                 >
                   <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 shadow-lg border border-white/20">
                     <img
@@ -434,7 +432,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      {selectedTrack?.id === featured[carouselIndex].id && isPlaying ? (
+                      {activeAudioTrack?.id === featured[carouselIndex].id && isPlaying ? (
                         <Pause className="w-6 h-6 text-white" />
                       ) : (
                         <Play className="w-6 h-6 text-white ml-0.5" />
@@ -625,7 +623,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                {isPlaying ? (
+                {activeAudioTrack?.id === selectedTrack.id && isPlaying ? (
                   <Pause className="w-4 h-4 text-white" />
                 ) : (
                   <Play className="w-4 h-4 text-white ml-0.5" />

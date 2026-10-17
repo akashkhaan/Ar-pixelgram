@@ -35,6 +35,7 @@ class AudioPlayerService {
     if (this.audio) return;
     this.audio = new Audio();
     this.audio.preload = 'auto';
+    (this.audio as any).playsInline = true;
 
     this.audio.addEventListener('play', () => {
       this.state.isPlaying = true;
@@ -188,8 +189,10 @@ class AudioPlayerService {
     this.state.duration = (track.durationMs || 30000) / 1000;
 
     try {
+      this.audio.pause();
       this.audio.src = track.previewUrl;
       this.audio.currentTime = 0;
+      this.audio.load();
       await this.audio.play();
       this.state.isPlaying = true;
       this.updateMediaSessionMetadata(track);

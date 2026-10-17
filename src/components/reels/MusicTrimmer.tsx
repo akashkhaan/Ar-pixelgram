@@ -41,7 +41,7 @@ const MusicTrimmer: React.FC<Props> = ({
   const [videoDuration, setVideoDuration] = useState(0);
   const [start, setStart] = useState(initialStartMs / 1000);
   const [muteOriginal, setMuteOriginal] = useState(initialMuteOriginal);
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(Boolean(track.durationMs));
   const [isPlaying, setIsPlaying] = useState(true);
 
   const bars = useMemo(() => generateWaveformBars(track.id), [track.id]);
@@ -63,10 +63,13 @@ const MusicTrimmer: React.FC<Props> = ({
   useEffect(() => {
     const a = audioRef.current;
     const v = videoRef.current;
-    if (!a || !ready) return;
+    if (!a) return;
 
-    a.currentTime = start;
-    a.play().catch(() => {});
+    try {
+      a.currentTime = start;
+      const p = a.play();
+      if (p) p.catch(() => {});
+    } catch {}
     setIsPlaying(true);
 
     if (v) {
@@ -76,19 +79,20 @@ const MusicTrimmer: React.FC<Props> = ({
 
     const onTime = () => {
       if (clipLen && a.currentTime >= start + clipLen) {
-        a.currentTime = start;
+        try {
+          a.currentTime = start;
+          const p = a.play();
+          if (p) p.catch(() => {});
+        } catch {}
         if (v) {
           v.currentTime = 0;
           v.play().catch(() => {});
         }
       }
     };
-
     a.addEventListener('timeupdate', onTime);
     return () => a.removeEventListener('timeupdate', onTime);
   }, [start, clipLen, ready]);
-
-  useEffect(() => {
     return () => {
       audioRef.current?.pause();
     };
@@ -189,9 +193,14 @@ const MusicTrimmer: React.FC<Props> = ({
           ref={audioRef}
           src={track.previewUrl}
           loop
+          preload="auto"
+          playsInline
           onLoadedMetadata={(e) => {
-            const dur = e.currentTarget.duration || 30;
+            const dur = e.currentTarget.duration || (track.durationMs ? track.durationMs / 1000 : 30);
             setAudioDuration(dur);
+            setReady(true);
+          }}
+          onCanPlay={() => {
             setReady(true);
           }}
         />

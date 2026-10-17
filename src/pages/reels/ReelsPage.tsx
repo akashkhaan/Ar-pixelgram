@@ -178,8 +178,17 @@ const ReelCard: React.FC<{
         a.play().catch(() => {});
       }
     };
+    const onVideoPlay = () => {
+      if (isActive && a.paused) {
+        a.play().catch(() => {});
+      }
+    };
     v.addEventListener('timeupdate', syncAudioOnVideoLoop);
-    return () => v.removeEventListener('timeupdate', syncAudioOnVideoLoop);
+    v.addEventListener('play', onVideoPlay);
+    return () => {
+      v.removeEventListener('timeupdate', syncAudioOnVideoLoop);
+      v.removeEventListener('play', onVideoPlay);
+    };
   }, [isActive, hasMusic, musicStart]);
 
   // Count a view once this reel has actually been watched for a moment
@@ -337,7 +346,18 @@ const ReelCard: React.FC<{
           ref={audioRef}
           src={reel.music_preview_url || undefined}
           preload={isActive ? 'auto' : 'none'}
-          onLoadedMetadata={(e) => { e.currentTarget.currentTime = musicStart; }}
+          playsInline
+          onLoadedMetadata={(e) => {
+            e.currentTarget.currentTime = musicStart;
+            if (isActive) {
+              e.currentTarget.play().catch(() => {});
+            }
+          }}
+          onCanPlay={(e) => {
+            if (isActive && e.currentTarget.paused) {
+              e.currentTarget.play().catch(() => {});
+            }
+          }}
           onEnded={(e) => {
             // Chosen start point se dobara loop karo (0 se nahi)
             e.currentTarget.currentTime = musicStart;

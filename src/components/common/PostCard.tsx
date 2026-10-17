@@ -255,10 +255,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
               ref={audioRef}
               src={post.music_preview_url}
               loop
+              preload="metadata"
+              playsInline
               onEnded={() => setIsPlayingAudio(false)}
               onPause={() => setIsPlayingAudio(false)}
               onPlay={() => setIsPlayingAudio(true)}
-              preload="none"
+              onLoadedMetadata={(e) => {
+                if (post.music_start_ms) {
+                  try {
+                    e.currentTarget.currentTime = post.music_start_ms / 1000;
+                  } catch {}
+                }
+              }}
             />
             <button
               type="button"

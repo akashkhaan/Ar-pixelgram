@@ -178,7 +178,7 @@ const StoriesPage: React.FC = () => {
     if (!a) return;
     if (viewerUserId && currentStory?.music_preview_url) {
       const startSec = (currentStory.music_start_ms || 0) / 1000;
-      a.currentTime = startSec;
+      try { a.currentTime = startSec; } catch {}
       a.play().catch(() => {});
     } else {
       a.pause();
@@ -493,8 +493,16 @@ const StoriesPage: React.FC = () => {
               src={currentStory.music_preview_url}
               autoPlay
               loop
+              preload="auto"
+              playsInline
               onLoadedMetadata={(e) => {
                 e.currentTarget.currentTime = (currentStory.music_start_ms || 0) / 1000;
+                e.currentTarget.play().catch(() => {});
+              }}
+              onCanPlay={(e) => {
+                if (e.currentTarget.paused) {
+                  e.currentTarget.play().catch(() => {});
+                }
               }}
             />
           )}
