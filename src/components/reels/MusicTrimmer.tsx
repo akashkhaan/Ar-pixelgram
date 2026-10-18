@@ -93,6 +93,8 @@ const MusicTrimmer: React.FC<Props> = ({
     a.addEventListener('timeupdate', onTime);
     return () => a.removeEventListener('timeupdate', onTime);
   }, [start, clipLen, ready]);
+
+  useEffect(() => {
     return () => {
       audioRef.current?.pause();
     };
