@@ -1,9 +1,22 @@
 services:
   - type: web
+    name: ar-pixelgram-music-api
+    runtime: node
+    plan: free
+    buildCommand: node --check server.mjs
+    startCommand: node server.mjs
+    healthCheckPath: /healthz
+    envVars:
+      - key: FRONTEND_ORIGIN
+        value: https://ar-pixelgram.onrender.com
+  - type: web
     name: ar-pixelgram
     env: static
     buildCommand: npm run build
     staticPublishPath: ./dist
+    envVars:
+      - key: VITE_MUSIC_API_URL
+        value: https://ar-pixelgram-music-api.onrender.com
     routes:
       - type: rewrite
         source: /*

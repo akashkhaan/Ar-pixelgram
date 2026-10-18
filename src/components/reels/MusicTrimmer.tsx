@@ -37,7 +37,10 @@ const MusicTrimmer: React.FC<Props> = ({
 }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [audioDuration, setAudioDuration] = useState(30);
+  const declaredTrackDuration = track.durationMs > 0 ? track.durationMs / 1000 : 0;
+  const [audioDuration, setAudioDuration] = useState(() =>
+    track.isFullSong && declaredTrackDuration > 0 ? declaredTrackDuration : 30,
+  );
   const [videoDuration, setVideoDuration] = useState(0);
   const [start, setStart] = useState(initialStartMs / 1000);
   const [muteOriginal, setMuteOriginal] = useState(initialMuteOriginal);
@@ -46,7 +49,7 @@ const MusicTrimmer: React.FC<Props> = ({
 
   const bars = useMemo(() => generateWaveformBars(track.id), [track.id]);
 
-  // Window length (standard Instagram 15s to 30s)
+  // The selected window follows the video duration and the actual playable track length.
   const clipLen = useMemo(() => {
     if (!audioDuration) return 15;
     const v = mediaType === 'image' ? 15 : (videoDuration || 15);
@@ -198,7 +201,11 @@ const MusicTrimmer: React.FC<Props> = ({
           preload="auto"
           playsInline
           onLoadedMetadata={(e) => {
-            const dur = e.currentTarget.duration || (track.durationMs ? track.durationMs / 1000 : 30);
+            const reportedDuration = e.currentTarget.duration;
+            const actualDuration =
+              Number.isFinite(reportedDuration) && reportedDuration > 0 ? reportedDuration : 0;
+            const fallbackDuration = track.isFullSong && declaredTrackDuration > 0 ? declaredTrackDuration : 30;
+            const dur = actualDuration || fallbackDuration;
             setAudioDuration(dur);
             setReady(true);
           }}
