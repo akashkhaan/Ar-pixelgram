@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import ReelCommentsSheet from '@/components/common/ReelCommentsSheet';
 import InstagramShareSheet from '@/components/common/InstagramShareSheet';
 import BottomNav from '@/components/layouts/BottomNav';
+import { audioPlayerService } from '@/services/audioPlayerService';
 import { retryMediaOnError, isLegacyMediaUrl } from '@/lib/mediaUrl';
 
 // Only render video for active ± 1 reels — prevents loading all videos at once
@@ -131,15 +132,12 @@ const ReelCard: React.FC<{
     const v = videoRef.current;
     if (!v) return;
     if (isActive) {
-      // Instagram-jaisa instant play: pehle frame ka intezaar nahi karte,
-      // seedha play() call karte hain aur agar browser ne abhi data nahi
-      // liya to canplay par dobara try kar lete hain.
+      let isCancelled = false;
       const tryPlay = () => {
+        if (isCancelled) return;
         const p = v.play();
         if (p !== undefined) {
           p.catch(() => {
-            // Mobile browser autoplay policy guard:
-            // If sound was blocked, mute temporarily so video starts playing INSTANTLY with 0ms black delay
             if (!v.muted) {
               v.muted = true;
               v.play().catch(() => {});
@@ -151,11 +149,14 @@ const ReelCard: React.FC<{
       v.addEventListener('canplay', tryPlay, { once: true });
       v.addEventListener('loadeddata', tryPlay, { once: true });
       return () => {
+        isCancelled = true;
         v.removeEventListener('canplay', tryPlay);
         v.removeEventListener('loadeddata', tryPlay);
+        try { v.pause(); } catch {}
       };
+    } else {
+      try { v.pause(); } catch {}
     }
-    v.pause();
   }, [isActive]);
 
   // Reel ka gana — video ke saath play/pause aur chosen start point se loop
@@ -163,32 +164,48 @@ const ReelCard: React.FC<{
     const a = audioRef.current;
     const v = videoRef.current;
     if (!a || !hasMusic) return;
-    if (isActive) {
-      a.currentTime = musicStart;
-      a.play().catch(() => {});
-    } else {
-      a.pause();
-      a.currentTime = musicStart;
-    }
 
-    if (!v) return;
-    const syncAudioOnVideoLoop = () => {
-      if (v.currentTime < 0.35 && a.currentTime > musicStart + 1) {
+    if (isActive) {
+      let isCancelled = false;
+      try { a.currentTime = musicStart; } catch {}
+      a.play().catch(() => {});
+
+      const syncAudioOnVideoLoop = () => {
+        if (isCancelled || !isActive) return;
+        if (v && v.currentTime < 0.35 && a.currentTime > musicStart + 1) {
+          try { a.currentTime = musicStart; } catch {}
+          a.play().catch(() => {});
+        }
+      };
+      const onVideoPlay = () => {
+        if (isCancelled || !isActive) return;
+        if (a.paused) {
+          a.play().catch(() => {});
+        }
+      };
+
+      if (v) {
+        v.addEventListener('timeupdate', syncAudioOnVideoLoop);
+        v.addEventListener('play', onVideoPlay);
+      }
+
+      return () => {
+        isCancelled = true;
+        if (v) {
+          v.removeEventListener('timeupdate', syncAudioOnVideoLoop);
+          v.removeEventListener('play', onVideoPlay);
+        }
+        try {
+          a.pause();
+          a.currentTime = musicStart;
+        } catch {}
+      };
+    } else {
+      try {
+        a.pause();
         a.currentTime = musicStart;
-        a.play().catch(() => {});
-      }
-    };
-    const onVideoPlay = () => {
-      if (isActive && a.paused) {
-        a.play().catch(() => {});
-      }
-    };
-    v.addEventListener('timeupdate', syncAudioOnVideoLoop);
-    v.addEventListener('play', onVideoPlay);
-    return () => {
-      v.removeEventListener('timeupdate', syncAudioOnVideoLoop);
-      v.removeEventListener('play', onVideoPlay);
-    };
+      } catch {}
+    }
   }, [isActive, hasMusic, musicStart]);
 
   // Count a view once this reel has actually been watched for a moment
@@ -348,20 +365,27 @@ const ReelCard: React.FC<{
           preload={isActive ? 'auto' : 'none'}
           playsInline
           onLoadedMetadata={(e) => {
-            e.currentTarget.currentTime = musicStart;
+            try { e.currentTarget.currentTime = musicStart; } catch {}
             if (isActive) {
               e.currentTarget.play().catch(() => {});
+            } else {
+              e.currentTarget.pause();
             }
           }}
           onCanPlay={(e) => {
             if (isActive && e.currentTarget.paused) {
               e.currentTarget.play().catch(() => {});
+            } else if (!isActive && !e.currentTarget.paused) {
+              e.currentTarget.pause();
             }
           }}
           onEnded={(e) => {
-            // Chosen start point se dobara loop karo (0 se nahi)
-            e.currentTarget.currentTime = musicStart;
-            e.currentTarget.play().catch(() => {});
+            if (isActive) {
+              try { e.currentTarget.currentTime = musicStart; } catch {}
+              e.currentTarget.play().catch(() => {});
+            } else {
+              e.currentTarget.pause();
+            }
           }}
         />
       )}
@@ -680,11 +704,18 @@ const ReelsPage: React.FC = () => {
     return () => observer.disconnect();
   }, [reels.length]);
 
-  // Light scroll listener purely for bottom nav hide/reveal
+  // Immediate active reel index calculation on scroll + bottom nav visibility
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const current = el.scrollTop;
+    const h = el.clientHeight;
+    if (h > 0) {
+      const newIndex = Math.round(current / h);
+      if (newIndex >= 0 && newIndex < reelsCountRef.current && newIndex !== activeIndex) {
+        setActiveIndex(newIndex);
+      }
+    }
     const delta = current - lastScrollTopRef.current;
     if (current <= 40) {
       setNavHidden(false);
@@ -694,6 +725,47 @@ const ReelsPage: React.FC = () => {
       setNavHidden(false);
     }
     lastScrollTopRef.current = current;
+  }, [activeIndex]);
+
+  // Enforce single active reel audio/video — pause all other reels immediately
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const allAudios = el.querySelectorAll('audio');
+    const allVideos = el.querySelectorAll('video');
+    const activeItem = el.querySelector(`[data-reel-index="${activeIndex}"]`);
+
+    allAudios.forEach((audio) => {
+      if (!activeItem || !activeItem.contains(audio)) {
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+        } catch {}
+      }
+    });
+
+    allVideos.forEach((video) => {
+      if (!activeItem || !activeItem.contains(video)) {
+        try {
+          video.pause();
+        } catch {}
+      }
+    });
+  }, [activeIndex]);
+
+  // Pause external background music on entering Reels, and pause all reel media on unmount
+  useEffect(() => {
+    audioPlayerService.pause();
+    return () => {
+      const el = containerRef.current;
+      if (!el) return;
+      el.querySelectorAll('audio').forEach((a) => {
+        try { a.pause(); } catch {}
+      });
+      el.querySelectorAll('video').forEach((v) => {
+        try { v.pause(); } catch {}
+      });
+    };
   }, []);
 
   // Keyboard support for desktop
