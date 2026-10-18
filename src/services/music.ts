@@ -2,8 +2,8 @@ import CryptoJS from 'crypto-js';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { supabase } from '@/db/supabase';
 // ===================== MUSIC (Songs for Stories, Reels & Posts) =====================
-// Real song catalog + 30s audio previews via Apple's public iTunes Search API.
-// No API key needed, CORS enabled, returns song name + cover art + high-quality preview.
+// Full-length Saavn tracks plus short iTunes previews for catalog fallback.
+// The Render music API proxies Saavn because the upstream endpoint does not allow browser CORS.
 // Personalized by Earth location (State, Region, Country) with unlimited A-Z search.
 
 export interface MusicTrack {
@@ -101,8 +101,9 @@ function mapTracks(results: ItunesResult[]): MusicTrack[] {
       album: r.collectionName,
       artwork: bigArtwork(r.artworkUrl100 || ''),
       previewUrl: r.previewUrl,
-      durationMs: r.trackTimeMillis || 30000,
-      
+      // iTunes previewUrl is a 30-second sample even when trackTimeMillis is longer.
+      durationMs: 30_000,
+      isFullSong: false,
     });
   }
   return out;
@@ -520,9 +521,10 @@ async function fetchSaavn(query: string, signal?: AbortSignal): Promise<MusicTra
   const q = query.trim();
   if (!q) return [];
 
-  // Strategy 1: Serverless proxy route /api/music-search?q=... (Vercel)
+  // Strategy 1: Dedicated backend (Render) or serverless API route (Vercel).
   try {
-    const res = await fetch('/api/music-search?q=' + encodeURIComponent(q), { signal });
+    const apiBase = (import.meta.env.VITE_MUSIC_API_URL || '').replace(/\/+$/, '');
+    const res = await fetch(`${apiBase}/api/music-search?q=${encodeURIComponent(q)}`, { signal });
     if (res.ok) {
       const json = (await res.json()) as any;
       if (Array.isArray(json?.results) && json.results.length > 0) {

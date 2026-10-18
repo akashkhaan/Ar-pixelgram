@@ -622,8 +622,26 @@ const ReelsPage: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const reelsCountRef = useRef(0);
+  const activeIndexRef = useRef(0);
   const [navHidden, setNavHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
+
+  const activateReel = useCallback((index: number) => {
+    activeIndexRef.current = index;
+    const container = containerRef.current;
+    if (container) {
+      const activeItem = container.querySelector(`[data-reel-index="${index}"]`);
+      container.querySelectorAll<HTMLAudioElement | HTMLVideoElement>('audio, video').forEach((media) => {
+        if (!activeItem || !activeItem.contains(media)) {
+          try {
+            media.pause();
+            if (media.tagName === 'AUDIO') media.currentTime = 0;
+          } catch {}
+        }
+      });
+    }
+    setActiveIndex((current) => (current === index ? current : index));
+  }, []);
 
   const loadReels = useCallback(async () => {
     try {
@@ -650,7 +668,7 @@ const ReelsPage: React.FC = () => {
       if (targetId) {
         const idx = data.findIndex(r => r.id === targetId);
         if (idx >= 0) {
-          setActiveIndex(idx);
+          activateReel(idx);
           if (wantsComments || commentIdParam) {
             setOpenCommentsFor(targetId);
             if (commentIdParam) setHighlightCommentFor(commentIdParam);
@@ -668,7 +686,7 @@ const ReelsPage: React.FC = () => {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activateReel]);
 
   useEffect(() => { loadReels(); }, [loadReels]);
 
@@ -686,7 +704,7 @@ const ReelsPage: React.FC = () => {
             if (idxStr !== null) {
               const idx = parseInt(idxStr, 10);
               if (!isNaN(idx)) {
-                setActiveIndex(idx);
+                activateReel(idx);
               }
             }
           }
@@ -702,7 +720,7 @@ const ReelsPage: React.FC = () => {
     items.forEach(item => observer.observe(item));
 
     return () => observer.disconnect();
-  }, [reels.length]);
+  }, [activateReel, reels.length]);
 
   // Immediate active reel index calculation on scroll + bottom nav visibility
   const handleScroll = useCallback(() => {
@@ -712,8 +730,8 @@ const ReelsPage: React.FC = () => {
     const h = el.clientHeight;
     if (h > 0) {
       const newIndex = Math.round(current / h);
-      if (newIndex >= 0 && newIndex < reelsCountRef.current && newIndex !== activeIndex) {
-        setActiveIndex(newIndex);
+      if (newIndex >= 0 && newIndex < reelsCountRef.current && newIndex !== activeIndexRef.current) {
+        activateReel(newIndex);
       }
     }
     const delta = current - lastScrollTopRef.current;
@@ -725,7 +743,35 @@ const ReelsPage: React.FC = () => {
       setNavHidden(false);
     }
     lastScrollTopRef.current = current;
-  }, [activeIndex]);
+  }, [activateReel]);
+
+  // Catch late media play events from a reel that became inactive during a swipe.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const stopInactiveMedia = (event: Event) => {
+      const media = event.target;
+      if (!(media instanceof HTMLMediaElement)) return;
+      const reelItem = media.closest('[data-reel-index]');
+      const reelIndex = Number(reelItem?.getAttribute('data-reel-index'));
+      if (!reelItem || reelIndex !== activeIndexRef.current) {
+        media.pause();
+        return;
+      }
+
+      container.querySelectorAll<HTMLAudioElement | HTMLVideoElement>('audio, video').forEach((otherMedia) => {
+        if (otherMedia === media) return;
+        const otherItem = otherMedia.closest('[data-reel-index]');
+        if (Number(otherItem?.getAttribute('data-reel-index')) !== activeIndexRef.current) {
+          otherMedia.pause();
+        }
+      });
+    };
+
+    container.addEventListener('play', stopInactiveMedia, true);
+    return () => container.removeEventListener('play', stopInactiveMedia, true);
+  }, [reels.length]);
 
   // Enforce single active reel audio/video — pause all other reels immediately
   useEffect(() => {
