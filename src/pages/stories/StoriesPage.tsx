@@ -185,6 +185,27 @@ const StoriesPage: React.FC = () => {
     }
   }, [viewerUserId, currentStory, storyIndex]);
 
+  // Pause story audio when screen turns off or page loses focus
+  useEffect(() => {
+    const pauseStoryAudio = () => {
+      storyAudioRef.current?.pause();
+    };
+    const handleVisibility = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        pauseStoryAudio();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', pauseStoryAudio);
+    window.addEventListener('blur', pauseStoryAudio);
+    return () => {
+      pauseStoryAudio();
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', pauseStoryAudio);
+      window.removeEventListener('blur', pauseStoryAudio);
+    };
+  }, []);
+
   const nextStory = () => {
     if (!viewerGroup) return;
     setShowReply(false);
