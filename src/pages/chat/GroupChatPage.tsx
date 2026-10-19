@@ -574,28 +574,30 @@ const GroupChatPage: React.FC = () => {
         .group-chat-wrap .chh {
           display: flex;
           align-items: center;
-          gap: 10px;
-          padding: 10px 14px;
-          background: transparent;
+          gap: 8px;
+          padding: 6px 12px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
           z-index: 20;
           flex-shrink: 0;
         }
         .group-chat-wrap .back {
-          width: 36px;
-          height: 36px;
+          width: 34px;
+          height: 34px;
           border-radius: 50%;
-          background: transparent;
+          background: transparent !important;
+          border: 0 !important;
           display: grid;
           place-items: center;
           flex: none;
           color: var(--ink);
-          border: 0;
           cursor: pointer;
           transition: transform .15s, background .15s;
         }
         .group-chat-wrap .back:active {
           transform: scale(.92);
-          background: rgba(255,255,255,.08);
+          background: rgba(255,255,255,.1) !important;
         }
         .group-chat-wrap .t {
           flex: 1;
@@ -604,7 +606,7 @@ const GroupChatPage: React.FC = () => {
         }
         .group-chat-wrap .t b {
           display: block;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 800;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -616,11 +618,11 @@ const GroupChatPage: React.FC = () => {
           font-size: 12px;
         }
         .group-chat-wrap .head-action-btn {
-          width: 36px;
-          height: 36px;
+          width: 34px;
+          height: 34px;
           border-radius: 50%;
-          background: transparent;
-          border: none;
+          background: transparent !important;
+          border: none !important;
           display: grid;
           place-items: center;
           color: var(--ink);
@@ -629,12 +631,12 @@ const GroupChatPage: React.FC = () => {
           flex-shrink: 0;
         }
         .group-chat-wrap .head-action-btn:hover {
-          background: rgba(255,255,255,.08);
+          background: rgba(255,255,255,.1) !important;
           color: #fff;
         }
         .group-chat-wrap .head-action-btn:active {
           transform: scale(.9);
-          background: rgba(255,255,255,.12);
+          background: rgba(255,255,255,.16) !important;
         }
         .group-chat-wrap #group-msgs {
           flex: 1;
@@ -723,7 +725,19 @@ const GroupChatPage: React.FC = () => {
           transform: scale(.9);
         }
       `}</style>
-      <div className="group-chat-wrap">
+      <div
+        className="group-chat-wrap"
+        style={
+          groupWallpaper
+            ? {
+                backgroundImage: `url(${groupWallpaper})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }
+            : undefined
+        }
+      >
         {/* CHAT HEADER */}
         <header className="chh">
           <button
@@ -882,20 +896,8 @@ const GroupChatPage: React.FC = () => {
         {/* MESSAGES LIST */}
         <div
           id="group-msgs"
-          style={
-            groupWallpaper
-              ? {
-                  backgroundImage: `url(${groupWallpaper})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                }
-              : undefined
-          }
+          className="bg-transparent"
         >
-          {groupWallpaper && (
-            <div className="absolute inset-0 bg-[#0E0820]/60 backdrop-blur-[0.5px] pointer-events-none" />
-          )}
           <div className="tm">
             Messages in this group are visible only to its members.
           </div>

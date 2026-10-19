@@ -428,28 +428,30 @@ const ChatPage: React.FC = () => {
         .chat-wrap .chh {
           display: flex;
           align-items: center;
-          gap: 10px;
-          padding: 10px 14px;
-          background: transparent;
+          gap: 8px;
+          padding: 6px 12px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
           z-index: 20;
           flex-shrink: 0;
         }
         .chat-wrap .back {
-          width: 36px;
-          height: 36px;
+          width: 34px;
+          height: 34px;
           border-radius: 50%;
-          background: transparent;
+          background: transparent !important;
           display: grid;
           place-items: center;
           flex: none;
           color: var(--ink);
-          border: 0;
+          border: 0 !important;
           cursor: pointer;
           transition: transform .15s, background .15s;
         }
         .chat-wrap .back:active {
           transform: scale(.92);
-          background: rgba(255,255,255,.08);
+          background: rgba(255,255,255,.1) !important;
         }
         .chat-wrap .t {
           flex: 1;
@@ -458,7 +460,7 @@ const ChatPage: React.FC = () => {
         }
         .chat-wrap .t b {
           display: block;
-          font-size: 16.5px;
+          font-size: 15px;
           font-weight: 800;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -467,18 +469,18 @@ const ChatPage: React.FC = () => {
         }
         .chat-wrap .t small {
           color: var(--mute);
-          font-size: 12.5px;
+          font-size: 12px;
         }
         .chat-wrap .t small.on {
           color: var(--green);
           font-weight: 600;
         }
         .chat-wrap .head-action-btn {
-          width: 36px;
-          height: 36px;
+          width: 34px;
+          height: 34px;
           border-radius: 50%;
-          background: transparent;
-          border: none;
+          background: transparent !important;
+          border: none !important;
           display: grid;
           place-items: center;
           color: var(--ink);
@@ -487,12 +489,12 @@ const ChatPage: React.FC = () => {
           flex-shrink: 0;
         }
         .chat-wrap .head-action-btn:hover {
-          background: rgba(255,255,255,.08);
+          background: rgba(255,255,255,.1) !important;
           color: #fff;
         }
         .chat-wrap .head-action-btn:active {
           transform: scale(.9);
-          background: rgba(255,255,255,.12);
+          background: rgba(255,255,255,.16) !important;
         }
         .chat-wrap #msgs {
           flex: 1;
@@ -606,7 +608,19 @@ const ChatPage: React.FC = () => {
           transform: scale(.9);
         }
       `}</style>
-      <div className="chat-wrap">
+      <div
+        className="chat-wrap"
+        style={
+          wallpaper
+            ? {
+                backgroundImage: `url(${wallpaper})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }
+            : undefined
+        }
+      >
         {/* TOP BAR (.chh) */}
         <div className="chh">
           <button
@@ -753,21 +767,8 @@ const ChatPage: React.FC = () => {
 
         {/* Messages Canvas */}
         <div
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 py-4 space-y-2.5 relative bg-background/50"
-          style={
-            wallpaper
-              ? {
-                  backgroundImage: `url(${wallpaper})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                }
-              : undefined
-          }
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 py-3 space-y-2.5 relative bg-transparent"
         >
-          {wallpaper && (
-            <div className="absolute inset-0 bg-background/50 dark:bg-background/70 backdrop-blur-[0.5px] pointer-events-none" />
-          )}
 
           {/* Messenger Hero Profile Section (from Screenshot 2) */}
           {!searchQuery && (
