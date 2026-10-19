@@ -208,6 +208,14 @@ const ReelCard: React.FC<{
     }
   }, [isActive, hasMusic, musicStart]);
 
+  // Ensure video and audio always pause when ReelCard unmounts
+  useEffect(() => {
+    return () => {
+      try { videoRef.current?.pause(); } catch {}
+      try { audioRef.current?.pause(); } catch {}
+    };
+  }, []);
+
   // Count a view once this reel has actually been watched for a moment
   // (avoids counting a quick scroll-past as a "view").
   const [viewsCount, setViewsCount] = useState(reel.views_count || 0);
@@ -799,9 +807,9 @@ const ReelsPage: React.FC = () => {
     });
   }, [activeIndex]);
 
-  // Pause external background music on entering Reels, and pause all reel media on unmount / navigation
+  // Stop external background music completely on entering Reels, and pause all reel media on unmount / navigation
   useEffect(() => {
-    audioPlayerService.pause();
+    audioPlayerService.stop();
     return () => {
       const el = containerRef.current;
       if (!el) return;
@@ -827,13 +835,18 @@ const ReelsPage: React.FC = () => {
   // Auto pause all reels immediately when screen turns off, phone is locked, or app is minimized / back pressed
   useEffect(() => {
     const pauseAllMedia = () => {
+      try { audioPlayerService.stop(); } catch {}
       const el = containerRef.current;
-      if (!el) return;
-      el.querySelectorAll('audio').forEach((a) => {
-        try { a.pause(); } catch {}
-      });
-      el.querySelectorAll('video').forEach((v) => {
-        try { v.pause(); } catch {}
+      if (el) {
+        el.querySelectorAll('audio').forEach((a) => {
+          try { a.pause(); } catch {}
+        });
+        el.querySelectorAll('video').forEach((v) => {
+          try { v.pause(); } catch {}
+        });
+      }
+      document.querySelectorAll('audio, video').forEach((m) => {
+        try { (m as HTMLMediaElement).pause(); } catch {}
       });
     };
 
