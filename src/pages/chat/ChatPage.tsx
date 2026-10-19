@@ -426,16 +426,22 @@ const ChatPage: React.FC = () => {
           position: relative;
         }
         .chat-wrap .chh {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
           display: flex;
           align-items: center;
           gap: 10px;
           padding: 12px 14px;
-          border-bottom: 1px solid var(--line);
-          background: rgba(26,18,51,.85);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-          z-index: 20;
-          flex-shrink: 0;
+          height: 64px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          z-index: 30;
+          pointer-events: auto;
         }
         .chat-wrap .back {
           width: 40px;
@@ -609,7 +615,19 @@ const ChatPage: React.FC = () => {
           transform: scale(.9);
         }
       `}</style>
-      <div className="chat-wrap">
+      <div
+        className="chat-wrap"
+        style={
+          wallpaper
+            ? {
+                backgroundImage: `url(${wallpaper})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }
+            : undefined
+        }
+      >
         {/* TOP BAR (.chh) */}
         <div className="chh">
           <button
@@ -756,21 +774,8 @@ const ChatPage: React.FC = () => {
 
         {/* Messages Canvas */}
         <div
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 py-4 space-y-2.5 relative bg-background/50"
-          style={
-            wallpaper
-              ? {
-                  backgroundImage: `url(${wallpaper})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                }
-              : undefined
-          }
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pb-3 pt-[68px] space-y-2.5 relative bg-transparent"
         >
-          {wallpaper && (
-            <div className="absolute inset-0 bg-background/50 dark:bg-background/70 backdrop-blur-[0.5px] pointer-events-none" />
-          )}
 
           {/* Messenger Hero Profile Section (from Screenshot 2) */}
           {!searchQuery && (

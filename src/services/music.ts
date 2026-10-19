@@ -464,7 +464,7 @@ function decodeHtml(html: string): string {
 function extractSaavnImage(img: any): string {
   if (Array.isArray(img)) {
     const high = img.find((i: any) => i.quality === '500x500') || img[img.length - 1];
-    return high?.link || '';
+    return high?.url || high?.link || '';
   }
   if (typeof img === 'string') return img;
   return '';
@@ -477,7 +477,7 @@ function extractSaavnAudio(downloadUrl: any): string {
       downloadUrl.find((d: any) => d.quality === '160kbps') ||
       downloadUrl.find((d: any) => d.quality === '96kbps') ||
       downloadUrl[downloadUrl.length - 1];
-    return best?.link || '';
+    return best?.url || best?.link || '';
   }
   if (typeof downloadUrl === 'string') return downloadUrl;
   return '';
@@ -501,7 +501,18 @@ function mapSaavnTracks(items: any[]): MusicTrack[] {
     const durSec = typeof r.duration === 'string' ? parseInt(r.duration, 10) : Number(r.duration || 180);
     const durationMs = (!isNaN(durSec) && durSec > 0 ? durSec : 180) * 1000;
     const title = decodeHtml(r.song || r.name || r.title || 'Untitled Track');
-    const artist = decodeHtml(r.primary_artists || r.primaryArtists || r.artists || r.singers || 'Unknown Artist');
+    const artistList = r.artists?.primary || r.artists?.all;
+    const artistNames = Array.isArray(artistList)
+      ? artistList.map((item: any) => item?.name).filter(Boolean).join(', ')
+      : '';
+    const artist = decodeHtml(
+      r.primary_artists ||
+        r.primaryArtists ||
+        artistNames ||
+        (typeof r.artists === 'string' ? r.artists : '') ||
+        r.singers ||
+        'Unknown Artist',
+    );
     const artwork = bigArtwork(extractSaavnImage(r.image) || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500');
     out.push({
       id,
@@ -549,7 +560,19 @@ async function fetchSaavn(query: string, signal?: AbortSignal): Promise<MusicTra
     } catch {}
   }
 
-  // Strategy 3: Vite dev proxy or Vercel rewrite /api/saavn/...
+  // Strategy 3: Public CORS-enabled Saavn API for static browser deployments.
+  try {
+    const publicApiUrl = new URL('https://saavn.sumit.co/api/search/songs');
+    publicApiUrl.searchParams.set('query', q);
+    const res = await fetch(publicApiUrl.toString(), { signal });
+    if (res.ok) {
+      const json = (await res.json()) as any;
+      const tracks = mapSaavnTracks(json?.data?.results || json?.results || []);
+      if (tracks.length > 0) return tracks;
+    }
+  } catch {}
+
+  // Strategy 4: Vite dev proxy or Vercel rewrite /api/saavn/...
   try {
     const saavnUrl = '/api/saavn/api.php?__call=search.getResults&_format=json&n=35&p=1&_marker=0&ctx=android&q=' + encodeURIComponent(q);
     const res = await fetch(saavnUrl, { signal });

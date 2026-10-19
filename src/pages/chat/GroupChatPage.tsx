@@ -572,16 +572,22 @@ const GroupChatPage: React.FC = () => {
           position: relative;
         }
         .group-chat-wrap .chh {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 10px 14px;
-          border-bottom: 1px solid var(--line);
-          background: rgba(26,18,51,.85);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-          z-index: 20;
-          flex-shrink: 0;
+          padding: 12px 14px;
+          height: 64px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          z-index: 30;
+          pointer-events: auto;
         }
         .group-chat-wrap .back {
           width: 40px;
@@ -644,7 +650,7 @@ const GroupChatPage: React.FC = () => {
           min-height: 0;
           overflow-y: auto;
           overscroll-behavior: contain;
-          padding: 16px 14px;
+          padding: 68px 14px 16px;
           display: flex;
           flex-direction: column;
           gap: 8px;
@@ -726,7 +732,19 @@ const GroupChatPage: React.FC = () => {
           transform: scale(.9);
         }
       `}</style>
-      <div className="group-chat-wrap">
+      <div
+        className="group-chat-wrap"
+        style={
+          groupWallpaper
+            ? {
+                backgroundImage: `url(${groupWallpaper})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+              }
+            : undefined
+        }
+      >
         {/* CHAT HEADER */}
         <header className="chh">
           <button
@@ -885,20 +903,8 @@ const GroupChatPage: React.FC = () => {
         {/* MESSAGES LIST */}
         <div
           id="group-msgs"
-          style={
-            groupWallpaper
-              ? {
-                  backgroundImage: `url(${groupWallpaper})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  backgroundRepeat: 'no-repeat',
-                }
-              : undefined
-          }
+          className="bg-transparent"
         >
-          {groupWallpaper && (
-            <div className="absolute inset-0 bg-[#0E0820]/60 backdrop-blur-[0.5px] pointer-events-none" />
-          )}
           <div className="tm">
             Messages in this group are visible only to its members.
           </div>

@@ -799,10 +799,34 @@ const ReelsPage: React.FC = () => {
     });
   }, [activeIndex]);
 
-  // Pause external background music on entering Reels, and pause all reel media on unmount
+  // Pause external background music on entering Reels, and pause all reel media on unmount / navigation
   useEffect(() => {
     audioPlayerService.pause();
     return () => {
+      const el = containerRef.current;
+      if (!el) return;
+      el.querySelectorAll('audio').forEach((a) => {
+        try {
+          a.pause();
+          a.currentTime = 0;
+          a.removeAttribute('src');
+          a.load();
+        } catch {}
+      });
+      el.querySelectorAll('video').forEach((v) => {
+        try {
+          v.pause();
+          v.currentTime = 0;
+          v.removeAttribute('src');
+          v.load();
+        } catch {}
+      });
+    };
+  }, []);
+
+  // Auto pause all reels immediately when screen turns off, phone is locked, or app is minimized / back pressed
+  useEffect(() => {
+    const pauseAllMedia = () => {
       const el = containerRef.current;
       if (!el) return;
       el.querySelectorAll('audio').forEach((a) => {
@@ -811,6 +835,35 @@ const ReelsPage: React.FC = () => {
       el.querySelectorAll('video').forEach((v) => {
         try { v.pause(); } catch {}
       });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        pauseAllMedia();
+      } else if (document.visibilityState === 'visible') {
+        const el = containerRef.current;
+        if (!el) return;
+        const activeItem = el.querySelector(`[data-reel-index="${activeIndexRef.current}"]`);
+        if (activeItem) {
+          const v = activeItem.querySelector('video');
+          const a = activeItem.querySelector('audio');
+          try { v?.play().catch(() => {}); } catch {}
+          try { a?.play().catch(() => {}); } catch {}
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', pauseAllMedia);
+    window.addEventListener('blur', pauseAllMedia);
+    window.addEventListener('beforeunload', pauseAllMedia);
+
+    return () => {
+      pauseAllMedia();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', pauseAllMedia);
+      window.removeEventListener('blur', pauseAllMedia);
+      window.removeEventListener('beforeunload', pauseAllMedia);
     };
   }, []);
 

@@ -228,7 +228,7 @@ const MusicTrimmer: React.FC<Props> = ({
           <div className="flex items-center justify-between text-[11px] text-white/70 px-1 font-medium">
             <span>{formatMusicDuration(start * 1000)}</span>
             <span className="text-primary font-bold">{Math.round(clipLen)}s selected</span>
-            <span>{formatMusicDuration((start + clipLen) * 1000)}</span>
+            <span title="Full track duration">{formatMusicDuration(audioDuration * 1000)}</span>
           </div>
 
           <div className="relative h-16 rounded-2xl bg-white/10 px-2 overflow-hidden flex items-center">
