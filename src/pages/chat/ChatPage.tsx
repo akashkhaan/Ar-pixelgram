@@ -428,30 +428,29 @@ const ChatPage: React.FC = () => {
         .chat-wrap .chh {
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 6px 12px;
-          background: transparent !important;
-          border: none !important;
-          box-shadow: none !important;
+          gap: 10px;
+          padding: 12px 14px;
+          border-bottom: 0;
+          background: transparent;
           z-index: 20;
           flex-shrink: 0;
         }
         .chat-wrap .back {
-          width: 34px;
-          height: 34px;
-          border-radius: 50%;
-          background: transparent !important;
+          width: 40px;
+          height: 40px;
+          border-radius: 14px;
+          background: rgba(255,255,255,.07);
           display: grid;
           place-items: center;
           flex: none;
           color: var(--ink);
-          border: 0 !important;
+          border: 0;
           cursor: pointer;
           transition: transform .15s, background .15s;
         }
         .chat-wrap .back:active {
           transform: scale(.92);
-          background: rgba(255,255,255,.1) !important;
+          background: rgba(255,255,255,.12);
         }
         .chat-wrap .t {
           flex: 1;
@@ -460,7 +459,7 @@ const ChatPage: React.FC = () => {
         }
         .chat-wrap .t b {
           display: block;
-          font-size: 15px;
+          font-size: 16.5px;
           font-weight: 800;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -469,18 +468,18 @@ const ChatPage: React.FC = () => {
         }
         .chat-wrap .t small {
           color: var(--mute);
-          font-size: 12px;
+          font-size: 12.5px;
         }
         .chat-wrap .t small.on {
           color: var(--green);
           font-weight: 600;
         }
         .chat-wrap .head-action-btn {
-          width: 34px;
-          height: 34px;
+          width: 38px;
+          height: 38px;
           border-radius: 50%;
-          background: transparent !important;
-          border: none !important;
+          background: rgba(255,255,255,.06);
+          border: 1px solid var(--line);
           display: grid;
           place-items: center;
           color: var(--ink);
@@ -489,12 +488,12 @@ const ChatPage: React.FC = () => {
           flex-shrink: 0;
         }
         .chat-wrap .head-action-btn:hover {
-          background: rgba(255,255,255,.1) !important;
+          background: rgba(255,61,127,.2);
           color: #fff;
+          border-color: rgba(255,61,127,.4);
         }
         .chat-wrap .head-action-btn:active {
           transform: scale(.9);
-          background: rgba(255,255,255,.16) !important;
         }
         .chat-wrap #msgs {
           flex: 1;

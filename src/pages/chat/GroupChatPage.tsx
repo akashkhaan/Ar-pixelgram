@@ -574,30 +574,29 @@ const GroupChatPage: React.FC = () => {
         .group-chat-wrap .chh {
           display: flex;
           align-items: center;
-          gap: 8px;
-          padding: 6px 12px;
-          background: transparent !important;
-          border: none !important;
-          box-shadow: none !important;
+          gap: 10px;
+          padding: 12px 14px;
+          border-bottom: 0;
+          background: transparent;
           z-index: 20;
           flex-shrink: 0;
         }
         .group-chat-wrap .back {
-          width: 34px;
-          height: 34px;
-          border-radius: 50%;
-          background: transparent !important;
-          border: 0 !important;
+          width: 40px;
+          height: 40px;
+          border-radius: 14px;
+          background: rgba(255,255,255,.07);
           display: grid;
           place-items: center;
           flex: none;
           color: var(--ink);
+          border: 0;
           cursor: pointer;
           transition: transform .15s, background .15s;
         }
         .group-chat-wrap .back:active {
           transform: scale(.92);
-          background: rgba(255,255,255,.1) !important;
+          background: rgba(255,255,255,.12);
         }
         .group-chat-wrap .t {
           flex: 1;
@@ -606,7 +605,7 @@ const GroupChatPage: React.FC = () => {
         }
         .group-chat-wrap .t b {
           display: block;
-          font-size: 15px;
+          font-size: 16px;
           font-weight: 800;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -618,11 +617,11 @@ const GroupChatPage: React.FC = () => {
           font-size: 12px;
         }
         .group-chat-wrap .head-action-btn {
-          width: 34px;
-          height: 34px;
+          width: 38px;
+          height: 38px;
           border-radius: 50%;
-          background: transparent !important;
-          border: none !important;
+          background: rgba(255,255,255,.06);
+          border: 1px solid var(--line);
           display: grid;
           place-items: center;
           color: var(--ink);
@@ -631,12 +630,12 @@ const GroupChatPage: React.FC = () => {
           flex-shrink: 0;
         }
         .group-chat-wrap .head-action-btn:hover {
-          background: rgba(255,255,255,.1) !important;
+          background: rgba(255,61,127,.2);
           color: #fff;
+          border-color: rgba(255,61,127,.4);
         }
         .group-chat-wrap .head-action-btn:active {
           transform: scale(.9);
-          background: rgba(255,255,255,.16) !important;
         }
         .group-chat-wrap #group-msgs {
           flex: 1;
