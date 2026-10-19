@@ -429,19 +429,16 @@ const ChatPage: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 12px 14px;
-          border-bottom: 1px solid var(--line);
-          background: rgba(26,18,51,.85);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
+          padding: 10px 14px;
+          background: transparent;
           z-index: 20;
           flex-shrink: 0;
         }
         .chat-wrap .back {
-          width: 40px;
-          height: 40px;
-          border-radius: 14px;
-          background: rgba(255,255,255,.07);
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: transparent;
           display: grid;
           place-items: center;
           flex: none;
@@ -452,7 +449,7 @@ const ChatPage: React.FC = () => {
         }
         .chat-wrap .back:active {
           transform: scale(.92);
-          background: rgba(255,255,255,.12);
+          background: rgba(255,255,255,.08);
         }
         .chat-wrap .t {
           flex: 1;
@@ -477,11 +474,11 @@ const ChatPage: React.FC = () => {
           font-weight: 600;
         }
         .chat-wrap .head-action-btn {
-          width: 38px;
-          height: 38px;
+          width: 36px;
+          height: 36px;
           border-radius: 50%;
-          background: rgba(255,255,255,.06);
-          border: 1px solid var(--line);
+          background: transparent;
+          border: none;
           display: grid;
           place-items: center;
           color: var(--ink);
@@ -490,12 +487,12 @@ const ChatPage: React.FC = () => {
           flex-shrink: 0;
         }
         .chat-wrap .head-action-btn:hover {
-          background: rgba(255,61,127,.2);
+          background: rgba(255,255,255,.08);
           color: #fff;
-          border-color: rgba(255,61,127,.4);
         }
         .chat-wrap .head-action-btn:active {
           transform: scale(.9);
+          background: rgba(255,255,255,.12);
         }
         .chat-wrap #msgs {
           flex: 1;
