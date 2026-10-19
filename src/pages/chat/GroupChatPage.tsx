@@ -572,14 +572,22 @@ const GroupChatPage: React.FC = () => {
           position: relative;
         }
         .group-chat-wrap .chh {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
           display: flex;
           align-items: center;
           gap: 10px;
           padding: 12px 14px;
-          border-bottom: 0;
-          background: transparent;
-          z-index: 20;
-          flex-shrink: 0;
+          height: 64px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          z-index: 30;
+          pointer-events: auto;
         }
         .group-chat-wrap .back {
           width: 40px;
@@ -642,7 +650,7 @@ const GroupChatPage: React.FC = () => {
           min-height: 0;
           overflow-y: auto;
           overscroll-behavior: contain;
-          padding: 16px 14px;
+          padding: 68px 14px 16px;
           display: flex;
           flex-direction: column;
           gap: 8px;

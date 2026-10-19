@@ -426,14 +426,22 @@ const ChatPage: React.FC = () => {
           position: relative;
         }
         .chat-wrap .chh {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
           display: flex;
           align-items: center;
           gap: 10px;
           padding: 12px 14px;
-          border-bottom: 0;
-          background: transparent;
-          z-index: 20;
-          flex-shrink: 0;
+          height: 64px;
+          background: transparent !important;
+          border: none !important;
+          box-shadow: none !important;
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          z-index: 30;
+          pointer-events: auto;
         }
         .chat-wrap .back {
           width: 40px;
@@ -766,7 +774,7 @@ const ChatPage: React.FC = () => {
 
         {/* Messages Canvas */}
         <div
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 py-3 space-y-2.5 relative bg-transparent"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pb-3 pt-[68px] space-y-2.5 relative bg-transparent"
         >
 
           {/* Messenger Hero Profile Section (from Screenshot 2) */}
