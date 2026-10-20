@@ -74,6 +74,12 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 
 void bootLiveWebsite();
 
+try {
+  if (typeof window !== 'undefined') {
+    (window as any).AndroidNotification?.setWebReady?.();
+  }
+} catch {}
+
 createRoot(document.getElementById("root")!).render(
   <Sentry.ErrorBoundary
     fallback={({ error }: { error?: any }) => (

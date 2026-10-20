@@ -83,7 +83,12 @@ export function RouteGuard({ children }: RouteGuardProps) {
   // visitor without an account can never land on (and get stuck in) the reels
   // or home feed loading screen.
   if (!isPublic && !isReady) {
-    return <div className="h-[100dvh] w-full bg-background" />;
+    return (
+      <div className="fixed inset-0 bg-[#0B0B0F] z-50 flex flex-col items-center justify-center pointer-events-none">
+        <img src="/icons/icon-192.png" alt="Pixelgram" className="w-[76px] h-[76px] rounded-[18px] shadow-[0_8px_30px_rgba(255,61,127,0.35)] mb-3.5" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+        <span className="font-['Bricolage_Grotesque'] text-xl font-extrabold bg-gradient-to-r from-[#FF3D7F] to-[#7C5CFF] bg-clip-text text-transparent">Pixelgram</span>
+      </div>
+    );
   }
 
   if (!isPublic && !user) {

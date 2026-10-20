@@ -27,7 +27,12 @@
     </style>
   </head>
   <body class="dark bg-[#0B0B0F] text-foreground select-none" style="background-color: #0B0B0F !important;">
-    <div id="root" style="background-color: #0B0B0F !important; min-height: 100vh;"></div>
+    <div id="root" style="background-color: #0B0B0F !important; min-height: 100vh;">
+      <div id="app-boot-splash" style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #0B0B0F; z-index: 99999;">
+        <img src="/icons/icon-192.png" alt="Pixelgram" style="width: 76px; height: 76px; border-radius: 18px; box-shadow: 0 8px 30px rgba(255, 61, 127, 0.35); margin-bottom: 14px;" onerror="this.style.display='none'" />
+        <span style="font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-size: 20px; font-weight: 800; background: linear-gradient(135deg, #FF3D7F, #7C5CFF); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Pixelgram</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

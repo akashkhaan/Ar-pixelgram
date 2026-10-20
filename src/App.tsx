@@ -63,6 +63,13 @@ const VisitTracker: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        (window as any).AndroidNotification?.setWebReady?.();
+      }
+    } catch {}
+  }, []);
   return (
     <LanguageProvider>
       <Router>

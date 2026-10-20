@@ -40,6 +40,7 @@ public class MainActivity extends BridgeActivity {
     private static final AtomicInteger notifIdSeq = new AtomicInteger(100);
     private PowerManager.WakeLock wakeLock;
     public static volatile boolean isCallActive = false;
+    public static volatile boolean isWebReady = false;
     private static volatile MainActivity instance;
 
     /** Latest FCM token, queued until the WebView is ready to store it. */
@@ -163,8 +164,10 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        androidx.core.splashscreen.SplashScreen.installSplashScreen(this);
+        androidx.core.splashscreen.SplashScreen splashScreen = androidx.core.splashscreen.SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
+        final long appBootTime = System.currentTimeMillis();
+        splashScreen.setKeepOnScreenCondition(() -> !isWebReady && (System.currentTimeMillis() - appBootTime < 1800));
         instance = this;
         createNotificationChannels();
 
@@ -368,6 +371,11 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean isNativeApp() {
             return true;
+        }
+
+        @JavascriptInterface
+        public void setWebReady() {
+            MainActivity.isWebReady = true;
         }
 
         @JavascriptInterface
