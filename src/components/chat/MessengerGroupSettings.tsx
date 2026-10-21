@@ -178,6 +178,12 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
   messages = [],
   groupNumericUid,
 }) => {
+  const navigate = useNavigate();
+  const [localMembers, setLocalMembers] = useState<GroupMember[]>(members || []);
+  useEffect(() => {
+    setLocalMembers(members || []);
+  }, [members]);
+  const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
   // Theme state: defaults to matching HTML Pixel theme (#FF3D7F, #7C5CFF)
   const currentThemeIdx = useMemo(() => {
     const found = MESSENGER_THEMES.findIndex(t => t.id.toLowerCase() === (groupTheme || 'pixel').toLowerCase());
