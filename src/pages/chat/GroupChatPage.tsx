@@ -61,6 +61,7 @@ import {
   updateGroup,
   updateGroupPermissions,
   uploadGroupAvatar,
+  updateGroupMemberRole,
 } from '@/services/groups';
 import type {
   Group,
@@ -1193,6 +1194,11 @@ const GroupChatPage: React.FC = () => {
             await removeGroupMember(groupId, userId);
             await load();
             toast.success('Member removed');
+          }}
+          onUpdateMemberRole={async (userId, newRole) => {
+            if (!groupId) return;
+            await updateGroupMemberRole(groupId, userId, newRole);
+            await load();
           }}
           onPermissionChange={handlePermissionChange}
           onUnpinMessage={async messageId => {

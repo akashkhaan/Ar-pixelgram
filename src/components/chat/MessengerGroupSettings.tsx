@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Group, GroupMember, GroupMedia, GroupPinnedMessage, GroupPermissions } from '@/types/groups';
 import type { Profile } from '@/types/types';
 
@@ -80,6 +81,8 @@ const IC: Record<string, string> = {
   camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
   check: '<path d="M5 12l5 5 9-10"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  more: '<circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.8" fill="currentColor" stroke="none"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
 };
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
@@ -109,6 +112,7 @@ interface MessengerGroupSettingsProps {
   onAvatarUpload: (file: File) => Promise<void>;
   onAddMember: (profile: Profile) => Promise<void>;
   onRemoveMember: (userId: string) => Promise<void>;
+  onUpdateMemberRole?: (userId: string, newRole: 'admin' | 'member') => Promise<void>;
   onPermissionChange: (key: keyof GroupPermissions, value: 'everyone' | 'admins') => Promise<void>;
   onUnpinMessage: (messageId: string) => Promise<void>;
   onLeaveGroup: () => Promise<void>;
@@ -153,6 +157,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
   onAvatarUpload,
   onAddMember,
   onRemoveMember,
+  onUpdateMemberRole,
   onPermissionChange,
   onUnpinMessage,
   onLeaveGroup,
@@ -599,9 +604,20 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     );
   };
 
-  const handleOpenMembersSheet = () => {
-    openSheet(
-      `${members.length} Members`,
+  const handleRoleToggle = async (userId: string, newRole: 'admin' | 'member') => {
+    try {
+      if (onUpdateMemberRole) {
+        await onUpdateMemberRole(userId, newRole);
+      }
+      setLocalMembers(prev => prev.map(m => m.user_id === userId ? { ...m, role: newRole } : m));
+    } catch (err) {
+      console.error('Failed to update role:', err);
+      showToast('Failed to update role');
+    }
+  };
+
+  const renderMembersContent = (currMembers: GroupMember[]) => {
+    return (
       <div>
         <button
           type="button"
@@ -629,9 +645,75 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           </span>
           Add people
         </button>
+
+        <div className="members-account-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '10px' }}>
+          {currMembers.map(m => {
+            const profile = (m as any).profile || (m as any).profiles;
+            const uname = profile?.full_name || profile?.username || nicknames[m.user_id] || 'User';
+            const username = profile?.username;
+            const isCurrentUser = m.user_id === currentMember?.user_id;
+            const isAdmin = m.role === 'admin';
+
+            return (
+              <div
+                key={m.user_id}
+                className="mrow"
+                style={{ cursor: 'pointer', padding: '8px 4px', borderRadius: '16px' }}
+                onClick={() => setSelectedMember(m)}
+              >
+                <div className="av">
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
+                  ) : (
+                    renderAvatarSvg(uname, m.user_id)
+                  )}
+                </div>
+                <div className="nm">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                    <span>{uname}</span>
+                    {isCurrentUser && (
+                      <span className="you-badge">You</span>
+                    )}
+                    {isAdmin && (
+                      <span className="admin-badge">Admin</span>
+                    )}
+                  </div>
+                  {username && <small>@{username}</small>}
+                </div>
+
+                {/* 3 Dot button */}
+                <button
+                  type="button"
+                  className="more-btn"
+                  aria-label="Member options"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedMember(m);
+                  }}
+                >
+                  <Icon name="more" className="w-5 h-5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   };
+
+  const handleOpenMembersSheet = () => {
+    openSheet(
+      `${localMembers.length} Members`,
+      renderMembersContent(localMembers)
+    );
+  };
+
+  useEffect(() => {
+    if (sheetOpen && sheetTitle.includes('Members')) {
+      setSheetTitle(`${localMembers.length} Members`);
+      setSheetContent(renderMembersContent(localMembers));
+    }
+  }, [localMembers, sheetOpen, sheetTitle]);
 
   const handleOpenInviteSheet = () => {
     openSheet(
@@ -1527,6 +1609,43 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           cursor: pointer;
         }
         .group-details-root .mrow .x svg { width: 18px; height: 18px; }
+        .group-details-root .mrow .more-btn {
+          color: var(--mute);
+          padding: 8px;
+          border: 0;
+          background: none;
+          cursor: pointer;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background-color 0.2s, color 0.2s;
+        }
+        .group-details-root .mrow .more-btn:hover {
+          color: #fff;
+          background: rgba(255, 255, 255, 0.12);
+        }
+        .group-details-root .admin-badge {
+          display: inline-block;
+          font-size: 10.5px;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 99px;
+          background: rgba(34, 211, 160, 0.2);
+          color: #22D3A0;
+          border: 1px solid rgba(34, 211, 160, 0.4);
+          vertical-align: middle;
+        }
+        .group-details-root .you-badge {
+          display: inline-block;
+          font-size: 10.5px;
+          font-weight: 700;
+          padding: 2px 7px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.85);
+          vertical-align: middle;
+        }
         .group-details-root .ck {
           flex: none;
           width: 26px;
@@ -2281,6 +2400,227 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
         <h3 id="st">{sheetTitle}</h3>
         <div id="sb">{sheetContent}</div>
       </div>
+
+      {/* Member 3-Dots Action Modal */}
+      {selectedMember && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 10000,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            padding: '12px',
+          }}
+          onClick={() => setSelectedMember(null)}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '380px',
+              background: '#181432',
+              border: '1px solid rgba(255, 255, 255, 0.16)',
+              borderRadius: '28px',
+              padding: '20px',
+              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.8)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              animation: 'slideUp 0.22s ease-out',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Member Profile Info */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+              <div style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(255, 255, 255, 0.1)' }}>
+                {selectedMember.profile?.avatar_url ? (
+                  <img src={selectedMember.profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  renderAvatarSvg(selectedMember.profile?.username || 'User', selectedMember.user_id)
+                )}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h4 style={{ margin: 0, color: '#fff', fontSize: '16px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedMember.profile?.full_name || selectedMember.profile?.username || 'User'}
+                  </h4>
+                  {selectedMember.role === 'admin' && (
+                    <span className="admin-badge">Admin</span>
+                  )}
+                  {selectedMember.user_id === currentMember?.user_id && (
+                    <span className="you-badge">You</span>
+                  )}
+                </div>
+                {selectedMember.profile?.username && (
+                  <p style={{ margin: '2px 0 0', color: '#A99FD2', fontSize: '13px' }}>@{selectedMember.profile.username}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* 1. Profile Option */}
+              <button
+                type="button"
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 16px',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 255, 255, 0.06)',
+                  border: '0',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+                onClick={() => {
+                  const uid = selectedMember.user_id;
+                  setSelectedMember(null);
+                  closeSheet();
+                  onClose();
+                  navigate(`/profile/${uid}`);
+                }}
+              >
+                <span style={{ color: '#7C5CFF', display: 'flex', alignItems: 'center' }}>
+                  <Icon name="user" className="w-5 h-5" />
+                </span>
+                <span>Profile</span>
+              </button>
+
+              {/* 2. Admin Capabilities: Available if current user is admin and not target themselves */}
+              {currentMember?.role === 'admin' && selectedMember.user_id !== currentMember?.user_id && (
+                <>
+                  {/* Make Admin or Dismiss Admin */}
+                  {selectedMember.role !== 'admin' ? (
+                    <button
+                      type="button"
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '16px',
+                        background: 'rgba(34, 211, 160, 0.12)',
+                        border: '1px solid rgba(34, 211, 160, 0.25)',
+                        color: '#22D3A0',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                      onClick={async () => {
+                        const targetId = selectedMember.user_id;
+                        const targetName = selectedMember.profile?.username || selectedMember.profile?.full_name || 'User';
+                        setSelectedMember(null);
+                        await handleRoleToggle(targetId, 'admin');
+                        showToast(`${targetName} is now a Group Admin! 🛡️`);
+                      }}
+                    >
+                      <span style={{ color: '#22D3A0', display: 'flex', alignItems: 'center' }}>
+                        <Icon name="shield" className="w-5 h-5" />
+                      </span>
+                      <span>Make Admin</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '16px',
+                        background: 'rgba(255, 255, 255, 0.06)',
+                        border: '0',
+                        color: '#A99FD2',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                      }}
+                      onClick={async () => {
+                        const targetId = selectedMember.user_id;
+                        const targetName = selectedMember.profile?.username || selectedMember.profile?.full_name || 'User';
+                        setSelectedMember(null);
+                        await handleRoleToggle(targetId, 'member');
+                        showToast(`${targetName} is no longer an Admin`);
+                      }}
+                    >
+                      <span style={{ color: '#A99FD2', display: 'flex', alignItems: 'center' }}>
+                        <Icon name="shield" className="w-5 h-5" />
+                      </span>
+                      <span>Dismiss as Admin</span>
+                    </button>
+                  )}
+
+                  {/* Remove from Group */}
+                  <button
+                    type="button"
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px 16px',
+                      borderRadius: '16px',
+                      background: 'rgba(255, 61, 127, 0.12)',
+                      border: '1px solid rgba(255, 61, 127, 0.25)',
+                      color: '#FF3D7F',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    onClick={async () => {
+                      const targetId = selectedMember.user_id;
+                      const targetName = selectedMember.profile?.username || selectedMember.profile?.full_name || 'User';
+                      setSelectedMember(null);
+                      await onRemoveMember(targetId);
+                      setLocalMembers(prev => prev.filter(m => m.user_id !== targetId));
+                      showToast(`${targetName} removed from group`);
+                    }}
+                  >
+                    <span style={{ color: '#FF3D7F', display: 'flex', alignItems: 'center' }}>
+                      <Icon name="leave" className="w-5 h-5" />
+                    </span>
+                    <span>Remove from Group</span>
+                  </button>
+                </>
+              )}
+
+              {/* Cancel Button */}
+              <button
+                type="button"
+                style={{
+                  width: '100%',
+                  padding: '11px',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '0',
+                  color: '#A99FD2',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  marginTop: '4px',
+                }}
+                onClick={() => setSelectedMember(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notification */}
       <div id="toast" className={toastVisible ? 'show' : ''} role="status">

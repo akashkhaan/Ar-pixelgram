@@ -309,6 +309,25 @@ export async function removeGroupMember(groupId: string, userId: string): Promis
   throwIfError(error);
 }
 
+export async function updateGroupMemberRole(groupId: string, userId: string, newRole: 'admin' | 'member'): Promise<void> {
+  const actualId = await resolveGroupId(groupId);
+  const targetGroupId = (actualId && actualId.includes('-')) ? actualId : groupId;
+  try {
+    const { error: rpcError } = await supabase.rpc('update_group_member_role', {
+      p_group_id: targetGroupId,
+      p_user_id: userId,
+      p_role: newRole,
+    });
+    if (!rpcError) return;
+  } catch {}
+  const { error } = await supabase
+    .from('group_members')
+    .update({ role: newRole })
+    .eq('group_id', targetGroupId)
+    .eq('user_id', userId);
+  throwIfError(error);
+}
+
 export async function leaveGroup(groupId: string): Promise<void> {
   const actualId = await resolveGroupId(groupId);
   if (!actualId || !actualId.includes('-')) throw new Error('Invalid group');
