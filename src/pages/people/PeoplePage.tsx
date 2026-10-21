@@ -1,4 +1,4 @@
-// लोग/डिस्कवर पेज — Exact match with Pixelgram People List UI
+// लोग/डिस्कवर पेज — Ultra-smooth high-performance People List
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -9,14 +9,14 @@ import { Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const VerifiedIcon: React.FC = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" stroke="#07070a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="Verified" className="shrink-0">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff" stroke="#07070a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="Verified" className="shrink-0">
     <path d="M12 2.5l2.4 1.9 3-.2 1 2.9 2.5 1.7-.9 2.9.9 2.9-2.5 1.7-1 2.9-3-.2L12 21.5l-2.4-1.9-3 .2-1-2.9L3.1 15.2 4 12.3l-.9-2.9 2.5-1.7 1-2.9 3 .2z"/>
     <path d="M8.6 12.2l2.4 2.3 4.4-4.6"/>
   </svg>
 );
 
 const UserPlusIcon: React.FC = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
     <circle cx="9" cy="7" r="4"/>
     <path d="M19 8v6"/>
@@ -25,7 +25,7 @@ const UserPlusIcon: React.FC = () => (
 );
 
 const CheckIcon: React.FC = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
     <path d="M20 6L9 17l-5-5"/>
   </svg>
 );
@@ -42,7 +42,7 @@ const PeoplePage: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const all = await getAllProfiles(0, 60);
+      const all = await getAllProfiles(0, 100);
       const others = all.filter(p => p.user_id !== user?.id);
       setProfiles(others);
       setFiltered(others);
@@ -123,23 +123,26 @@ const PeoplePage: React.FC = () => {
           position: absolute;
           top: -120px;
           left: 50%;
-          width: 460px;
-          height: 360px;
+          transform: translateX(-50%);
+          width: 380px;
+          height: 300px;
           border-radius: 50%;
-          background: radial-gradient(closest-side, rgba(255,255,255,.16), rgba(255,255,255,0));
+          background: radial-gradient(closest-side, rgba(255,255,255,.14), rgba(255,255,255,0));
           pointer-events: none;
-          animation: drift 9s ease-in-out infinite;
         }
         .people-list {
           position: relative;
           flex: 1;
           min-height: 0;
           overflow-y: auto;
-          padding: 14px 14px 36px;
+          overflow-x: hidden;
+          padding: 8px 10px 40px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 10px;
           scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior-y: contain;
         }
         .people-list::-webkit-scrollbar {
           display: none;
@@ -147,49 +150,47 @@ const PeoplePage: React.FC = () => {
         .people-row {
           display: flex;
           align-items: center;
-          gap: 14px;
-          padding: 14px;
-          border-radius: 26px;
-          background: linear-gradient(160deg, rgba(255,255,255,.11) 0%, rgba(255,255,255,.03) 55%, rgba(255,255,255,.06) 100%);
+          gap: 10px;
+          padding: 10px 12px;
+          border-radius: 20px;
+          background: linear-gradient(160deg, #1b1b22 0%, #111116 55%, #16161c 100%);
           border: 1px solid rgba(255,255,255,.10);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 14px 32px rgba(0,0,0,.55);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-          animation: rowin .6s cubic-bezier(.2,.8,.2,1) both;
-          transition: transform .25s ease, border-color .25s ease;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 6px 18px rgba(0,0,0,.45);
+          transition: transform .15s ease, border-color .15s ease;
+          width: 100%;
+          box-sizing: border-box;
         }
-        .people-row:hover {
-          transform: translateY(-2px);
-          border-color: rgba(255,255,255,.22);
+        .people-row:active {
+          transform: scale(0.99);
         }
         .people-avatar {
           position: relative;
-          flex: 0 0 auto;
-          width: 60px;
-          height: 60px;
+          flex: 0 0 46px;
+          width: 46px;
+          height: 46px;
           border-radius: 50%;
           overflow: hidden;
-          box-shadow: 0 0 26px rgba(255,255,255,.16);
+          box-shadow: 0 0 18px rgba(255,255,255,.15);
           cursor: pointer;
         }
         .people-ring {
           position: absolute;
-          top: -10px;
-          left: -10px;
-          width: 80px;
-          height: 80px;
-          background: conic-gradient(from 0deg, rgba(255,255,255,.05), rgba(255,255,255,1) 25%, rgba(255,255,255,.05) 50%, rgba(255,255,255,.7) 75%, rgba(255,255,255,.05));
+          top: -8px;
+          left: -8px;
+          width: 62px;
+          height: 62px;
+          background: conic-gradient(from 0deg, rgba(255,255,255,.1), rgba(255,255,255,1) 25%, rgba(255,255,255,.1) 50%, rgba(255,255,255,.7) 75%, rgba(255,255,255,.1));
           animation: spin 6s linear infinite;
         }
         .people-inner {
           position: absolute;
-          inset: 3px;
+          inset: 2.5px;
           border-radius: 50%;
           background: radial-gradient(circle at 30% 25%, #34343c 0%, #141418 100%);
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 23px;
+          font-size: 18px;
           font-weight: 800;
           color: #fff;
         }
@@ -204,7 +205,7 @@ const PeoplePage: React.FC = () => {
           min-width: 0;
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 2px;
           text-align: left;
           background: transparent;
           border: 0;
@@ -214,20 +215,22 @@ const PeoplePage: React.FC = () => {
         .people-uname {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 5px;
+          width: 100%;
           min-width: 0;
         }
         .people-uname span {
-          font-size: 16.5px;
+          font-size: 14.5px;
           font-weight: 800;
-          letter-spacing: -.3px;
+          letter-spacing: -.2px;
           color: #fff;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          display: block;
         }
         .people-fullname {
-          font-size: 13.5px;
+          font-size: 12px;
           font-weight: 500;
           color: #a1a1ab;
           overflow: hidden;
@@ -236,88 +239,52 @@ const PeoplePage: React.FC = () => {
         }
         .people-btn {
           flex: 0 0 auto;
-          min-width: 112px;
-          height: 46px;
-          padding: 0 18px;
-          border-radius: 23px;
+          min-width: 84px;
+          height: 36px;
+          padding: 0 12px;
+          border-radius: 18px;
           font-family: inherit;
-          font-size: 14px;
+          font-size: 13px;
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 7px;
+          gap: 5px;
           cursor: pointer;
-          transition: transform .12s ease, background .2s ease;
+          transition: transform .12s ease, opacity .2s ease;
+          box-sizing: border-box;
         }
         .people-btn:active {
-          transform: scale(.94);
+          transform: scale(.93);
         }
         .people-btn.follow {
-          position: relative;
-          overflow: hidden;
           border: 0;
-          background: linear-gradient(180deg, #fff 0%, #d6d6dc 100%);
+          background: linear-gradient(180deg, #ffffff 0%, #d8d8e0 100%);
           color: #07070a;
           font-weight: 800;
-          animation: glow 2.8s ease-in-out infinite;
-        }
-        .people-btn.follow::after {
-          content: "";
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 40%;
-          height: 100%;
-          background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.85), rgba(255,255,255,0));
-          animation: shine 3.2s ease-in-out infinite;
+          box-shadow: 0 3px 12px rgba(255,255,255,.25);
         }
         .people-btn.following {
-          border: 1px solid rgba(255,255,255,.28);
-          background: rgba(255,255,255,.08);
+          border: 1px solid rgba(255,255,255,.25);
+          background: rgba(255,255,255,.10);
           color: #f5f5f7;
           font-weight: 700;
         }
         .people-btn.requested {
-          border: 1px solid rgba(255,255,255,.28);
+          border: 1px solid rgba(255,255,255,.25);
           background: rgba(255,255,255,.08);
           color: #a1a1ab;
           font-weight: 700;
         }
-        .people-btn:focus-visible {
-          outline: 2px solid #fff;
-          outline-offset: 2px;
-        }
-        @keyframes rowin {
-          from { opacity: 0; transform: translateY(22px) scale(.97); }
-          to { opacity: 1; transform: none; }
-        }
         @keyframes spin {
           to { transform: rotate(360deg); }
-        }
-        @keyframes shine {
-          0% { transform: translateX(-140%) skewX(-20deg); }
-          55%, 100% { transform: translateX(260%) skewX(-20deg); }
-        }
-        @keyframes glow {
-          0%, 100% { box-shadow: 0 6px 18px rgba(255,255,255,.12); }
-          50% { box-shadow: 0 8px 28px rgba(255,255,255,.30); }
-        }
-        @keyframes drift {
-          0%, 100% { transform: translate(-50%, 0); }
-          50% { transform: translate(-50%, 26px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .people-row, .people-ring, .people-btn.follow, .people-btn.follow::after, .people-orb {
-            animation: none;
-          }
         }
       `}</style>
 
       <div className="people-app">
         <div className="people-orb" aria-hidden="true" />
 
-        {/* Sleek Glass Search Bar */}
-        <div className="relative z-10 px-4 pt-4 pb-2">
+        {/* Search Bar */}
+        <div className="relative z-10 px-3.5 pt-3 pb-1.5">
           <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#a1a1ab]" />
             <input
@@ -325,7 +292,7 @@ const PeoplePage: React.FC = () => {
               placeholder="Search by name or username..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full h-11 pl-10 pr-4 rounded-2xl bg-white/[0.06] border border-white/10 text-sm text-white placeholder-[#888894] outline-none focus:border-white/30 backdrop-blur-md transition-all shadow-inner"
+              className="w-full h-10 pl-10 pr-4 rounded-xl bg-white/[0.06] border border-white/10 text-sm text-white placeholder-[#888894] outline-none focus:border-white/30 transition-colors shadow-inner"
             />
           </div>
         </div>
@@ -338,7 +305,7 @@ const PeoplePage: React.FC = () => {
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-            <div className="w-16 h-16 rounded-3xl bg-white/[0.05] border border-white/10 flex items-center justify-center mb-3 text-2xl shadow-lg">
+            <div className="w-14 h-14 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center mb-3 text-2xl shadow-lg">
               🔍
             </div>
             <p className="text-[#a1a1ab] text-sm font-semibold">No people found</p>
@@ -346,7 +313,7 @@ const PeoplePage: React.FC = () => {
           </div>
         ) : (
           <div className="people-list">
-            {filtered.map((profile, i) => {
+            {filtered.map(profile => {
               const status = followMap[profile.user_id];
               const isFollowLoading = !!followLoading[profile.user_id];
               const isFollowed = status === 'accepted';
@@ -357,7 +324,6 @@ const PeoplePage: React.FC = () => {
                 <div
                   key={profile.id || profile.user_id}
                   className="people-row"
-                  style={{ animationDelay: `${Math.min(i * 0.05, 0.5).toFixed(2)}s` }}
                 >
                   {/* Glowing Animated Ring Avatar */}
                   <div
@@ -377,7 +343,7 @@ const PeoplePage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Info */}
+                  {/* Info — full width for long usernames */}
                   <button
                     type="button"
                     className="people-info"
@@ -392,7 +358,7 @@ const PeoplePage: React.FC = () => {
                     </div>
                   </button>
 
-                  {/* Action Button */}
+                  {/* Compact Action Button */}
                   <button
                     type="button"
                     onClick={() => handleFollow(profile)}
@@ -403,7 +369,7 @@ const PeoplePage: React.FC = () => {
                     aria-label={`${isFollowed ? 'Unfollow' : 'Follow'} ${profile.username}`}
                   >
                     {isFollowLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : isFollowed ? (
                       <>
                         <CheckIcon />
