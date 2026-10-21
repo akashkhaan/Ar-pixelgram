@@ -264,9 +264,10 @@ const GroupChatPage: React.FC = () => {
   const activeTheme = useMemo(() => MESSENGER_THEMES.find(t => t.id === groupTheme) || MESSENGER_THEMES[0], [groupTheme]);
 
   const visibleMessages = useMemo(() => {
+    const cleanList = messages.filter(m => !m.content?.startsWith('[GROUP_PENDING_APPROVAL]:'));
     const query = messageQuery.trim().toLowerCase();
-    if (!query) return messages;
-    return messages.filter(
+    if (!query) return cleanList;
+    return cleanList.filter(
       message =>
         message.content.toLowerCase().includes(query) ||
         (profileMap.get(message.sender_id)?.username || '').toLowerCase().includes(query)

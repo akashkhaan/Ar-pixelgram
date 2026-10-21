@@ -2,6 +2,14 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import type { Group, GroupMember, GroupMedia, GroupPinnedMessage, GroupPermissions } from '@/types/groups';
 import type { Profile } from '@/types/types';
+import { supabase } from '@/db/supabase';
+import {
+  searchGroupUsers,
+  sendGroupMessage,
+  addGroupMember,
+  updateGroupPermissions,
+  updateGroupMemberRole,
+} from '@/services/groups';
 
 // Theme Presets exactly from the HTML
 export const MESSENGER_THEMES = [
@@ -97,6 +105,15 @@ const Icon: React.FC<{ name: string; className?: string }> = ({ name, className 
     dangerouslySetInnerHTML={{ __html: IC[name] || '' }}
   />
 );
+
+interface PendingRequest {
+  messageId?: string;
+  userId: string;
+  username: string;
+  fullName?: string;
+  avatarUrl?: string;
+  requestedBy?: string;
+}
 
 interface MessengerGroupSettingsProps {
   isOpen: boolean;
@@ -233,7 +250,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
   });
 
   // Settings states from HTML
-  const [approval, setApproval] = useState<boolean>(false);
+// approval handled above
   const [disappearing, setDisappearing] = useState<string>('Off');
   const [sendPerm, setSendPerm] = useState<string>(permissions?.send_messages === 'admins' ? 'Only admins' : 'Everyone');
   const [editPerm, setEditPerm] = useState<string>(permissions?.edit_info === 'admins' ? 'Only admins' : 'All members');
@@ -250,6 +267,88 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
   const [sheetOpen, setSheetOpen] = useState<boolean>(false);
   const [sheetTitle, setSheetTitle] = useState<string>('');
   const [sheetContent, setSheetContent] = useState<React.ReactNode>(null);
+  const [sheetType, setSheetType] = useState<string>('');
+
+  // Approval requests state
+  const [approval, setApproval] = useState<boolean>(() => {
+    try {
+      const cached = localStorage.getItem(`group_approval_${group?.id}`);
+      if (cached !== null) return cached === '1';
+    } catch {}
+    return permissions?.add_members === 'admins';
+  });
+
+  useEffect(() => {
+    if (permissions?.add_members) {
+      setApproval(permissions.add_members === 'admins');
+    }
+  }, [permissions?.add_members]);
+
+  // Add people reactive search states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Profile[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedToAdd, setSelectedToAdd] = useState<string[]>([]);
+
+  // Pending approval requests state
+  const [pendingApprovals, setPendingApprovals] = useState<PendingRequest[]>([]);
+
+  // Helper to load and save pending requests locally
+  const getLocalPending = useCallback((): PendingRequest[] => {
+    try {
+      const raw = localStorage.getItem(`group_pending_${group?.id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }, [group?.id]);
+
+  const savePendingLocally = useCallback((req: PendingRequest) => {
+    try {
+      const curr = getLocalPending().filter(p => p.userId !== req.userId);
+      curr.push(req);
+      localStorage.setItem(`group_pending_${group?.id}`, JSON.stringify(curr));
+      setPendingApprovals(curr);
+    } catch {}
+  }, [getLocalPending, group?.id]);
+
+  const removePendingLocally = useCallback((userId: string) => {
+    try {
+      const curr = getLocalPending().filter(p => p.userId !== userId);
+      localStorage.setItem(`group_pending_${group?.id}`, JSON.stringify(curr));
+    } catch {}
+  }, [getLocalPending, group?.id]);
+
+  // Sync pending requests from messages and local cache
+  useEffect(() => {
+    const local = getLocalPending().filter(p => !localMembers.some(m => m.user_id === p.userId));
+    const fromMsgs: PendingRequest[] = [];
+    if (messages && messages.length > 0) {
+      for (const msg of messages) {
+        if (msg.content && msg.content.startsWith('[GROUP_PENDING_APPROVAL]:')) {
+          try {
+            const raw = msg.content.slice('[GROUP_PENDING_APPROVAL]:'.length);
+            const data = JSON.parse(raw);
+            if (!localMembers.some(m => m.user_id === data.userId)) {
+              fromMsgs.push({
+                messageId: msg.id,
+                userId: data.userId,
+                username: data.username,
+                fullName: data.fullName,
+                avatarUrl: data.avatarUrl,
+                requestedBy: msg.sender_id,
+              });
+            }
+          } catch {}
+        }
+      }
+    }
+    const map = new Map<string, PendingRequest>();
+    for (const p of [...local, ...fromMsgs]) {
+      map.set(p.userId, p);
+    }
+    setPendingApprovals(Array.from(map.values()));
+  }, [messages, localMembers, group?.id, getLocalPending]);
 
   // Toast state
   const [toastMessage, setToastMessage] = useState<string>('');
@@ -329,14 +428,16 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     sheetDragRef.current.dy = 0;
   };
 
-  const openSheet = useCallback((title: string, content: React.ReactNode) => {
+  const openSheet = useCallback((title: string, content: React.ReactNode, type = 'custom') => {
     setSheetTitle(title);
     setSheetContent(content);
+    setSheetType(type);
     setSheetOpen(true);
   }, []);
 
   const closeSheet = useCallback(() => {
     setSheetOpen(false);
+    setSheetType('');
   }, []);
 
   // Hidden File Inputs
@@ -558,81 +659,140 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     );
   };
 
-  const [addSelected, setAddSelected] = useState<string[]>([]);
-  const handleOpenAddPeopleSheet = () => {
-    setAddSelected([]);
-    openSheet(
-      'Add people',
-      <div>
-        <input
-          className="in"
-          value={memberQuery}
-          onChange={e => setMemberQuery(e.target.value)}
-          placeholder="Search people..."
-          autoFocus
-        />
-        {memberResults.length > 0 ? (
-          <div>
-            {memberResults.map(p => {
-              const isSelected = addSelected.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  className="mrow cursor-pointer"
-                  onClick={() => {
-                    setAddSelected(prev => (prev.includes(p.id) ? prev.filter(x => x !== p.id) : [...prev, p.id]));
-                  }}
-                >
-                  <div className="av">
-                    {p.avatar_url ? (
-                      <img src={p.avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
-                    ) : (
-                      renderAvatarSvg(p.username || 'User', p.id)
-                    )}
-                  </div>
-                  <div className="nm">
-                    {p.username || p.full_name}
-                    {p.full_name && <small>{p.full_name}</small>}
-                  </div>
-                  <span className={`ck ${isSelected ? 'on' : ''}`}>
-                    <Icon name="check" />
-                  </span>
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              className="btn"
-              disabled={addSelected.length === 0}
-              onClick={async () => {
-                burst('🎉');
-                for (const uid of addSelected) {
-                  const targetProf = memberResults.find(p => p.id === uid);
-                  if (targetProf) await onAddMember(targetProf);
-                }
-                showToast(`${addSelected.length} added`);
-                setAddSelected([]);
-                closeSheet();
-              }}
-            >
-              Add {addSelected.length || ''}
-            </button>
-          </div>
-        ) : (
-          <div className="none">
-            <b>{memberQuery ? 'No users found' : 'Search users to add'}</b>
-            <p className="text-xs text-[#A99FD2] mt-1">Type username or name above</p>
-          </div>
-        )}
-      </div>
-    );
+  // Approval requests toggle (ADMIN ONLY)
+  const handleToggleApproval = async () => {
+    const nextVal = !approval;
+    setApproval(nextVal);
+    try {
+      localStorage.setItem(`group_approval_${group.id}`, nextVal ? '1' : '0');
+      if (onPermissionChange) {
+        await onPermissionChange('add_members', nextVal ? 'admins' : 'everyone');
+      } else {
+        await updateGroupPermissions(group.id, { add_members: nextVal ? 'admins' : 'everyone' });
+      }
+      showToast(nextVal ? 'Approval requests turned ON' : 'Approval requests turned OFF');
+    } catch (err) {
+      console.error('Error toggling approval:', err);
+      showToast(nextVal ? 'Approval requests turned ON' : 'Approval requests turned OFF');
+    }
+  };
+
+  // Add people reactive search
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    const q = val.trim();
+    if (!q) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    const existingIds = localMembers.map(m => m.user_id);
+    searchGroupUsers(q, existingIds)
+      .then(res => setSearchResults(res || []))
+      .catch(() => setSearchResults([]))
+      .finally(() => setSearching(false));
+  };
+
+  // Submit selected users (Direct add OR Request approval)
+  const handleAddSelectedSubmit = async () => {
+    if (selectedToAdd.length === 0) return;
+    const isAdmin = isEffectiveAdmin(currentMember);
+
+    if (approval && !isAdmin) {
+      for (const pId of selectedToAdd) {
+        const prof = searchResults.find(p => (p.user_id || p.id) === pId);
+        if (prof) {
+          const reqItem: PendingRequest = {
+            userId: prof.user_id || prof.id,
+            username: prof.username || 'user',
+            fullName: prof.full_name || '',
+            avatarUrl: prof.avatar_url || '',
+            requestedBy: currentMember?.user_id || '',
+          };
+          try {
+            await sendGroupMessage(group.id, `[GROUP_PENDING_APPROVAL]:${JSON.stringify(reqItem)}`);
+          } catch {}
+          savePendingLocally(reqItem);
+        }
+      }
+      showToast('Request submitted for admin approval ⏳');
+    } else {
+      burst('🎉');
+      for (const pId of selectedToAdd) {
+        const prof = searchResults.find(p => (p.user_id || p.id) === pId);
+        if (prof) {
+          await onAddMember(prof);
+        }
+      }
+      showToast(`${selectedToAdd.length} added to group 🎉`);
+    }
+    setSelectedToAdd([]);
+    setSearchQuery('');
+    setSheetType('members');
+    setSheetTitle(`${localMembers.length} Members`);
+  };
+
+  // Confirm pending request (ADMIN ONLY)
+  const handleConfirmPending = async (req: PendingRequest) => {
+    try {
+      await addGroupMember(group.id, req.userId);
+      if (req.messageId) {
+        await supabase.from('group_messages').delete().eq('id', req.messageId);
+      }
+      removePendingLocally(req.userId);
+      setPendingApprovals(prev => prev.filter(p => p.userId !== req.userId));
+
+      const newMemberProfile: any = {
+        id: req.userId,
+        user_id: req.userId,
+        username: req.username,
+        full_name: req.fullName,
+        avatar_url: req.avatarUrl,
+      };
+      setLocalMembers(prev => [
+        ...prev,
+        {
+          group_id: group.id,
+          user_id: req.userId,
+          role: 'member',
+          can_send_messages: true,
+          can_send_media: true,
+          can_call: true,
+          can_invite: true,
+          joined_at: new Date().toISOString(),
+          profile: newMemberProfile,
+        },
+      ]);
+      if (onAddMember) {
+        await onAddMember(newMemberProfile);
+      }
+      showToast(`${req.username || 'User'} confirmed & added! 🎉`);
+    } catch (err) {
+      console.error('Error confirming pending:', err);
+      showToast('Failed to confirm member');
+    }
+  };
+
+  // Reject pending request (ADMIN ONLY)
+  const handleRejectPending = async (req: PendingRequest) => {
+    try {
+      if (req.messageId) {
+        await supabase.from('group_messages').delete().eq('id', req.messageId);
+      }
+      removePendingLocally(req.userId);
+      setPendingApprovals(prev => prev.filter(p => p.userId !== req.userId));
+      showToast('Request rejected');
+    } catch (err) {
+      console.error('Error rejecting pending:', err);
+    }
   };
 
   const handleRoleToggle = async (userId: string, newRole: 'admin' | 'member') => {
     try {
       if (onUpdateMemberRole) {
         await onUpdateMemberRole(userId, newRole);
+      } else {
+        await updateGroupMemberRole(group.id, userId, newRole);
       }
       setLocalMembers(prev => prev.map(m => m.user_id === userId ? { ...m, role: newRole } : m));
     } catch (err) {
@@ -641,24 +801,116 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     }
   };
 
-  const renderMembersContent = (currMembers: GroupMember[]) => {
+  const handleOpenMembersSheet = () => {
+    setSheetTitle(`${localMembers.length} Members`);
+    setSheetType('members');
+    setSheetOpen(true);
+  };
+
+  const handleOpenAddPeopleSheet = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedToAdd([]);
+    setSheetTitle('Add people');
+    setSheetType('add_people');
+    setSheetOpen(true);
+  };
+
+  // Render dynamic Members sheet
+  const renderMembersContent = () => {
+    const isCallerAdmin = isEffectiveAdmin(currentMember);
+
     return (
       <div>
-        <button
-          type="button"
-          className="ap"
-          onClick={() => {
-            setApproval(!approval);
-            showToast(!approval ? 'Approval requests on' : 'Approval requests off');
-          }}
-        >
-          <b>
-            Approval requests
-            <small>Admins approve new members</small>
-          </b>
-          <span className={`tg ${approval ? 'on' : ''}`}></span>
-        </button>
+        {/* 1. Approval requests Toggle: ONLY VISIBLE TO GROUP ADMINS */}
+        {isCallerAdmin && (
+          <button
+            type="button"
+            className="ap"
+            onClick={handleToggleApproval}
+          >
+            <b>
+              Approval requests
+              <small>Admins approve new members</small>
+            </b>
+            <span className={`tg ${approval ? 'on' : ''}`}></span>
+          </button>
+        )}
 
+        {/* 2. Pending Approvals Queue: ONLY VISIBLE TO GROUP ADMINS */}
+        {isCallerAdmin && pendingApprovals.length > 0 && (
+          <div style={{ margin: '14px 0 10px', padding: '12px', borderRadius: '18px', background: 'rgba(124, 92, 255, 0.15)', border: '1px solid rgba(124, 92, 255, 0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#22D3EE', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Icon name="clock" className="w-4 h-4" />
+                Pending Approvals ({pendingApprovals.length})
+              </span>
+              <span style={{ fontSize: '11px', color: '#A99FD2' }}>Admins only</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {pendingApprovals.map(req => (
+                <div key={req.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: '14px', background: 'rgba(255, 255, 255, 0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'rgba(255, 255, 255, 0.1)' }}>
+                      {req.avatarUrl ? (
+                        <img src={req.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        renderAvatarSvg(req.username || 'User', req.userId)
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {req.fullName || req.username}
+                      </p>
+                      <p style={{ margin: '1px 0 0', fontSize: '12px', color: '#A99FD2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        @{req.username}
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '12px',
+                        background: '#22D3A0',
+                        color: '#000',
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        border: 0,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleConfirmPending(req)}
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '12px',
+                        background: 'rgba(255, 61, 127, 0.15)',
+                        color: '#FF3D7F',
+                        border: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleRejectPending(req)}
+                      aria-label="Reject"
+                    >
+                      <Icon name="x" className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3. Add people button */}
         <button
           type="button"
           className="mrow"
@@ -671,8 +923,9 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           Add people
         </button>
 
+        {/* 4. Members Account List */}
         <div className="members-account-list" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '10px' }}>
-          {currMembers.map(m => {
+          {localMembers.map(m => {
             const profile = (m as any).profile || (m as any).profiles;
             const uname = profile?.full_name || profile?.username || nicknames[m.user_id] || 'User';
             const username = profile?.username;
@@ -700,7 +953,23 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
                       <span className="you-badge">You</span>
                     )}
                     {isAdmin && (
-                      <span className="admin-badge">Admin</span>
+                      <span
+                        className="admin-badge"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: '99px',
+                          background: 'rgba(34, 211, 160, 0.22)',
+                          color: '#22D3A0',
+                          border: '1px solid rgba(34, 211, 160, 0.45)',
+                          marginLeft: '4px',
+                        }}
+                      >
+                        Admin
+                      </span>
                     )}
                   </div>
                   {username && <small>@{username}</small>}
@@ -726,19 +995,108 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     );
   };
 
-  const handleOpenMembersSheet = () => {
-    openSheet(
-      `${localMembers.length} Members`,
-      renderMembersContent(localMembers)
-    );
-  };
+  // Render dynamic Add People sheet (fully reactive search)
+  const renderAddPeopleContent = () => (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+        <button
+          type="button"
+          style={{ background: 'none', border: 0, color: '#fff', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center' }}
+          onClick={() => {
+            setSheetType('members');
+            setSheetTitle(`${localMembers.length} Members`);
+          }}
+        >
+          <Icon name="back" className="w-5 h-5" />
+        </button>
+        <span style={{ fontSize: '16px', fontWeight: 700, color: '#fff' }}>Add people</span>
+      </div>
 
-  useEffect(() => {
-    if (sheetOpen && sheetTitle.includes('Members')) {
-      setSheetTitle(`${localMembers.length} Members`);
-      setSheetContent(renderMembersContent(localMembers));
-    }
-  }, [localMembers, sheetOpen, sheetTitle]);
+      <div style={{ position: 'relative', marginBottom: '14px' }}>
+        <input
+          type="text"
+          className="in"
+          value={searchQuery}
+          onChange={e => handleSearchChange(e.target.value)}
+          placeholder="Search people..."
+          autoFocus
+          style={{
+            width: '100%',
+            height: '46px',
+            padding: '0 16px',
+            borderRadius: '16px',
+            background: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.16)',
+            color: '#fff',
+            fontSize: '15px',
+            outline: 'none',
+          }}
+        />
+        {searching && (
+          <span style={{ position: 'absolute', right: '14px', top: '14px', color: '#A99FD2', fontSize: '12px' }}>
+            Searching...
+          </span>
+        )}
+      </div>
+
+      {searchResults.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '300px', overflowY: 'auto' }}>
+          {searchResults.map(p => {
+            const pId = p.user_id || p.id;
+            const isSelected = selectedToAdd.includes(pId);
+            return (
+              <button
+                key={pId}
+                type="button"
+                className="mrow cursor-pointer"
+                style={{ padding: '8px 6px', borderRadius: '16px', background: isSelected ? 'rgba(255, 61, 127, 0.12)' : 'none' }}
+                onClick={() => {
+                  setSelectedToAdd(prev => prev.includes(pId) ? prev.filter(x => x !== pId) : [...prev, pId]);
+                }}
+              >
+                <div className="av">
+                  {p.avatar_url ? (
+                    <img src={p.avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
+                  ) : (
+                    renderAvatarSvg(p.username || 'User', pId)
+                  )}
+                </div>
+                <div className="nm">
+                  <div>{p.full_name || p.username}</div>
+                  {p.username && <small>@{p.username}</small>}
+                </div>
+                <span className={`ck ${isSelected ? 'on' : ''}`}>
+                  <Icon name="check" />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : searchQuery.trim() ? (
+        <div style={{ textAlign: 'center', padding: '30px 10px', color: '#A99FD2' }}>
+          <p style={{ fontWeight: 600, fontSize: '15px', margin: 0 }}>No users found</p>
+          <p style={{ fontSize: '13px', margin: '4px 0 0' }}>Try searching by exact username or full name</p>
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '30px 10px', color: '#A99FD2' }}>
+          <p style={{ fontWeight: 600, fontSize: '15px', margin: 0 }}>Search users to add</p>
+          <p style={{ fontSize: '13px', margin: '4px 0 0' }}>Type username or name above</p>
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="btn"
+        disabled={selectedToAdd.length === 0}
+        style={{ marginTop: '14px', width: '100%' }}
+        onClick={handleAddSelectedSubmit}
+      >
+        {approval && !isEffectiveAdmin(currentMember)
+          ? `Request to Add (${selectedToAdd.length})`
+          : `Add ${selectedToAdd.length || ''}`}
+      </button>
+    </div>
+  );
 
   const handleOpenInviteSheet = () => {
     openSheet(
@@ -2423,7 +2781,15 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
       >
         <div className="grab" onPointerDown={handlePointerDownGrab} />
         <h3 id="st">{sheetTitle}</h3>
-        <div id="sb">{sheetContent}</div>
+        <div id="sb">
+          {sheetType === 'members' ? (
+            renderMembersContent()
+          ) : sheetType === 'add_people' ? (
+            renderAddPeopleContent()
+          ) : (
+            sheetContent
+          )}
+        </div>
       </div>
 
       {/* Member 3-Dots Action Modal */}
