@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Group, GroupMember, GroupMedia, GroupPinnedMessage, GroupPermissions } from '@/types/groups';
 import type { Profile } from '@/types/types';
 import { supabase } from '@/db/supabase';
+import { getAllProfiles } from '@/services/api';
 import {
   searchGroupUsers,
   sendGroupMessage,
@@ -212,14 +213,14 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     return false;
   }, [group]);
 
-  const anyAdminInGroup = useMemo(() => localMembers.some(m => isUserAdmin(m)), [localMembers, isUserAdmin]);
-
   const isEffectiveAdmin = useCallback((m: GroupMember | null | undefined): boolean => {
     if (!m) return false;
-    if (isUserAdmin(m)) return true;
-    if (!anyAdminInGroup && localMembers.length > 0 && localMembers[0].user_id === m.user_id) return true;
-    return false;
-  }, [isUserAdmin, anyAdminInGroup, localMembers]);
+    return isUserAdmin(m);
+  }, [isUserAdmin]);
+
+  const isCallerAdmin = useMemo(() => {
+    return isEffectiveAdmin(currentMember);
+  }, [isEffectiveAdmin, currentMember]);
   // Theme state: defaults to matching HTML Pixel theme (#FF3D7F, #7C5CFF)
   const currentThemeIdx = useMemo(() => {
     const found = MESSENGER_THEMES.findIndex(t => t.id.toLowerCase() === (groupTheme || 'pixel').toLowerCase());
@@ -518,7 +519,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
   };
 
   // Search in conversation state
-  const [searchQuery, setSearchQuery] = useState('');
+  const [messageSearchQuery, setMessageSearchQuery] = useState('');
   const [localPinned, setLocalPinned] = useState<string[]>(() => pinnedMessages.map(p => p.id));
 
   // Modals & sub-sheets handlers
@@ -661,28 +662,46 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
 
   // Approval requests toggle (ADMIN ONLY)
   const handleToggleApproval = async () => {
+    if (!isCallerAdmin) return;
     const nextVal = !approval;
     setApproval(nextVal);
     try {
       localStorage.setItem(`group_approval_${group.id}`, nextVal ? '1' : '0');
+    } catch {}
+    try {
       if (onPermissionChange) {
         await onPermissionChange('add_members', nextVal ? 'admins' : 'everyone');
       } else {
         await updateGroupPermissions(group.id, { add_members: nextVal ? 'admins' : 'everyone' });
       }
-      showToast(nextVal ? 'Approval requests turned ON' : 'Approval requests turned OFF');
+      showToast(nextVal ? 'Approval requests enabled (Admins approve new members)' : 'Approval requests disabled (Anyone can add members)');
     } catch (err) {
       console.error('Error toggling approval:', err);
       showToast(nextVal ? 'Approval requests turned ON' : 'Approval requests turned OFF');
     }
   };
 
+  // Load suggestions when Add People opens
+  const loadInitialSuggestions = useCallback(async () => {
+    try {
+      setSearching(true);
+      const all = await getAllProfiles(0, 40);
+      const existingIds = localMembers.map(m => m.user_id);
+      const suggestions = all.filter(p => !existingIds.includes(p.user_id || (p as any).id));
+      setSearchResults(suggestions);
+    } catch (e) {
+      console.error('Failed to load initial suggestions:', e);
+    } finally {
+      setSearching(false);
+    }
+  }, [localMembers]);
+
   // Add people reactive search
   const handleSearchChange = (val: string) => {
     setSearchQuery(val);
-    const q = val.trim();
+    const q = val.trim().replace(/^@/, '');
     if (!q) {
-      setSearchResults([]);
+      void loadInitialSuggestions();
       return;
     }
     setSearching(true);
@@ -814,6 +833,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     setSheetTitle('Add people');
     setSheetType('add_people');
     setSheetOpen(true);
+    void loadInitialSuggestions();
   };
 
   // Render dynamic Members sheet
@@ -824,17 +844,52 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
       <div>
         {/* 1. Approval requests Toggle: ONLY VISIBLE TO GROUP ADMINS */}
         {isCallerAdmin && (
-          <button
-            type="button"
+          <div
             className="ap"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 4px 16px',
+              borderBottom: '1px solid var(--line)',
+              cursor: 'pointer',
+              userSelect: 'none',
+              width: '100%',
+            }}
             onClick={handleToggleApproval}
+            role="button"
+            tabIndex={0}
           >
-            <b>
-              Approval requests
-              <small>Admins approve new members</small>
-            </b>
-            <span className={`tg ${approval ? 'on' : ''}`}></span>
-          </button>
+            <div>
+              <b style={{ display: 'block', fontSize: '15px', color: '#fff' }}>Approval requests</b>
+              <small style={{ display: 'block', fontSize: '12px', color: '#A99FD2', marginTop: '2px' }}>Admins approve new members</small>
+            </div>
+            <div
+              style={{
+                width: '50px',
+                height: '28px',
+                borderRadius: '99px',
+                background: approval ? 'linear-gradient(135deg, #FF3D7F, #7C5CFF)' : 'rgba(255, 255, 255, 0.16)',
+                position: 'relative',
+                transition: 'all 0.25s ease',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  position: 'absolute',
+                  top: '3px',
+                  left: approval ? '25px' : '3px',
+                  transition: 'left 0.25s ease',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                }}
+              />
+            </div>
+          </div>
         )}
 
         {/* 2. Pending Approvals Queue: ONLY VISIBLE TO GROUP ADMINS */}
@@ -1018,8 +1073,15 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           className="in"
           value={searchQuery}
           onChange={e => handleSearchChange(e.target.value)}
-          placeholder="Search people..."
+          placeholder="Search people by username or name..."
           autoFocus
+          inputMode="text"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          onPointerDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
+          onClick={e => (e.target as HTMLInputElement).focus()}
           style={{
             width: '100%',
             height: '46px',
@@ -1030,6 +1092,9 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
             color: '#fff',
             fontSize: '15px',
             outline: 'none',
+            userSelect: 'text',
+            WebkitUserSelect: 'text',
+            pointerEvents: 'auto',
           }}
         />
         {searching && (
@@ -1127,15 +1192,15 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
       <div>
         <input
           className="in"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
+          value={messageSearchQuery}
+          onChange={e => setMessageSearchQuery(e.target.value)}
           placeholder="Search messages..."
           autoFocus
         />
         {messages.length > 0 ? (
           <div>
             {messages
-              .filter(m => (m.content || '').toLowerCase().includes(searchQuery.toLowerCase()))
+              .filter(m => (m.content || '').toLowerCase().includes(messageSearchQuery.toLowerCase()))
               .slice(0, 20)
               .map(msg => {
                 const isPinned = localPinned.includes(msg.id);
@@ -1417,7 +1482,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
 
   return (
     <div
-      className="group-details-root fixed inset-0 z-50 overflow-y-auto overscroll-contain select-none"
+      className="group-details-root fixed inset-0 z-50 overflow-y-auto overscroll-contain"
       style={
         {
           '--bg': '#0E0820',
@@ -1918,6 +1983,14 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           margin-bottom: 12px;
         }
         .group-details-root .in:focus { border-color: var(--a1); }
+        .group-details-root input,
+        .group-details-root textarea,
+        .group-details-root .in {
+          user-select: text !important;
+          -webkit-user-select: text !important;
+          pointer-events: auto !important;
+          touch-action: manipulation !important;
+        }
         .group-details-root .btn {
           display: block;
           width: 100%;
@@ -2398,6 +2471,28 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
                 </span>
               </button>
 
+              {/* Prominent Pending Approvals Card for Admin */}
+              {isCallerAdmin && pendingApprovals.length > 0 && (
+                <button
+                  type="button"
+                  className="row"
+                  onClick={handleOpenMembersSheet}
+                  style={{ ['--c' as string]: '#22D3EE', background: 'rgba(34, 211, 238, 0.12)', border: '1px solid rgba(34, 211, 238, 0.3)' }}
+                >
+                  <span className="ti" style={{ background: 'rgba(34, 211, 238, 0.25)', color: '#22D3EE' }}>
+                    <Icon name="clock" />
+                  </span>
+                  <span className="tx">
+                    <b style={{ color: '#22D3EE' }}>Pending Member Approvals</b>
+                    <small style={{ color: '#E0F2FE' }}>
+                      {pendingApprovals.length} account(s) waiting to be approved
+                    </small>
+                  </span>
+                  <span className="pill" style={{ background: '#22D3EE', color: '#000', fontWeight: 800 }}>
+                    {pendingApprovals.length}
+                  </span>
+                </button>
+              )}
               <button
                 type="button"
                 className="row"

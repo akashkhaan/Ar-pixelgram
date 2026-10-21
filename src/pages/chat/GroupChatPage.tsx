@@ -505,16 +505,23 @@ const GroupChatPage: React.FC = () => {
   };
 
   const handlePermissionChange = async (key: keyof GroupPermissions, value: 'everyone' | 'admins') => {
-    if (!groupId || !permissions || !canManage) return;
-    const previous = permissions;
-    const next = { ...permissions, [key]: value };
-    setPermissions(next);
+    if (!groupId) return;
+    const next = {
+      ...(permissions || {
+        group_id: groupId,
+        edit_info: 'all',
+        send_messages: 'all',
+        add_members: 'everyone',
+        updated_at: new Date().toISOString(),
+      }),
+      [key]: value,
+    };
+    setPermissions(next as GroupPermissions);
     try {
       await updateGroupPermissions(groupId, { [key]: value });
       toast.success('Permissions updated');
     } catch (error) {
-      setPermissions(previous);
-      toast.error(error instanceof Error ? error.message : 'Could not update permissions');
+      console.error('Failed to update permissions:', error);
     }
   };
 
@@ -1177,6 +1184,7 @@ const GroupChatPage: React.FC = () => {
           pinnedMessages={pinnedMessages}
           mediaItems={mediaItems}
           permissions={permissions}
+          messages={messages}
           onStartCall={handleStartCall}
           onUpdateGroup={async updates => {
             if (!groupId) return;

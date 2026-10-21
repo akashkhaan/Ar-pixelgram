@@ -106,7 +106,11 @@ export async function getGroupPermissions(groupId: string): Promise<GroupPermiss
 export async function updateGroupPermissions(groupId: string, updates: Partial<Omit<GroupPermissions, 'group_id' | 'updated_at'>>): Promise<void> {
   const actualId = await resolveGroupId(groupId);
   if (!actualId || !actualId.includes('-')) return;
-  const { error } = await supabase.from('group_permissions').update({ ...updates, updated_at: new Date().toISOString() }).eq('group_id', actualId);
+  const { error } = await supabase.from('group_permissions').upsert({
+    group_id: actualId,
+    ...updates,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'group_id' });
   throwIfError(error);
 }
 
@@ -398,15 +402,14 @@ export async function rotateGroupInvite(groupId: string): Promise<string> {
 }
 
 export async function searchGroupUsers(query: string, existingIds: string[] = []): Promise<Profile[]> {
-  if (!query.trim()) return [];
+  const cleanQ = query.trim().replace(/^@/, '').replace(/[%_,]/g, '');
+  if (!cleanQ) return [];
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
-    .or(
-      'username.ilike.%' + query.trim().replace(/[%_,]/g, '') + '%,full_name.ilike.%' + query.trim().replace(/[%_,]/g, '') + '%',
-    )
+    .or(`username.ilike.%${cleanQ}%,full_name.ilike.%${cleanQ}%`)
     .order('username')
-    .limit(12);
+    .limit(30);
   throwIfError(error);
   return ((data || []) as Profile[]).filter(profile => !existingIds.includes(profile.user_id));
 }
