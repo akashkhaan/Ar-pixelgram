@@ -184,6 +184,25 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     setLocalMembers(members || []);
   }, [members]);
   const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
+
+  const isUserAdmin = useCallback((m: GroupMember | null | undefined): boolean => {
+    if (!m) return false;
+    const role = (m.role || '').toLowerCase();
+    if (role === 'admin' || role === 'owner' || role === 'creator') return true;
+    if (group?.owner_id && m.user_id === group.owner_id) return true;
+    if ((group as any)?.created_by && m.user_id === (group as any).created_by) return true;
+    if ((group as any)?.creator_id && m.user_id === (group as any).creator_id) return true;
+    return false;
+  }, [group]);
+
+  const anyAdminInGroup = useMemo(() => localMembers.some(m => isUserAdmin(m)), [localMembers, isUserAdmin]);
+
+  const isEffectiveAdmin = useCallback((m: GroupMember | null | undefined): boolean => {
+    if (!m) return false;
+    if (isUserAdmin(m)) return true;
+    if (!anyAdminInGroup && localMembers.length > 0 && localMembers[0].user_id === m.user_id) return true;
+    return false;
+  }, [isUserAdmin, anyAdminInGroup, localMembers]);
   // Theme state: defaults to matching HTML Pixel theme (#FF3D7F, #7C5CFF)
   const currentThemeIdx = useMemo(() => {
     const found = MESSENGER_THEMES.findIndex(t => t.id.toLowerCase() === (groupTheme || 'pixel').toLowerCase());
@@ -658,7 +677,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
             const uname = profile?.full_name || profile?.username || nicknames[m.user_id] || 'User';
             const username = profile?.username;
             const isCurrentUser = m.user_id === currentMember?.user_id;
-            const isAdmin = m.role === 'admin';
+            const isAdmin = isEffectiveAdmin(m);
 
             return (
               <div
@@ -2453,8 +2472,8 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
                   <h4 style={{ margin: 0, color: '#fff', fontSize: '16px', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {selectedMember.profile?.full_name || selectedMember.profile?.username || 'User'}
                   </h4>
-                  {selectedMember.role === 'admin' && (
-                    <span className="admin-badge">Admin</span>
+                  {isEffectiveAdmin(selectedMember) && (
+                    <span className="admin-badge" style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', fontWeight: 800, padding: '2px 8px', borderRadius: '99px', background: 'rgba(34, 211, 160, 0.22)', color: '#22D3A0', border: '1px solid rgba(34, 211, 160, 0.45)', marginLeft: '4px' }}>Admin</span>
                   )}
                   {selectedMember.user_id === currentMember?.user_id && (
                     <span className="you-badge">You</span>
@@ -2501,10 +2520,10 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
               </button>
 
               {/* 2. Admin Capabilities: Available if current user is admin and not target themselves */}
-              {currentMember?.role === 'admin' && selectedMember.user_id !== currentMember?.user_id && (
+              {isEffectiveAdmin(currentMember) && selectedMember.user_id !== currentMember?.user_id && (
                 <>
                   {/* Make Admin or Dismiss Admin */}
-                  {selectedMember.role !== 'admin' ? (
+                  {!isEffectiveAdmin(selectedMember) ? (
                     <button
                       type="button"
                       style={{
