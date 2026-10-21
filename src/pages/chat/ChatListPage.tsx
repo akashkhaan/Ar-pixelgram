@@ -1320,7 +1320,7 @@ const ChatListPage: React.FC = () => {
                             <span>{group.name}</span>
                           </div>
                           <div className="lm">
-                            {member_count} members · Ignored
+                            Ignored
                           </div>
                         </div>
 
@@ -1401,7 +1401,7 @@ const ChatListPage: React.FC = () => {
                                 </span>
                               ) : null}
                             </div>
-                            <div className="lm">{member_count} members</div>
+                            
                           </div>
 
                           <div className="meta">
@@ -1565,13 +1565,6 @@ const ChatListPage: React.FC = () => {
                         <span className="text-xs font-bold uppercase tracking-wider text-[#A99FD2]">
                           Groups ({filteredGroups.length})
                         </span>
-                        <Link
-                          to="/groups/new"
-                          className="text-xs font-bold text-[#FF3D7F] hover:underline flex items-center gap-1"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>New</span>
-                        </Link>
                       </div>
 
                       {filteredGroups.map(({ group, member_count }) => {
@@ -1614,7 +1607,7 @@ const ChatListPage: React.FC = () => {
                                   </span>
                                 ) : null}
                               </div>
-                              <div className="lm">{member_count} members</div>
+                              
                             </div>
 
                             <div className="meta">

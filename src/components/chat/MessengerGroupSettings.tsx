@@ -629,45 +629,6 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           </span>
           Add people
         </button>
-
-        {members.map(m => {
-          const profile = m.profiles;
-          const uname = profile?.username || profile?.full_name || 'Member';
-          const isCurrentUser = m.user_id === currentMember?.user_id;
-          const isAdmin = m.role === 'admin';
-          const canRemove = (currentMember?.role === 'admin' && !isCurrentUser) || isCurrentUser;
-          const nick = nicknames[m.user_id];
-
-          return (
-            <div key={m.user_id} className="mrow">
-              <div className="av">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover rounded-full" />
-                ) : (
-                  renderAvatarSvg(uname, m.user_id)
-                )}
-              </div>
-              <div className="nm">
-                {nick || uname}
-                {isAdmin && <span className="tag">Admin</span>}
-                {nick && <small>{uname}</small>}
-              </div>
-              {canRemove && !isCurrentUser && (
-                <button
-                  type="button"
-                  className="x"
-                  aria-label="Remove"
-                  onClick={async () => {
-                    await onRemoveMember(m.user_id);
-                    showToast(`${uname} removed`);
-                  }}
-                >
-                  <Icon name="x" />
-                </button>
-              )}
-            </div>
-          );
-        })}
       </div>
     );
   };
