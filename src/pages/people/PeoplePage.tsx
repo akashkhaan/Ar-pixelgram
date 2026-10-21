@@ -1,4 +1,4 @@
-// लोग/डिस्कवर पेज — Ultra-smooth high-performance People List
+// लोग/डिस्कवर पेज — Ultra-smooth native scrolling People List
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -112,40 +112,26 @@ const PeoplePage: React.FC = () => {
           position: relative;
           width: 100%;
           min-height: 100%;
-          display: flex;
-          flex-direction: column;
           background: #07070a;
           color: #f5f5f7;
           font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-          overflow-x: hidden;
         }
         .people-orb {
           position: absolute;
-          top: -120px;
+          top: -100px;
           left: 50%;
           transform: translateX(-50%);
-          width: 380px;
-          height: 300px;
+          width: 360px;
+          height: 260px;
           border-radius: 50%;
           background: radial-gradient(closest-side, rgba(255,255,255,.14), rgba(255,255,255,0));
           pointer-events: none;
         }
         .people-list {
-          position: relative;
-          flex: 1;
-          min-height: 0;
-          overflow-y: auto;
-          overflow-x: hidden;
-          padding: 8px 10px 40px;
+          padding: 8px 10px 90px;
           display: flex;
           flex-direction: column;
           gap: 10px;
-          scrollbar-width: none;
-          -webkit-overflow-scrolling: touch;
-          overscroll-behavior-y: contain;
-        }
-        .people-list::-webkit-scrollbar {
-          display: none;
         }
         .people-row {
           display: flex;
