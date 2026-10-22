@@ -189,10 +189,21 @@ const ChatPage: React.FC = () => {
   const handleSelectWallpaper = (url: string | null) => {
     setWallpaper(url);
     if (receiverId) {
-      if (url) localStorage.setItem(`chat_wallpaper_${receiverId}`, url);
-      else localStorage.removeItem(`chat_wallpaper_${receiverId}`);
+      if (url) {
+        localStorage.setItem(`chat_wallpaper_${receiverId}`, url);
+        toast.success("Chat background updated!");
+      } else {
+        localStorage.removeItem(`chat_wallpaper_${receiverId}`);
+        toast.success("Chat background reset");
+      }
     }
   };
+
+  useEffect(() => {
+    if (receiverId) {
+      setWallpaper(localStorage.getItem(`chat_wallpaper_${receiverId}`) || null);
+    }
+  }, [receiverId]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -506,7 +517,7 @@ const ChatPage: React.FC = () => {
         .chat-wrap #msgs {
           flex: 1;
           overflow-y: auto;
-          padding: 16px 14px;
+          padding: 68px 14px 16px;
           display: flex;
           flex-direction: column;
           gap: 7px;
@@ -1168,6 +1179,8 @@ const ChatPage: React.FC = () => {
             if (receiverId) localStorage.setItem(`direct_nickname_${receiverId}`, nick);
             toast.success('Nickname updated');
           }}
+          currentWallpaper={wallpaper}
+          onWallpaperChange={handleSelectWallpaper}
         />
       </div>
             <ChatWallpaperModal

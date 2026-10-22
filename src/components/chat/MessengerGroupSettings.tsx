@@ -351,6 +351,33 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     setPendingApprovals(Array.from(map.values()));
   }, [messages, localMembers, group?.id, getLocalPending]);
 
+  // Added by map (user_id -> username who added them)
+  const addedByMap = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    if (!group?.id) return map;
+
+    try {
+      const local = JSON.parse(localStorage.getItem(`group_added_by_${group.id}`) || '{}');
+      if (local && typeof local === 'object') {
+        Object.assign(map, local);
+      }
+    } catch {}
+
+    for (const msg of messages || []) {
+      if (typeof msg?.content === 'string' && msg.content.startsWith('[GROUP_MEMBER_ADDED]:')) {
+        // [GROUP_MEMBER_ADDED]:adderName:targetName:adderId:targetId
+        const parts = msg.content.split(':');
+        const adderName = parts[1];
+        const targetId = parts[4];
+        if (targetId && adderName) {
+          map[targetId] = adderName;
+        }
+      }
+    }
+
+    return map;
+  }, [group?.id, messages]);
+
   // Toast state
   const [toastMessage, setToastMessage] = useState<string>('');
   const [toastVisible, setToastVisible] = useState<boolean>(false);
@@ -737,10 +764,23 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
       showToast('Request submitted for admin approval ⏳');
     } else {
       burst('🎉');
+      const adderName = currentMember?.profile?.username || (currentMember?.profile as any)?.full_name || 'Admin';
+      const adderId = currentMember?.user_id || '';
       for (const pId of selectedToAdd) {
         const prof = searchResults.find(p => (p.user_id || p.id) === pId);
         if (prof) {
+          const targetId = prof.user_id || (prof as any).id;
+          const targetName = prof.username || prof.full_name || 'Member';
           await onAddMember(prof);
+          try {
+            const key = `group_added_by_${group.id}`;
+            const existing = JSON.parse(localStorage.getItem(key) || '{}');
+            existing[targetId] = adderName;
+            localStorage.setItem(key, JSON.stringify(existing));
+          } catch {}
+          try {
+            await sendGroupMessage(group.id, `[GROUP_MEMBER_ADDED]:${adderName}:${targetName}:${adderId}:${targetId}`);
+          } catch {}
         }
       }
       showToast(`${selectedToAdd.length} added to group 🎉`);
@@ -760,6 +800,22 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
       }
       removePendingLocally(req.userId);
       setPendingApprovals(prev => prev.filter(p => p.userId !== req.userId));
+
+      const requesterMember = localMembers.find(m => m.user_id === req.requestedBy);
+      const adderName = requesterMember?.profile?.username || currentMember?.profile?.username || 'Admin';
+      const adderId = req.requestedBy || currentMember?.user_id || '';
+      const targetName = req.username || req.fullName || 'Member';
+
+      try {
+        const key = `group_added_by_${group.id}`;
+        const existing = JSON.parse(localStorage.getItem(key) || '{}');
+        existing[req.userId] = adderName;
+        localStorage.setItem(key, JSON.stringify(existing));
+      } catch {}
+
+      try {
+        await sendGroupMessage(group.id, `[GROUP_MEMBER_ADDED]:${adderName}:${targetName}:${adderId}:${req.userId}`);
+      } catch {}
 
       const newMemberProfile: any = {
         id: req.userId,
@@ -1028,6 +1084,15 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
                     )}
                   </div>
                   {username && <small>@{username}</small>}
+                  {group.owner_id === m.user_id ? (
+                    <div style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.45)', marginTop: '2px' }}>
+                      Group Creator
+                    </div>
+                  ) : addedByMap[m.user_id] ? (
+                    <div style={{ fontSize: '11.5px', color: 'rgba(255, 255, 255, 0.65)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>Added by <span style={{ color: '#FF3D7F', fontWeight: 600 }}>@{addedByMap[m.user_id]}</span></span>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* 3 Dot button */}

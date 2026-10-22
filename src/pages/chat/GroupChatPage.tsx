@@ -19,6 +19,7 @@ import {
   Send,
   Smile,
   Users,
+  UserPlus,
   Video,
   X,
 } from 'lucide-react';
@@ -496,6 +497,22 @@ const GroupChatPage: React.FC = () => {
     if (!groupId) return;
     try {
       await addGroupMember(groupId, profile.user_id);
+      const adderName = user?.username || (user as any)?.user_metadata?.username || currentMember?.profile?.username || "Admin";
+      const targetName = profile.username || profile.full_name || "Member";
+      const adderId = user?.id || "";
+      const targetId = profile.user_id;
+
+      try {
+        const key = `group_added_by_${groupId}`;
+        const existing = JSON.parse(localStorage.getItem(key) || "{}");
+        existing[targetId] = adderName;
+        localStorage.setItem(key, JSON.stringify(existing));
+      } catch {}
+
+      try {
+        await sendGroupMessage(groupId, `[GROUP_MEMBER_ADDED]:${adderName}:${targetName}:${adderId}:${targetId}`);
+      } catch {}
+
       setMemberQuery('');
       await load();
       toast.success(profile.username + ' added');
@@ -919,6 +936,34 @@ const GroupChatPage: React.FC = () => {
           </div>
 
           {visibleMessages.map((message, messageIndex) => {
+            if (message.content && message.content.startsWith("[GROUP_MEMBER_ADDED]:")) {
+              const parts = message.content.split(":");
+              const adderName = parts[1] || "Someone";
+              const targetName = parts[2] || "a member";
+              return (
+                <div key={message.id} className="w-full flex justify-center my-3 px-4 select-none">
+                  <div className="text-[12px] font-medium text-muted-foreground/90 bg-white/6 dark:bg-zinc-800/60 border border-white/10 px-4 py-1.5 rounded-full backdrop-blur-md flex items-center gap-2 shadow-xs">
+                    <UserPlus className="w-3.5 h-3.5 text-[#FF3D7F] shrink-0" />
+                    <span>
+                      <strong className="text-foreground font-semibold">@{adderName}</strong> added <strong className="text-[#FF3D7F] font-semibold">@{targetName}</strong>
+                    </span>
+                  </div>
+                </div>
+              );
+            }
+
+            if (message.content && message.content.startsWith("[GROUP_SYSTEM]:")) {
+              const text = message.content.replace("[GROUP_SYSTEM]:", "").trim();
+              return (
+                <div key={message.id} className="w-full flex justify-center my-3 px-4 select-none">
+                  <div className="text-[12px] font-medium text-muted-foreground/90 bg-white/6 dark:bg-zinc-800/60 border border-white/10 px-4 py-1.5 rounded-full backdrop-blur-md flex items-center gap-2 shadow-xs">
+                    <UserPlus className="w-3.5 h-3.5 text-[#FF3D7F] shrink-0" />
+                    <span>{text}</span>
+                  </div>
+                </div>
+              );
+            }
+
             const mine = message.sender_id === user?.id;
             const sender = profileMap.get(message.sender_id);
             const replied = message.reply_to_id ? messages.find(item => item.id === message.reply_to_id) : null;
