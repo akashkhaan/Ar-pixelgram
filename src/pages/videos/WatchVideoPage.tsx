@@ -348,16 +348,7 @@ const WatchVideoPage: React.FC = () => {
     return [...comments];
   }, [comments, commentsSort]);
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-background flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        <span className="text-xs text-muted-foreground font-medium">Video load ho raha hai…</span>
-      </div>
-    );
-  }
-
-  if (!video) {
+  if (!loading && !video) {
     return (
       <div className="fixed inset-0 bg-background flex flex-col items-center justify-center gap-3 px-6 text-center">
         <Lock className="w-10 h-10 text-muted-foreground" />
@@ -365,6 +356,18 @@ const WatchVideoPage: React.FC = () => {
         <button onClick={goBack} className="text-xs font-bold text-primary hover:underline">
           वीडियो पर वापस जाएं
         </button>
+      </div>
+    );
+  }
+
+  if (!video) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col">
+        <div className="h-14 flex items-center px-4">
+          <button onClick={goBack} className="p-2 rounded-full bg-white/10 text-white">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     );
   }

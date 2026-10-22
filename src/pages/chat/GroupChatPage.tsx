@@ -152,9 +152,36 @@ const GroupChatPage: React.FC = () => {
   const { user, profile: myProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [group, setGroup] = useState<Group | null>(null);
-  const [members, setMembers] = useState<GroupMember[]>([]);
-  const [messages, setMessages] = useState<GroupMessage[]>([]);
+  const [group, setGroup] = useState<Group | null>(() => {
+    try {
+      const id = initialResolved || rawGroupId;
+      if (!id) return null;
+      const raw = localStorage.getItem(`cached_group_${id}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [members, setMembers] = useState<GroupMember[]>(() => {
+    try {
+      const id = initialResolved || rawGroupId;
+      if (!id) return [];
+      const raw = localStorage.getItem(`cached_group_members_${id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [messages, setMessages] = useState<GroupMessage[]>(() => {
+    try {
+      const id = initialResolved || rawGroupId;
+      if (!id) return [];
+      const raw = localStorage.getItem(`cached_group_messages_${id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const [mediaItems, setMediaItems] = useState<GroupMedia[]>([]);
   const [pinnedMessages, setPinnedMessages] = useState<GroupPinnedMessage[]>([]);
   const [permissions, setPermissions] = useState<GroupPermissions | null>(null);
@@ -300,6 +327,20 @@ const GroupChatPage: React.FC = () => {
       setGroup(nextGroup);
       setMembers(nextMembers);
       setMessages(nextMessages);
+      try {
+        if (nextGroup) {
+          localStorage.setItem(`cached_group_${groupId}`, JSON.stringify(nextGroup));
+          if (rawGroupId) localStorage.setItem(`cached_group_${rawGroupId}`, JSON.stringify(nextGroup));
+        }
+        if (nextMembers) {
+          localStorage.setItem(`cached_group_members_${groupId}`, JSON.stringify(nextMembers));
+          if (rawGroupId) localStorage.setItem(`cached_group_members_${rawGroupId}`, JSON.stringify(nextMembers));
+        }
+        if (nextMessages) {
+          localStorage.setItem(`cached_group_messages_${groupId}`, JSON.stringify(nextMessages.slice(-50)));
+          if (rawGroupId) localStorage.setItem(`cached_group_messages_${rawGroupId}`, JSON.stringify(nextMessages.slice(-50)));
+        }
+      } catch {}
       try {
         const [nextMedia, nextPinned] = await Promise.all([
           getGroupMedia(groupId),
@@ -553,17 +594,18 @@ const GroupChatPage: React.FC = () => {
     }
   };
 
-  if (loading || (!groupId && rawGroupId)) {
-    return (
-      <MobileLayout hideHeader hideNav noScroll>
-        <div className="flex min-h-[100dvh] items-center justify-center">
-          <Loader2 className="h-7 w-7 animate-spin text-primary" />
-        </div>
-      </MobileLayout>
-    );
-  }
+  const currentGroup: Group = group || {
+    id: groupId || rawGroupId || "",
+    name: "Group Chat",
+    description: "",
+    avatar_url: null,
+    invite_token: "",
+    owner_id: "",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
 
-  if (!group) {
+  if (!loading && !group && (!groupId || !rawGroupId)) {
     return (
       <MobileLayout hideHeader hideNav>
         <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 p-6 text-center">
@@ -789,9 +831,9 @@ const GroupChatPage: React.FC = () => {
             onClick={() => setShowInfo(true)}
             className="flex min-w-0 flex-1 items-center gap-2.5 text-left cursor-pointer border-0 bg-transparent hover:opacity-90 transition-opacity"
           >
-            <Avatar profile={group.avatar_url ? ({ avatar_url: group.avatar_url, username: group.name } as Profile) : null} size="w-10 h-10 ring-2 ring-[#FF3D7F]/30" />
+            <Avatar profile={currentGroup.avatar_url ? ({ avatar_url: currentGroup.avatar_url, username: currentGroup.name } as Profile) : null} size="w-10 h-10 ring-2 ring-[#FF3D7F]/30" />
             <div className="t">
-              <b>{group.name}</b>
+              <b>{currentGroup.name}</b>
               <small>
                 {members.length} {members.length === 1 ? 'member' : 'members'}
               </small>
@@ -802,19 +844,19 @@ const GroupChatPage: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              if (groupCall.active && groupCall.groupId === group.id) {
+              if (groupCall.active && groupCall.groupId === currentGroup.id) {
                 groupCall.setMinimized(false);
               } else {
                 void handleStartCall('audio');
               }
             }}
             className={`head-action-btn transition-all ${
-              (groupCall.active && groupCall.groupId === group.id) || activeGroupCall?.kind === 'audio'
+              (groupCall.active && groupCall.groupId === currentGroup.id) || activeGroupCall?.kind === 'audio'
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
                 : ''
             }`}
             aria-label="Audio call"
-            title={groupCall.active && groupCall.groupId === group.id ? "Return to call" : "Start audio call"}
+            title={groupCall.active && groupCall.groupId === currentGroup.id ? "Return to call" : "Start audio call"}
           >
             <Phone className="w-4.5 h-4.5" />
           </button>
@@ -823,19 +865,19 @@ const GroupChatPage: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              if (groupCall.active && groupCall.groupId === group.id) {
+              if (groupCall.active && groupCall.groupId === currentGroup.id) {
                 groupCall.setMinimized(false);
               } else {
                 void handleStartCall('video');
               }
             }}
             className={`head-action-btn transition-all ${
-              (groupCall.active && groupCall.groupId === group.id && groupCall.kind === 'video') || activeGroupCall?.kind === 'video'
+              (groupCall.active && groupCall.groupId === currentGroup.id && groupCall.kind === 'video') || activeGroupCall?.kind === 'video'
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
                 : ''
             }`}
             aria-label="Video call"
-            title={groupCall.active && groupCall.groupId === group.id ? "Return to call" : "Start video call"}
+            title={groupCall.active && groupCall.groupId === currentGroup.id ? "Return to call" : "Start video call"}
           >
             <Video className="w-4.5 h-4.5" />
           </button>
@@ -866,14 +908,14 @@ const GroupChatPage: React.FC = () => {
         {/* GROUP CALL CONTROLLER */}
         <GroupCallPanel
           ref={callPanelRef}
-          groupId={group.id}
-          groupName={group.name}
-          groupAvatarUrl={group.avatar_url}
+          groupId={currentGroup.id}
+          groupName={currentGroup.name}
+          groupAvatarUrl={currentGroup.avatar_url}
           members={members}
         />
 
         {/* ACTIVE CALL BANNER */}
-        {(groupCall.active && groupCall.groupId === group.id) ? (
+        {(groupCall.active && groupCall.groupId === currentGroup.id) ? (
           <div
             onClick={() => groupCall.setMinimized(false)}
             className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-950/70 px-3.5 py-2 backdrop-blur text-emerald-200 animate-in fade-in slide-in-from-top-2 duration-200 cursor-pointer hover:bg-emerald-950/85 transition-colors"
@@ -1223,7 +1265,7 @@ const GroupChatPage: React.FC = () => {
         <MessengerGroupSettings
           isOpen={showInfo}
           onClose={() => setShowInfo(false)}
-          group={group}
+          group={group || currentGroup}
           members={members}
           currentMember={currentMember}
           pinnedMessages={pinnedMessages}
