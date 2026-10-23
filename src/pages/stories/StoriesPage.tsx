@@ -10,8 +10,6 @@ import {
   type StoryViewer
 } from '@/services/api';
 import type { Story, Profile, Post } from '@/types/types';
-import PixelgramStoryViewer from '@/components/stories/PixelgramStoryViewer';
-
 import PostCard from '@/components/common/PostCard';
 import PullToRefresh from '@/components/common/PullToRefresh';
 import { Button } from '@/components/ui/button';
@@ -57,6 +55,18 @@ const StoriesPage: React.FC = () => {
   const [storyTrack, setStoryTrack] = useState<MusicTrack | null>(null);
   const [musicStartMs, setMusicStartMs] = useState(0);
   const [muteOriginal, setMuteOriginal] = useState(true);
+  const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
+  const [replyText, setReplyText] = useState('');
+  const [showReply, setShowReply] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
+  const [showLikers, setShowLikers] = useState(false);
+  const [likers, setLikers] = useState<Profile[]>([]);
+  const [loadingLikers, setLoadingLikers] = useState(false);
+  const [showViewers, setShowViewers] = useState(false);
+  const [viewers, setViewers] = useState<StoryViewer[]>([]);
+  const [loadingViewers, setLoadingViewers] = useState(false);
+  const videoViewerRef = useRef<HTMLVideoElement>(null);
+  const storyAudioRef = useRef<HTMLAudioElement>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsPage, setPostsPage] = useState(0);
@@ -120,6 +130,12 @@ const StoriesPage: React.FC = () => {
     }
   };
 
+  // Record view when story is opened + load liked state
+  useEffect(() => {
+    if (!viewerUserId || !user || !currentStory) return;
+    recordStoryView(currentStory.id, user.id).catch(() => {});
+    isStoryLiked(currentStory.id, user.id).then(v => setLikedMap(m => ({ ...m, [currentStory.id]: v })));
+  }, [viewerUserId, storyIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Story viewer khule to page scroll lock — pura screen sirf story dikhe
   useEffect(() => {
@@ -128,6 +144,14 @@ const StoriesPage: React.FC = () => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prevOverflow; };
   }, [viewerUserId]);
+
+  const openViewersSheet = async (storyId: string) => {
+    setShowViewers(true);
+    setLoadingViewers(true);
+    const list = await getStoryViewers(storyId).catch(() => [] as StoryViewer[]);
+    setViewers(list);
+    setLoadingViewers(false);
+  };
 
   const groups = groupStoriesByUser(stories);
   const groupKeys = Object.keys(groups);
@@ -145,7 +169,85 @@ const StoriesPage: React.FC = () => {
     }
   }, [loading, stories]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeViewer = () => {
-    setViewerUserId(null);
+    storyAudioRef.current?.pause(); setViewerUserId(null); setShowReply(false); setShowViewers(false); };
+
+  const viewerGroup = viewerUserId ? groups[viewerUserId] : null;
+  const currentStory = viewerGroup?.stories[storyIndex];
+
+  useEffect(() => {
+    const a = storyAudioRef.current;
+    if (!a) return;
+    if (viewerUserId && currentStory?.music_preview_url) {
+      const startSec = (currentStory.music_start_ms || 0) / 1000;
+      try { a.currentTime = startSec; } catch {}
+      a.play().catch(() => {});
+    } else {
+      a.pause();
+    }
+  }, [viewerUserId, currentStory, storyIndex]);
+
+  // Pause story audio when screen turns off or page loses focus
+  useEffect(() => {
+    const pauseStoryAudio = () => {
+      storyAudioRef.current?.pause();
+    };
+    const handleVisibility = () => {
+      if (document.hidden || document.visibilityState === 'hidden') {
+        pauseStoryAudio();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', pauseStoryAudio);
+    window.addEventListener('blur', pauseStoryAudio);
+    return () => {
+      pauseStoryAudio();
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', pauseStoryAudio);
+      window.removeEventListener('blur', pauseStoryAudio);
+    };
+  }, []);
+
+  const nextStory = () => {
+    if (!viewerGroup) return;
+    setShowReply(false);
+    if (storyIndex < viewerGroup.stories.length - 1) {
+      setStoryIndex(i => i + 1);
+    } else {
+      const ci = groupKeys.indexOf(viewerUserId!);
+      if (ci < groupKeys.length - 1) { setViewerUserId(groupKeys[ci + 1]); setStoryIndex(0); }
+      else closeViewer();
+    }
+  };
+
+  const prevStory = () => {
+    if (storyIndex > 0) { setStoryIndex(i => i - 1); setShowReply(false); }
+  };
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user || !currentStory) return;
+    const prev = likedMap[currentStory.id] ?? false;
+    setLikedMap(m => ({ ...m, [currentStory.id]: !prev }));
+    await toggleStoryLike(currentStory.id, user.id, prev);
+    setStories(s => s.map(st => st.id === currentStory.id ? { ...st, likes_count: (st.likes_count || 0) + (prev ? -1 : 1) } : st));
+    // Notify story owner on new like
+    if (!prev && currentStory.user_id !== user.id) {
+      createNotification(currentStory.user_id, 'story_like', user.id, currentStory.id).catch(() => {});
+    }
+  };
+
+  const handleSendReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim() || !user || !currentStory) return;
+    setSendingReply(true);
+    await sendMessage(currentStory.user_id, `↩️ Story reply: ${replyText.trim()}`);
+    if (currentStory.user_id !== user.id) {
+      createNotification(currentStory.user_id, 'story_reply', user.id, currentStory.id, undefined, replyText.trim().slice(0, 120)).catch(() => {});
+    }
+    toast.success('Reply भेजा गया!');
+    setReplyText('');
+    setShowReply(false);
+    setSendingReply(false);
   };
 
   // 24h timer
@@ -238,6 +340,11 @@ const StoriesPage: React.FC = () => {
     closeViewer();
   };
 
+  const currentIsVideo = currentStory && (
+    (currentStory as Story & { media_type?: string }).media_type === 'video' ||
+    currentStory.image_url?.match(/\.(mp4|mov|webm|avi)(\?|$)/i)
+  );
+
   return (
     <MobileLayout autoHideNav>
       <PullToRefresh onRefresh={handleRefresh} disabled={!!viewerUserId}>
@@ -309,21 +416,308 @@ const StoriesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Pixelgram Story Viewer (Exact UI design, real data, capsule strip carousel & sliding tabs) */}
-      {viewerUserId && (
-        <PixelgramStoryViewer
-          groups={groups}
-          groupKeys={groupKeys}
-          activeUserId={viewerUserId}
-          initialIndex={storyIndex}
-          currentUser={user}
-          onClose={closeViewer}
-          onDeleteStory={handleDeleteStory}
-          onOpenProfile={(uid) => navigate(`/profile/${uid}`)}
-          onStoryLiked={(storyId, _liked, newCount) => {
-            setStories(s => s.map(st => st.id === storyId ? { ...st, likes_count: newCount } : st));
-          }}
-        />
+      {/* Story viewer — pura full screen (bottom nav ke upar) */}
+      {viewerUserId && currentStory && createPortal(
+        <div
+          className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overscroll-none"
+          style={{ height: '100dvh', width: '100vw' }}
+          onClick={nextStory}
+        >
+          {/* Progress bars */}
+          <div className="absolute top-0 left-0 right-0 flex gap-1 p-3 z-10">
+            {viewerGroup!.stories.map((_, i) => (
+              <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
+                <div className={`h-full bg-white transition-all ${i < storyIndex ? 'w-full' : i === storyIndex ? 'w-full' : 'w-0'}`} />
+              </div>
+            ))}
+          </div>
+
+          {/* User info */}
+          <div className="absolute top-8 left-4 flex items-center gap-2 z-10" onClick={e => e.stopPropagation()}>
+            <button onClick={() => { closeViewer(); navigate(`/profile/${viewerGroup!.profile.user_id}`); }}>
+              {viewerGroup!.profile.avatar_url ? (
+                <img src={viewerGroup!.profile.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-white" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">{viewerGroup!.profile.username[0]?.toUpperCase()}</span>
+                </div>
+              )}
+            </button>
+            <div>
+              <button onClick={() => { closeViewer(); navigate(`/profile/${viewerGroup!.profile.user_id}`); }}>
+                <p className="text-white font-semibold text-sm">{viewerGroup!.profile.username}</p>
+              </button>
+              {currentStory.music_title ? (
+                <div className="flex items-center gap-1.5 text-white/95 text-xs bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full mt-0.5 w-fit">
+                  <Music2 className="w-3 h-3 text-primary animate-pulse shrink-0" />
+                  <span className="font-semibold truncate max-w-[170px]">
+                    {currentStory.music_title} · {currentStory.music_artist}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="text-white/70 text-xs">{new Date(currentStory.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
+                  {currentStory.expires_at && (
+                    <span className="flex items-center gap-0.5 text-white/60 text-[10px]">
+                      <Clock className="w-2.5 h-2.5" />{getTimeLeft(currentStory.expires_at)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Close & Delete & Share */}
+          <div className="absolute top-8 right-4 flex items-center gap-2 z-10" onClick={e => e.stopPropagation()}>
+            {currentStory.user_id === user?.id && (
+              <>
+                {/* Views & Likes count for own story */}
+                <div className="flex items-center gap-3 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1.5">
+                  <button
+                    className="flex items-center gap-1 text-white text-xs"
+                    onClick={() => openViewersSheet(currentStory.id)}
+                  >
+                    <Eye className="w-3 h-3" />{currentStory.views_count || 0}
+                  </button>
+                  <button
+                    className="flex items-center gap-1 text-white text-xs"
+                    onClick={async () => {
+                      setShowLikers(true);
+                      setLoadingLikers(true);
+                      const list = await getStoryLikers(currentStory.id).catch(() => []);
+                      setLikers(list);
+                      setLoadingLikers(false);
+                    }}
+                  >
+                    <Heart className="w-3 h-3" />{currentStory.likes_count || 0}
+                  </button>
+                </div>
+                <button onClick={() => handleDeleteStory(currentStory.id)} className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => {
+                const url = window.location.origin;
+                if (navigator.share) navigator.share({ title: 'Pixelgram Story', url }).catch(() => {});
+                else navigator.clipboard.writeText(url).then(() => toast.success('Link copied!')).catch(() => {});
+              }}
+              className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
+            >
+              <Share2 className="w-4 h-4" />
+            </button>
+            <button onClick={closeViewer} className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Story media — image or video */}
+          {currentIsVideo ? (
+            <video
+              ref={videoViewerRef}
+              src={currentStory.image_url}
+              className="absolute inset-0 w-full h-full object-contain bg-black"
+              autoPlay
+              loop
+              playsInline
+              muted={!!currentStory.music_preview_url && !!currentStory.mute_original}
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-contain bg-black" />
+          )}
+
+          {/* Story background audio */}
+          {currentStory.music_preview_url && (
+            <audio
+              ref={storyAudioRef}
+              src={currentStory.music_preview_url}
+              autoPlay
+              loop
+              preload="auto"
+              playsInline
+              onLoadedMetadata={(e) => {
+                e.currentTarget.currentTime = (currentStory.music_start_ms || 0) / 1000;
+                e.currentTarget.play().catch(() => {});
+              }}
+              onCanPlay={(e) => {
+                if (e.currentTarget.paused) {
+                  e.currentTarget.play().catch(() => {});
+                }
+              }}
+            />
+          )}
+
+          {/* Caption */}
+          {currentStory.caption && (
+            <div className="absolute bottom-24 left-4 right-4 text-center" onClick={e => e.stopPropagation()}>
+              <p className="text-white font-medium text-sm bg-black/40 rounded-xl px-4 py-2 text-pretty">{currentStory.caption}</p>
+            </div>
+          )}
+
+          {/* Apni story — "kitno ne dekha" bar (Instagram jaisa) */}
+          {currentStory.user_id === user?.id && (
+            <button
+              className="absolute bottom-6 left-4 right-4 flex items-center gap-2 rounded-full bg-white/10 border border-white/25 px-4 py-2.5"
+              onClick={e => { e.stopPropagation(); openViewersSheet(currentStory.id); }}
+            >
+              <Eye className="w-4 h-4 text-white" />
+              <span className="text-white text-sm font-medium">
+                {currentStory.views_count || 0} ने देखा
+              </span>
+              <span className="ml-auto flex items-center gap-1 text-white/80 text-xs">
+                <Heart className="w-3.5 h-3.5 fill-red-500 text-red-500" />{currentStory.likes_count || 0}
+              </span>
+            </button>
+          )}
+
+          {/* Bottom actions: Like + Reply (for other's stories) */}
+          {currentStory.user_id !== user?.id && (
+            <div className="absolute bottom-6 left-4 right-4 flex items-center gap-3" onClick={e => e.stopPropagation()}>
+              {/* Reply input */}
+              {showReply ? (
+                <form onSubmit={handleSendReply} className="flex-1 flex items-center gap-2">
+                  <Input
+                    placeholder="Reply भेजें…"
+                    value={replyText}
+                    onChange={e => setReplyText(e.target.value)}
+                    className="flex-1 h-10 bg-white/10 border-white/30 text-white placeholder:text-white/60 rounded-full"
+                    autoFocus
+                  />
+                  <Button type="submit" size="icon" className="h-10 w-10 rounded-full bg-white/20 shrink-0" disabled={!replyText.trim() || sendingReply}>
+                    {sendingReply ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Send className="w-4 h-4 text-white" />}
+                  </Button>
+                  <button type="button" onClick={() => setShowReply(false)} className="p-2 rounded-full bg-white/20 text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowReply(true)}
+                    className="flex-1 h-10 rounded-full bg-white/10 border border-white/30 text-white/80 text-sm flex items-center px-4 gap-2"
+                  >
+                    <Send className="w-4 h-4" />Reply भेजें
+                  </button>
+                  <button onClick={handleLike} className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/10 border border-white/30">
+                    <Heart className={`w-5 h-5 transition-all ${likedMap[currentStory.id] ? 'fill-red-500 text-red-500' : 'text-white'}`} />
+                    <span className="text-white text-xs font-semibold">{currentStory.likes_count || 0}</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {storyIndex > 0 && (
+            <button onClick={e => { e.stopPropagation(); prevStory(); }} className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/20 text-white">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
+          <button onClick={e => { e.stopPropagation(); nextStory(); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/20 text-white">
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Who liked this story — like Instagram's story likers list */}
+      {showLikers && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowLikers(false)}>
+          <div
+            className="w-full max-w-lg bg-card rounded-t-3xl border-t border-border/40 overflow-y-auto"
+            style={{ maxHeight: '70vh', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-foreground flex items-center gap-1.5">
+                  <Heart className="w-4 h-4 fill-red-500 text-red-500" /> Liked by
+                </h3>
+                <button onClick={() => setShowLikers(false)} className="p-1.5 rounded-full hover:bg-muted/60">
+                  <X className="w-5 h-5 text-muted-foreground" />
+                </button>
+              </div>
+              {loadingLikers ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : likers.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No likes yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {likers.map(liker => (
+                    <button
+                      key={liker.user_id}
+                      className="flex items-center gap-3 w-full text-left"
+                      onClick={() => { setShowLikers(false); closeViewer(); navigate(`/profile/${liker.user_id}`); }}
+                    >
+                      {liker.avatar_url ? (
+                        <img src={liker.avatar_url} alt={liker.username} className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                          <span className="text-primary font-bold text-sm">{liker.username[0]?.toUpperCase()}</span>
+                        </div>
+                      )}
+                      <span className="font-semibold text-sm text-foreground">{liker.username}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Kisne dekha — viewers list (name + profile photo + like status) */}
+      {showViewers && createPortal(
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowViewers(false)}>
+          <div
+            className="w-full max-w-lg bg-card rounded-t-3xl border-t border-border/40 overflow-y-auto"
+            style={{ maxHeight: '75vh', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-foreground flex items-center gap-1.5">
+                  <Eye className="w-4 h-4" /> Viewers ({viewers.length})
+                </h3>
+                <button onClick={() => setShowViewers(false)} className="p-1.5 rounded-full hover:bg-muted/60">
+                  <X className="w-5 h-5 text-muted-foreground" />
+                </button>
+              </div>
+              {loadingViewers ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+              ) : viewers.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">अभी किसी ने नहीं देखा</p>
+              ) : (
+                <div className="space-y-3">
+                  {viewers.map(v => (
+                    <div key={v.profile.user_id} className="flex items-center gap-3">
+                      <button
+                        className="flex items-center gap-3 flex-1 text-left"
+                        onClick={() => { setShowViewers(false); closeViewer(); navigate(`/profile/${v.profile.user_id}`); }}
+                      >
+                        {v.profile.avatar_url ? (
+                          <img src={v.profile.avatar_url} alt={v.profile.username} className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                            <span className="text-primary font-bold text-sm">{v.profile.username[0]?.toUpperCase()}</span>
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm text-foreground truncate">{v.profile.username}</p>
+                          {v.profile.full_name && <p className="text-xs text-muted-foreground truncate">{v.profile.full_name}</p>}
+                        </div>
+                      </button>
+                      {v.liked && <Heart className="w-4 h-4 fill-red-500 text-red-500 shrink-0" />}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Upload story modal */}
