@@ -120,12 +120,6 @@ const StoriesPage: React.FC = () => {
     }
   };
 
-  // Record view when story is opened + load liked state
-  useEffect(() => {
-    if (!viewerUserId || !user || !currentStory) return;
-    recordStoryView(currentStory.id, user.id).catch(() => {});
-    isStoryLiked(currentStory.id, user.id).then(v => setLikedMap(m => ({ ...m, [currentStory.id]: v })));
-  }, [viewerUserId, storyIndex]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Story viewer khule to page scroll lock — pura screen sirf story dikhe
   useEffect(() => {
@@ -243,11 +237,6 @@ const StoriesPage: React.FC = () => {
     setStories(prev => prev.filter(s => s.id !== storyId));
     closeViewer();
   };
-
-  const currentIsVideo = currentStory && (
-    (currentStory as Story & { media_type?: string }).media_type === 'video' ||
-    currentStory.image_url?.match(/\.(mp4|mov|webm|avi)(\?|$)/i)
-  );
 
   return (
     <MobileLayout autoHideNav>
