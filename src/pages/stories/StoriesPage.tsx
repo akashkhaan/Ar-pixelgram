@@ -57,18 +57,6 @@ const StoriesPage: React.FC = () => {
   const [storyTrack, setStoryTrack] = useState<MusicTrack | null>(null);
   const [musicStartMs, setMusicStartMs] = useState(0);
   const [muteOriginal, setMuteOriginal] = useState(true);
-  const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
-  const [replyText, setReplyText] = useState('');
-  const [showReply, setShowReply] = useState(false);
-  const [sendingReply, setSendingReply] = useState(false);
-  const [showLikers, setShowLikers] = useState(false);
-  const [likers, setLikers] = useState<Profile[]>([]);
-  const [loadingLikers, setLoadingLikers] = useState(false);
-  const [showViewers, setShowViewers] = useState(false);
-  const [viewers, setViewers] = useState<StoryViewer[]>([]);
-  const [loadingViewers, setLoadingViewers] = useState(false);
-  const videoViewerRef = useRef<HTMLVideoElement>(null);
-  const storyAudioRef = useRef<HTMLAudioElement>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsPage, setPostsPage] = useState(0);
@@ -147,14 +135,6 @@ const StoriesPage: React.FC = () => {
     return () => { document.body.style.overflow = prevOverflow; };
   }, [viewerUserId]);
 
-  const openViewersSheet = async (storyId: string) => {
-    setShowViewers(true);
-    setLoadingViewers(true);
-    const list = await getStoryViewers(storyId).catch(() => [] as StoryViewer[]);
-    setViewers(list);
-    setLoadingViewers(false);
-  };
-
   const groups = groupStoriesByUser(stories);
   const groupKeys = Object.keys(groups);
 
@@ -171,85 +151,7 @@ const StoriesPage: React.FC = () => {
     }
   }, [loading, stories]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeViewer = () => {
-    storyAudioRef.current?.pause(); setViewerUserId(null); setShowReply(false); setShowViewers(false); };
-
-  const viewerGroup = viewerUserId ? groups[viewerUserId] : null;
-  const currentStory = viewerGroup?.stories[storyIndex];
-
-  useEffect(() => {
-    const a = storyAudioRef.current;
-    if (!a) return;
-    if (viewerUserId && currentStory?.music_preview_url) {
-      const startSec = (currentStory.music_start_ms || 0) / 1000;
-      try { a.currentTime = startSec; } catch {}
-      a.play().catch(() => {});
-    } else {
-      a.pause();
-    }
-  }, [viewerUserId, currentStory, storyIndex]);
-
-  // Pause story audio when screen turns off or page loses focus
-  useEffect(() => {
-    const pauseStoryAudio = () => {
-      storyAudioRef.current?.pause();
-    };
-    const handleVisibility = () => {
-      if (document.hidden || document.visibilityState === 'hidden') {
-        pauseStoryAudio();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('pagehide', pauseStoryAudio);
-    window.addEventListener('blur', pauseStoryAudio);
-    return () => {
-      pauseStoryAudio();
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('pagehide', pauseStoryAudio);
-      window.removeEventListener('blur', pauseStoryAudio);
-    };
-  }, []);
-
-  const nextStory = () => {
-    if (!viewerGroup) return;
-    setShowReply(false);
-    if (storyIndex < viewerGroup.stories.length - 1) {
-      setStoryIndex(i => i + 1);
-    } else {
-      const ci = groupKeys.indexOf(viewerUserId!);
-      if (ci < groupKeys.length - 1) { setViewerUserId(groupKeys[ci + 1]); setStoryIndex(0); }
-      else closeViewer();
-    }
-  };
-
-  const prevStory = () => {
-    if (storyIndex > 0) { setStoryIndex(i => i - 1); setShowReply(false); }
-  };
-
-  const handleLike = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user || !currentStory) return;
-    const prev = likedMap[currentStory.id] ?? false;
-    setLikedMap(m => ({ ...m, [currentStory.id]: !prev }));
-    await toggleStoryLike(currentStory.id, user.id, prev);
-    setStories(s => s.map(st => st.id === currentStory.id ? { ...st, likes_count: (st.likes_count || 0) + (prev ? -1 : 1) } : st));
-    // Notify story owner on new like
-    if (!prev && currentStory.user_id !== user.id) {
-      createNotification(currentStory.user_id, 'story_like', user.id, currentStory.id).catch(() => {});
-    }
-  };
-
-  const handleSendReply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!replyText.trim() || !user || !currentStory) return;
-    setSendingReply(true);
-    await sendMessage(currentStory.user_id, `↩️ Story reply: ${replyText.trim()}`);
-    if (currentStory.user_id !== user.id) {
-      createNotification(currentStory.user_id, 'story_reply', user.id, currentStory.id, undefined, replyText.trim().slice(0, 120)).catch(() => {});
-    }
-    toast.success('Reply भेजा गया!');
-    setReplyText('');
-    setShowReply(false);
-    setSendingReply(false);
+    setViewerUserId(null);
   };
 
   // 24h timer
