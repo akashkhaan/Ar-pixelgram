@@ -23,6 +23,7 @@ import type { MusicTrack } from '@/services/music';
 import { composeMediaWithMusic } from '@/services/mediaComposer';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
 import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
 
 function groupStoriesByUser(stories: Story[]): Record<string, { profile: Profile; stories: Story[] }> {
   const groups: Record<string, { profile: Profile; stories: Story[] }> = {};
@@ -275,24 +276,43 @@ const StoriesPage: React.FC = () => {
     if (!mediaFile || !user) return;
     const uploadId = startUpload('story', 'Story upload');
     setUploading(true);
+    const musicPayload = storyTrack
+      ? {
+          track_id: storyTrack.id,
+          title: storyTrack.title,
+          artist: storyTrack.artist,
+          artwork_url: storyTrack.artwork,
+          preview_url: storyTrack.previewUrl,
+          start_ms: musicStartMs,
+          duration_ms: storyTrack.durationMs,
+          mute_original: muteOriginal,
+        }
+      : null;
+    // Refresh-proof: job IndexedDB me save hota hai; refresh ke baad app load par resume hota hai.
+    const persistentJobId = `upload_story_${Date.now()}`;
+    markJobActive(persistentJobId);
+    void savePersistentJob({
+      id: persistentJobId,
+      kind: 'story',
+      label: 'Story Upload',
+      fileBlob: mediaFile,
+      fileName: mediaFile.name,
+      fileType: mediaFile.type,
+      userId: user.id,
+      caption: caption.trim() || null,
+      musicPayload,
+      progress: 0,
+      status: 'uploading',
+      createdAt: Date.now(),
+    });
     try {
       let fileToUpload = mediaFile;
       const url = await uploadMediaWithProgress('stories', fileToUpload, user.id, (progress) => {
         updateUpload(uploadId, progress);
+        void updatePersistentJobProgress(persistentJobId, progress);
       });
-      const musicPayload = storyTrack
-        ? {
-            track_id: storyTrack.id,
-            title: storyTrack.title,
-            artist: storyTrack.artist,
-            artwork_url: storyTrack.artwork,
-            preview_url: storyTrack.previewUrl,
-            start_ms: musicStartMs,
-            duration_ms: storyTrack.durationMs,
-            mute_original: muteOriginal,
-          }
-        : null;
       await createStory(url, caption.trim() || null, musicPayload);
+      await deletePersistentJob(persistentJobId);
       toast.success(t('newStory') + ' posted! ✨');
       const updated = await getFeedStories(user.id);
       setStories(updated);
@@ -308,6 +328,7 @@ const StoriesPage: React.FC = () => {
       toast.error('Failed to post story');
       finishUpload(uploadId, 'Story upload fail hua');
     } finally {
+      unmarkJobActive(persistentJobId);
       setUploading(false);
     }
   };
