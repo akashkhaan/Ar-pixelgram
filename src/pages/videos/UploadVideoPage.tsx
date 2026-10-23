@@ -1,4 +1,5 @@
 import { startUpload, updateUpload, finishUpload } from '@/services/uploadManager';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
 import useGoBack from '@/hooks/use-go-back';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -101,10 +102,33 @@ const UploadVideoPage: React.FC = () => {
     const uploadId = startUpload('video', title.trim() || 'Video upload', thumbPreview || undefined);
     setUploading(true);
     setProgress(0);
+
+    // Refresh-proof: job IndexedDB me save hota hai; refresh ke baad app load par resume hota hai.
+    const persistentJobId = `upload_video_${Date.now()}`;
+    markJobActive(persistentJobId);
+    void savePersistentJob({
+      id: persistentJobId,
+      kind: 'video',
+      label: 'Video Upload',
+      fileBlob: file,
+      fileName: file.name,
+      fileType: file.type,
+      coverBlob: thumbBlob,
+      userId: user.id,
+      videoTitle: title.trim(),
+      videoDescription: description.trim() || undefined,
+      videoVisibility: visibility,
+      videoDuration: duration ? Math.round(duration) : null,
+      progress: 0,
+      status: 'uploading',
+      createdAt: Date.now(),
+    });
+
     try {
       const videoUrl = await uploadVideoFile(file, user.id, (p) => {
         setProgress(p);
         updateUpload(uploadId, p);
+        void updatePersistentJobProgress(persistentJobId, p);
       });
       let thumbnailUrl: string | null = null;
       if (thumbBlob) {
@@ -123,6 +147,7 @@ const UploadVideoPage: React.FC = () => {
         durationSec: duration ? Math.round(duration) : null,
         visibility,
       });
+      await deletePersistentJob(persistentJobId);
       finishUpload(uploadId);
       toast.success('Video upload ho gaya!');
       navigate(`/videos/${created.id}`, { replace: true });
@@ -131,6 +156,7 @@ const UploadVideoPage: React.FC = () => {
       finishUpload(uploadId, e instanceof Error ? e.message : 'Upload fail hua');
       toast.error(e instanceof Error ? e.message : 'Upload fail hua — dobara try karein');
     } finally {
+      unmarkJobActive(persistentJobId);
       setUploading(false);
     }
   };
