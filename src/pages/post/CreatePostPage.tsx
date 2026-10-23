@@ -23,6 +23,7 @@ import MusicTrimmer from '@/components/reels/MusicTrimmer';
 import type { MusicTrack } from '@/services/music';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
 import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
 
 const CreatePostPage: React.FC = () => {
   const { user } = useAuth();
@@ -145,26 +146,46 @@ const CreatePostPage: React.FC = () => {
     );
     setLoading(true);
 
+    const music: ReelMusic | null = track
+      ? {
+          track_id: track.id,
+          title: track.title,
+          artist: track.artist,
+          artwork_url: track.artwork,
+          preview_url: track.previewUrl,
+          start_ms: startMs,
+          duration_ms: track.durationMs,
+          mute_original: muteOriginal,
+        }
+      : null;
+
+    // Refresh-proof: job IndexedDB me save hota hai; refresh ke baad app load par resume hota hai.
+    const persistentJobId = `upload_post_${Date.now()}`;
+    markJobActive(persistentJobId);
+    void savePersistentJob({
+      id: persistentJobId,
+      kind: 'post',
+      label: mediaType === 'video' ? 'Video Post Upload' : 'Photo Post Upload',
+      fileBlob: mediaFile,
+      fileName: mediaFile.name,
+      fileType: mediaFile.type,
+      userId: user.id,
+      caption: caption.trim() || null,
+      musicPayload: music,
+      progress: 0,
+      status: 'uploading',
+      createdAt: Date.now(),
+    });
+
     try {
       // 1 to 100% upload progress to Supabase posts bucket
       const mediaUrl = await uploadMediaWithProgress('posts', mediaFile, user.id, (progress) => {
         updateUpload(uploadId, progress);
+        void updatePersistentJobProgress(persistentJobId, progress);
       });
 
-      const music: ReelMusic | null = track
-        ? {
-            track_id: track.id,
-            title: track.title,
-            artist: track.artist,
-            artwork_url: track.artwork,
-            preview_url: track.previewUrl,
-            start_ms: startMs,
-            duration_ms: track.durationMs,
-            mute_original: muteOriginal,
-          }
-        : null;
-
       await createPost(mediaUrl, caption.trim() || null, music);
+      await deletePersistentJob(persistentJobId);
       finishUpload(uploadId);
       toast.success(mediaType === 'video' ? 'Video post shared! 🎬✨' : 'Post shared! 📷✨');
       navigate('/stories');
@@ -173,6 +194,7 @@ const CreatePostPage: React.FC = () => {
       finishUpload(uploadId, 'Post upload fail hua');
       toast.error('Failed to create post. Please try again.');
     } finally {
+      unmarkJobActive(persistentJobId);
       setLoading(false);
     }
   };
