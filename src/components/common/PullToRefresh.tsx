@@ -79,10 +79,10 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({ onRefresh, children, scro
         }}
       >
         {refreshing ? (
-          <ArrowDown className="w-5 h-5 text-primary/70 rotate-180" />
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
         ) : (
           <ArrowDown
-            className="w-5 h-5 text-primary/70 transition-transform"
+            className="w-6 h-6 text-primary transition-transform"
             style={{ transform: `rotate(${pull >= THRESHOLD ? 180 : 0}deg)`, opacity: Math.min(1, pull / THRESHOLD) }}
           />
         )}

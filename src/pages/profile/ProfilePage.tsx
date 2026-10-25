@@ -360,29 +360,29 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* Profile Top Header Bar (Instagram / Facebook Style) - elevated and prominent */}
-        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md px-3.5 h-[52px] flex items-center justify-between border-b border-border/40" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)' }}>
+        {/* Profile Top Header Bar (Instagram / Facebook Style) */}
+        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md px-3 h-12 flex items-center justify-between border-b border-border/40">
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={goBack}
-              className="w-10 h-10 -ml-1 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground shrink-0 cursor-pointer"
+              className="w-9 h-9 -ml-1 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground shrink-0"
               aria-label="Go back"
             >
-              <ArrowLeft className="w-5 h-5" strokeWidth={2.5} />
+              <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="font-extrabold text-base sm:text-lg text-foreground truncate flex items-center gap-1.5">
+            <h1 className="font-bold text-base text-foreground truncate flex items-center gap-1.5">
               {profile.username}
-              {profile.is_verified && <BadgeCheck className="w-5 h-5 text-primary shrink-0" />}
-              {profile.is_private && <Lock className="w-4 h-4 text-muted-foreground shrink-0" />}
+              {profile.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
+              {profile.is_private && <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
             </h1>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             {/* Search Posts Button */}
             <button
               type="button"
               onClick={() => setShowSearch(!showSearch)}
-              className={`w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all cursor-pointer ${
+              className={`w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all ${
                 showSearch ? 'bg-primary/10 text-primary' : 'text-foreground'
               }`}
               aria-label="Search posts"
@@ -395,7 +395,7 @@ const ProfilePage: React.FC = () => {
             <button
               type="button"
               onClick={() => setBottomSheetOpen(true)}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all text-foreground cursor-pointer"
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all text-foreground"
               aria-label="Profile options"
               title="Profile options"
             >

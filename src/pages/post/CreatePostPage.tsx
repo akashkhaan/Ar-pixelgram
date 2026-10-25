@@ -23,7 +23,7 @@ import MusicTrimmer from '@/components/reels/MusicTrimmer';
 import type { MusicTrack } from '@/services/music';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
 import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
-import { startPersistentUpload } from '@/services/persistentUploadQueue';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
 
 const CreatePostPage: React.FC = () => {
   const { user } = useAuth();
@@ -139,6 +139,13 @@ const CreatePostPage: React.FC = () => {
       return;
     }
 
+    const uploadId = startUpload(
+      'post',
+      mediaType === 'video' ? 'Video post upload' : 'Photo post upload',
+      mediaPreview || undefined
+    );
+    setLoading(true);
+
     const music: ReelMusic | null = track
       ? {
           track_id: track.id,
@@ -152,17 +159,44 @@ const CreatePostPage: React.FC = () => {
         }
       : null;
 
-    toast.info('Post upload shuru ho gaya... (upar progress dekhein) 🚀');
-    void startPersistentUpload({
+    // Refresh-proof: job IndexedDB me save hota hai; refresh ke baad app load par resume hota hai.
+    const persistentJobId = `upload_post_${Date.now()}`;
+    markJobActive(persistentJobId);
+    void savePersistentJob({
+      id: persistentJobId,
       kind: 'post',
-      label: mediaType === 'video' ? 'Video post upload' : 'Photo post upload',
-      file: mediaFile,
+      label: mediaType === 'video' ? 'Video Post Upload' : 'Photo Post Upload',
+      fileBlob: mediaFile,
+      fileName: mediaFile.name,
+      fileType: mediaFile.type,
       userId: user.id,
       caption: caption.trim() || null,
       musicPayload: music,
+      progress: 0,
+      status: 'uploading',
+      createdAt: Date.now(),
     });
 
-    navigate('/stories');
+    try {
+      // 1 to 100% upload progress to Supabase posts bucket
+      const mediaUrl = await uploadMediaWithProgress('posts', mediaFile, user.id, (progress) => {
+        updateUpload(uploadId, progress);
+        void updatePersistentJobProgress(persistentJobId, progress);
+      });
+
+      await createPost(mediaUrl, caption.trim() || null, music);
+      await deletePersistentJob(persistentJobId);
+      finishUpload(uploadId);
+      toast.success(mediaType === 'video' ? 'Video post shared! 🎬✨' : 'Post shared! 📷✨');
+      navigate('/stories');
+    } catch (err) {
+      console.error('Post upload failed:', err);
+      finishUpload(uploadId, 'Post upload fail hua');
+      toast.error('Failed to create post. Please try again.');
+    } finally {
+      unmarkJobActive(persistentJobId);
+      setLoading(false);
+    }
   };
 
   return (
@@ -412,7 +446,10 @@ const CreatePostPage: React.FC = () => {
             disabled={loading || !mediaFile}
           >
             {loading ? (
-              `Sharing ${mediaType === 'video' ? 'Video Post' : 'Post'}…`
+              <>
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                Sharing {mediaType === 'video' ? 'Video Post' : 'Post'}…
+              </>
             ) : (
               `Share ${mediaType === 'video' ? 'Video Post' : 'Post'}`
             )}

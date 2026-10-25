@@ -67,7 +67,7 @@ export function cleanDisplayCaption(caption?: string | null): string {
     .replace(/<!--pixelgram_music:[\s\S]*?(?:-->|$)/gi, '')
     .replace(/<!--[\s\S]*?(?:-->|$)/gi, '')
     .replace(/\{"_m":1,[\s\S]*?\}/g, '')
-    .replace(/(?:\r?\n)*(?:🎵|🎶|Audio:|Music:|Song:|Track:)\s*[^\r\n]*/gi, '')
+    .replace(new RegExp('(?:[\r\n\s]*)(?:🎵|🎶|Audio:|Music:|Song:|Track:)[\s\S]*', 'gi'), '')
     .trim();
 }
 
@@ -116,7 +116,8 @@ export async function createPost(
   caption: string | null,
   music?: ReelMusic | null,
 ): Promise<void> {
-  const row: Record<string, any> = { image_url: imageUrl, caption };
+  const finalCaption = music ? encodePostMusic(caption, music) : caption;
+  const row: Record<string, any> = { image_url: imageUrl, caption: finalCaption };
   if (music) {
     row.music_track_id = music.track_id;
     row.music_title = music.title;
@@ -200,7 +201,7 @@ export async function getPostById(postId: string, currentUserId?: string): Promi
     .eq('id', postId)
     .maybeSingle();
   if (error || !data) return null;
-  const [post] = await attachProfiles([data as Post]);
+  const [post] = await attachProfiles([decodePostMusic(data as Post)]);
   const [withMeta] = await attachPostSocialMeta([post], currentUserId);
   return withMeta;
 }
@@ -224,7 +225,8 @@ export async function getHomeFeed(userId: string, page = 0, pageSize = 10): Prom
     .order('created_at', { ascending: false })
     .range(page * pageSize, (page + 1) * pageSize - 1);
 
-  const posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(Array.isArray(data) ? (data as Post[]) : [])));
+  const rawList = Array.isArray(data) ? (data as Post[]) : [];
+  const posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(rawList.map(decodePostMusic))));
   return attachPostSocialMeta(posts, userId);
 }
 
@@ -235,7 +237,8 @@ export async function getUserPosts(userId: string, currentUserId?: string): Prom
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50);
-  const posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(Array.isArray(data) ? (data as Post[]) : [])));
+  const rawList = Array.isArray(data) ? (data as Post[]) : [];
+  const posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(rawList.map(decodePostMusic))));
   return attachPostSocialMeta(posts, currentUserId);
 }
 
@@ -258,7 +261,8 @@ export async function getAllPosts(page = 0, pageSize = 20, currentUserId?: strin
     .order('created_at', { ascending: false })
     .range(page * pageSize, (page + 1) * pageSize - 1);
   if (error) throw error;
-  const posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(Array.isArray(data) ? (data as Post[]) : [])));
+  const rawList = Array.isArray(data) ? (data as Post[]) : [];
+  const posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(rawList.map(decodePostMusic))));
   return attachPostSocialMeta(posts, currentUserId);
 }
 
@@ -1119,8 +1123,14 @@ export async function getStoryLikers(storyId: string): Promise<Profile[]> {
 }
 
 export async function recordStoryView(storyId: string, viewerId: string): Promise<void> {
-  const { error } = await supabase.from('story_views').upsert({ story_id: storyId, viewer_id: viewerId });
-  if (!error) await supabase.rpc('increment_story_views', { story_id: storyId });
+  // Sirf pehli baar dekhne par count badhe (dobara kholne se fake views na badhe); apni story ka view count nahi hota
+  const { data: story } = await supabase.from('stories').select('user_id').eq('id', storyId).maybeSingle();
+  if (story?.user_id === viewerId) return;
+  const { data, error } = await supabase
+    .from('story_views')
+    .upsert({ story_id: storyId, viewer_id: viewerId }, { onConflict: 'story_id,viewer_id', ignoreDuplicates: true })
+    .select('id');
+  if (!error && data && data.length > 0) await supabase.rpc('increment_story_views', { story_id: storyId });
 }
 
 // ===================== MARK MESSAGES SEEN (enhanced) =====================

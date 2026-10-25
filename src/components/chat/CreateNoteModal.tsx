@@ -71,7 +71,8 @@ export const CreateNoteModal: React.FC<Props> = ({
 
   // Audio preview playback for attached song
   useEffect(() => {
-    if (!selectedTrack?.preview_url) {
+    const preview = selectedTrack?.preview_url || (selectedTrack as any)?.previewUrl;
+    if (!preview) {
       if (audioRef.current) {
         audioRef.current.pause();
       }
@@ -79,7 +80,8 @@ export const CreateNoteModal: React.FC<Props> = ({
       return;
     }
 
-    const audio = new Audio(selectedTrack.preview_url);
+    const audio = new Audio(preview);
+    (audio as any).playsInline = true;
     audioRef.current = audio;
     audio.currentTime = (musicStartMs || 0) / 1000;
 

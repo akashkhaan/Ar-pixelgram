@@ -83,6 +83,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
   // visitor without an account can never land on (and get stuck in) the reels
   // or home feed loading screen.
   if (!isPublic && !isReady) {
+    // Blank dark backdrop only — no icon, name, or spinner during session check.
     return <div className="fixed inset-0 bg-[#0B0B0F] z-50 pointer-events-none" />;
   }
 

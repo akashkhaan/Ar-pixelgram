@@ -1,4 +1,6 @@
 import useGoBack from '@/hooks/use-go-back';
+import { NO_EFFECT, renderEffect, createEffectRecordingStream, recordingFileExtension, type CameraEffect } from './cameraEffects';
+import { EffectsBrowser, EffectsCarousel } from '@/components/reels/EffectsBrowser';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -43,71 +45,6 @@ import {
 type Mode = 'post' | 'story' | 'reel' | 'video';
 type Step = 'camera' | 'edit' | 'details';
 
-interface CameraEffect {
-  id: string;
-  name: string;
-  category: 'trending' | 'beauty' | 'retro' | 'cinematic' | 'cyber' | 'mood';
-  filter: string;
-  badge: string;
-  gradient: string;
-  tag: string;
-}
-
-const EFFECTS: CameraEffect[] = [
-  // ── TRENDING ──
-  { id: 'none', name: 'Normal', category: 'trending', filter: 'none', badge: '⚪', gradient: 'from-zinc-700 to-zinc-900', tag: 'Clean' },
-  { id: 'beauty_glow', name: 'Beauty Glow', category: 'beauty', filter: 'brightness(112%) contrast(106%) saturate(125%)', badge: '🌸', gradient: 'from-pink-400 to-rose-500', tag: 'Snapchat' },
-  { id: 'kirakira', name: 'Kira Sparkle', category: 'beauty', filter: 'brightness(118%) contrast(114%) saturate(135%) hue-rotate(6deg)', badge: '✨', gradient: 'from-amber-300 via-pink-400 to-purple-500', tag: 'Instagram' },
-  { id: 'film_burn', name: 'Film Burn', category: 'trending', filter: 'contrast(125%) saturate(145%) sepia(30%) hue-rotate(-10deg)', badge: '🔥', gradient: 'from-amber-500 to-red-600', tag: 'Popular' },
-  { id: 'lovit', name: 'Lovit Glow', category: 'trending', filter: 'brightness(112%) contrast(108%) saturate(140%)', badge: '💖', gradient: 'from-pink-500 to-rose-600', tag: 'Trending' },
-  { id: 'golden_hour', name: 'Golden Hour', category: 'trending', filter: 'sepia(45%) saturate(175%) brightness(108%) contrast(112%)', badge: '🌅', gradient: 'from-yellow-400 to-amber-600', tag: 'Warm' },
-  { id: 'vhs_90s', name: '90s VHS', category: 'retro', filter: 'contrast(120%) saturate(85%) sepia(25%)', badge: '📼', gradient: 'from-purple-500 to-indigo-700', tag: 'Vintage' },
-  { id: 'teal_orange', name: 'Teal & Orange', category: 'cinematic', filter: 'contrast(130%) saturate(145%) hue-rotate(185deg) sepia(20%)', badge: '🎬', gradient: 'from-cyan-500 to-orange-500', tag: 'Hollywood' },
-  { id: 'cyberpunk', name: 'Cyberpunk', category: 'cyber', filter: 'hue-rotate(245deg) saturate(230%) contrast(120%)', badge: '⚡', gradient: 'from-cyan-400 to-blue-600', tag: 'Neon' },
-  { id: 'bw_noir', name: 'Noir B&W', category: 'cinematic', filter: 'grayscale(100%) contrast(185%) brightness(105%)', badge: '🏁', gradient: 'from-zinc-400 to-black', tag: 'Classic' },
-
-  // ── BEAUTY & GLOW (Snapchat & Instagram) ──
-  { id: 'soft_peach', name: 'Peach Skin', category: 'beauty', filter: 'saturate(135%) brightness(114%) contrast(104%) sepia(16%)', badge: '🍑', gradient: 'from-orange-300 to-pink-500', tag: 'Soft Glow' },
-  { id: 'angel_halo', name: 'Angel Glow', category: 'beauty', filter: 'brightness(122%) contrast(102%) saturate(118%) drop-shadow(0 0 8px rgba(255,255,255,0.4))', badge: '👼', gradient: 'from-yellow-200 to-pink-300', tag: 'Ethereal' },
-  { id: 'pink_blush', name: 'Pink Blush', category: 'beauty', filter: 'saturate(165%) hue-rotate(330deg) brightness(110%) contrast(106%)', badge: '🎀', gradient: 'from-pink-400 to-purple-400', tag: 'Cute' },
-  { id: 'hollywood_star', name: 'Starlet', category: 'beauty', filter: 'contrast(115%) brightness(115%) saturate(140%) sepia(12%)', badge: '⭐', gradient: 'from-amber-200 to-yellow-500', tag: 'Glamour' },
-  { id: 'fairy_dust', name: 'Fairy Dust', category: 'beauty', filter: 'brightness(116%) contrast(108%) saturate(150%) hue-rotate(15deg)', badge: '🧚', gradient: 'from-emerald-300 to-teal-500', tag: 'Pastel' },
-
-  // ── RETRO & VINTAGE ──
-  { id: 'retro_8mm', name: '8mm Reel', category: 'retro', filter: 'sepia(55%) contrast(140%) brightness(92%) saturate(110%)', badge: '📽️', gradient: 'from-amber-700 to-yellow-900', tag: 'Classic Film' },
-  { id: 'vintage_sepia', name: 'Sepia 1920', category: 'retro', filter: 'sepia(85%) contrast(115%) brightness(95%)', badge: '📜', gradient: 'from-amber-700 to-amber-950', tag: 'Antique' },
-  { id: 'polaroid_74', name: 'Polaroid', category: 'retro', filter: 'contrast(110%) saturate(125%) brightness(104%) sepia(22%)', badge: '📷', gradient: 'from-stone-300 to-stone-600', tag: 'Instant' },
-  { id: 'camcorder_vibe', name: 'Camcorder', category: 'retro', filter: 'saturate(130%) contrast(125%) brightness(95%) sepia(15%)', badge: '📹', gradient: 'from-slate-700 to-slate-900', tag: 'Hi-8' },
-  { id: 'faded_nostalgia', name: 'Nostalgia', category: 'retro', filter: 'saturate(70%) contrast(95%) brightness(108%) sepia(35%)', badge: '📻', gradient: 'from-amber-400 to-amber-700', tag: 'Old School' },
-
-  // ── CINEMATIC ──
-  { id: 'cinema_35mm', name: '35mm Vista', category: 'cinematic', filter: 'contrast(120%) brightness(98%) saturate(125%) sepia(12%)', badge: '🎥', gradient: 'from-blue-900 to-indigo-950', tag: 'Panavision' },
-  { id: 'sunset_blush', name: 'Sunset Mood', category: 'cinematic', filter: 'saturate(165%) sepia(35%) hue-rotate(-20deg) brightness(106%)', badge: '🌇', gradient: 'from-rose-500 to-orange-600', tag: 'Twilight' },
-  { id: 'dark_shadows', name: 'Moody Shadow', category: 'cinematic', filter: 'contrast(150%) brightness(86%) saturate(112%)', badge: '🌘', gradient: 'from-neutral-800 to-black', tag: 'Dramatic' },
-  { id: 'bleach_gritty', name: 'Bleach Bypass', category: 'cinematic', filter: 'grayscale(55%) contrast(185%) brightness(98%)', badge: '👻', gradient: 'from-zinc-500 to-zinc-800', tag: 'Gritty' },
-  { id: 'cali_beach', name: 'Cali Summer', category: 'cinematic', filter: 'saturate(170%) brightness(112%) contrast(108%) hue-rotate(-8deg)', badge: '🏖️', gradient: 'from-sky-400 to-amber-400', tag: 'Sun Kissed' },
-
-  // ── CYBER & GLITCH ──
-  { id: 'glitch_wave', name: 'Glitch RGB', category: 'cyber', filter: 'invert(8%) hue-rotate(180deg) saturate(220%) contrast(140%)', badge: '👾', gradient: 'from-fuchsia-600 to-purple-800', tag: 'Cyber' },
-  { id: 'night_vision', name: 'Night Vision', category: 'cyber', filter: 'grayscale(100%) sepia(100%) hue-rotate(85deg) saturate(320%) contrast(150%)', badge: '🟢', gradient: 'from-emerald-500 to-green-950', tag: 'Thermal' },
-  { id: 'matrix_code', name: 'Matrix Code', category: 'cyber', filter: 'hue-rotate(95deg) saturate(280%) contrast(135%) brightness(95%)', badge: '💻', gradient: 'from-green-400 to-emerald-900', tag: 'Digital' },
-  { id: 'shibuya_neon', name: 'Tokyo Neon', category: 'cyber', filter: 'hue-rotate(290deg) saturate(240%) contrast(130%)', badge: '🗼', gradient: 'from-pink-500 to-cyan-500', tag: 'Neon City' },
-  { id: 'vaporwave', name: 'Vaporwave', category: 'cyber', filter: 'hue-rotate(275deg) saturate(190%) contrast(115%) brightness(105%)', badge: '🌴', gradient: 'from-pink-500 to-indigo-500', tag: 'Synthwave' },
-  { id: 'starlight', name: 'Starlight', category: 'cyber', filter: 'hue-rotate(260deg) saturate(190%) contrast(130%) brightness(92%)', badge: '🌌', gradient: 'from-indigo-600 to-violet-950', tag: 'Cosmic' },
-
-  // ── COLOR MOOD ──
-  { id: 'heart_aura', name: 'Heart Aura', category: 'mood', filter: 'hue-rotate(315deg) saturate(190%) brightness(110%)', badge: '💕', gradient: 'from-red-400 to-pink-600', tag: 'Romantic' },
-  { id: 'disco_fever', name: 'Disco Lights', category: 'mood', filter: 'hue-rotate(130deg) saturate(210%) contrast(120%)', badge: '🪩', gradient: 'from-purple-500 via-pink-500 to-yellow-400', tag: 'Party' },
-  { id: 'deep_ocean', name: 'Deep Ocean', category: 'mood', filter: 'hue-rotate(205deg) saturate(175%) contrast(120%) brightness(95%)', badge: '🌊', gradient: 'from-blue-600 to-teal-800', tag: 'Aqua' },
-  { id: 'arctic_ice', name: 'Arctic Ice', category: 'mood', filter: 'hue-rotate(190deg) saturate(130%) brightness(112%) contrast(110%)', badge: '❄️', gradient: 'from-cyan-200 to-blue-500', tag: 'Chill' },
-  { id: 'inferno_fire', name: 'Inferno Fire', category: 'mood', filter: 'hue-rotate(-25deg) saturate(260%) contrast(135%) brightness(104%)', badge: '🌋', gradient: 'from-red-600 to-orange-500', tag: 'Molten' },
-  { id: 'rainbow_dream', name: 'Rainbow', category: 'mood', filter: 'hue-rotate(60deg) saturate(220%) brightness(108%)', badge: '🌈', gradient: 'from-red-400 via-yellow-400 to-blue-500', tag: 'Spectrum' },
-  { id: 'bubblegum', name: 'Bubblegum', category: 'mood', filter: 'hue-rotate(330deg) saturate(190%) brightness(112%) contrast(105%)', badge: '🍬', gradient: 'from-pink-300 to-fuchsia-500', tag: 'Sweet' },
-  { id: 'emerald_forest', name: 'Emerald', category: 'mood', filter: 'hue-rotate(75deg) saturate(160%) contrast(115%)', badge: '🌲', gradient: 'from-emerald-600 to-teal-900', tag: 'Lush Green' },
-  { id: 'luxury_gold', name: 'Royal Gold', category: 'mood', filter: 'sepia(60%) saturate(220%) brightness(105%) contrast(115%)', badge: '👑', gradient: 'from-amber-300 to-yellow-600', tag: 'Prestige' },
-  { id: 'comic_punch', name: 'Comic Punch', category: 'mood', filter: 'contrast(175%) saturate(185%) brightness(102%)', badge: '💥', gradient: 'from-red-500 to-yellow-400', tag: 'Graphic' },
-];
-
 const CreateReelPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -128,41 +65,24 @@ const CreateReelPage: React.FC = () => {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [frontCamera, setFrontCamera] = useState(true);
 
-  // Effects & Filters Shelf toggle
-  // Effects & Filters Shelf toggle (Open by default like Instagram/Snapchat)
+  // Camera effects only; duration and other controls keep their existing state.
   const [showEffectsShelf, setShowEffectsShelf] = useState(true);
-  const [selectedEffect, setSelectedEffect] = useState<CameraEffect>(EFFECTS[0]);
+  const [selectedEffect, setSelectedEffect] = useState<CameraEffect>(NO_EFFECT);
   const [showEffectsSearchModal, setShowEffectsSearchModal] = useState(false);
-  const [effectSearchQuery, setEffectSearchQuery] = useState('');
-  const [effectActiveTab, setEffectActiveTab] = useState<'all' | 'trending' | 'beauty' | 'retro' | 'cinematic' | 'cyber' | 'mood'>('all');
-
-  // Instagram Reel Duration Modal state (User can customize any length)
+  const [searchEffectsInitially, setSearchEffectsInitially] = useState(false);
+  const [savedEffects, setSavedEffects] = useState<string[]>([]);
+  const effectCanvasRef = useRef<HTMLCanvasElement>(null);
+  const recordingCaptureRef = useRef<MediaStream | null>(null);
   const [showDurationModal, setShowDurationModal] = useState(false);
   const [customDurationInput, setCustomDurationInput] = useState(30);
-
-  // Filtered effects list based on category & search query
-  const filteredEffectsList = useMemo(() => {
-    let list = EFFECTS;
-    if (effectActiveTab !== 'all') {
-      list = list.filter((e) => e.category === effectActiveTab);
-    }
-    if (effectSearchQuery.trim()) {
-      const q = effectSearchQuery.toLowerCase().trim();
-      list = list.filter(
-        (e) =>
-          e.name.toLowerCase().includes(q) ||
-          e.tag.toLowerCase().includes(q) ||
-          e.category.toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [effectActiveTab, effectSearchQuery]);
+  const toggleSavedEffect = (id: string) => setSavedEffects((ids) => ids.includes(id) ? ids.filter((saved) => saved !== id) : [...ids, id]);
+  const openEffects = (search = false) => { setSearchEffectsInitially(search); setShowEffectsSearchModal(true); };
 
   // Recording
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
   const [maxRecordDuration, setMaxRecordDuration] = useState(30); // 15, 30, 60s
-  const recordTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isHoldingShutterRef = useRef(false);
 
   // Countdown timer (0, 3, 10s)
@@ -247,6 +167,9 @@ const CreateReelPage: React.FC = () => {
       streamRef.current = stream;
       if (videoStreamRef.current) {
         videoStreamRef.current.srcObject = stream;
+        void videoStreamRef.current.play().catch(() => {
+          // The existing shutter interaction can resume playback if autoplay is blocked.
+        });
       }
       setHasCameraPermission(true);
     } catch (err) {
@@ -271,6 +194,31 @@ const CreateReelPage: React.FC = () => {
     }
   }, [step, frontCamera, startCamera, stopCamera]);
 
+  // The visible canvas is also the recorder source: effects are baked into the video.
+  useEffect(() => {
+    if (step !== 'camera' || hasCameraPermission !== true) return;
+    let frame = 0;
+    const draw = (time: number) => {
+      const video = videoStreamRef.current;
+      const canvas = effectCanvasRef.current;
+      if (video && canvas && video.readyState >= 2) {
+        const rect = canvas.getBoundingClientRect();
+        const width = Math.max(2, Math.round(Math.min(720, rect.width * 2)));
+        const height = Math.max(2, Math.round(width * rect.height / Math.max(1, rect.width)));
+        if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+        const context = canvas.getContext('2d');
+        if (context) renderEffect(context, video, video.videoWidth, video.videoHeight, selectedEffect, time, frontCamera);
+      }
+      frame = requestAnimationFrame(draw);
+    };
+    frame = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frame);
+  }, [step, hasCameraPermission, selectedEffect, frontCamera]);
+
+  useEffect(() => () => {
+    recordingCaptureRef.current?.getVideoTracks().forEach((track) => track.stop());
+  }, []);
+
   // Handle Recording start / stop
   const startRecording = async () => {
     if (!streamRef.current || isRecording) return;
@@ -294,7 +242,12 @@ const CreateReelPage: React.FC = () => {
 
     try {
       const options = mimeType ? { mimeType } : undefined;
-      const recorder = new MediaRecorder(streamRef.current, options);
+      const canvas = effectCanvasRef.current;
+      const camera = streamRef.current;
+      if (!canvas || !camera) throw new Error('Camera effects are not ready.');
+      const capture = createEffectRecordingStream(canvas, camera);
+      recordingCaptureRef.current = capture;
+      const recorder = new MediaRecorder(capture, options);
 
       recorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) {
@@ -303,8 +256,11 @@ const CreateReelPage: React.FC = () => {
       };
 
       recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/mp4' });
-        const file = new File([blob], `recording_${Date.now()}.mp4`, { type: blob.type || 'video/mp4' });
+        recordingCaptureRef.current?.getVideoTracks().forEach((track) => track.stop());
+        recordingCaptureRef.current = null;
+        const recordedMimeType = recorder.mimeType || mimeType || 'video/webm';
+        const blob = new Blob(recordedChunksRef.current, { type: recordedMimeType });
+        const file = new File([blob], `recording_${Date.now()}.${recordingFileExtension(recordedMimeType)}`, { type: recordedMimeType });
         handleMediaLoaded(file, 'video');
       };
 
@@ -322,6 +278,8 @@ const CreateReelPage: React.FC = () => {
         }
       }, 100);
     } catch (err) {
+      recordingCaptureRef.current?.getVideoTracks().forEach((track) => track.stop());
+      recordingCaptureRef.current = null;
       console.error('Failed to start MediaRecorder:', err);
       toast.error('Recording shuru nahi ho paayi. Gallery se select karein.');
     }
@@ -678,9 +636,6 @@ const CreateReelPage: React.FC = () => {
       onSuccess: () => {
         unmarkJobActive(persistentJobId);
         void deletePersistentJob(persistentJobId);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('pixelgram:upload_completed', { detail: { kind: currentMode } }));
-        }
         toast.success(`${modeLabel} successfully upload ho gaya! 🎉`);
       },
       onError: (err) => {
@@ -723,11 +678,12 @@ const CreateReelPage: React.FC = () => {
                 muted
                 className="w-full h-full object-cover transition-all duration-300"
                 style={{
-                  filter: selectedEffect.filter,
                   transform: frontCamera ? 'scaleX(-1)' : 'none',
                 }}
               />
             )}
+
+            {hasCameraPermission === true && <canvas ref={effectCanvasRef} className="camera-effect-output" aria-label="Live camera with selected effect" />}
 
             {/* Red recording pulse border */}
             {isRecording && (
@@ -745,196 +701,140 @@ const CreateReelPage: React.FC = () => {
           </div>
 
           {/* TOP BAR: Close, Audio pill, Duration toggle */}
-          <div className="relative z-30 flex items-center justify-between p-4 pt-5 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+          <div className="relative z-30 flex items-center justify-between px-4 pt-5 pb-10 bg-gradient-to-b from-black/80 via-black/30 to-transparent">
             {/* Close / Back button */}
             <button
               type="button"
               onClick={goBack}
-              className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 active:scale-90 transition-transform"
+              className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)] hover:bg-white/20 active:scale-90 transition-all"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {/* Instagram-style Add Audio Pill */}
+            {/* Add Audio Pill */}
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              className="px-4 py-2 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center gap-2 text-xs font-semibold text-white shadow-md active:scale-95 transition-transform"
+              className="group relative px-[2px] py-[2px] rounded-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-amber-400 shadow-[0_8px_30px_rgba(236,72,153,0.35)] active:scale-95 transition-transform"
             >
-              <Music2 className="w-3.5 h-3.5 text-primary" />
-              <span className="truncate max-w-[130px] font-medium">
-                {track ? track.title : 'Add audio'}
+              <span className="flex items-center gap-2 px-4 h-9 rounded-full bg-black/75 backdrop-blur-xl text-xs font-semibold text-white">
+                <span className="w-5 h-5 rounded-full bg-gradient-to-tr from-fuchsia-500 to-amber-400 flex items-center justify-center">
+                  <Music2 className={`w-3 h-3 text-white ${track ? 'animate-spin [animation-duration:3s]' : ''}`} />
+                </span>
+                <span className="truncate max-w-[130px] font-semibold tracking-tight">
+                  {track ? track.title : 'Add audio'}
+                </span>
               </span>
             </button>
 
-            {/* Instagram-style Reel Duration button (Tap to customize seconds) */}
+            {/* Reel Duration button (Tap to customize seconds) */}
             <button
               type="button"
               onClick={() => {
                 setCustomDurationInput(maxRecordDuration);
                 setShowDurationModal(true);
               }}
-              className="px-3 h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center gap-1 text-xs font-bold text-white hover:bg-black/70 active:scale-95 transition-all shadow-md"
+              className="px-3.5 h-11 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/15 flex items-center justify-center gap-1.5 text-xs font-bold text-white shadow-[0_8px_24px_rgba(0,0,0,0.35)] hover:bg-white/20 active:scale-95 transition-all"
               title="Reel Duration Limit (Tap to customize)"
             >
-              <Clock className="w-3.5 h-3.5 text-primary" />
-              <span>{maxRecordDuration >= 180 ? '3m' : `${maxRecordDuration}s`}</span>
+              <Clock className="w-4 h-4 text-amber-300" />
+              <span className="tabular-nums">{maxRecordDuration >= 180 ? '3m' : `${maxRecordDuration}s`}</span>
             </button>
           </div>
 
-          {/* LEFT SIDE TOOLBAR (Authentic Instagram tools drawer) */}
-          <div className="relative z-30 flex flex-col gap-3.5 pl-4 w-12 pointer-events-auto">
-            {/* Effects Toggle button */}
-            <button
-              type="button"
-              onClick={() => setShowEffectsShelf((prev) => !prev)}
-              className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all ${
-                showEffectsShelf || selectedEffect.id !== 'none'
-                  ? 'bg-gradient-to-tr from-violet-600 to-pink-500 text-white shadow-lg ring-2 ring-white/40 scale-105'
-                  : 'bg-black/50 text-white hover:bg-black/70 active:scale-90 border border-white/10'
-              }`}
-              title="Effects / Filters"
-            >
-              <Sparkles className="w-5 h-5" />
-            </button>
+          {/* LEFT SIDE TOOLBAR (glass rail) */}
+          <div className="relative z-30 ml-3 w-14 pointer-events-auto">
+            <div className="flex flex-col items-center gap-3 p-2 rounded-[28px] bg-white/[0.07] backdrop-blur-2xl border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+              {/* Effects Toggle button */}
+              <button
+                type="button"
+                onClick={() => setShowEffectsShelf((prev) => !prev)}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
+                  showEffectsShelf || selectedEffect.id !== 'none'
+                    ? 'bg-gradient-to-tr from-fuchsia-600 via-pink-500 to-amber-400 text-white shadow-[0_0_24px_rgba(236,72,153,0.7)] scale-110'
+                    : 'bg-white/10 text-white hover:bg-white/20 active:scale-90'
+                }`}
+                title="Effects / Filters"
+              >
+                <Sparkles className="w-5 h-5" />
+              </button>
 
-            {/* Direct Search Effects Lens button (Instagram & Snapchat style) */}
-            <button
-              type="button"
-              onClick={() => setShowEffectsSearchModal(true)}
-              className="w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center bg-black/50 text-white hover:bg-black/70 active:scale-90 border border-white/10 shadow-md"
-              title="Search & Explore Filters"
-            >
-              <Search className="w-4.5 h-4.5" />
-            </button>
+              {/* Search Effects button */}
+              <button
+                type="button"
+                onClick={() => openEffects(true)}
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 text-white hover:bg-white/20 active:scale-90 transition-all"
+                title="Search & Explore Filters"
+              >
+                <Search className="w-[18px] h-[18px]" />
+              </button>
 
-            {/* Countdown timer toggle (0s, 3s, 10s) */}
-            <button
-              type="button"
-              onClick={() => setCountdownTimer((prev) => (prev === 0 ? 3 : prev === 3 ? 10 : 0))}
-              className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center text-xs font-bold transition-all ${
-                countdownTimer > 0
-                  ? 'bg-primary text-white ring-2 ring-white/40 shadow-lg scale-105'
-                  : 'bg-black/50 text-white hover:bg-black/70 active:scale-90 border border-white/10'
-              }`}
-              title="Countdown Timer"
-            >
-              {countdownTimer > 0 ? `${countdownTimer}s` : <Clock className="w-5 h-5" />}
-            </button>
+              <div className="w-6 h-px bg-white/15" />
+
+              {/* Countdown timer toggle (0s, 3s, 10s) */}
+              <button
+                type="button"
+                onClick={() => setCountdownTimer((prev) => (prev === 0 ? 3 : prev === 3 ? 10 : 0))}
+                className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-black transition-all duration-300 ${
+                  countdownTimer > 0
+                    ? 'bg-amber-400 text-black shadow-[0_0_20px_rgba(251,191,36,0.6)] scale-110'
+                    : 'bg-white/10 text-white hover:bg-white/20 active:scale-90'
+                }`}
+                title="Countdown Timer"
+              >
+                {countdownTimer > 0 ? `${countdownTimer}s` : <Clock className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
 
-          {/* BOTTOM CONTROLS & INSTAGRAM SHUTTER DOCK */}
-          <div className="relative z-30 flex flex-col items-center pb-5 pt-3 bg-gradient-to-t from-black/95 via-black/70 to-transparent space-y-4">
-            
-            {/* Selected Effect Badge Pill (if an effect is chosen) */}
-            {selectedEffect.id !== 'none' && (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/20 text-xs font-semibold text-white shadow-md animate-in fade-in">
-                <span>{selectedEffect.badge}</span>
-                <span>{selectedEffect.name}</span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedEffect(EFFECTS[0])}
-                  className="ml-1 text-white/60 hover:text-white"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+          {/* BOTTOM CONTROLS & SHUTTER DOCK */}
+          <div className="relative z-30 flex flex-col items-center pb-6 pt-16 bg-gradient-to-t from-black via-black/75 to-transparent space-y-4">
 
-            {/* HORIZONTAL EFFECTS WHEEL / SHELF (Instagram & Snapchat Style Carousel) */}
-            {showEffectsShelf && (
-              <div className="w-full flex items-center justify-center px-2 animate-in fade-in slide-in-from-bottom-2">
-                <div className="flex items-center gap-3 overflow-x-auto px-3 py-1 no-scrollbar max-w-full">
-                  {/* 1. Dedicated Search / Browse Lens Button (Snapchat / Instagram style) */}
-                  <button
-                    type="button"
-                    onClick={() => setShowEffectsSearchModal(true)}
-                    className="flex flex-col items-center gap-1 shrink-0 group transition-transform active:scale-95"
-                    title="Search & Browse All Filters"
-                  >
-                    <div
-                      className="rounded-full flex items-center justify-center bg-gradient-to-tr from-violet-600 via-primary to-pink-500 ring-2 ring-white/70 shadow-lg shadow-pink-500/30"
-                      style={{ width: '48px', height: '48px' }}
-                    >
-                      <Search className="w-5 h-5 text-white animate-pulse" />
-                    </div>
-                    <span className="text-[10px] text-white font-bold">Search 🔍</span>
-                  </button>
+            {showEffectsShelf && <EffectsCarousel
+              selected={selectedEffect} onSelect={setSelectedEffect} video={videoStreamRef}
+              saved={savedEffects} onSave={toggleSavedEffect} onBrowse={() => openEffects(false)}
+            />}
 
-                  {/* 2. Top Trending Filters */}
-                  {EFFECTS.map((eff) => {
-                    const isSelected = selectedEffect.id === eff.id;
-                    return (
-                      <button
-                        key={eff.id}
-                        type="button"
-                        onClick={() => setSelectedEffect(eff)}
-                        className="flex flex-col items-center gap-1 shrink-0 group transition-transform active:scale-95"
-                      >
-                        <div
-                          className={`rounded-full flex items-center justify-center bg-gradient-to-br transition-all ${
-                            isSelected
-                              ? 'ring-3 ring-pink-500 shadow-lg shadow-pink-500/50 scale-105'
-                              : 'ring-1 ring-white/30 opacity-75 group-hover:opacity-100'
-                          } ${eff.gradient}`}
-                          style={{ width: '48px', height: '48px' }}
-                        >
-                          <span className="text-lg">{eff.badge}</span>
-                        </div>
-                        <span
-                          className={`text-[10px] max-w-[55px] truncate text-center ${
-                            isSelected ? 'text-pink-400 font-bold' : 'text-white/70'
-                          }`}
-                        >
-                          {eff.name}
-                        </span>
-                      </button>
-                    );
-                  })}
-
-                  {/* 3. Browse More Lens at End of Carousel */}
-                  <button
-                    type="button"
-                    onClick={() => setShowEffectsSearchModal(true)}
-                    className="flex flex-col items-center gap-1 shrink-0 group transition-transform active:scale-95"
-                    title="Browse 40+ more filters"
-                  >
-                    <div
-                      className="rounded-full flex items-center justify-center bg-white/10 border border-white/20 text-white/80 group-hover:bg-white/20"
-                      style={{ width: '48px', height: '48px' }}
-                    >
-                      <Wand2 className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-[10px] text-white/70">More ✨</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* REAL INSTAGRAM SHUTTER ROW: Gallery on Left, Shutter in DEAD CENTER, Flip on Right */}
-            <div className="w-full max-w-sm px-6 flex items-center justify-between">
-              {/* 1. Gallery Button (Bottom Left) - Instant native label binding */}
+            {/* SHUTTER ROW: Gallery left, Shutter center, Flip right */}
+            <div className="w-full max-w-sm px-8 flex items-center justify-between">
+              {/* Gallery Button */}
               <label
                 htmlFor="creator-gallery-input"
                 onClick={stopCamera}
-                className="w-12 h-12 rounded-2xl border-2 border-white/80 bg-zinc-900/80 backdrop-blur-md overflow-hidden flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg cursor-pointer group"
+                className="w-12 h-12 rounded-2xl p-[2px] bg-gradient-to-br from-white/80 to-white/30 active:scale-90 transition-transform shadow-lg cursor-pointer group"
                 title="Open Gallery"
               >
-                <ImageIcon className="w-6 h-6 group-hover:scale-110 transition-transform text-white/90" />
+                <span className="w-full h-full rounded-[14px] bg-zinc-900/90 backdrop-blur-xl flex items-center justify-center">
+                  <ImageIcon className="w-5 h-5 group-hover:scale-110 transition-transform text-white" />
+                </span>
               </label>
 
-              {/* 2. Instagram Shutter Button (DEAD CENTER, 80px ring + inner red recording dot) */}
+              {/* Shutter Button */}
               <div className="relative flex items-center justify-center">
-                {/* SVG Circular Progress Bar while recording */}
+                {/* Ambient glow */}
+                <div
+                  className={`absolute w-24 h-24 rounded-full blur-2xl transition-opacity duration-500 pointer-events-none bg-gradient-to-tr from-fuchsia-600 via-pink-500 to-amber-400 ${
+                    isRecording ? 'opacity-70 animate-pulse' : 'opacity-35'
+                  }`}
+                />
+                {/* Circular Progress while recording */}
                 {isRecording && (
                   <svg className="absolute -inset-2 w-[88px] h-[88px] -rotate-90 pointer-events-none">
+                    <defs>
+                      <linearGradient id="reelProgressGrad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#d946ef" />
+                        <stop offset="50%" stopColor="#ec4899" />
+                        <stop offset="100%" stopColor="#fbbf24" />
+                      </linearGradient>
+                    </defs>
                     <circle
                       cx="44"
                       cy="44"
                       r="39"
-                      stroke="#ef4444"
+                      stroke="url(#reelProgressGrad)"
                       strokeWidth="4"
+                      strokeLinecap="round"
                       fill="none"
                       strokeDasharray={2 * Math.PI * 39}
                       strokeDashoffset={2 * Math.PI * 39 * (1 - recordDuration / maxRecordDuration)}
@@ -948,52 +848,55 @@ const CreateReelPage: React.FC = () => {
                   onPointerDown={handlePointerDown}
                   onPointerUp={handlePointerUp}
                   onClick={handleShutterClick}
-                  className={`relative w-18 h-18 rounded-full border-4 border-white flex items-center justify-center transition-transform active:scale-95 shadow-2xl ${
-                    isRecording ? 'scale-110 ring-2 ring-red-500/50' : ''
+                  className={`relative rounded-full flex items-center justify-center transition-all duration-300 active:scale-90 ${
+                    isRecording ? 'scale-110' : ''
                   }`}
                   style={{
-                    width: '74px',
-                    height: '74px',
-                    background: isRecording ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                    width: '76px',
+                    height: '76px',
+                    padding: '4px',
+                    background: isRecording
+                      ? 'rgba(255,255,255,0.15)'
+                      : 'linear-gradient(135deg, #d946ef, #ec4899 50%, #fbbf24)',
                   }}
                 >
-                  {/* Center Dot */}
-                  <div
-                    className={`transition-all duration-200 ${
-                      isRecording
-                        ? 'w-7 h-7 bg-red-600 rounded-md scale-95 shadow-md'
-                        : 'w-14 h-14 bg-red-500 rounded-full'
-                    }`}
-                  />
+                  <span className="w-full h-full rounded-full bg-black/80 flex items-center justify-center">
+                    {/* Center Dot */}
+                    <span
+                      className={`transition-all duration-300 bg-gradient-to-br from-rose-500 to-red-600 shadow-[0_0_18px_rgba(239,68,68,0.7)] ${
+                        isRecording ? 'w-7 h-7 rounded-lg' : 'w-[58px] h-[58px] rounded-full'
+                      }`}
+                    />
+                  </span>
                 </button>
               </div>
 
-              {/* 3. Flip Camera Button (Bottom Right) */}
+              {/* Flip Camera Button */}
               <button
                 type="button"
                 onClick={toggleCameraFlip}
-                className="w-12 h-12 rounded-full border border-white/20 bg-black/50 backdrop-blur-md flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg hover:bg-black/70"
+                className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white active:scale-90 active:rotate-180 transition-all duration-500 shadow-lg hover:bg-white/20"
                 title="Flip Camera"
               >
-                <RotateCw className="w-5 h-5 text-white/90" />
+                <RotateCw className="w-5 h-5 text-white" />
               </button>
             </div>
 
-            {/* Recording duration timer indicator */}
+            {/* Recording duration indicator */}
             {isRecording ? (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-red-600 text-white text-xs font-bold shadow-lg animate-pulse">
+              <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-red-600/90 backdrop-blur-xl text-white text-xs font-bold shadow-[0_0_20px_rgba(220,38,38,0.6)]">
                 <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                <span>REC {recordDuration.toFixed(1)}s / {maxRecordDuration}s</span>
+                <span className="tabular-nums">REC {recordDuration.toFixed(1)}s / {maxRecordDuration}s</span>
               </div>
             ) : (
-              <p className="text-[11px] text-white/60 tracking-tight">
+              <p className="text-[11px] text-white/55 tracking-tight">
                 Hold karke ya tap karke video banayein
               </p>
             )}
 
-            {/* BOTTOM 4 MODES CAROUSEL: POST | STORY | REELS | VIDEO */}
+            {/* MODES SWITCHER: POST | STORY | REELS | VIDEO */}
             <div className="w-full flex items-center justify-center pt-1">
-              <div className="flex items-center gap-7 text-xs font-bold tracking-widest uppercase">
+              <div className="flex items-center gap-1 p-1 rounded-full bg-white/[0.07] backdrop-blur-2xl border border-white/10 text-[11px] font-bold tracking-widest uppercase">
                 {(['post', 'story', 'reel', 'video'] as Mode[]).map((m) => {
                   const isActive = activeMode === m;
                   return (
@@ -1001,16 +904,13 @@ const CreateReelPage: React.FC = () => {
                       key={m}
                       type="button"
                       onClick={() => setActiveMode(m)}
-                      className={`relative py-1.5 transition-all duration-200 flex flex-col items-center ${
+                      className={`relative px-4 py-2 rounded-full transition-all duration-300 ${
                         isActive
-                          ? 'text-white font-extrabold scale-110'
-                          : 'text-white/40 hover:text-white/70'
+                          ? 'bg-white text-black shadow-[0_4px_20px_rgba(255,255,255,0.35)]'
+                          : 'text-white/50 hover:text-white'
                       }`}
                     >
                       <span>{m === 'reel' ? 'REELS' : m}</span>
-                      {isActive && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-white mt-1 shadow-sm" />
-                      )}
                     </button>
                   );
                 })}
@@ -1046,7 +946,7 @@ const CreateReelPage: React.FC = () => {
             </div>
 
             <p className="text-xs text-white/60 mb-5">
-              Instagram Reels style: Choose standard length or set exact custom seconds for your video.
+              Choose standard length or set exact custom seconds for your video.
             </p>
 
             {/* Preset Buttons */}
@@ -1123,159 +1023,10 @@ const CreateReelPage: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* 2. SNAPCHAT & INSTAGRAM EFFECTS SEARCH & EXPLORER MODAL */}
-      {/* ========================================================================= */}
-      {showEffectsSearchModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150">
-          <div
-            className="fixed inset-0"
-            onClick={() => setShowEffectsSearchModal(false)}
-          />
-          <div className="relative z-10 w-full sm:max-w-lg max-h-[88vh] bg-zinc-950 border-t sm:border border-white/15 rounded-t-3xl sm:rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-200">
-            {/* Mobile handle */}
-            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3 sm:hidden" />
-
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-violet-600 to-pink-500 flex items-center justify-center text-white shadow-xs">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Camera Effects & Filters</h3>
-                  <p className="text-[11px] text-white/60">Snapchat & Instagram Trending AR Filters</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEffectsSearchModal(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Search Input Bar */}
-            <div className="relative flex items-center mb-3">
-              <Search className="w-4 h-4 text-white/50 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={effectSearchQuery}
-                onChange={(e) => setEffectSearchQuery(e.target.value)}
-                placeholder="Search effects by name, glow, vintage, neon, anime..."
-                className="w-full h-10 pl-10 pr-9 rounded-2xl bg-white/10 border border-white/15 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-pink-500/50 focus:border-pink-500"
-                autoFocus
-              />
-              {effectSearchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setEffectSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 rounded-full bg-white/20 flex items-center justify-center text-white text-xs hover:bg-white/30"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Category Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2.5 mb-2 shrink-0">
-              {[
-                { id: 'all', label: 'All Effects' },
-                { id: 'trending', label: '🔥 Trending' },
-                { id: 'beauty', label: '🌸 Glow & Beauty' },
-                { id: 'retro', label: '📼 Retro & VHS' },
-                { id: 'cinematic', label: '🎬 Cinematic' },
-                { id: 'cyber', label: '⚡ Cyber & Glitch' },
-                { id: 'mood', label: '🌈 Color Mood' },
-              ].map((tab) => {
-                const isActive = effectActiveTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setEffectActiveTab(tab.id as any)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                      isActive
-                        ? 'bg-gradient-to-r from-violet-600 to-pink-500 text-white shadow-md shadow-pink-500/20'
-                        : 'bg-white/5 hover:bg-white/10 text-white/70 border border-white/10'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Filtered Effects Grid */}
-            <div className="flex-1 overflow-y-auto pr-1 min-h-[260px] max-h-[50vh] no-scrollbar">
-              {filteredEffectsList.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-white/40 mb-2">
-                    <Search className="w-6 h-6" />
-                  </div>
-                  <p className="text-sm font-semibold text-white/80">No effects found</p>
-                  <p className="text-xs text-white/50">Try searching for "glow", "retro", "noir", or "film"</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 pb-2">
-                  {filteredEffectsList.map((eff) => {
-                    const isSelected = selectedEffect.id === eff.id;
-                    return (
-                      <button
-                        key={eff.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedEffect(eff);
-                          setShowEffectsSearchModal(false);
-                          toast.success(`"${eff.name}" effect applied!`);
-                        }}
-                        className={`p-2 rounded-2xl flex flex-col items-center gap-1.5 transition-all group ${
-                          isSelected
-                            ? 'bg-white/15 ring-2 ring-pink-500 shadow-lg shadow-pink-500/20'
-                            : 'bg-white/5 hover:bg-white/10 active:scale-95 border border-white/10'
-                        }`}
-                      >
-                        <div
-                          className={`w-12 h-12 rounded-2xl flex items-center justify-center bg-gradient-to-br transition-transform group-hover:scale-105 shadow-md ${eff.gradient}`}
-                        >
-                          <span className="text-xl">{eff.badge}</span>
-                        </div>
-                        <div className="w-full text-center">
-                          <p className={`text-xs truncate font-semibold ${isSelected ? 'text-pink-400 font-bold' : 'text-white'}`}>
-                            {eff.name}
-                          </p>
-                          <span className="text-[10px] text-white/50 block truncate">
-                            {eff.tag}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Bottom count footer */}
-            <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-white/50">
-              <span>Showing {filteredEffectsList.length} camera filters</span>
-              {selectedEffect.id !== 'none' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedEffect(EFFECTS[0]);
-                    setShowEffectsSearchModal(false);
-                    toast('Effect reset to Normal');
-                  }}
-                  className="text-pink-400 hover:underline font-semibold"
-                >
-                  Reset to Normal ⚪
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <EffectsBrowser open={showEffectsSearchModal} searchInitially={searchEffectsInitially}
+        onClose={() => setShowEffectsSearchModal(false)} selected={selectedEffect}
+        onSelect={(effect) => { setSelectedEffect(effect); setShowEffectsSearchModal(false); }}
+        video={videoStreamRef} saved={savedEffects} onSave={toggleSavedEffect} />
 
       {/* Hidden File Input for Gallery */}
           <input
@@ -1576,6 +1327,7 @@ const CreateReelPage: React.FC = () => {
             >
               {uploading ? (
                 <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Uploading {uploadPercent}%…</span>
                 </div>
               ) : (

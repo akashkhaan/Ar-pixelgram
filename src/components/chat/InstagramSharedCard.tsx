@@ -357,7 +357,10 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
           {/* Media / Video Container */}
           <div className="relative w-full h-80 bg-zinc-950 flex items-center justify-center overflow-hidden">
             {loading ? (
-              <div className="w-full h-full bg-zinc-900/60" />
+              <div className="flex flex-col items-center justify-center gap-2 text-white/60">
+                <Loader2 className="w-6 h-6 animate-spin text-white" />
+                <span className="text-xs">Loading reel...</span>
+              </div>
             ) : reel?.thumbnail_url ? (
               <img
                 src={reel.thumbnail_url}
@@ -452,7 +455,10 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
           className="group w-60 sm:w-64 rounded-2xl bg-card border border-border/80 shadow-md p-4 flex flex-col items-center text-center text-foreground cursor-pointer select-none transition-transform active:scale-[0.98] hover:border-primary/40"
         >
           {loading ? (
-            <div className="py-6 opacity-40"><div className="w-16 h-16 rounded-full bg-muted/40 mx-auto" /></div>
+            <div className="py-6 flex flex-col items-center gap-2 text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              <span className="text-xs">Loading profile...</span>
+            </div>
           ) : (
             <>
               {/* Instagram Story Gradient Ring */}
@@ -632,7 +638,10 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
           {/* 16:9 Thumbnail / Preview */}
           <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
             {loading ? (
-              <div className="w-full h-full bg-zinc-900/60" />
+              <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="text-xs">Loading video...</span>
+              </div>
             ) : video?.thumbnail_url ? (
               <img
                 src={video.thumbnail_url}

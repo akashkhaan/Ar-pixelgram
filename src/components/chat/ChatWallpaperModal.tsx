@@ -184,7 +184,11 @@ export const ChatWallpaperModal: React.FC<ChatWallpaperModalProps> = ({
               onClick={() => fileInputRef.current?.click()}
               className="w-full h-13 rounded-2xl border-dashed border-2 border-primary/40 hover:border-primary hover:bg-primary/5 flex items-center justify-center gap-2.5 font-semibold text-sm transition-all"
             >
-              <Upload className={`w-5 h-5 text-primary ${loadingUpload ? 'opacity-40' : ''}`} />
+              {loadingUpload ? (
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              ) : (
+                <Upload className="w-5 h-5 text-primary" />
+              )}
               <span>{loadingUpload ? 'Setting photo…' : 'Choose photo from Gallery (गैलरी से चुनें)'}</span>
             </Button>
           </div>

@@ -141,7 +141,7 @@ const EditProfilePage: React.FC = () => {
                 spellCheck={false}
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                {usernameStatus === 'checking' && <span className="text-xs text-muted-foreground font-medium">…</span>}
+                {usernameStatus === 'checking' && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
                 {usernameStatus === 'available' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
                 {(usernameStatus === 'taken' || usernameStatus === 'invalid') && <XCircle className="w-4 h-4 text-destructive" />}
               </div>
@@ -171,7 +171,7 @@ const EditProfilePage: React.FC = () => {
           </div>
 
           <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
-            {loading ? 'Saving…' : 'Save Changes'}
+            {loading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : 'Save Changes'}
           </Button>
         </form>
       </div>

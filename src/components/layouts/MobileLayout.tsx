@@ -68,18 +68,18 @@ const MobileLayout: React.FC<MobileLayoutProps> = ({ children, hideNav = false, 
     <div className={cn("flex flex-col w-full max-w-lg mx-auto bg-background", noScroll ? "fixed inset-0 overflow-hidden" : "min-h-screen")}>
       {/* Premium Top Header */}
       {!hideHeader && (
-      <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-1.5 glass-card border-b border-border/40" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)' }}>
+      <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 glass-card border-b border-border/40">
         {/* Logo with animated rainbow */}
-        <Link to="/home" className="flex items-center gap-2 py-0">
-          <span className="text-[26px] font-black rainbow-text tracking-tight">Pixelgram</span>
+        <Link to="/home" className="flex items-center gap-2">
+          <span className="text-xl font-black rainbow-text tracking-tight">Pixelgram</span>
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {/* Notifications */}
-          <Link to="/notifications" className="relative w-11 h-11 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors active:scale-95" aria-label="Notifications">
-            <Bell className="w-6 h-6 text-foreground" />
+          <Link to="/notifications" className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted/60 transition-colors">
+            <Bell className="w-5 h-5 text-foreground" />
             {unreadNotifications > 0 && (
-              <span className="absolute 1 -top-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground ring-2 ring-background">
+              <span className="absolute -right-0.5 -top-0.5 flex min-w-4 h-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-destructive-foreground ring-2 ring-background">
                 {unreadNotifications > 99 ? '99+' : unreadNotifications}
               </span>
             )}

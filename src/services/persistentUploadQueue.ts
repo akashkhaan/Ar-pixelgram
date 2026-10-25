@@ -154,9 +154,6 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
 
   const file = new File([job.fileBlob], job.fileName, { type: job.fileType });
   const uploadId = startUpload(job.kind, job.label);
-  if (job.progress > 0) {
-    updateUpload(uploadId, job.progress);
-  }
 
   try {
     if (job.kind === 'reel') {
@@ -178,9 +175,6 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
       await createReel(job.userId, videoUrl, job.caption || '', coverUrl || undefined, job.musicPayload);
       finishUpload(uploadId);
       await deletePersistentJob(job.id);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('pixelgram:upload_completed', { detail: { kind: 'reel' } }));
-      }
       toast.success('Aapka Reel successfully upload ho gaya! 🎬🎉');
     } else if (job.kind === 'story') {
       const mediaUrl = await uploadMediaWithProgress('stories', file, job.userId, (p) => {
@@ -190,9 +184,6 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
       await createStory(mediaUrl, job.caption || null, job.musicPayload);
       finishUpload(uploadId);
       await deletePersistentJob(job.id);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('pixelgram:upload_completed', { detail: { kind: 'story' } }));
-      }
       toast.success('Aapki Story successfully add ho gayi! 🌟🎉');
     } else if (job.kind === 'post') {
       const mediaUrl = await uploadMediaWithProgress('posts', file, job.userId, (p) => {
@@ -202,9 +193,6 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
       await createPost(mediaUrl, job.caption || null, job.musicPayload);
       finishUpload(uploadId);
       await deletePersistentJob(job.id);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('pixelgram:upload_completed', { detail: { kind: 'post' } }));
-      }
       toast.success('Aapka Post successfully share ho gaya! 📷🎉');
     } else if (job.kind === 'video') {
       const videoUrl = await uploadVideoFile(file, job.userId, (p) => {
@@ -233,9 +221,6 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
 
       finishUpload(uploadId);
       await deletePersistentJob(job.id);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('pixelgram:upload_completed', { detail: { kind: 'video' } }));
-      }
       toast.success('Aapka Video successfully upload ho gaya! 🎥🎉');
     }
   } catch (err) {
@@ -244,56 +229,6 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
   } finally {
     activeResumingIds.delete(job.id);
   }
-}
-
-/**
- * Universal persistent upload starter.
- * Writes file blob to IndexedDB FIRST so browser refresh or navigation never cancels or loses it!
- */
-export async function startPersistentUpload(params: {
-  kind: UploadKind;
-  label: string;
-  file: File | Blob;
-  fileName?: string;
-  fileType?: string;
-  userId: string;
-  coverBlob?: Blob | null;
-  caption?: string | null;
-  videoTitle?: string;
-  videoDescription?: string;
-  videoVisibility?: 'public' | 'private';
-  videoDuration?: number | null;
-  musicPayload?: ReelMusic | null;
-  thumbnailUrl?: string;
-}): Promise<string> {
-  const jobId = `upload_${params.kind}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const fileName = params.fileName || (params.file instanceof File ? params.file.name : `${params.kind}_${Date.now()}`);
-  const fileType = params.fileType || params.file.type || 'application/octet-stream';
-
-  const job: PersistentUploadJob = {
-    id: jobId,
-    kind: params.kind,
-    label: params.label,
-    fileBlob: params.file,
-    fileName,
-    fileType,
-    coverBlob: params.coverBlob || null,
-    userId: params.userId,
-    caption: params.caption,
-    videoTitle: params.videoTitle,
-    videoDescription: params.videoDescription,
-    videoVisibility: params.videoVisibility,
-    videoDuration: params.videoDuration,
-    musicPayload: params.musicPayload,
-    progress: 0,
-    status: 'uploading',
-    createdAt: Date.now(),
-  };
-
-  await savePersistentJob(job);
-  // Execute detached in background
-  void executePersistentJob(job);
-  return jobId;
 }
 
 /**

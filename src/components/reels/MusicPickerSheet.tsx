@@ -28,6 +28,7 @@ import {
   getCountryName,
   getCountryTerms,
   ORIGINAL_AUDIOS,
+  getRealReelsCounts,
   type MusicLocale,
   type MusicTrack,
 } from '@/services/music';
@@ -80,6 +81,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [trendingTracks, setTrendingTracks] = useState<MusicTrack[]>([]);
   const [saved, setSaved] = useState<MusicTrack[]>([]);
+  const [realReelCounts, setRealReelCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [locale, setLocale] = useState<MusicLocale>(() => getDefaultMusicLocale());
   const [locationLoading, setLocationLoading] = useState(false);
@@ -115,6 +117,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
         if (active) setLocationLoading(false);
       });
     getSavedSongs().then(setSaved);
+    getRealReelsCounts().then(setRealReelCounts).catch(() => {});
     return () => {
       active = false;
     };
@@ -179,20 +182,17 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
 
   const savedIds = useMemo(() => new Set(saved.map((s) => s.id)), [saved]);
 
-  const togglePreview = (track: MusicTrack) => {
-    if (selectedTrack?.id === track.id && isPlaying) {
-      audioRef.current?.pause();
-      setIsPlaying(false);
+  const togglePreview = (track: MusicTrack, queue?: MusicTrack[], index?: number) => {
+    setSelectedTrack(track);
+    if (globalTrack?.id === track.id) {
+      if (isPlaying) {
+        pause();
+      } else {
+        resume();
+      }
       return;
     }
-
-    audioRef.current?.pause();
-    const audio = new Audio(track.previewUrl);
-    audio.play().catch(() => toast.error('Preview could not play'));
-    audio.onended = () => setIsPlaying(false);
-    audioRef.current = audio;
-    setSelectedTrack(track);
-    setIsPlaying(true);
+    void playTrack(track, queue || displayList, index);
   };
 
   const toggleSave = async (track: MusicTrack, e: React.MouseEvent) => {
@@ -211,6 +211,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   const handleContinue = (track?: MusicTrack) => {
     const target = track || activeAudioTrack || selectedTrack;
     if (!target) return;
+    pause();
     onSelect(target);
   };
 
@@ -422,7 +423,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
               {featured[carouselIndex] && (
                 <div
                   className="flex items-center gap-3.5 cursor-pointer"
-                  onClick={() => togglePreview(featured[carouselIndex])}
+                  onClick={() => togglePreview(featured[carouselIndex], featured, carouselIndex)}
                 >
                   <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 shadow-lg border border-white/20">
                     <img
@@ -431,7 +432,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      {selectedTrack?.id === featured[carouselIndex].id && isPlaying ? (
+                      {activeAudioTrack?.id === featured[carouselIndex].id && isPlaying ? (
                         <Pause className="w-6 h-6 text-white" />
                       ) : (
                         <Play className="w-6 h-6 text-white ml-0.5" />
@@ -444,9 +445,18 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                       <span className="px-2 py-0.5 rounded-md bg-primary/20 text-primary text-[10px] font-bold tracking-wide uppercase">
                         Featured
                       </span>
-                      <span className="text-[11px] text-white/60">
-                        {featured[carouselIndex].reelsCount} reels
-                      </span>
+                      {(() => {
+                        const feat = featured[carouselIndex];
+                        const rCount = realReelCounts[feat.id] || realReelCounts[feat.title.toLowerCase().trim()] || 0;
+                        if (rCount > 0) {
+                          return (
+                            <span className="text-[11px] text-white/60">
+                              {rCount} {rCount === 1 ? 'reel' : 'reels'}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <p className="font-bold text-sm text-white truncate">
                       {featured[carouselIndex].title}
@@ -475,18 +485,11 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
           </div>
         )}
 
-        {/* Loading Skeleton */}
+        {/* Loading Spinner */}
         {loading && (
-          <div className="space-y-3 px-4 py-6 opacity-40">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-white/10" />
-                <div className="space-y-1.5 flex-1">
-                  <div className="w-32 h-3.5 rounded bg-white/10" />
-                  <div className="w-20 h-2.5 rounded bg-white/5" />
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-col items-center justify-center py-12 gap-2">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <p className="text-xs text-white/50">Loading songs…</p>
           </div>
         )}
 
@@ -553,8 +556,18 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                     </p>
                     <div className="flex items-center gap-1.5 text-xs text-white/55 truncate mt-0.5">
                       <span className="truncate">{track.artist}</span>
-                      <span>•</span>
-                      <span>{track.reelsCount || '600K'} reels</span>
+                      {(() => {
+                        const rCount = realReelCounts[track.id] || realReelCounts[track.title.toLowerCase().trim()] || 0;
+                        if (rCount > 0) {
+                          return (
+                            <>
+                              <span>•</span>
+                              <span className="text-white/80 font-medium">{rCount} {rCount === 1 ? 'reel' : 'reels'}</span>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
                       <span>•</span>
                       <span>{formatMusicDuration(track.durationMs)}</span>
                       {(track.isFullSong || track.durationMs > 35000) && (
@@ -610,7 +623,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                {isPlaying ? (
+                {activeAudioTrack?.id === selectedTrack.id && isPlaying ? (
                   <Pause className="w-4 h-4 text-white" />
                 ) : (
                   <Play className="w-4 h-4 text-white ml-0.5" />

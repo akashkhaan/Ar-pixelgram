@@ -226,7 +226,7 @@ const AccountCenterPage: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="space-y-3 py-6 opacity-40"><div className="h-12 rounded-lg bg-muted/40" /><div className="h-12 rounded-lg bg-muted/40" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-card">
           {items.length === 0 ? (

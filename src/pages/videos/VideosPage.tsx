@@ -32,55 +32,28 @@ const VideosPage: React.FC = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const debounced = useDebounce(query, 300);
-  const [videos, setVideos] = useState<AppVideo[]>(() => {
-    try {
-      const cached = localStorage.getItem('cached_videos');
-      return cached ? JSON.parse(cached) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [loading, setLoading] = useState(() => {
-    try {
-      const cached = localStorage.getItem('cached_videos');
-      return !cached || JSON.parse(cached).length === 0;
-    } catch {
-      return true;
-    }
-  });
+  const [videos, setVideos] = useState<AppVideo[]>([]);
+  const [loading, setLoading] = useState(true);
   const [listening, setListening] = useState(false);
   const [sharingVideo, setSharingVideo] = useState<AppVideo | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const load = useCallback(async (q: string) => {
-    if (videos.length === 0) setLoading(true);
+    setLoading(true);
     try {
       const rows = q.trim() ? await searchVideos(q) : await getVideosFeed(40, 0);
       setVideos(rows);
-      try {
-        if (!q.trim()) localStorage.setItem('cached_videos', JSON.stringify(rows.slice(0, 30)));
-      } catch {}
     } catch (e) {
       console.error('videos load failed', e);
       setVideos([]);
     } finally {
       setLoading(false);
     }
-  }, [videos.length]);
+  }, []);
 
   useEffect(() => {
     load(debounced);
   }, [debounced, load]);
-
-  useEffect(() => {
-    const handleUploadCompleted = (e: any) => {
-      if (e.detail?.kind === 'video') {
-        load('');
-      }
-    };
-    window.addEventListener('pixelgram:upload_completed', handleUploadCompleted);
-    return () => window.removeEventListener('pixelgram:upload_completed', handleUploadCompleted);
-  }, [load]);
 
   // Voice search — Hindi + English dono samajhta hai
   const startVoice = () => {
@@ -117,45 +90,35 @@ const VideosPage: React.FC = () => {
 
   return (
     <MobileLayout autoHideNav>
-      <div className="px-4 pt-1.5 pb-4 page-transition">
+      <div className="p-4 page-transition">
         {/* Search + voice + upload */}
-        <div className="flex items-center gap-2.5 mb-3.5">
+        <div className="flex items-center gap-2 mb-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="गाना, film, comedy — कुछ भी खोजें…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-12 pl-11 pr-12 text-sm sm:text-base rounded-2xl bg-muted/40 border-border/50"
+              className="h-11 pl-9 pr-11"
             />
             <button
               type="button"
               onClick={startVoice}
               aria-label="Voice search"
-              className={`absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              className={`absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                 listening ? 'bg-destructive text-destructive-foreground animate-pulse' : 'hover:bg-muted'
               }`}
             >
-              <Mic className={`w-5 h-5 ${listening ? 'text-white' : 'text-muted-foreground'}`} />
+              <Mic className={`w-4 h-4 ${listening ? 'text-white' : 'text-muted-foreground'}`} />
             </button>
           </div>
 
         </div>
 
         {loading ? (
-          <div className="space-y-4 opacity-40">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="space-y-2">
-                <div className="w-full aspect-video rounded-xl bg-muted/40" />
-                <div className="flex gap-3">
-                  <div className="w-9 h-9 rounded-full bg-muted/40 shrink-0" />
-                  <div className="space-y-1.5 flex-1">
-                    <div className="w-3/4 h-3.5 rounded bg-muted/40" />
-                    <div className="w-1/2 h-2.5 rounded bg-muted/30" />
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-center py-16 gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">लोड हो रहा है…</span>
           </div>
         ) : videos.length === 0 ? (
           <div className="text-center py-16">

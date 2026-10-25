@@ -1,5 +1,5 @@
 import { startUpload, updateUpload, finishUpload } from '@/services/uploadManager';
-import { startPersistentUpload } from '@/services/persistentUploadQueue';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
 import useGoBack from '@/hooks/use-go-back';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -99,20 +99,66 @@ const UploadVideoPage: React.FC = () => {
     if (!file) { toast.error('Video select karein'); return; }
     if (!title.trim()) { toast.error('Title likhein'); return; }
 
-    toast.info('Video upload shuru ho gaya... (upar progress dekhein) 🚀');
-    void startPersistentUpload({
+    const uploadId = startUpload('video', title.trim() || 'Video upload', thumbPreview || undefined);
+    setUploading(true);
+    setProgress(0);
+
+    // Refresh-proof: job IndexedDB me save hota hai; refresh ke baad app load par resume hota hai.
+    const persistentJobId = `upload_video_${Date.now()}`;
+    markJobActive(persistentJobId);
+    void savePersistentJob({
+      id: persistentJobId,
       kind: 'video',
-      label: title.trim() || 'Video upload',
-      file,
+      label: 'Video Upload',
+      fileBlob: file,
+      fileName: file.name,
+      fileType: file.type,
+      coverBlob: thumbBlob,
       userId: user.id,
       videoTitle: title.trim(),
       videoDescription: description.trim() || undefined,
       videoVisibility: visibility,
       videoDuration: duration ? Math.round(duration) : null,
-      coverBlob: thumbBlob,
+      progress: 0,
+      status: 'uploading',
+      createdAt: Date.now(),
     });
 
-    navigate('/videos', { replace: true });
+    try {
+      const videoUrl = await uploadVideoFile(file, user.id, (p) => {
+        setProgress(p);
+        updateUpload(uploadId, p);
+        void updatePersistentJobProgress(persistentJobId, p);
+      });
+      let thumbnailUrl: string | null = null;
+      if (thumbBlob) {
+        try {
+          thumbnailUrl = await uploadVideoThumbnail(thumbBlob, user.id);
+        } catch {
+          thumbnailUrl = null;
+        }
+      }
+      const created = await createVideo({
+        userId: user.id,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        videoUrl,
+        thumbnailUrl,
+        durationSec: duration ? Math.round(duration) : null,
+        visibility,
+      });
+      await deletePersistentJob(persistentJobId);
+      finishUpload(uploadId);
+      toast.success('Video upload ho gaya!');
+      navigate(`/videos/${created.id}`, { replace: true });
+    } catch (e) {
+      console.error('video upload failed', e);
+      finishUpload(uploadId, e instanceof Error ? e.message : 'Upload fail hua');
+      toast.error(e instanceof Error ? e.message : 'Upload fail hua — dobara try karein');
+    } finally {
+      unmarkJobActive(persistentJobId);
+      setUploading(false);
+    }
   };
 
   /* ------------------------------- STEP 1 -------------------------------- */
@@ -311,7 +357,9 @@ const UploadVideoPage: React.FC = () => {
       <div className="px-4 pb-6 pt-2 border-t border-border/50">
         <Button className="w-full h-12 rounded-xl font-bold" disabled={uploading} onClick={handlePublish}>
           {uploading ? (
-            'Upload हो रहा है…'
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Upload हो रहा है…
+            </>
           ) : (
             'Video Upload करें'
           )}

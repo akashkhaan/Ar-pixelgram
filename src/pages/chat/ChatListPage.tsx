@@ -1,4 +1,5 @@
 import { useGroupCall } from "@/contexts/GroupCallContext";
+import { useStoryUsers } from "@/hooks/useStoryUsers";
 import { useCall } from "@/contexts/CallContext";
 import {
   ArrowLeft,
@@ -57,6 +58,7 @@ const ChatListPage: React.FC = () => {
   const groupCall = useGroupCall();
   const { startCall } = useCall();
   const navigate = useNavigate();
+  const storyUsers = useStoryUsers();
   const [searchParams] = useSearchParams();
   const goBack = useGoBack("/home");
 
@@ -586,7 +588,7 @@ const ChatListPage: React.FC = () => {
           position: sticky;
           top: 0;
           z-index: 10;
-          padding: max(env(safe-area-inset-top, 0px), 2px) 16px 8px;
+          padding: 18px 16px 14px;
           background: linear-gradient(to bottom, rgba(14,8,32,.94) 70%, rgba(14,8,32,0));
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
@@ -595,11 +597,11 @@ const ChatListPage: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 12px;
-          margin-bottom: 12px;
+          margin-bottom: 16px;
         }
         .top .back-btn {
-          width: 44px;
-          height: 44px;
+          width: 42px;
+          height: 42px;
           border-radius: 14px;
           background: rgba(255,255,255,.07);
           display: grid;
@@ -755,13 +757,13 @@ const ChatListPage: React.FC = () => {
         .act .av {
           margin: 0 auto 6px;
         }
-        .act .av::before,
-        .row.unread > .av::before {
+        .act .av.has-story::before,
+        .row .av.has-story::before {
           content: "";
           position: absolute;
           inset: -3.5px;
           border-radius: 50%;
-          background: var(--grad);
+          background: #ef4444;
           z-index: 0;
         }
         .av {
@@ -1268,7 +1270,15 @@ const ChatListPage: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="av">
+                    <div
+                      className={`av ${storyUsers.has(profile.user_id) ? "has-story" : ""}`}
+                      onClickCapture={(e) => {
+                        if (!storyUsers.has(profile.user_id)) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate(`/stories?u=${profile.user_id}`);
+                      }}
+                    >
                       <div className="ph">
                         {profile.avatar_url ? (
                           <img src={profile.avatar_url} alt={profile.username} />
@@ -1320,7 +1330,7 @@ const ChatListPage: React.FC = () => {
                             <span>{group.name}</span>
                           </div>
                           <div className="lm">
-                            {member_count} members · Ignored
+                            Ignored
                           </div>
                         </div>
 
@@ -1401,7 +1411,7 @@ const ChatListPage: React.FC = () => {
                                 </span>
                               ) : null}
                             </div>
-                            <div className="lm">{member_count} members</div>
+                            
                           </div>
 
                           <div className="meta">
@@ -1494,7 +1504,15 @@ const ChatListPage: React.FC = () => {
                             onClick={() => navigate(`/chat/${profile.user_id}`)}
                           >
                             {/* Avatar with gradient ring when unread */}
-                            <div className="av">
+                            <div
+                              className={`av ${storyUsers.has(profile.user_id) ? "has-story" : ""}`}
+                              onClickCapture={(e) => {
+                                if (!storyUsers.has(profile.user_id)) return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigate(`/stories?u=${profile.user_id}`);
+                              }}
+                            >
                               <div className="ph">
                                 {profile.avatar_url ? (
                                   <img src={profile.avatar_url} alt={profile.username} />
@@ -1565,13 +1583,6 @@ const ChatListPage: React.FC = () => {
                         <span className="text-xs font-bold uppercase tracking-wider text-[#A99FD2]">
                           Groups ({filteredGroups.length})
                         </span>
-                        <Link
-                          to="/groups/new"
-                          className="text-xs font-bold text-[#FF3D7F] hover:underline flex items-center gap-1"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>New</span>
-                        </Link>
                       </div>
 
                       {filteredGroups.map(({ group, member_count }) => {
@@ -1614,7 +1625,7 @@ const ChatListPage: React.FC = () => {
                                   </span>
                                 ) : null}
                               </div>
-                              <div className="lm">{member_count} members</div>
+                              
                             </div>
 
                             <div className="meta">

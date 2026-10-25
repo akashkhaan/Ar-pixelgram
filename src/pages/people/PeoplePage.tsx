@@ -1,4 +1,5 @@
 // लोग/डिस्कवर पेज — Ultra-smooth native scrolling People List
+import StoryRing from '@/components/common/StoryRing';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -285,16 +286,9 @@ const PeoplePage: React.FC = () => {
 
         {/* Content State */}
         {loading ? (
-          <div className="space-y-4 px-4 py-6 opacity-40">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-white/10" />
-                <div className="space-y-1.5 flex-1">
-                  <div className="w-28 h-3.5 rounded bg-white/10" />
-                  <div className="w-20 h-2.5 rounded bg-white/5" />
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-white/70" />
+            <span className="text-xs text-[#a1a1ab] font-medium">Loading people...</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center px-6">
@@ -328,11 +322,13 @@ const PeoplePage: React.FC = () => {
                   >
                     <div className="people-ring" aria-hidden="true" />
                     <div className="people-inner">
+                      <StoryRing userId={profile.user_id} className="w-full h-full">
                       {profile.avatar_url ? (
                         <img src={profile.avatar_url} alt={profile.username} />
                       ) : (
                         <span>{initial}</span>
                       )}
+                      </StoryRing>
                     </div>
                   </div>
 
@@ -362,7 +358,7 @@ const PeoplePage: React.FC = () => {
                     aria-label={`${isFollowed ? 'Unfollow' : 'Follow'} ${profile.username}`}
                   >
                     {isFollowLoading ? (
-                      <span>...</span>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     ) : isFollowed ? (
                       <>
                         <CheckIcon />
