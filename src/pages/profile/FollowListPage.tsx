@@ -1,6 +1,5 @@
 import { ArrowLeft, BadgeCheck, Search, UserCheck, UserPlus } from 'lucide-react';
 // Followers / Following list — Instagram स्टाइल
-import StoryRing from '@/components/common/StoryRing';
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -143,7 +142,6 @@ const FollowListPage: React.FC = () => {
               return (
                 <div key={profile.id} className="flex items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-muted/30 transition-colors">
                   {/* Avatar */}
-<StoryRing userId={profile.user_id}>
                   <button onClick={() => navigate(`/profile/${profile.user_id}`)} className="shrink-0 relative group">
                     <div className="p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_12px_rgba(168,85,247,0.7)] group-hover:scale-105 transition-transform">
                       {profile.avatar_url ? (
@@ -159,7 +157,6 @@ const FollowListPage: React.FC = () => {
                       )}
                     </div>
                   </button>
-                  </StoryRing>
 
                   {/* Name */}
                   <button className="flex-1 min-w-0 text-left"  onClick={() => navigate(`/profile/${profile.user_id}`)}>

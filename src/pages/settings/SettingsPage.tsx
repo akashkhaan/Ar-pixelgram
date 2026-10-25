@@ -260,17 +260,17 @@ const SettingsPage: React.FC = () => {
   // Main settings
   return (
     <MobileLayout>
-      <div className="p-4 page-transition space-y-5">
+      <div className="px-4 pt-1.5 pb-6 page-transition space-y-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={handleBack}
-            className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
+            className="w-10 h-10 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground cursor-pointer"
             aria-label="Go back"
           >
-            <ArrowLeft className="w-5 h-5 text-foreground" />
+            <ArrowLeft className="w-5.5 h-5.5 text-foreground" strokeWidth={2.5} />
           </button>
-          <h2 className="text-xl font-bold text-foreground">Settings</h2>
+          <h2 className="text-2xl font-black text-foreground tracking-tight">Settings</h2>
         </div>
 
         {/* Profile info & Switch Account (Facebook Menu Style from Screenshot) */}

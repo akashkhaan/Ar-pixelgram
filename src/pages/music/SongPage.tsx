@@ -60,16 +60,7 @@ const SongPage: React.FC = () => {
 
   const asTrack = (): MusicTrack | null => {
     if (!trackId || !preview) return null;
-    const dur = first?.music_duration_ms || (isOriginal ? 30000 : 180000);
-    return {
-      id: trackId,
-      title,
-      artist,
-      artwork: artwork || '',
-      previewUrl: preview,
-      durationMs: dur,
-      isFullSong: !isOriginal,
-    };
+    return { id: trackId, title, artist, artwork: artwork || '', previewUrl: preview, durationMs: 30000 };
   };
 
   // Saved songs list se pata karo ki ye gana pehle se save hai ya nahi
@@ -123,7 +114,7 @@ const SongPage: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+          <div className="p-6 opacity-40"><div className="w-20 h-20 rounded-2xl bg-muted/40 mb-4" /><div className="w-32 h-4 rounded bg-muted/40 mb-2" /><div className="w-20 h-3 rounded bg-muted/30" /></div>
         ) : (
           <>
             {/* Song info */}

@@ -539,11 +539,7 @@ const WatchVideoPage: React.FC = () => {
             disabled={downloading}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-muted/80 hover:bg-muted text-foreground text-xs font-bold border border-border/40 shrink-0 active:scale-95 transition-transform"
           >
-            {downloading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            ) : (
-              <Download className="w-4 h-4 text-foreground" />
-            )}
+            <Download className={`w-4 h-4 text-foreground ${downloading ? 'opacity-40' : ''}`} />
             <span>{downloading ? 'Downloading...' : 'Download'}</span>
           </button>
 
@@ -894,11 +890,7 @@ const WatchVideoPage: React.FC = () => {
                   className="w-10 h-10 rounded-full flex items-center justify-center text-white disabled:opacity-40 shrink-0 bg-primary active:scale-95 transition-transform"
                   aria-label="Send comment"
                 >
-                  {posting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
+                  <Send className={`w-4 h-4 ${posting ? 'opacity-40' : ''}`} />
                 </button>
               </div>
             </div>

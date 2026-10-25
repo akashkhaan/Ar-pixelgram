@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import StoryRing from '@/components/common/StoryRing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,7 +11,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import ReelCommentsSheet from '@/components/common/ReelCommentsSheet';
 import InstagramShareSheet from '@/components/common/InstagramShareSheet';
 import BottomNav from '@/components/layouts/BottomNav';
-import { audioPlayerService } from '@/services/audioPlayerService';
 import { retryMediaOnError, isLegacyMediaUrl } from '@/lib/mediaUrl';
 
 // Only render video for active ± 1 reels — prevents loading all videos at once
@@ -133,12 +131,15 @@ const ReelCard: React.FC<{
     const v = videoRef.current;
     if (!v) return;
     if (isActive) {
-      let isCancelled = false;
+      // Instagram-jaisa instant play: pehle frame ka intezaar nahi karte,
+      // seedha play() call karte hain aur agar browser ne abhi data nahi
+      // liya to canplay par dobara try kar lete hain.
       const tryPlay = () => {
-        if (isCancelled) return;
         const p = v.play();
         if (p !== undefined) {
           p.catch(() => {
+            // Mobile browser autoplay policy guard:
+            // If sound was blocked, mute temporarily so video starts playing INSTANTLY with 0ms black delay
             if (!v.muted) {
               v.muted = true;
               v.play().catch(() => {});
@@ -150,14 +151,11 @@ const ReelCard: React.FC<{
       v.addEventListener('canplay', tryPlay, { once: true });
       v.addEventListener('loadeddata', tryPlay, { once: true });
       return () => {
-        isCancelled = true;
         v.removeEventListener('canplay', tryPlay);
         v.removeEventListener('loadeddata', tryPlay);
-        try { v.pause(); } catch {}
       };
-    } else {
-      try { v.pause(); } catch {}
     }
+    v.pause();
   }, [isActive]);
 
   // Reel ka gana — video ke saath play/pause aur chosen start point se loop
@@ -165,57 +163,24 @@ const ReelCard: React.FC<{
     const a = audioRef.current;
     const v = videoRef.current;
     if (!a || !hasMusic) return;
-
     if (isActive) {
-      let isCancelled = false;
-      try { a.currentTime = musicStart; } catch {}
+      a.currentTime = musicStart;
       a.play().catch(() => {});
-
-      const syncAudioOnVideoLoop = () => {
-        if (isCancelled || !isActive) return;
-        if (v && v.currentTime < 0.35 && a.currentTime > musicStart + 1) {
-          try { a.currentTime = musicStart; } catch {}
-          a.play().catch(() => {});
-        }
-      };
-      const onVideoPlay = () => {
-        if (isCancelled || !isActive) return;
-        if (a.paused) {
-          a.play().catch(() => {});
-        }
-      };
-
-      if (v) {
-        v.addEventListener('timeupdate', syncAudioOnVideoLoop);
-        v.addEventListener('play', onVideoPlay);
-      }
-
-      return () => {
-        isCancelled = true;
-        if (v) {
-          v.removeEventListener('timeupdate', syncAudioOnVideoLoop);
-          v.removeEventListener('play', onVideoPlay);
-        }
-        try {
-          a.pause();
-          a.currentTime = musicStart;
-        } catch {}
-      };
     } else {
-      try {
-        a.pause();
-        a.currentTime = musicStart;
-      } catch {}
+      a.pause();
+      a.currentTime = musicStart;
     }
-  }, [isActive, hasMusic, musicStart]);
 
-  // Ensure video and audio always pause when ReelCard unmounts
-  useEffect(() => {
-    return () => {
-      try { videoRef.current?.pause(); } catch {}
-      try { audioRef.current?.pause(); } catch {}
+    if (!v) return;
+    const syncAudioOnVideoLoop = () => {
+      if (v.currentTime < 0.35 && a.currentTime > musicStart + 1) {
+        a.currentTime = musicStart;
+        a.play().catch(() => {});
+      }
     };
-  }, []);
+    v.addEventListener('timeupdate', syncAudioOnVideoLoop);
+    return () => v.removeEventListener('timeupdate', syncAudioOnVideoLoop);
+  }, [isActive, hasMusic, musicStart]);
 
   // Count a view once this reel has actually been watched for a moment
   // (avoids counting a quick scroll-past as a "view").
@@ -372,29 +337,11 @@ const ReelCard: React.FC<{
           ref={audioRef}
           src={reel.music_preview_url || undefined}
           preload={isActive ? 'auto' : 'none'}
-          playsInline
-          onLoadedMetadata={(e) => {
-            try { e.currentTarget.currentTime = musicStart; } catch {}
-            if (isActive) {
-              e.currentTarget.play().catch(() => {});
-            } else {
-              e.currentTarget.pause();
-            }
-          }}
-          onCanPlay={(e) => {
-            if (isActive && e.currentTarget.paused) {
-              e.currentTarget.play().catch(() => {});
-            } else if (!isActive && !e.currentTarget.paused) {
-              e.currentTarget.pause();
-            }
-          }}
+          onLoadedMetadata={(e) => { e.currentTarget.currentTime = musicStart; }}
           onEnded={(e) => {
-            if (isActive) {
-              try { e.currentTarget.currentTime = musicStart; } catch {}
-              e.currentTarget.play().catch(() => {});
-            } else {
-              e.currentTarget.pause();
-            }
+            // Chosen start point se dobara loop karo (0 se nahi)
+            e.currentTarget.currentTime = musicStart;
+            e.currentTarget.play().catch(() => {});
           }}
         />
       )}
@@ -415,35 +362,36 @@ const ReelCard: React.FC<{
         </div>
       )}
 
-      {/* Top bar — back button + REELS label + owner menu */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 pt-safe" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
+      {/* Top bar — back button + REELS label + owner menu (elevated higher and enlarged for clear visibility) */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3.5 z-30" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 2px)' }}>
         <button
           onClick={() => navigate('/profile')}
-          className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+          className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-lg border border-white/15 flex items-center justify-center active:scale-95 transition-transform shadow-lg cursor-pointer"
+          aria-label="Back to profile"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         </button>
-        <div className="flex items-center gap-1 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-          <span className="text-white text-xs font-bold tracking-widest">{t('reels').toUpperCase()}</span>
+        <div className="flex items-center gap-2 bg-black/55 backdrop-blur-lg rounded-full px-4 py-2 border border-white/20 shadow-lg">
+          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+          <span className="text-white text-sm font-black tracking-widest">{t('reels').toUpperCase()}</span>
         </div>
         <div className="flex items-center gap-2">
         <button
           onClick={() => navigate('/create-reel')}
-          className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+          className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-lg border border-white/15 flex items-center justify-center active:scale-95 transition-transform shadow-lg cursor-pointer"
           aria-label="Create reel"
         >
-          <Plus className="w-5 h-5 text-white" />
+          <Plus className="w-6 h-6 text-white" strokeWidth={2.5} />
         </button>
         {isOwner ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-9 h-9 rounded-full bg-black/30 backdrop-blur flex items-center justify-center">
-                <MoreVertical className="w-4 h-4 text-white" />
+              <button className="w-11 h-11 rounded-full bg-black/50 backdrop-blur-lg border border-white/15 flex items-center justify-center active:scale-95 transition-transform shadow-lg cursor-pointer">
+                <MoreVertical className="w-5 h-5 text-white" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleDelete} className="text-destructive gap-2">
+              <DropdownMenuItem onClick={handleDelete} className="text-destructive gap-2 text-sm font-semibold">
                 <Trash2 className="w-4 h-4" /> {t('delete')}
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -495,14 +443,12 @@ const ReelCard: React.FC<{
           <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0 group">
             {/* Glowing multi-color neon avatar ring matching screenshot */}
             <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(168,85,247,0.8)] shrink-0">
-<StoryRing userId={profile?.user_id}>
               <Avatar className="w-8 h-8 rounded-full border border-black/60">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="bg-gradient-to-tr from-indigo-600 to-purple-600 text-white text-[12px] font-bold flex items-center justify-center">
                   {profile?.username?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              </StoryRing>
             </div>
             <span className="text-white font-bold text-sm truncate group-hover:text-primary transition-colors">@{profile?.username}</span>
             {profile?.is_verified && <BadgeCheck className="w-4 h-4 text-sky-400 shrink-0" />}
@@ -633,26 +579,8 @@ const ReelsPage: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const reelsCountRef = useRef(0);
-  const activeIndexRef = useRef(0);
   const [navHidden, setNavHidden] = useState(false);
   const lastScrollTopRef = useRef(0);
-
-  const activateReel = useCallback((index: number) => {
-    activeIndexRef.current = index;
-    const container = containerRef.current;
-    if (container) {
-      const activeItem = container.querySelector(`[data-reel-index="${index}"]`);
-      container.querySelectorAll<HTMLAudioElement | HTMLVideoElement>('audio, video').forEach((media) => {
-        if (!activeItem || !activeItem.contains(media)) {
-          try {
-            media.pause();
-            if (media.tagName === 'AUDIO') media.currentTime = 0;
-          } catch {}
-        }
-      });
-    }
-    setActiveIndex((current) => (current === index ? current : index));
-  }, []);
 
   const loadReels = useCallback(async () => {
     try {
@@ -679,7 +607,7 @@ const ReelsPage: React.FC = () => {
       if (targetId) {
         const idx = data.findIndex(r => r.id === targetId);
         if (idx >= 0) {
-          activateReel(idx);
+          setActiveIndex(idx);
           if (wantsComments || commentIdParam) {
             setOpenCommentsFor(targetId);
             if (commentIdParam) setHighlightCommentFor(commentIdParam);
@@ -697,7 +625,7 @@ const ReelsPage: React.FC = () => {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activateReel]);
+  }, []);
 
   useEffect(() => { loadReels(); }, [loadReels]);
 
@@ -715,7 +643,7 @@ const ReelsPage: React.FC = () => {
             if (idxStr !== null) {
               const idx = parseInt(idxStr, 10);
               if (!isNaN(idx)) {
-                activateReel(idx);
+                setActiveIndex(idx);
               }
             }
           }
@@ -731,20 +659,13 @@ const ReelsPage: React.FC = () => {
     items.forEach(item => observer.observe(item));
 
     return () => observer.disconnect();
-  }, [activateReel, reels.length]);
+  }, [reels.length]);
 
-  // Immediate active reel index calculation on scroll + bottom nav visibility
+  // Light scroll listener purely for bottom nav hide/reveal
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const current = el.scrollTop;
-    const h = el.clientHeight;
-    if (h > 0) {
-      const newIndex = Math.round(current / h);
-      if (newIndex >= 0 && newIndex < reelsCountRef.current && newIndex !== activeIndexRef.current) {
-        activateReel(newIndex);
-      }
-    }
     const delta = current - lastScrollTopRef.current;
     if (current <= 40) {
       setNavHidden(false);
@@ -754,133 +675,6 @@ const ReelsPage: React.FC = () => {
       setNavHidden(false);
     }
     lastScrollTopRef.current = current;
-  }, [activateReel]);
-
-  // Catch late media play events from a reel that became inactive during a swipe.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const stopInactiveMedia = (event: Event) => {
-      const media = event.target;
-      if (!(media instanceof HTMLMediaElement)) return;
-      const reelItem = media.closest('[data-reel-index]');
-      const reelIndex = Number(reelItem?.getAttribute('data-reel-index'));
-      if (!reelItem || reelIndex !== activeIndexRef.current) {
-        media.pause();
-        return;
-      }
-
-      container.querySelectorAll<HTMLAudioElement | HTMLVideoElement>('audio, video').forEach((otherMedia) => {
-        if (otherMedia === media) return;
-        const otherItem = otherMedia.closest('[data-reel-index]');
-        if (Number(otherItem?.getAttribute('data-reel-index')) !== activeIndexRef.current) {
-          otherMedia.pause();
-        }
-      });
-    };
-
-    container.addEventListener('play', stopInactiveMedia, true);
-    return () => container.removeEventListener('play', stopInactiveMedia, true);
-  }, [reels.length]);
-
-  // Enforce single active reel audio/video — pause all other reels immediately
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const allAudios = el.querySelectorAll('audio');
-    const allVideos = el.querySelectorAll('video');
-    const activeItem = el.querySelector(`[data-reel-index="${activeIndex}"]`);
-
-    allAudios.forEach((audio) => {
-      if (!activeItem || !activeItem.contains(audio)) {
-        try {
-          audio.pause();
-          audio.currentTime = 0;
-        } catch {}
-      }
-    });
-
-    allVideos.forEach((video) => {
-      if (!activeItem || !activeItem.contains(video)) {
-        try {
-          video.pause();
-        } catch {}
-      }
-    });
-  }, [activeIndex]);
-
-  // Stop external background music completely on entering Reels, and pause all reel media on unmount / navigation
-  useEffect(() => {
-    audioPlayerService.stop();
-    return () => {
-      const el = containerRef.current;
-      if (!el) return;
-      el.querySelectorAll('audio').forEach((a) => {
-        try {
-          a.pause();
-          a.currentTime = 0;
-          a.removeAttribute('src');
-          a.load();
-        } catch {}
-      });
-      el.querySelectorAll('video').forEach((v) => {
-        try {
-          v.pause();
-          v.currentTime = 0;
-          v.removeAttribute('src');
-          v.load();
-        } catch {}
-      });
-    };
-  }, []);
-
-  // Auto pause all reels immediately when screen turns off, phone is locked, or app is minimized / back pressed
-  useEffect(() => {
-    const pauseAllMedia = () => {
-      try { audioPlayerService.stop(); } catch {}
-      const el = containerRef.current;
-      if (el) {
-        el.querySelectorAll('audio').forEach((a) => {
-          try { a.pause(); } catch {}
-        });
-        el.querySelectorAll('video').forEach((v) => {
-          try { v.pause(); } catch {}
-        });
-      }
-      document.querySelectorAll('audio, video').forEach((m) => {
-        try { (m as HTMLMediaElement).pause(); } catch {}
-      });
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden || document.visibilityState === 'hidden') {
-        pauseAllMedia();
-      } else if (document.visibilityState === 'visible') {
-        const el = containerRef.current;
-        if (!el) return;
-        const activeItem = el.querySelector(`[data-reel-index="${activeIndexRef.current}"]`);
-        if (activeItem) {
-          const v = activeItem.querySelector('video');
-          const a = activeItem.querySelector('audio');
-          try { v?.play().catch(() => {}); } catch {}
-          try { a?.play().catch(() => {}); } catch {}
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pagehide', pauseAllMedia);
-    window.addEventListener('blur', pauseAllMedia);
-    window.addEventListener('beforeunload', pauseAllMedia);
-
-    return () => {
-      pauseAllMedia();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pagehide', pauseAllMedia);
-      window.removeEventListener('blur', pauseAllMedia);
-      window.removeEventListener('beforeunload', pauseAllMedia);
-    };
   }, []);
 
   // Keyboard support for desktop

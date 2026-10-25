@@ -1,9 +1,6 @@
-import CryptoJS from 'crypto-js';
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
-import { supabase } from '@/db/supabase';
 // ===================== MUSIC (Songs for Stories, Reels & Posts) =====================
-// Full-length Saavn tracks plus short iTunes previews for catalog fallback.
-// The Render music API proxies Saavn because the upstream endpoint does not allow browser CORS.
+// Real song catalog + 30s audio previews via Apple's public iTunes Search API.
+// No API key needed, CORS enabled, returns song name + cover art + high-quality preview.
 // Personalized by Earth location (State, Region, Country) with unlimited A-Z search.
 
 export interface MusicTrack {
@@ -28,47 +25,6 @@ export interface MusicLocale {
   source: 'ip' | 'location' | 'browser' | 'manual';
 }
 
-
-export function decryptSaavnMediaUrl(encUrl: string): string {
-  if (!encUrl) return '';
-  try {
-    const key = CryptoJS.enc.Utf8.parse('38346581');
-    const decrypted = CryptoJS.DES.decrypt(
-      { ciphertext: CryptoJS.enc.Base64.parse(encUrl) },
-      key,
-      { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
-    );
-    const dec = decrypted.toString(CryptoJS.enc.Utf8);
-    if (!dec || !dec.startsWith('http')) return '';
-    return dec.replace('_96.', '_320.');
-  } catch {
-    return '';
-  }
-}
-
-export async function getRealReelsCounts(): Promise<Record<string, number>> {
-  try {
-    const { data, error } = await supabase
-      .from('reels')
-      .select('music_track_id, music_title');
-    if (error || !data) return {};
-    const map: Record<string, number> = {};
-    for (const r of data) {
-      if (r.music_track_id) {
-        const id = String(r.music_track_id).trim();
-        map[id] = (map[id] || 0) + 1;
-      }
-      if (r.music_title) {
-        const t = String(r.music_title).toLowerCase().trim();
-        map[t] = (map[t] || 0) + 1;
-      }
-    }
-    return map;
-  } catch {
-    return {};
-  }
-}
-
 const ITUNES = 'https://itunes.apple.com/search';
 const MUSIC_LOCALE_CACHE_KEY = 'ar-pixelgram-music-locale-v2';
 
@@ -86,6 +42,16 @@ interface ItunesResult {
   trackTimeMillis?: number;
 }
 
+function fakeReelsCount(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  const count = (hash % 950) + 15;
+  if (count > 999) return `${(count / 1000).toFixed(1)}M`;
+  return `${count}K`;
+}
+
 function mapTracks(results: ItunesResult[]): MusicTrack[] {
   const seen = new Set<string>();
   const out: MusicTrack[] = [];
@@ -101,9 +67,8 @@ function mapTracks(results: ItunesResult[]): MusicTrack[] {
       album: r.collectionName,
       artwork: bigArtwork(r.artworkUrl100 || ''),
       previewUrl: r.previewUrl,
-      // iTunes previewUrl is a 30-second sample even when trackTimeMillis is longer.
-      durationMs: 30_000,
-      isFullSong: false,
+      durationMs: r.trackTimeMillis || 30000,
+      reelsCount: fakeReelsCount(id),
     });
   }
   return out;
@@ -464,7 +429,7 @@ function decodeHtml(html: string): string {
 function extractSaavnImage(img: any): string {
   if (Array.isArray(img)) {
     const high = img.find((i: any) => i.quality === '500x500') || img[img.length - 1];
-    return high?.url || high?.link || '';
+    return high?.link || '';
   }
   if (typeof img === 'string') return img;
   return '';
@@ -477,7 +442,7 @@ function extractSaavnAudio(downloadUrl: any): string {
       downloadUrl.find((d: any) => d.quality === '160kbps') ||
       downloadUrl.find((d: any) => d.quality === '96kbps') ||
       downloadUrl[downloadUrl.length - 1];
-    return best?.url || best?.link || '';
+    return best?.link || '';
   }
   if (typeof downloadUrl === 'string') return downloadUrl;
   return '';
@@ -488,32 +453,18 @@ function mapSaavnTracks(items: any[]): MusicTrack[] {
   const out: MusicTrack[] = [];
   for (const r of items) {
     if (!r) continue;
-    let audioUrl = '';
-    if (r.encrypted_media_url) {
-      audioUrl = decryptSaavnMediaUrl(r.encrypted_media_url);
-    } else if (r.downloadUrl || r.url) {
-      audioUrl = extractSaavnAudio(r.downloadUrl || r.url);
-    }
+    const audioUrl = extractSaavnAudio(r.downloadUrl || r.url);
     if (!audioUrl) continue;
-    const id = 'saavn_' + (r.id || r.song || r.name);
+    const id = 'saavn_' + (r.id || r.name);
     if (seen.has(id)) continue;
     seen.add(id);
-    const durSec = typeof r.duration === 'string' ? parseInt(r.duration, 10) : Number(r.duration || 180);
-    const durationMs = (!isNaN(durSec) && durSec > 0 ? durSec : 180) * 1000;
-    const title = decodeHtml(r.song || r.name || r.title || 'Untitled Track');
-    const artistList = r.artists?.primary || r.artists?.all;
-    const artistNames = Array.isArray(artistList)
-      ? artistList.map((item: any) => item?.name).filter(Boolean).join(', ')
-      : '';
-    const artist = decodeHtml(
-      r.primary_artists ||
-        r.primaryArtists ||
-        artistNames ||
-        (typeof r.artists === 'string' ? r.artists : '') ||
-        r.singers ||
-        'Unknown Artist',
-    );
-    const artwork = bigArtwork(extractSaavnImage(r.image) || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500');
+
+    const durSec = typeof r.duration === 'string' ? parseInt(r.duration, 10) : Number(r.duration || 30);
+    const durationMs = (!isNaN(durSec) && durSec > 0 ? durSec : 30) * 1000;
+    const title = decodeHtml(r.name || r.title || 'Untitled Track');
+    const artist = decodeHtml(r.primaryArtists || r.artists || r.singers || 'Unknown Artist');
+    const artwork = extractSaavnImage(r.image) || 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500';
+
     out.push({
       id,
       title,
@@ -522,6 +473,7 @@ function mapSaavnTracks(items: any[]): MusicTrack[] {
       artwork,
       previewUrl: audioUrl,
       durationMs,
+      reelsCount: fakeReelsCount(r.id || title),
       isFullSong: true,
     });
   }
@@ -529,61 +481,16 @@ function mapSaavnTracks(items: any[]): MusicTrack[] {
 }
 
 async function fetchSaavn(query: string, signal?: AbortSignal): Promise<MusicTrack[]> {
-  const q = query.trim();
-  if (!q) return [];
-
-  // Strategy 1: Dedicated backend (Render) or serverless API route (Vercel).
   try {
-    const apiBase = (import.meta.env.VITE_MUSIC_API_URL || '').replace(/\/+$/, '');
-    const res = await fetch(`${apiBase}/api/music-search?q=${encodeURIComponent(q)}`, { signal });
-    if (res.ok) {
-      const json = (await res.json()) as any;
-      if (Array.isArray(json?.results) && json.results.length > 0) {
-        return json.results;
-      }
-    }
-  } catch {}
-
-  // Strategy 2: If on Native Android/iOS via Capacitor, use direct CapacitorHttp
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const saavnUrl = 'https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&n=35&p=1&_marker=0&ctx=android&q=' + encodeURIComponent(q);
-      const capRes = await CapacitorHttp.get({
-        url: saavnUrl,
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      });
-      if (capRes.status === 200) {
-        const data = typeof capRes.data === 'string' ? JSON.parse(capRes.data) : capRes.data;
-        const tracks = mapSaavnTracks(data?.results || []);
-        if (tracks.length > 0) return tracks;
-      }
-    } catch {}
+    const url = 'https://jiosaavn-api-unofficial.vercel.app/search/songs?query=' + encodeURIComponent(query);
+    const res = await fetch(url, { signal });
+    if (!res.ok) return [];
+    const data = (await res.json()) as any;
+    const list = data.results || data.data?.results || (Array.isArray(data) ? data : []);
+    return mapSaavnTracks(list);
+  } catch {
+    return [];
   }
-
-  // Strategy 3: Public CORS-enabled Saavn API for static browser deployments.
-  try {
-    const publicApiUrl = new URL('https://saavn.sumit.co/api/search/songs');
-    publicApiUrl.searchParams.set('query', q);
-    const res = await fetch(publicApiUrl.toString(), { signal });
-    if (res.ok) {
-      const json = (await res.json()) as any;
-      const tracks = mapSaavnTracks(json?.data?.results || json?.results || []);
-      if (tracks.length > 0) return tracks;
-    }
-  } catch {}
-
-  // Strategy 4: Vite dev proxy or Vercel rewrite /api/saavn/...
-  try {
-    const saavnUrl = '/api/saavn/api.php?__call=search.getResults&_format=json&n=35&p=1&_marker=0&ctx=android&q=' + encodeURIComponent(q);
-    const res = await fetch(saavnUrl, { signal });
-    if (res.ok) {
-      const data = (await res.json()) as any;
-      const tracks = mapSaavnTracks(data?.results || []);
-      if (tracks.length > 0) return tracks;
-    }
-  } catch {}
-
-  return [];
 }
 
 async function itunes(
@@ -691,6 +598,7 @@ export const ORIGINAL_AUDIOS: MusicTrack[] = [
     artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80',
     previewUrl: 'https://cdn.freesound.org/previews/612/612610_5674468-lq.mp3',
     durationMs: 30000,
+    reelsCount: '600K',
     isOriginalAudio: true,
   },
   {
@@ -700,6 +608,7 @@ export const ORIGINAL_AUDIOS: MusicTrack[] = [
     artwork: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&auto=format&fit=crop&q=80',
     previewUrl: 'https://cdn.freesound.org/previews/536/536108_71257-lq.mp3',
     durationMs: 30000,
+    reelsCount: '318K',
     isOriginalAudio: true,
   },
   {
@@ -709,6 +618,7 @@ export const ORIGINAL_AUDIOS: MusicTrack[] = [
     artwork: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=300&auto=format&fit=crop&q=80',
     previewUrl: 'https://cdn.freesound.org/previews/415/415804_5121236-lq.mp3',
     durationMs: 30000,
+    reelsCount: '450K',
     isOriginalAudio: true,
   },
   {
@@ -718,6 +628,7 @@ export const ORIGINAL_AUDIOS: MusicTrack[] = [
     artwork: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=300&auto=format&fit=crop&q=80',
     previewUrl: 'https://cdn.freesound.org/previews/612/612611_5674468-lq.mp3',
     durationMs: 30000,
+    reelsCount: '890K',
     isOriginalAudio: true,
   },
   {
@@ -727,6 +638,7 @@ export const ORIGINAL_AUDIOS: MusicTrack[] = [
     artwork: 'https://images.unsplash.com/photo-1520523839898-50712140d04c?w=300&auto=format&fit=crop&q=80',
     previewUrl: 'https://cdn.freesound.org/previews/517/517618_11565147-lq.mp3',
     durationMs: 30000,
+    reelsCount: '210K',
     isOriginalAudio: true,
   },
 ];

@@ -53,9 +53,6 @@ const UploadProgressOverlay: React.FC = () => {
                     {job.label}
                   </p>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {!isDone && !isErr && (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                    )}
                     <span className="text-xs font-black tabular-nums text-primary">
                       {isDone ? '100%' : `${percent}%`}
                     </span>

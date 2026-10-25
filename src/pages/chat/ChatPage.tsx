@@ -1,5 +1,4 @@
 import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
-import StoryRing from '@/components/common/StoryRing';
 import { ChatMediaRenderer, isMediaMessage } from '@/components/chat/ChatMediaRenderer';
 import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
@@ -445,8 +444,8 @@ const ChatPage: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 12px 14px;
-          height: 64px;
+          padding: max(env(safe-area-inset-top, 0px), 2px) 12px 6px;
+          height: calc(54px + max(env(safe-area-inset-top, 0px), 2px));
           background: transparent !important;
           border: none !important;
           box-shadow: none !important;
@@ -456,8 +455,8 @@ const ChatPage: React.FC = () => {
           pointer-events: auto;
         }
         .chat-wrap .back {
-          width: 40px;
-          height: 40px;
+          width: 42px;
+          height: 42px;
           border-radius: 14px;
           background: rgba(255,255,255,.07);
           display: grid;
@@ -657,7 +656,6 @@ const ChatPage: React.FC = () => {
             className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer border-0 bg-transparent"
           >
             <div className="relative shrink-0">
-              <StoryRing userId={otherProfile?.user_id}>
               {otherProfile?.avatar_url ? (
                 <img
                   src={otherProfile.avatar_url}
@@ -671,7 +669,6 @@ const ChatPage: React.FC = () => {
                   </span>
                 </div>
               )}
-              </StoryRing>
               {onlineStatusState?.is_online && (
                 <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#22D3A0] ring-2 ring-[#0E0820] shadow-[0_0_8px_#22D3A0]" />
               )}
@@ -788,7 +785,7 @@ const ChatPage: React.FC = () => {
 
         {/* Messages Canvas */}
         <div
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pb-3 pt-[68px] space-y-2.5 relative bg-transparent"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 pb-3 pt-[calc(56px+max(env(safe-area-inset-top,0px),2px))] space-y-2.5 relative bg-transparent"
         >
 
           {/* Messenger Hero Profile Section (from Screenshot 2) */}

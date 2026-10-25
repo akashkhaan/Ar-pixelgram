@@ -35,7 +35,6 @@ class AudioPlayerService {
     if (this.audio) return;
     this.audio = new Audio();
     this.audio.preload = 'auto';
-    (this.audio as any).playsInline = true;
 
     this.audio.addEventListener('play', () => {
       this.state.isPlaying = true;
@@ -189,10 +188,8 @@ class AudioPlayerService {
     this.state.duration = (track.durationMs || 30000) / 1000;
 
     try {
-      this.audio.pause();
       this.audio.src = track.previewUrl;
       this.audio.currentTime = 0;
-      this.audio.load();
       await this.audio.play();
       this.state.isPlaying = true;
       this.updateMediaSessionMetadata(track);
@@ -233,23 +230,15 @@ class AudioPlayerService {
 
   public stop(): void {
     if (this.audio) {
-      try {
-        this.audio.pause();
-        this.audio.currentTime = 0;
-        this.audio.removeAttribute('src');
-        this.audio.load();
-      } catch {}
+      this.audio.pause();
+      this.audio.currentTime = 0;
+      this.audio.src = '';
     }
     this.state.isPlaying = false;
     this.state.currentTrack = null;
     this.state.currentTime = 0;
     this.state.duration = 0;
     this.updateMediaSessionPlayback('none');
-    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
-      try {
-        navigator.mediaSession.metadata = null;
-      } catch {}
-    }
     this.notify();
   }
 

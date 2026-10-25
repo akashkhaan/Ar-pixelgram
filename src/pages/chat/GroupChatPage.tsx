@@ -1257,7 +1257,7 @@ const GroupChatPage: React.FC = () => {
             disabled={sending || uploading}
             title="Send message"
           >
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            <Send className={`h-4 w-4 ${sending ? "opacity-40" : ""}`} />
           </button>
         </form>
 

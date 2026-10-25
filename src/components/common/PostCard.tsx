@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import StoryRing from '@/components/common/StoryRing';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, BadgeCheck, Music2, Volume2, VolumeX, Film } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -162,7 +161,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
     <article ref={cardRef} className="bg-card border-b border-border">
       {/* Post header */}
       <div className="flex items-center gap-3 px-4 py-3">
-        <StoryRing userId={post.user_id}>
         <Link to={`/profile/${post.user_id}`} className="shrink-0">
           {avatarUrl ? (
             <img src={avatarUrl} alt={username} className="w-9 h-9 rounded-full object-cover ring-2 ring-primary/30" />
@@ -172,7 +170,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
             </div>
           )}
         </Link>
-        </StoryRing>
         <div className="flex-1 min-w-0">
           <Link to={`/profile/${post.user_id}`} className="flex items-center gap-1">
             <span className="font-semibold text-sm text-foreground truncate">{username}</span>
@@ -258,18 +255,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
               ref={audioRef}
               src={post.music_preview_url}
               loop
-              preload="metadata"
-              playsInline
               onEnded={() => setIsPlayingAudio(false)}
               onPause={() => setIsPlayingAudio(false)}
               onPlay={() => setIsPlayingAudio(true)}
-              onLoadedMetadata={(e) => {
-                if (post.music_start_ms) {
-                  try {
-                    e.currentTarget.currentTime = post.music_start_ms / 1000;
-                  } catch {}
-                }
-              }}
+              preload="none"
             />
             <button
               type="button"

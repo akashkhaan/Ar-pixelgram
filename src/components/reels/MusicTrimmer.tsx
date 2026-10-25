@@ -37,19 +37,16 @@ const MusicTrimmer: React.FC<Props> = ({
 }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const declaredTrackDuration = track.durationMs > 0 ? track.durationMs / 1000 : 0;
-  const [audioDuration, setAudioDuration] = useState(() =>
-    track.isFullSong && declaredTrackDuration > 0 ? declaredTrackDuration : 30,
-  );
+  const [audioDuration, setAudioDuration] = useState(30);
   const [videoDuration, setVideoDuration] = useState(0);
   const [start, setStart] = useState(initialStartMs / 1000);
   const [muteOriginal, setMuteOriginal] = useState(initialMuteOriginal);
-  const [ready, setReady] = useState(Boolean(track.durationMs));
+  const [ready, setReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
 
   const bars = useMemo(() => generateWaveformBars(track.id), [track.id]);
 
-  // The selected window follows the video duration and the actual playable track length.
+  // Window length (standard Instagram 15s to 30s)
   const clipLen = useMemo(() => {
     if (!audioDuration) return 15;
     const v = mediaType === 'image' ? 15 : (videoDuration || 15);
@@ -66,13 +63,10 @@ const MusicTrimmer: React.FC<Props> = ({
   useEffect(() => {
     const a = audioRef.current;
     const v = videoRef.current;
-    if (!a) return;
+    if (!a || !ready) return;
 
-    try {
-      a.currentTime = start;
-      const p = a.play();
-      if (p) p.catch(() => {});
-    } catch {}
+    a.currentTime = start;
+    a.play().catch(() => {});
     setIsPlaying(true);
 
     if (v) {
@@ -82,17 +76,14 @@ const MusicTrimmer: React.FC<Props> = ({
 
     const onTime = () => {
       if (clipLen && a.currentTime >= start + clipLen) {
-        try {
-          a.currentTime = start;
-          const p = a.play();
-          if (p) p.catch(() => {});
-        } catch {}
+        a.currentTime = start;
         if (v) {
           v.currentTime = 0;
           v.play().catch(() => {});
         }
       }
     };
+
     a.addEventListener('timeupdate', onTime);
     return () => a.removeEventListener('timeupdate', onTime);
   }, [start, clipLen, ready]);
@@ -198,18 +189,9 @@ const MusicTrimmer: React.FC<Props> = ({
           ref={audioRef}
           src={track.previewUrl}
           loop
-          preload="auto"
-          playsInline
           onLoadedMetadata={(e) => {
-            const reportedDuration = e.currentTarget.duration;
-            const actualDuration =
-              Number.isFinite(reportedDuration) && reportedDuration > 0 ? reportedDuration : 0;
-            const fallbackDuration = track.isFullSong && declaredTrackDuration > 0 ? declaredTrackDuration : 30;
-            const dur = actualDuration || fallbackDuration;
+            const dur = e.currentTarget.duration || 30;
             setAudioDuration(dur);
-            setReady(true);
-          }}
-          onCanPlay={() => {
             setReady(true);
           }}
         />
@@ -228,7 +210,7 @@ const MusicTrimmer: React.FC<Props> = ({
           <div className="flex items-center justify-between text-[11px] text-white/70 px-1 font-medium">
             <span>{formatMusicDuration(start * 1000)}</span>
             <span className="text-primary font-bold">{Math.round(clipLen)}s selected</span>
-            <span title="Full track duration">{formatMusicDuration(audioDuration * 1000)}</span>
+            <span>{formatMusicDuration((start + clipLen) * 1000)}</span>
           </div>
 
           <div className="relative h-16 rounded-2xl bg-white/10 px-2 overflow-hidden flex items-center">

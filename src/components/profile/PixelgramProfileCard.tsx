@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useHasStory } from '@/hooks/useStoryUsers';
 import { useNavigate } from 'react-router-dom';
 import { Camera, Check, Loader2 } from 'lucide-react';
 import type { Profile } from '@/types/types';
@@ -30,7 +29,6 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
   onScrollToPosts,
 }) => {
   const navigate = useNavigate();
-  const hasStory = useHasStory(profile?.user_id);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -248,8 +246,6 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
   }, []);
 
   const handleAvatarClick = () => {
-    // Story dali ho to tap par story khule (Instagram jaisa)
-    if (hasStory) { navigate(`/stories?u=${profile.user_id}`); return; }
     if (isOwnProfile && fileInputRef.current) {
       fileInputRef.current.click();
     }
@@ -303,10 +299,7 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
               avatarState === 'center' ? 'center' : avatarState === 'pos' ? 'pos' : ''
             }`}
             onClick={handleAvatarClick}
-            style={{
-              cursor: isOwnProfile || hasStory ? 'pointer' : 'default',
-              ...(hasStory ? { borderRadius: '50%', boxShadow: '0 0 0 4px #ef4444, 0 0 18px rgba(239,68,68,0.6)' } : {}),
-            }}
+            style={{ cursor: isOwnProfile ? 'pointer' : 'default' }}
             title={isOwnProfile ? 'Tap to change profile picture' : undefined}
           >
             {/* Front Face */}

@@ -2505,8 +2505,3 @@
 .pcall-over button:active {
   transform: scale(0.95);
 }
-
-/* Loading spinner poori website se hataya gaya */
-.animate-spin {
-  display: none !important;
-}
