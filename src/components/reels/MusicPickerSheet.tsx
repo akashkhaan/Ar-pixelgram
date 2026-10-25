@@ -33,6 +33,7 @@ import {
 } from '@/services/music';
 import { getSavedSongs, saveSong, unsaveSong } from '@/services/savedSongs';
 import { toast } from 'sonner';
+import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 
 interface Props {
   open: boolean;
