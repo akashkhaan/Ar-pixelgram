@@ -1123,8 +1123,14 @@ export async function getStoryLikers(storyId: string): Promise<Profile[]> {
 }
 
 export async function recordStoryView(storyId: string, viewerId: string): Promise<void> {
-  const { error } = await supabase.from('story_views').upsert({ story_id: storyId, viewer_id: viewerId });
-  if (!error) await supabase.rpc('increment_story_views', { story_id: storyId });
+  // Sirf pehli baar dekhne par count badhe (dobara kholne se fake views na badhe); apni story ka view count nahi hota
+  const { data: story } = await supabase.from('stories').select('user_id').eq('id', storyId).maybeSingle();
+  if (story?.user_id === viewerId) return;
+  const { data, error } = await supabase
+    .from('story_views')
+    .upsert({ story_id: storyId, viewer_id: viewerId }, { onConflict: 'story_id,viewer_id', ignoreDuplicates: true })
+    .select('id');
+  if (!error && data && data.length > 0) await supabase.rpc('increment_story_views', { story_id: storyId });
 }
 
 // ===================== MARK MESSAGES SEEN (enhanced) =====================

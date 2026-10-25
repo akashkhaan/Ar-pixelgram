@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { withTimeout } from '@/lib/withTimeout';
 import {
   getFeedStories, getAllPosts, createStory, deleteStory,
-  toggleStoryLike, isStoryLiked, getStoryLikers, getStoryViewers, recordStoryView, sendMessage, createNotification,
+  toggleStoryLike, isStoryLiked, getStoryViewers, recordStoryView, sendMessage, createNotification,
   type StoryViewer
 } from '@/services/api';
 import type { Story, Profile, Post } from '@/types/types';
@@ -23,6 +23,7 @@ import type { MusicTrack } from '@/services/music';
 import { composeMediaWithMusic } from '@/services/mediaComposer';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
 import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
+import StoryViewersSheet, { EyeIcon, HeartIcon, type ViewerFilter } from './StoryViewersSheet';
 import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
 
 function groupStoriesByUser(stories: Story[]): Record<string, { profile: Profile; stories: Story[] }> {
@@ -59,12 +60,10 @@ const StoriesPage: React.FC = () => {
   const [replyText, setReplyText] = useState('');
   const [showReply, setShowReply] = useState(false);
   const [sendingReply, setSendingReply] = useState(false);
-  const [showLikers, setShowLikers] = useState(false);
-  const [likers, setLikers] = useState<Profile[]>([]);
-  const [loadingLikers, setLoadingLikers] = useState(false);
   const [showViewers, setShowViewers] = useState(false);
-  const [viewers, setViewers] = useState<StoryViewer[]>([]);
-  const [loadingViewers, setLoadingViewers] = useState(false);
+  const [viewerFilter, setViewerFilter] = useState<ViewerFilter>('all');
+  // storyId -> asli viewers (DB se). undefined = abhi load ho raha hai
+  const [viewersMap, setViewersMap] = useState<Record<string, StoryViewer[] | undefined>>({});
   const videoViewerRef = useRef<HTMLVideoElement>(null);
   const storyAudioRef = useRef<HTMLAudioElement>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -145,12 +144,9 @@ const StoriesPage: React.FC = () => {
     return () => { document.body.style.overflow = prevOverflow; };
   }, [viewerUserId]);
 
-  const openViewersSheet = async (storyId: string) => {
+  const openViewersSheet = (filter: ViewerFilter = 'all') => {
+    setViewerFilter(filter);
     setShowViewers(true);
-    setLoadingViewers(true);
-    const list = await getStoryViewers(storyId).catch(() => [] as StoryViewer[]);
-    setViewers(list);
-    setLoadingViewers(false);
   };
 
   const groups = groupStoriesByUser(stories);
@@ -173,6 +169,28 @@ const StoriesPage: React.FC = () => {
 
   const viewerGroup = viewerUserId ? groups[viewerUserId] : null;
   const currentStory = viewerGroup?.stories[storyIndex];
+  const isOwnGroup = !!user && viewerUserId === user.id;
+
+  // Apni story khuli ho to har story ke asli viewers + likes DB se load karo (koi fake data nahi)
+  const loadOwnViewers = (ids: string[]) => {
+    ids.forEach(id => {
+      getStoryViewers(id)
+        .then(list => list.filter(v => v.profile.user_id !== user?.id))
+        .catch(() => [] as StoryViewer[])
+        .then(list => setViewersMap(m => ({ ...m, [id]: list })));
+    });
+  };
+  useEffect(() => {
+    if (!isOwnGroup || !viewerGroup) return;
+    loadOwnViewers(viewerGroup.stories.map(s => s.id));
+  }, [isOwnGroup, viewerUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Sheet khulte hi current story ka data refresh
+  useEffect(() => {
+    if (showViewers && currentStory && isOwnGroup) loadOwnViewers([currentStory.id]);
+  }, [showViewers]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ownViewers = currentStory ? viewersMap[currentStory.id] : undefined;
+  const ownViewCount = ownViewers ? String(ownViewers.length) : '…';
+  const ownLikeCount = ownViewers ? String(ownViewers.filter(v => v.liked).length) : '…';
 
   useEffect(() => {
     const a = storyAudioRef.current;
@@ -475,21 +493,15 @@ const StoriesPage: React.FC = () => {
                 <div className="flex items-center gap-3 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1.5">
                   <button
                     className="flex items-center gap-1 text-white text-xs"
-                    onClick={() => openViewersSheet(currentStory.id)}
+                    onClick={() => openViewersSheet('all')}
                   >
-                    <Eye className="w-3 h-3" />{currentStory.views_count || 0}
+                    <Eye className="w-3 h-3" />{ownViewCount}
                   </button>
                   <button
                     className="flex items-center gap-1 text-white text-xs"
-                    onClick={async () => {
-                      setShowLikers(true);
-                      setLoadingLikers(true);
-                      const list = await getStoryLikers(currentStory.id).catch(() => []);
-                      setLikers(list);
-                      setLoadingLikers(false);
-                    }}
+                    onClick={() => openViewersSheet('liked')}
                   >
-                    <Heart className="w-3 h-3" />{currentStory.likes_count || 0}
+                    <Heart className="w-3 h-3" />{ownLikeCount}
                   </button>
                 </div>
                 <button onClick={() => handleDeleteStory(currentStory.id)} className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors">
@@ -559,16 +571,11 @@ const StoriesPage: React.FC = () => {
           {/* Apni story — "kitno ne dekha" bar (Instagram jaisa) */}
           {currentStory.user_id === user?.id && (
             <button
-              className="absolute bottom-6 left-4 right-4 flex items-center gap-2 rounded-full bg-white/10 border border-white/25 px-4 py-2.5"
-              onClick={e => { e.stopPropagation(); openViewersSheet(currentStory.id); }}
+              className="psv-pill"
+              onClick={e => { e.stopPropagation(); openViewersSheet('all'); }}
             >
-              <Eye className="w-4 h-4 text-white" />
-              <span className="text-white text-sm font-medium">
-                {currentStory.views_count || 0} ने देखा
-              </span>
-              <span className="ml-auto flex items-center gap-1 text-white/80 text-xs">
-                <Heart className="w-3.5 h-3.5 fill-red-500 text-red-500" />{currentStory.likes_count || 0}
-              </span>
+              <span><EyeIcon /><i style={{ fontStyle: 'normal' }}>{ownViewCount} ने देखा</i></span>
+              <span><HeartIcon className="h" /><i style={{ fontStyle: 'normal' }}>{ownLikeCount}</i></span>
             </button>
           )}
 
@@ -621,103 +628,18 @@ const StoriesPage: React.FC = () => {
         document.body
       )}
 
-      {/* Who liked this story — like Instagram's story likers list */}
-      {showLikers && createPortal(
-        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowLikers(false)}>
-          <div
-            className="w-full max-w-lg bg-card rounded-t-3xl border-t border-border/40 overflow-y-auto"
-            style={{ maxHeight: '70vh', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-foreground flex items-center gap-1.5">
-                  <Heart className="w-4 h-4 fill-red-500 text-red-500" /> Liked by
-                </h3>
-                <button onClick={() => setShowLikers(false)} className="p-1.5 rounded-full hover:bg-muted/60">
-                  <X className="w-5 h-5 text-muted-foreground" />
-                </button>
-              </div>
-              {loadingLikers ? (
-                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-              ) : likers.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No likes yet</p>
-              ) : (
-                <div className="space-y-3">
-                  {likers.map(liker => (
-                    <button
-                      key={liker.user_id}
-                      className="flex items-center gap-3 w-full text-left"
-                      onClick={() => { setShowLikers(false); closeViewer(); navigate(`/profile/${liker.user_id}`); }}
-                    >
-                      {liker.avatar_url ? (
-                        <img src={liker.avatar_url} alt={liker.username} className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                          <span className="text-primary font-bold text-sm">{liker.username[0]?.toUpperCase()}</span>
-                        </div>
-                      )}
-                      <span className="font-semibold text-sm text-foreground">{liker.username}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Kisne dekha — viewers list (name + profile photo + like status) */}
-      {showViewers && createPortal(
-        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowViewers(false)}>
-          <div
-            className="w-full max-w-lg bg-card rounded-t-3xl border-t border-border/40 overflow-y-auto"
-            style={{ maxHeight: '75vh', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-foreground flex items-center gap-1.5">
-                  <Eye className="w-4 h-4" /> Viewers ({viewers.length})
-                </h3>
-                <button onClick={() => setShowViewers(false)} className="p-1.5 rounded-full hover:bg-muted/60">
-                  <X className="w-5 h-5 text-muted-foreground" />
-                </button>
-              </div>
-              {loadingViewers ? (
-                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-              ) : viewers.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">अभी किसी ने नहीं देखा</p>
-              ) : (
-                <div className="space-y-3">
-                  {viewers.map(v => (
-                    <div key={v.profile.user_id} className="flex items-center gap-3">
-                      <button
-                        className="flex items-center gap-3 flex-1 text-left"
-                        onClick={() => { setShowViewers(false); closeViewer(); navigate(`/profile/${v.profile.user_id}`); }}
-                      >
-                        {v.profile.avatar_url ? (
-                          <img src={v.profile.avatar_url} alt={v.profile.username} className="w-10 h-10 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                            <span className="text-primary font-bold text-sm">{v.profile.username[0]?.toUpperCase()}</span>
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-semibold text-sm text-foreground truncate">{v.profile.username}</p>
-                          {v.profile.full_name && <p className="text-xs text-muted-foreground truncate">{v.profile.full_name}</p>}
-                        </div>
-                      </button>
-                      {v.liked && <Heart className="w-4 h-4 fill-red-500 text-red-500 shrink-0" />}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
+      {/* Kisne dekha — naya viewers sheet (story-viewers design, sirf asli data) */}
+      {isOwnGroup && viewerGroup && (
+        <StoryViewersSheet
+          open={showViewers}
+          stories={viewerGroup.stories}
+          index={storyIndex}
+          viewersMap={viewersMap}
+          initialFilter={viewerFilter}
+          onSelect={i => setStoryIndex(i)}
+          onClose={() => setShowViewers(false)}
+          onOpenProfile={uid => { setShowViewers(false); closeViewer(); navigate(`/profile/${uid}`); }}
+        />
       )}
 
       {/* Upload story modal */}
