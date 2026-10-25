@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { useStoryUsers } from '@/hooks/useStoryUsers';
 import { ArrowLeft, Bell, CheckCheck, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -329,6 +330,7 @@ const TagIcon: React.FC<{ type: Notification['type'] }> = ({ type }) => {
 const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const storyUsers = useStoryUsers();
   const goBack = useGoBack('/home');
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -598,6 +600,7 @@ const NotificationsPage: React.FC = () => {
   // Render individual notification row
   const renderNotificationRow = (notif: Notification, index: number) => {
     const actor = notif.actor;
+    const actorHasStory = !!notif.actor_id && storyUsers.has(notif.actor_id);
     const username = actor?.username || 'user';
     const timeAgo = formatTimeAgo(notif.created_at);
     const isUnread = !notif.is_read;
@@ -622,10 +625,11 @@ const NotificationsPage: React.FC = () => {
         style={{ '--d': Math.min(index, 15) } as React.CSSProperties}
       >
         {/* Avatar with tag badge */}
-        <div className="av">
+        <div className={`av ${actorHasStory ? 'rounded-full' : ''}`} style={actorHasStory ? { boxShadow: '0 0 0 3px #ef4444' } : undefined}>
           <div
             onClick={e => {
               e.stopPropagation();
+              if (notif.actor_id && actorHasStory) { navigate(`/stories?u=${notif.actor_id}`); return; }
               if (notif.actor_id) navigate(`/profile/${notif.actor_id}`);
             }}
             className="ph cursor-pointer active:scale-95 transition-transform"

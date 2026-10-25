@@ -1,4 +1,5 @@
 import { useGroupCall } from "@/contexts/GroupCallContext";
+import { useStoryUsers } from "@/hooks/useStoryUsers";
 import { useCall } from "@/contexts/CallContext";
 import {
   ArrowLeft,
@@ -57,6 +58,7 @@ const ChatListPage: React.FC = () => {
   const groupCall = useGroupCall();
   const { startCall } = useCall();
   const navigate = useNavigate();
+  const storyUsers = useStoryUsers();
   const [searchParams] = useSearchParams();
   const goBack = useGoBack("/home");
 
@@ -755,13 +757,13 @@ const ChatListPage: React.FC = () => {
         .act .av {
           margin: 0 auto 6px;
         }
-        .act .av::before,
-        .row.unread > .av::before {
+        .act .av.has-story::before,
+        .row .av.has-story::before {
           content: "";
           position: absolute;
           inset: -3.5px;
           border-radius: 50%;
-          background: var(--grad);
+          background: #ef4444;
           z-index: 0;
         }
         .av {
@@ -1268,7 +1270,15 @@ const ChatListPage: React.FC = () => {
                       </div>
                     )}
 
-                    <div className="av">
+                    <div
+                      className={`av ${storyUsers.has(profile.user_id) ? "has-story" : ""}`}
+                      onClickCapture={(e) => {
+                        if (!storyUsers.has(profile.user_id)) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        navigate(`/stories?u=${profile.user_id}`);
+                      }}
+                    >
                       <div className="ph">
                         {profile.avatar_url ? (
                           <img src={profile.avatar_url} alt={profile.username} />
@@ -1494,7 +1504,15 @@ const ChatListPage: React.FC = () => {
                             onClick={() => navigate(`/chat/${profile.user_id}`)}
                           >
                             {/* Avatar with gradient ring when unread */}
-                            <div className="av">
+                            <div
+                              className={`av ${storyUsers.has(profile.user_id) ? "has-story" : ""}`}
+                              onClickCapture={(e) => {
+                                if (!storyUsers.has(profile.user_id)) return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                navigate(`/stories?u=${profile.user_id}`);
+                              }}
+                            >
                               <div className="ph">
                                 {profile.avatar_url ? (
                                   <img src={profile.avatar_url} alt={profile.username} />

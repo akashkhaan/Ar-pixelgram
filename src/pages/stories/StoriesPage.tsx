@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { refreshStoryUsers } from '@/hooks/useStoryUsers';
 import MobileLayout from '@/components/layouts/MobileLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { withTimeout } from '@/lib/withTimeout';
@@ -140,8 +141,18 @@ const StoriesPage: React.FC = () => {
   useEffect(() => {
     if (!viewerUserId) return;
     const prevOverflow = document.body.style.overflow;
+    const html = document.documentElement;
+    const prevHtmlOs = html.style.overscrollBehaviorY;
+    const prevBodyOs = document.body.style.overscrollBehaviorY;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prevOverflow; };
+    // Story dekhte waqt neeche swipe karne par browser page refresh na kare
+    html.style.overscrollBehaviorY = 'none';
+    document.body.style.overscrollBehaviorY = 'none';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      html.style.overscrollBehaviorY = prevHtmlOs;
+      document.body.style.overscrollBehaviorY = prevBodyOs;
+    };
   }, [viewerUserId]);
 
   const openViewersSheet = (filter: ViewerFilter = 'all') => {
@@ -155,15 +166,16 @@ const StoriesPage: React.FC = () => {
   const openViewer = (uid: string) => { setViewerUserId(uid); setStoryIndex(0); setShowReply(false); };
 
   // Open a specific user's stories when arriving from a notification (/stories?u=<userId>)
-  const openedFromQuery = useRef(false);
+  const location = useLocation();
+  const openedFromQuery = useRef<string | null>(null);
   useEffect(() => {
-    if (openedFromQuery.current || loading) return;
-    const uid = new URLSearchParams(window.location.search).get('u');
-    if (uid && groups[uid]) {
-      openedFromQuery.current = true;
+    if (loading) return;
+    const uid = new URLSearchParams(location.search).get('u');
+    if (uid && groups[uid] && openedFromQuery.current !== location.key) {
+      openedFromQuery.current = location.key;
       openViewer(uid);
     }
-  }, [loading, stories]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, stories, location.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeViewer = () => {
     storyAudioRef.current?.pause(); setViewerUserId(null); setShowReply(false); setShowViewers(false); };
 
@@ -292,7 +304,12 @@ const StoriesPage: React.FC = () => {
 
   const handleUploadStory = async () => {
     if (!mediaFile || !user) return;
+    const captionText = caption;
     const uploadId = startUpload('story', 'Story upload');
+    // Instagram jaisa: Post dabate hi screen band, upload peeche chalta rahe (upar % dikhta hai)
+    setShowUpload(false);
+    setMediaPreview(null);
+    setCaption('');
     setUploading(true);
     const musicPayload = storyTrack
       ? {
@@ -317,7 +334,7 @@ const StoriesPage: React.FC = () => {
       fileName: mediaFile.name,
       fileType: mediaFile.type,
       userId: user.id,
-      caption: caption.trim() || null,
+      caption: captionText.trim() || null,
       musicPayload,
       progress: 0,
       status: 'uploading',
@@ -329,15 +346,13 @@ const StoriesPage: React.FC = () => {
         updateUpload(uploadId, progress);
         void updatePersistentJobProgress(persistentJobId, progress);
       });
-      await createStory(url, caption.trim() || null, musicPayload);
+      await createStory(url, captionText.trim() || null, musicPayload);
       await deletePersistentJob(persistentJobId);
       toast.success(t('newStory') + ' posted! ✨');
       const updated = await getFeedStories(user.id);
       setStories(updated);
-      setShowUpload(false);
+      void refreshStoryUsers(user.id);
       setMediaFile(null);
-      setMediaPreview(null);
-      setCaption('');
       setStoryTrack(null);
       setMusicStartMs(0);
       setMuteOriginal(true);
@@ -365,7 +380,7 @@ const StoriesPage: React.FC = () => {
 
   return (
     <MobileLayout autoHideNav>
-      <PullToRefresh onRefresh={handleRefresh} disabled={!!viewerUserId}>
+      <PullToRefresh onRefresh={handleRefresh} disabled={!!viewerUserId || showUpload}>
       <div className="page-transition">
         {/* Stories row */}
         <div className="flex items-start gap-3 px-4 py-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>

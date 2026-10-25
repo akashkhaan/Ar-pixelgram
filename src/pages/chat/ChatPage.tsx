@@ -1,4 +1,5 @@
 import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
+import StoryRing from '@/components/common/StoryRing';
 import { ChatMediaRenderer, isMediaMessage } from '@/components/chat/ChatMediaRenderer';
 import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
@@ -656,6 +657,7 @@ const ChatPage: React.FC = () => {
             className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer border-0 bg-transparent"
           >
             <div className="relative shrink-0">
+              <StoryRing userId={otherProfile?.user_id}>
               {otherProfile?.avatar_url ? (
                 <img
                   src={otherProfile.avatar_url}
@@ -669,6 +671,7 @@ const ChatPage: React.FC = () => {
                   </span>
                 </div>
               )}
+              </StoryRing>
               {onlineStatusState?.is_online && (
                 <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#22D3A0] ring-2 ring-[#0E0820] shadow-[0_0_8px_#22D3A0]" />
               )}

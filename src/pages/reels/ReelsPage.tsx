@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import StoryRing from '@/components/common/StoryRing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -494,12 +495,14 @@ const ReelCard: React.FC<{
           <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0 group">
             {/* Glowing multi-color neon avatar ring matching screenshot */}
             <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(168,85,247,0.8)] shrink-0">
+<StoryRing userId={profile?.user_id}>
               <Avatar className="w-8 h-8 rounded-full border border-black/60">
                 <AvatarImage src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="bg-gradient-to-tr from-indigo-600 to-purple-600 text-white text-[12px] font-bold flex items-center justify-center">
                   {profile?.username?.[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
+              </StoryRing>
             </div>
             <span className="text-white font-bold text-sm truncate group-hover:text-primary transition-colors">@{profile?.username}</span>
             {profile?.is_verified && <BadgeCheck className="w-4 h-4 text-sky-400 shrink-0" />}

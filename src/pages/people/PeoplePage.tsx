@@ -1,4 +1,5 @@
 // लोग/डिस्कवर पेज — Ultra-smooth native scrolling People List
+import StoryRing from '@/components/common/StoryRing';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -321,11 +322,13 @@ const PeoplePage: React.FC = () => {
                   >
                     <div className="people-ring" aria-hidden="true" />
                     <div className="people-inner">
+                      <StoryRing userId={profile.user_id} className="w-full h-full">
                       {profile.avatar_url ? (
                         <img src={profile.avatar_url} alt={profile.username} />
                       ) : (
                         <span>{initial}</span>
                       )}
+                      </StoryRing>
                     </div>
                   </div>
 
