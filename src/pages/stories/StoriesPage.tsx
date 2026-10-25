@@ -15,7 +15,9 @@ import PostCard from '@/components/common/PostCard';
 import PullToRefresh from '@/components/common/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, X, ChevronLeft, ChevronRight, Trash2, ImagePlus, Film, Loader2, Share2, Heart, Eye, Send, Clock, Music2, Pencil } from 'lucide-react';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { getStoryTapDirection } from './storyNavigation';
+import { Plus, X, MoreVertical, Trash2, ImagePlus, Film, Loader2, Share2, Heart, Send, Clock, Music2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
 import MusicPickerSheet from '@/components/reels/MusicPickerSheet';
@@ -238,12 +240,12 @@ const StoriesPage: React.FC = () => {
   }, []);
 
   const nextStory = () => {
-    if (!viewerGroup) return;
+    if (!viewerGroup || !viewerUserId) return;
     setShowReply(false);
     if (storyIndex < viewerGroup.stories.length - 1) {
       setStoryIndex(i => i + 1);
     } else {
-      const ci = groupKeys.indexOf(viewerUserId!);
+      const ci = groupKeys.indexOf(viewerUserId);
       if (ci < groupKeys.length - 1) { setViewerUserId(groupKeys[ci + 1]); setStoryIndex(0); }
       else closeViewer();
     }
@@ -450,15 +452,19 @@ const StoriesPage: React.FC = () => {
       </div>
 
       {/* Story viewer — pura full screen (bottom nav ke upar) */}
-      {viewerUserId && currentStory && createPortal(
+      {viewerUserId && viewerGroup && currentStory && createPortal(
         <div
           className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overscroll-none"
           style={{ height: '100dvh', width: '100vw' }}
-          onClick={nextStory}
+          onClick={e => {
+            const bounds = e.currentTarget.getBoundingClientRect();
+            if (getStoryTapDirection(e.clientX, bounds.left, bounds.width) === 'previous') prevStory();
+            else nextStory();
+          }}
         >
           {/* Progress bars */}
           <div className="absolute top-0 left-0 right-0 flex gap-1 p-3 z-10">
-            {viewerGroup!.stories.map((_, i) => (
+            {viewerGroup.stories.map((_, i) => (
               <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
                 <div className={`h-full bg-white transition-all ${i < storyIndex ? 'w-full' : i === storyIndex ? 'w-full' : 'w-0'}`} />
               </div>
@@ -466,19 +472,19 @@ const StoriesPage: React.FC = () => {
           </div>
 
           {/* User info */}
-          <div className="absolute top-8 left-4 flex items-center gap-2 z-10" onClick={e => e.stopPropagation()}>
-            <button onClick={() => { closeViewer(); navigate(`/profile/${viewerGroup!.profile.user_id}`); }}>
-              {viewerGroup!.profile.avatar_url ? (
-                <img src={viewerGroup!.profile.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-white" />
+          <div className="absolute top-8 left-4 right-16 flex items-center gap-2 z-10 min-w-0" onClick={e => e.stopPropagation()}>
+            <button onClick={() => { closeViewer(); navigate(`/profile/${viewerGroup.profile.user_id}`); }}>
+              {viewerGroup.profile.avatar_url ? (
+                <img src={viewerGroup.profile.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-white" />
               ) : (
                 <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">{viewerGroup!.profile.username[0]?.toUpperCase()}</span>
+                  <span className="text-white font-bold text-sm">{viewerGroup.profile.username[0]?.toUpperCase()}</span>
                 </div>
               )}
             </button>
-            <div>
-              <button onClick={() => { closeViewer(); navigate(`/profile/${viewerGroup!.profile.user_id}`); }}>
-                <p className="text-white font-semibold text-sm">{viewerGroup!.profile.username}</p>
+            <div className="min-w-0">
+              <button className="max-w-full" onClick={() => { closeViewer(); navigate(`/profile/${viewerGroup.profile.user_id}`); }}>
+                <p className="text-white font-semibold text-sm truncate">{viewerGroup.profile.username}</p>
               </button>
               {currentStory.music_title ? (
                 <div className="flex items-center gap-1.5 text-white/95 text-xs bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full mt-0.5 w-fit">
@@ -500,43 +506,29 @@ const StoriesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Close & Delete & Share */}
-          <div className="absolute top-8 right-4 flex items-center gap-2 z-10" onClick={e => e.stopPropagation()}>
-            {currentStory.user_id === user?.id && (
-              <>
-                {/* Views & Likes count for own story */}
-                <div className="flex items-center gap-3 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1.5">
-                  <button
-                    className="flex items-center gap-1 text-white text-xs"
-                    onClick={() => openViewersSheet('all')}
-                  >
-                    <Eye className="w-3 h-3" />{ownViewCount}
-                  </button>
-                  <button
-                    className="flex items-center gap-1 text-white text-xs"
-                    onClick={() => openViewersSheet('liked')}
-                  >
-                    <Heart className="w-3 h-3" />{ownLikeCount}
-                  </button>
-                </div>
-                <button onClick={() => handleDeleteStory(currentStory.id)} className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
-            )}
-            <button
-              onClick={() => {
-                const url = window.location.origin;
-                if (navigator.share) navigator.share({ title: 'Pixelgram Story', url }).catch(() => {});
-                else navigator.clipboard.writeText(url).then(() => toast.success('Link copied!')).catch(() => {});
-              }}
-              className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
-            >
-              <Share2 className="w-4 h-4" />
-            </button>
-            <button onClick={closeViewer} className="p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors">
-              <X className="w-4 h-4" />
-            </button>
+          {/* Story actions — no top counters or separate close/share/delete buttons */}
+          <div className="absolute top-8 right-4 z-10" onClick={e => e.stopPropagation()}>
+            <DropdownMenu key={currentStory.id}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Story options" className="h-10 w-10 rounded-full">
+                  <MoreVertical className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-[110]" onClick={e => e.stopPropagation()}>
+                <DropdownMenuItem onSelect={() => {
+                  const url = window.location.origin;
+                  if (navigator.share) navigator.share({ title: 'Pixelgram Story', url }).catch(() => {});
+                  else navigator.clipboard.writeText(url).then(() => toast.success('Link copied!')).catch(() => {});
+                }}>
+                  <Share2 className="w-4 h-4" /> Share story
+                </DropdownMenuItem>
+                {currentStory.user_id === user?.id && (
+                  <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => { void handleDeleteStory(currentStory.id); }}>
+                    <Trash2 className="w-4 h-4" /> Delete story
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Story media — image or video */}
@@ -549,7 +541,6 @@ const StoriesPage: React.FC = () => {
               loop
               playsInline
               muted={!!currentStory.music_preview_url && !!currentStory.mute_original}
-              onClick={e => e.stopPropagation()}
             />
           ) : (
             <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-contain bg-black" />
@@ -631,14 +622,6 @@ const StoriesPage: React.FC = () => {
             </div>
           )}
 
-          {storyIndex > 0 && (
-            <button onClick={e => { e.stopPropagation(); prevStory(); }} className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/20 text-white">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-          )}
-          <button onClick={e => { e.stopPropagation(); nextStory(); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/20 text-white">
-            <ChevronRight className="w-5 h-5" />
-          </button>
         </div>,
         document.body
       )}
