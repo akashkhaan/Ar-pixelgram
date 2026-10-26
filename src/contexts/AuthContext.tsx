@@ -64,11 +64,28 @@ function getInitialCachedUser(): User | null {
   return null;
 }
 
+function getInitialCachedProfile(): Profile | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('pixelgram_cached_profile');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(getInitialCachedUser);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfileState] = useState<Profile | null>(getInitialCachedProfile);
+  const setProfile = useCallback((p: Profile | null) => {
+    setProfileState(p);
+    try {
+      if (p) localStorage.setItem('pixelgram_cached_profile', JSON.stringify(p));
+      else localStorage.removeItem('pixelgram_cached_profile');
+    } catch {}
+  }, []);
   const [loading, setLoading] = useState<boolean>(() => !getInitialCachedUser());
 
   // Register service worker + subscribe this device to Web Push so incoming

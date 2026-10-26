@@ -72,7 +72,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 }
 
 
-void bootLiveWebsite();
+// Local bundle instant boot
 
 try {
   if (typeof window !== 'undefined') {

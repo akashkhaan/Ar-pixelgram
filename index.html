@@ -24,10 +24,58 @@
         min-height: 100%;
         overflow-x: hidden;
       }
+      @keyframes pulseSlow {
+        0%, 100% { opacity: 0.35; }
+        50% { opacity: 0.7; }
+      }
+      .shell-shimmer {
+        animation: pulseSlow 1.5s ease-in-out infinite;
+      }
     </style>
   </head>
   <body class="dark bg-[#0B0B0F] text-foreground select-none" style="background-color: #0B0B0F !important;">
-    <div id="root" style="background-color: #0B0B0F !important; min-height: 100vh;"></div>
+    <div id="root" style="background-color: #0B0B0F !important; min-height: 100vh;">
+      <!-- Instant 0ms Native App Shell (Instagram Style) -->
+      <div style="position: fixed; inset: 0; background-color: #0B0B0F; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; z-index: 1;">
+        <!-- Top Elevated Bar -->
+        <div style="padding-top: max(env(safe-area-inset-top, 0px), 8px); padding-left: 16px; padding-right: 16px; height: 56px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #FF3D7F;"></div>
+            <span style="font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 19px; color: #ffffff; letter-spacing: 0.5px;">रील्स</span>
+          </div>
+          <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(255, 255, 255, 0.08); display: flex; align-items: center; justify-content: center; font-size: 20px; color: rgba(255,255,255,0.7);">+</div>
+        </div>
+
+        <!-- Center Shimmer Placeholder Area -->
+        <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; padding-bottom: 70px; gap: 12px; position: relative;">
+          <!-- Right Action Icons Skeleton -->
+          <div style="position: absolute; right: 14px; bottom: 85px; display: flex; flex-direction: column; align-items: center; gap: 18px;">
+            <div class="shell-shimmer" style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, 0.1);"></div>
+            <div class="shell-shimmer" style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, 0.1);"></div>
+            <div class="shell-shimmer" style="width: 38px; height: 38px; border-radius: 50%; background: rgba(255, 255, 255, 0.1);"></div>
+          </div>
+          <!-- User info skeleton -->
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="shell-shimmer" style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.15);"></div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div class="shell-shimmer" style="width: 110px; height: 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.15);"></div>
+              <div class="shell-shimmer" style="width: 70px; height: 9px; border-radius: 5px; background: rgba(255, 255, 255, 0.09);"></div>
+            </div>
+          </div>
+          <div class="shell-shimmer" style="width: 65%; height: 11px; border-radius: 6px; background: rgba(255, 255, 255, 0.1);"></div>
+          <div class="shell-shimmer" style="width: 130px; height: 18px; border-radius: 10px; background: rgba(255, 255, 255, 0.08);"></div>
+        </div>
+
+        <!-- Bottom Navigation Bar Skeleton -->
+        <div style="height: 54px; padding-bottom: max(env(safe-area-inset-bottom, 0px), 2px); display: flex; align-items: center; justify-content: space-around; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(11, 11, 15, 0.95);">
+          <div style="width: 22px; height: 22px; border-radius: 6px; background: #FF3D7F; opacity: 0.9;"></div>
+          <div class="shell-shimmer" style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255, 255, 255, 0.15);"></div>
+          <div class="shell-shimmer" style="width: 26px; height: 26px; border-radius: 8px; background: rgba(255, 255, 255, 0.2);"></div>
+          <div class="shell-shimmer" style="width: 22px; height: 22px; border-radius: 6px; background: rgba(255, 255, 255, 0.15);"></div>
+          <div class="shell-shimmer" style="width: 24px; height: 24px; border-radius: 50%; background: rgba(255, 255, 255, 0.15);"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

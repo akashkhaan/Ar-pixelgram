@@ -620,13 +620,22 @@ const ReelsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [reels, setReels] = useState<Reel[]>(() => {
     try {
-      const cached = sessionStorage.getItem('pixelgram_cached_reels');
+      const cached = localStorage.getItem('pixelgram_cached_reels') || sessionStorage.getItem('pixelgram_cached_reels');
       return cached ? JSON.parse(cached) : [];
     } catch {
       return [];
     }
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(() => {
+    try {
+      const cached = localStorage.getItem('pixelgram_cached_reels') || sessionStorage.getItem('pixelgram_cached_reels');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch {}
+    return true;
+  });
   const [activeIndex, setActiveIndex] = useState(0);
   const [openCommentsFor, setOpenCommentsFor] = useState<string | null>(null);
   const [highlightCommentFor, setHighlightCommentFor] = useState<string | null>(null);
@@ -671,6 +680,7 @@ const ReelsPage: React.FC = () => {
       setReels(data);
       try {
         if (data && data.length > 0) {
+          localStorage.setItem('pixelgram_cached_reels', JSON.stringify(data.slice(0, 15)));
           sessionStorage.setItem('pixelgram_cached_reels', JSON.stringify(data.slice(0, 15)));
         }
       } catch {}
@@ -908,7 +918,52 @@ const ReelsPage: React.FC = () => {
   // capped by withTimeout, and we only paint a plain backdrop for the few
   // hundred ms it takes, so nobody can get stuck on a spinner.
   if (loading) {
-    return <div className="h-[100dvh] bg-black" />;
+    return (
+      <div className="h-[100dvh] w-full bg-[#0B0B0F] relative flex flex-col justify-between overflow-hidden select-none">
+        <div
+          className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4"
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)', height: '56px' }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#FF3D7F] animate-ping" />
+            <span className="text-white font-bold text-lg tracking-wide">रील्स</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/create-reel')}
+            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-95 transition-transform"
+          >
+            <Plus className="w-5 h-5 text-white" />
+          </button>
+        </div>
+        <div className="flex-1 w-full flex items-center justify-center relative">
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/85" />
+          <div className="w-14 h-14 rounded-full bg-white/5 animate-pulse flex items-center justify-center">
+            <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-white/20 border-b-[8px] border-b-transparent ml-1" />
+          </div>
+        </div>
+        <div className="absolute right-3.5 bottom-24 z-20 flex flex-col items-center gap-5">
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+            <div className="w-5 h-2 rounded bg-white/10" />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+            <div className="w-5 h-2 rounded bg-white/10" />
+          </div>
+          <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+        </div>
+        <div className="absolute left-4 bottom-20 z-20 max-w-[75%] space-y-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-full bg-white/15 animate-pulse" />
+            <div className="w-28 h-3.5 rounded bg-white/15 animate-pulse" />
+          </div>
+          <div className="w-48 h-3 rounded bg-white/10" />
+          <div className="w-36 h-5 rounded-full bg-white/10" />
+        </div>
+        <BottomNav />
+      </div>
+    );
   }
 
   if (!reels.length) {

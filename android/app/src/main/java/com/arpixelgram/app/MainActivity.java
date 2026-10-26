@@ -167,12 +167,14 @@ public class MainActivity extends BridgeActivity {
         androidx.core.splashscreen.SplashScreen splashScreen = androidx.core.splashscreen.SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
         final long appBootTime = System.currentTimeMillis();
-        splashScreen.setKeepOnScreenCondition(() -> !isWebReady && (System.currentTimeMillis() - appBootTime < 1800));
+        splashScreen.setKeepOnScreenCondition(() -> !isWebReady && (System.currentTimeMillis() - appBootTime < 1000));
         instance = this;
         createNotificationChannels();
 
         WebView webView = getBridge().getWebView();
         WebSettings settings = webView.getSettings();
+        webView.setBackgroundColor(Color.parseColor("#0B0B0F"));
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
