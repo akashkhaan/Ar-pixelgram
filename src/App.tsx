@@ -5,7 +5,9 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from "react-router-dom";
+import { audioPlayerService } from "@/services/audioPlayerService";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -62,6 +64,35 @@ const VisitTracker: React.FC = () => {
   return null;
 };
 
+const GlobalAudioAutoStopper: React.FC = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!location.pathname.startsWith('/song/')) {
+      audioPlayerService.stop();
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const stopAll = () => {
+      audioPlayerService.stop();
+      document.querySelectorAll('audio').forEach((a) => {
+        try { a.pause(); } catch {}
+      });
+    };
+    window.addEventListener('popstate', stopAll);
+    window.addEventListener('appCallBackPressed', stopAll);
+    window.addEventListener('pagehide', stopAll);
+    return () => {
+      window.removeEventListener('popstate', stopAll);
+      window.removeEventListener('appCallBackPressed', stopAll);
+      window.removeEventListener('pagehide', stopAll);
+    };
+  }, []);
+
+  return null;
+};
+
 const App: React.FC = () => {
   useEffect(() => {
     try {
@@ -77,6 +108,7 @@ const App: React.FC = () => {
           <CallProvider>
             <GroupCallProvider>
               <VisitTracker />
+              <GlobalAudioAutoStopper />
               <UploadAutoResumer />
               <RouteGuard>
                 <Routes>

@@ -96,7 +96,26 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
     pause,
     resume,
     playNext,
+    stop,
   } = useAudioPlayer();
+
+  // Clean up and stop audio when sheet closes or unmounts (prevents audio playing in background)
+  useEffect(() => {
+    return () => {
+      audioPlayerService.stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      audioPlayerService.stop();
+    }
+  }, [open]);
+
+  const handleDismiss = () => {
+    audioPlayerService.stop();
+    onClose();
+  };
   const [selectedTrack, setSelectedTrack] = useState<MusicTrack | null>(null);
   const activeAudioTrack = globalTrack || selectedTrack;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -329,7 +348,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
           {/* Close sheet */}
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleDismiss}
             className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center shrink-0"
           >
             <X className="w-5 h-5 text-white" />

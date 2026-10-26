@@ -16,7 +16,7 @@ import useGoBack from '@/hooks/use-go-back';
 import { isLegacyMediaUrl, firstFrameSrc } from '@/lib/mediaUrl';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Reel } from '@/services/api';
-import {createNotification, followUser, getFollowersCount,
+import {createNotification, followUser, getFollowersCount, cleanDisplayCaption,
   getFollowingCount, getFollowStatus, 
   getProfile, getUserPosts, getUserReels,unfollowUser, updateProfile, 
   uploadImage 
@@ -626,24 +626,37 @@ const ProfilePage: React.FC = () => {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-[1px] bg-border">
+              <div className="grid grid-cols-3 gap-[2px] bg-border/40">
                 {reels.map(reel => (
-                  <div key={reel.id} className="aspect-[9/16] w-full bg-black overflow-hidden group relative cursor-pointer"
+                  <div key={reel.id} className="aspect-[9/16] w-full bg-gradient-to-br from-[#1a1429] via-[#0f0e17] to-[#1e1022] border border-white/5 overflow-hidden group relative cursor-pointer active:scale-[0.98] transition-all"
                     onClick={() => navigate(`/reels?r=${reel.id}`)}>
                     {reel.thumbnail_url ? (
                       <SmartImage src={reel.thumbnail_url} compact className="transition-transform group-hover:scale-105" />
                     ) : (
                       isLegacyMediaUrl(reel.video_url) ? (
-                      <SmartImage src={null} compact />
-                    ) : (
-                      <video src={firstFrameSrc(reel.video_url)} className="w-full h-full object-cover" muted playsInline preload="metadata" />
-                    )
+                        <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-gradient-to-tr from-purple-900/30 to-pink-900/20">
+                          <Film className="w-6 h-6 text-muted-foreground/60 mb-1" />
+                          <span className="text-[10px] text-muted-foreground/75 truncate max-w-full">Reel</span>
+                        </div>
+                      ) : (
+                        <div className="relative w-full h-full flex flex-col justify-between p-2 bg-gradient-to-tr from-indigo-950/60 via-zinc-900/80 to-purple-950/50">
+                          <video src={firstFrameSrc(reel.video_url)} className="absolute inset-0 w-full h-full object-cover opacity-85" muted playsInline preload="metadata" />
+                          <div className="relative z-10 flex justify-end">
+                            <span className="text-[9px] font-bold text-white/80 bg-black/45 backdrop-blur-xs px-1.5 py-0.5 rounded-full">Reel</span>
+                          </div>
+                          {reel.caption && (
+                            <p className="relative z-10 text-[10px] text-white/90 font-medium line-clamp-2 leading-tight drop-shadow-sm">
+                              {cleanDisplayCaption(reel.caption)}
+                            </p>
+                          )}
+                        </div>
+                      )
                     )}
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                      <Play className="w-6 h-6 text-white drop-shadow-lg" fill="white" />
+                    <div className="absolute inset-0 bg-black/15 group-hover:bg-black/5 transition-colors flex items-center justify-center pointer-events-none">
+                      <Play className="w-6 h-6 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" fill="white" />
                     </div>
-                    <div className="absolute bottom-1 right-1.5 flex items-center gap-1 bg-black/40 rounded-full px-1.5 py-0.5">
-                      <Play className="w-3 h-3 text-white" fill="white" />
+                    <div className="absolute bottom-1 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-xs rounded-full px-1.5 py-0.5 shadow-sm pointer-events-none">
+                      <Play className="w-2.5 h-2.5 text-white" fill="white" />
                       <span className="text-white text-[10px] font-semibold">{reel.views_count || 0}</span>
                     </div>
                   </div>

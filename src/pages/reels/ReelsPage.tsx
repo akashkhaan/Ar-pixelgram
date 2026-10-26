@@ -160,15 +160,18 @@ const ReelCard: React.FC<{
     }
   }, [isActive]);
 
-  // Reel ka gana — video ke saath play/pause aur chosen start point se loop
+  // Reel ka gana — strictly synchronized: ONLY plays when video is actually rendered & playing
   useEffect(() => {
     const a = audioRef.current;
     const v = videoRef.current;
     if (!a || !hasMusic) return;
-
-    if (isActive) {
+    if (isActive && videoReady) {
       let isCancelled = false;
-      try { a.currentTime = musicStart; } catch {}
+      try {
+        if (Math.abs(a.currentTime - musicStart) > 1) {
+          a.currentTime = musicStart;
+        }
+      } catch {}
       a.play().catch(() => {});
 
       const syncAudioOnVideoLoop = () => {
@@ -180,21 +183,25 @@ const ReelCard: React.FC<{
       };
       const onVideoPlay = () => {
         if (isCancelled || !isActive) return;
-        if (a.paused) {
+        if (a.paused && videoReady) {
           a.play().catch(() => {});
         }
+      };
+      const onVideoPause = () => {
+        try { a.pause(); } catch {}
       };
 
       if (v) {
         v.addEventListener('timeupdate', syncAudioOnVideoLoop);
         v.addEventListener('play', onVideoPlay);
+        v.addEventListener('pause', onVideoPause);
       }
-
       return () => {
         isCancelled = true;
         if (v) {
           v.removeEventListener('timeupdate', syncAudioOnVideoLoop);
           v.removeEventListener('play', onVideoPlay);
+          v.removeEventListener('pause', onVideoPause);
         }
         try {
           a.pause();
@@ -207,7 +214,7 @@ const ReelCard: React.FC<{
         a.currentTime = musicStart;
       } catch {}
     }
-  }, [isActive, hasMusic, musicStart]);
+  }, [isActive, videoReady, hasMusic, musicStart]);
 
   // Ensure video and audio always pause when ReelCard unmounts
   useEffect(() => {
@@ -292,32 +299,44 @@ const ReelCard: React.FC<{
   const profile = reel.profile as { username: string; full_name: string | null; avatar_url: string | null; is_verified: boolean; is_private: boolean; user_id: string } | undefined;
 
   return (
-    <div className="relative w-full h-full bg-black select-none">
-      {/* Purane (band ho chuke) server ka video kabhi chalega nahi — kaali
-          screen ki jagah saaf message dikhao. */}
+    <div className="relative w-full h-full bg-gradient-to-b from-[#13121d] via-[#0d0c15] to-[#07070b] select-none">
+      {/* Purane (band ho chuke) server ka video kabhi chalega nahi */}
       {isLegacyMediaUrl(reel.video_url) ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black text-white/70 px-8 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#12111d] text-white/70 px-8 text-center">
           <VideoOff className="w-10 h-10" />
           <p className="text-sm">Yeh reel purane server par thi, video ab available nahi hai.</p>
         </div>
       ) : isNear ? (
         <>
-          {/* Shimmer/Poster placeholder while video buffers */}
-        {!videoReady && !isLegacyMediaUrl(reel.video_url) && (
-          <div className="absolute inset-0 bg-gradient-to-b from-zinc-950 via-[#0d0d16] to-black flex flex-col items-center justify-center pointer-events-none z-0">
-            {reel.thumbnail_url ? (
-              <img src={reel.thumbnail_url} alt="" className="w-full h-full object-cover blur-xs brightness-75 scale-105" />
-            ) : (
-              <div className="w-12 h-12 rounded-full border border-indigo-500/30 bg-indigo-500/10 flex items-center justify-center animate-pulse">
-                <span className="text-xl">✨</span>
+        {/* Instant Poster & Shimmer Placeholder (Never solid black) */}
+        <div
+          className={
+            "absolute inset-0 z-10 transition-opacity duration-300 pointer-events-none " +
+            (videoReady ? "opacity-0" : "opacity-100")
+          }
+        >
+          {reel.thumbnail_url ? (
+            <img
+              src={reel.thumbnail_url}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-tr from-purple-950/70 via-zinc-900 to-indigo-950/70 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center animate-pulse">
+                <span className="text-2xl">🎬</span>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
+
         <video
           ref={videoRef}
           src={reel.video_url}
-          className={"absolute inset-0 w-full h-full object-cover transition-opacity duration-300 " + (videoReady ? "opacity-100" : "opacity-85")}
+          className={
+            "absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-0 " +
+            (videoReady ? "opacity-100" : "opacity-0")
+          }
           muted={muteOriginal}
           autoPlay={isActive}
           loop
@@ -329,6 +348,22 @@ const ReelCard: React.FC<{
             if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
             setIsBufferingSlow(false);
             setVideoReady(true);
+            if (isActive && hasMusic && audioRef.current) {
+              try {
+                if (Math.abs(audioRef.current.currentTime - musicStart) > 1) {
+                  audioRef.current.currentTime = musicStart;
+                }
+                audioRef.current.play().catch(() => {});
+              } catch {}
+            }
+          }}
+          onPause={() => {
+            audioRef.current?.pause();
+          }}
+          onSeeked={() => {
+            if (audioRef.current && videoRef.current) {
+              audioRef.current.currentTime = musicStart + videoRef.current.currentTime;
+            }
           }}
           onWaiting={() => {
             if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
@@ -371,25 +406,10 @@ const ReelCard: React.FC<{
         <audio
           ref={audioRef}
           src={reel.music_preview_url || undefined}
-          preload={isActive ? 'auto' : 'none'}
+          preload="auto"
           playsInline
-          onLoadedMetadata={(e) => {
-            try { e.currentTarget.currentTime = musicStart; } catch {}
-            if (isActive) {
-              e.currentTarget.play().catch(() => {});
-            } else {
-              e.currentTarget.pause();
-            }
-          }}
-          onCanPlay={(e) => {
-            if (isActive && e.currentTarget.paused) {
-              e.currentTarget.play().catch(() => {});
-            } else if (!isActive && !e.currentTarget.paused) {
-              e.currentTarget.pause();
-            }
-          }}
           onEnded={(e) => {
-            if (isActive) {
+            if (isActive && videoReady) {
               try { e.currentTarget.currentTime = musicStart; } catch {}
               e.currentTarget.play().catch(() => {});
             } else {

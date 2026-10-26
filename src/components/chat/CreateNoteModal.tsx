@@ -106,6 +106,14 @@ export const CreateNoteModal: React.FC<Props> = ({
     }
   };
 
+  const handleDismiss = () => {
+    if (audioRef.current) {
+      try { audioRef.current.pause(); } catch {}
+    }
+    setIsPlaying(false);
+    onClose();
+  };
+
   const handleShare = async () => {
     if (!text.trim() && !selectedTrack) {
       toast.error("Kuch likhein ya gaana add karein");
@@ -157,7 +165,7 @@ export const CreateNoteModal: React.FC<Props> = ({
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleDismiss}
             className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
           >
             <X className="w-5 h-5" />

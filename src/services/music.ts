@@ -40,7 +40,7 @@ export function decryptSaavnMediaUrl(encUrl: string): string {
     );
     const dec = decrypted.toString(CryptoJS.enc.Utf8);
     if (!dec || !dec.startsWith('http')) return '';
-    return dec.replace('_96.', '_320.');
+    return dec.replace('_96.', '_160.');
   } catch {
     return '';
   }
@@ -473,9 +473,9 @@ function extractSaavnImage(img: any): string {
 function extractSaavnAudio(downloadUrl: any): string {
   if (Array.isArray(downloadUrl)) {
     const best =
-      downloadUrl.find((d: any) => d.quality === '320kbps') ||
       downloadUrl.find((d: any) => d.quality === '160kbps') ||
       downloadUrl.find((d: any) => d.quality === '96kbps') ||
+      downloadUrl.find((d: any) => d.quality === '320kbps') ||
       downloadUrl[downloadUrl.length - 1];
     return best?.url || best?.link || '';
   }

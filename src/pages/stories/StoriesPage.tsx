@@ -454,7 +454,7 @@ const StoriesPage: React.FC = () => {
       {/* Story viewer — pura full screen (bottom nav ke upar) */}
       {viewerUserId && viewerGroup && currentStory && createPortal(
         <div
-          className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center overscroll-none"
+          className="fixed inset-0 z-[100] bg-gradient-to-b from-[#181528] via-[#0d0c15] to-[#12101e] flex flex-col items-center justify-center overscroll-none"
           style={{ height: '100dvh', width: '100vw' }}
           onClick={e => {
             const bounds = e.currentTarget.getBoundingClientRect();
@@ -531,19 +531,26 @@ const StoriesPage: React.FC = () => {
             </DropdownMenu>
           </div>
 
+          {/* Ambient blurred backdrop so screen is never pure black */}
+          <div
+            className="absolute inset-0 bg-cover bg-center filter blur-3xl opacity-35 scale-110 pointer-events-none"
+            style={{
+              backgroundImage: `url(${currentStory.image_url || ''})`,
+            }}
+          />
           {/* Story media — image or video */}
           {currentIsVideo ? (
             <video
               ref={videoViewerRef}
               src={currentStory.image_url}
-              className="absolute inset-0 w-full h-full object-contain bg-black"
+              className="absolute inset-0 w-full h-full object-contain"
               autoPlay
               loop
               playsInline
               muted={!!currentStory.music_preview_url && !!currentStory.mute_original}
             />
           ) : (
-            <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-contain bg-black" />
+            <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-contain" />
           )}
 
           {/* Story background audio */}

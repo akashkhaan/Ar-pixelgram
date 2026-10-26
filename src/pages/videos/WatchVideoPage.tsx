@@ -362,7 +362,7 @@ const WatchVideoPage: React.FC = () => {
 
   if (!video) {
     return (
-      <div className="min-h-screen bg-black text-white flex flex-col">
+      <div className="min-h-screen bg-gradient-to-b from-[#151322] to-[#0c0a14] text-white flex flex-col">
         <div className="h-14 flex items-center px-4">
           <button onClick={goBack} className="p-2 rounded-full bg-white/10 text-white">
             <ArrowLeft className="w-5 h-5" />
@@ -381,7 +381,7 @@ const WatchVideoPage: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-background flex flex-col select-none overflow-hidden">
       {/* 1. VIDEO PLAYER */}
-      <div className="relative w-full bg-black shrink-0 z-30 shadow-md" style={{ aspectRatio: '16 / 9' }}>
+      <div className="relative w-full bg-gradient-to-b from-[#181628] to-[#0e0c18] shrink-0 z-30 shadow-md" style={{ aspectRatio: '16 / 9' }}>
         <video
           ref={videoRef}
           key={video.id}
