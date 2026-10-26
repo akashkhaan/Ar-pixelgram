@@ -1821,6 +1821,11 @@ const ChatListPage: React.FC = () => {
                 note={activeViewingNote}
                 currentUserId={user.id}
                 isOwnNote={activeViewingNote?.user_id === user.id}
+                onEditNote={() => {
+                  NoteAudioManager.stop();
+                  setActiveViewingNote(null);
+                  setCreateNoteOpen(true);
+                }}
                 onNoteDeleted={() => {
                   NoteAudioManager.stop();
                   setActiveViewingNote(null);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   Music2,
@@ -6,8 +7,6 @@ import {
   Pause,
   Trash2,
   Share2,
-  Sparkles,
-  Volume2,
 } from "lucide-react";
 import MusicPickerSheet from "@/components/reels/MusicPickerSheet";
 import MusicTrimmer from "@/components/reels/MusicTrimmer";
@@ -66,6 +65,14 @@ export const CreateNoteModal: React.FC<Props> = ({
         setMusicStartMs(0);
       }
       setIsPlaying(false);
+    } else {
+      if (audioRef.current) {
+        try {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        } catch {}
+      }
+      setIsPlaying(false);
     }
   }, [open, existingNote]);
 
@@ -74,7 +81,7 @@ export const CreateNoteModal: React.FC<Props> = ({
     const preview = selectedTrack?.preview_url || (selectedTrack as any)?.previewUrl;
     if (!preview) {
       if (audioRef.current) {
-        audioRef.current.pause();
+        try { audioRef.current.pause(); } catch {}
       }
       setIsPlaying(false);
       return;
@@ -84,12 +91,14 @@ export const CreateNoteModal: React.FC<Props> = ({
     (audio as any).playsInline = true;
     audioRef.current = audio;
     audio.currentTime = (musicStartMs || 0) / 1000;
-
     audio.onended = () => setIsPlaying(false);
     audio.onerror = () => setIsPlaying(false);
 
     return () => {
-      audio.pause();
+      try {
+        audio.pause();
+        audio.src = "";
+      } catch {}
       audioRef.current = null;
     };
   }, [selectedTrack, musicStartMs]);
@@ -108,7 +117,10 @@ export const CreateNoteModal: React.FC<Props> = ({
 
   const handleDismiss = () => {
     if (audioRef.current) {
-      try { audioRef.current.pause(); } catch {}
+      try {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      } catch {}
     }
     setIsPlaying(false);
     onClose();
@@ -119,6 +131,7 @@ export const CreateNoteModal: React.FC<Props> = ({
       toast.error("Kuch likhein ya gaana add karein");
       return;
     }
+
     setSubmitting(true);
     try {
       const note = await postUserNote(
@@ -132,6 +145,9 @@ export const CreateNoteModal: React.FC<Props> = ({
           : null
       );
       toast.success("Note share ho gaya! ✨");
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+      }
       onNoteCreated(note);
       onClose();
     } catch (e: any) {
@@ -147,6 +163,9 @@ export const CreateNoteModal: React.FC<Props> = ({
     try {
       await deleteUserNote(existingNote.id);
       toast.success("Note delete ho gaya");
+      if (audioRef.current) {
+        try { audioRef.current.pause(); } catch {}
+      }
       onNoteCreated(null);
       onClose();
     } catch {
@@ -158,26 +177,34 @@ export const CreateNoteModal: React.FC<Props> = ({
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-sm rounded-3xl bg-card border border-border/80 shadow-2xl overflow-hidden flex flex-col">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4 animate-in fade-in duration-200"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleDismiss();
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-sm rounded-3xl bg-[#1A1233] text-[#F7F3FF] border border-white/15 shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+      >
         {/* Top Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-[#1A1233]">
           <button
             type="button"
             onClick={handleDismiss}
-            className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+            className="p-1 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
-          <h2 className="text-base font-bold text-foreground">
+          <h2 className="text-base font-bold text-[#F7F3FF]">
             {existingNote ? "Edit note" : "New note"}
           </h2>
           <button
             type="button"
             disabled={submitting || (!text.trim() && !selectedTrack)}
             onClick={handleShare}
-            className="px-4 py-1.5 rounded-full bg-primary text-primary-foreground font-semibold text-xs disabled:opacity-40 shadow-xs hover:bg-primary/90 transition-all flex items-center gap-1"
+            className="px-4 py-1.5 rounded-full bg-gradient-to-r from-[#FF3D7F] to-[#7C5CFF] text-white font-semibold text-xs disabled:opacity-40 shadow-md hover:opacity-90 transition-all flex items-center gap-1 cursor-pointer"
           >
             <Share2 className="w-3.5 h-3.5" />
             Share
@@ -185,20 +212,20 @@ export const CreateNoteModal: React.FC<Props> = ({
         </div>
 
         {/* Note Bubble Center Preview (Instagram Style) */}
-        <div className="p-6 flex flex-col items-center justify-center bg-radial from-primary/10 via-transparent to-transparent">
+        <div className="p-6 flex flex-col items-center justify-center bg-gradient-to-b from-[#7C5CFF]/15 via-transparent to-transparent">
           {/* Circular Avatar + Speech Bubble */}
           <div className="relative flex flex-col items-center mb-6">
             {/* Thought Bubble with text and song badge */}
-            <div className="relative mb-3.5 px-4 py-3 bg-card border border-border/80 rounded-2xl shadow-md max-w-[240px] text-center">
+            <div className="relative mb-3.5 px-4 py-3 bg-[#261C47] border border-white/20 rounded-2xl shadow-xl max-w-[240px] text-center">
               {/* Triangular / Bubble tails */}
-              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-card border-r border-b border-border/80 rotate-45" />
+              <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#261C47] border-r border-b border-white/20 rotate-45" />
 
               {/* Music pill inside bubble if selected */}
               {selectedTrack && (
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/90 border border-border/60 text-[11px] font-medium text-foreground mb-1.5 max-w-full truncate">
-                  <Music2 className="w-3 h-3 text-primary shrink-0 animate-pulse" />
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#1A1233] border border-white/15 text-[11px] font-medium text-white mb-1.5 max-w-full truncate shadow-sm">
+                  <Music2 className="w-3 h-3 text-[#FF3D7F] shrink-0 animate-pulse" />
                   <span className="truncate font-semibold">{selectedTrack.title}</span>
-                  <span className="text-muted-foreground text-[10px] truncate">· {selectedTrack.artist}</span>
+                  <span className="text-white/60 text-[10px] truncate">· {selectedTrack.artist}</span>
                 </div>
               )}
 
@@ -208,16 +235,16 @@ export const CreateNoteModal: React.FC<Props> = ({
                 onChange={(e) => setText(e.target.value.slice(0, 60))}
                 placeholder="Share a thought..."
                 rows={2}
-                className="w-full text-center text-sm font-medium bg-transparent text-foreground placeholder:text-muted-foreground outline-none resize-none"
+                className="w-full text-center text-sm font-medium bg-transparent text-[#F7F3FF] placeholder:text-[#A99FD2] outline-none resize-none"
                 autoFocus
               />
-              <div className="text-[10px] text-muted-foreground/60 text-right mt-0.5">
+              <div className="text-[10px] text-white/50 text-right mt-0.5">
                 {text.length}/60
               </div>
             </div>
 
             {/* Profile Avatar */}
-            <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-border/60 bg-muted flex items-center justify-center shadow-md">
+            <div className="w-16 h-16 rounded-full overflow-hidden ring-2 ring-[#7C5CFF]/60 bg-[#261C47] flex items-center justify-center shadow-lg">
               {myProfile?.avatar_url ? (
                 <img
                   src={myProfile.avatar_url}
@@ -225,27 +252,27 @@ export const CreateNoteModal: React.FC<Props> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="text-xl font-bold text-primary">
+                <span className="text-xl font-bold text-[#FF3D7F]">
                   {myProfile?.username?.[0]?.toUpperCase() || "Y"}
                 </span>
               )}
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground text-center">
+          <p className="text-xs text-[#A99FD2] text-center">
             Followers and people you follow can see this note for 24 hours.
           </p>
         </div>
 
         {/* Music Action Section */}
-        <div className="p-4 border-t border-border/40 bg-muted/20 flex flex-col gap-3">
+        <div className="p-4 border-t border-white/10 bg-[#120B24] flex flex-col gap-3">
           {selectedTrack ? (
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-card border border-border/80 shadow-xs">
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-[#261C47] border border-white/15 shadow-sm">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 {/* Artwork / Music Icon with Play Button */}
                 <div
                   onClick={togglePlayAudio}
-                  className="relative w-11 h-11 rounded-xl overflow-hidden bg-primary/20 flex items-center justify-center shrink-0 cursor-pointer group"
+                  className="relative w-11 h-11 rounded-xl overflow-hidden bg-gradient-to-tr from-[#7C5CFF]/30 to-[#FF3D7F]/30 flex items-center justify-center shrink-0 cursor-pointer group"
                 >
                   {selectedTrack.artwork_url ? (
                     <img
@@ -254,7 +281,7 @@ export const CreateNoteModal: React.FC<Props> = ({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <Music2 className="w-5 h-5 text-primary" />
+                    <Music2 className="w-5 h-5 text-[#FF3D7F]" />
                   )}
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity">
                     {isPlaying ? (
@@ -266,13 +293,13 @@ export const CreateNoteModal: React.FC<Props> = ({
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-foreground truncate">
+                  <p className="text-xs font-bold text-[#F7F3FF] truncate">
                     {selectedTrack.title}
                   </p>
-                  <p className="text-[11px] text-muted-foreground truncate">
+                  <p className="text-[11px] text-[#A99FD2] truncate">
                     {selectedTrack.artist}
                   </p>
-                  <p className="text-[10px] text-primary font-medium mt-0.5">
+                  <p className="text-[10px] text-[#22D3A0] font-medium mt-0.5">
                     Starts at {Math.floor(musicStartMs / 1000)}s
                   </p>
                 </div>
@@ -282,7 +309,7 @@ export const CreateNoteModal: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setTrimTrack(selectedTrack)}
-                  className="px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  className="px-2.5 py-1 text-xs font-semibold text-[#7C5CFF] hover:bg-[#7C5CFF]/15 rounded-lg transition-colors cursor-pointer"
                 >
                   Trim
                 </button>
@@ -291,10 +318,15 @@ export const CreateNoteModal: React.FC<Props> = ({
                   onClick={() => {
                     setSelectedTrack(null);
                     setMusicStartMs(0);
-                    if (audioRef.current) audioRef.current.pause();
+                    if (audioRef.current) {
+                      try {
+                        audioRef.current.pause();
+                        audioRef.current.src = "";
+                      } catch {}
+                    }
                     setIsPlaying(false);
                   }}
-                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                  className="p-1.5 text-white/50 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -304,9 +336,9 @@ export const CreateNoteModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setMusicPickerOpen(true)}
-              className="flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-border hover:border-primary/50 bg-card hover:bg-primary/5 transition-all text-sm font-semibold text-foreground group"
+              className="flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-white/20 hover:border-[#FF3D7F]/60 bg-[#261C47]/50 hover:bg-[#261C47] transition-all text-sm font-semibold text-[#F7F3FF] group cursor-pointer"
             >
-              <Music2 className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
+              <Music2 className="w-4 h-4 text-[#FF3D7F] group-hover:scale-110 transition-transform" />
               <span>Add music to note</span>
             </button>
           )}
@@ -317,7 +349,7 @@ export const CreateNoteModal: React.FC<Props> = ({
               type="button"
               disabled={submitting}
               onClick={handleDelete}
-              className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
+              className="flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete active note
@@ -360,7 +392,8 @@ export const CreateNoteModal: React.FC<Props> = ({
           }}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
 
