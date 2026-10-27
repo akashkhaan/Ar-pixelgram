@@ -63,6 +63,7 @@ const CreateReelPage: React.FC = () => {
   const recordedChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
   const [frontCamera, setFrontCamera] = useState(true);
 
   // Camera effects only; duration and other controls keep their existing state.
@@ -150,8 +151,9 @@ const CreateReelPage: React.FC = () => {
     }
   }, [location.state]);
 
-  // Start Camera Stream with multi-level constraint fallback
+  // Start Camera Stream with pure device facingMode (fastest negotiation)
   const startCamera = useCallback(async () => {
+    setCameraReady(false);
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
@@ -162,44 +164,31 @@ const CreateReelPage: React.FC = () => {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: frontCamera ? 'user' : 'environment',
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
           },
           audio: false,
         });
       } catch (err1) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: frontCamera ? 'user' : 'environment',
-            },
-            audio: false,
-          });
-        } catch (err2) {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
-          });
-        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
       }
       streamRef.current = stream;
-      if (videoStreamRef.current) {
-        const v = videoStreamRef.current;
+      setHasCameraPermission(true);
+
+      const v = videoStreamRef.current;
+      if (v) {
         v.muted = true;
         v.playsInline = true;
         v.setAttribute('playsinline', 'true');
         v.setAttribute('webkit-playsinline', 'true');
         v.srcObject = stream;
-        try {
-          await v.play();
-        } catch (playErr) {
-          console.warn('Video play error:', playErr);
-        }
+        v.play().catch(() => {});
       }
-      setHasCameraPermission(true);
     } catch (err) {
       console.warn('Camera permission denied or camera not found:', err);
       setHasCameraPermission(false);
+      setCameraReady(false);
     }
   }, [frontCamera]);
 
@@ -208,7 +197,25 @@ const CreateReelPage: React.FC = () => {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    if (videoStreamRef.current) {
+      videoStreamRef.current.srcObject = null;
+    }
+    setCameraReady(false);
   }, []);
+
+  // Continuous stream sync to video element
+  useEffect(() => {
+    const v = videoStreamRef.current;
+    const s = streamRef.current;
+    if (v && s && v.srcObject !== s) {
+      v.muted = true;
+      v.playsInline = true;
+      v.setAttribute('playsinline', 'true');
+      v.setAttribute('webkit-playsinline', 'true');
+      v.srcObject = s;
+      v.play().catch(() => {});
+    }
+  });
 
   // Camera management on step changes
   useEffect(() => {
@@ -327,6 +334,7 @@ const CreateReelPage: React.FC = () => {
 
   // Flip camera
   const toggleCameraFlip = () => {
+    setCameraReady(false);
     setFrontCamera((prev) => !prev);
   };
 
@@ -716,20 +724,35 @@ const CreateReelPage: React.FC = () => {
                 playsInline
                 muted
                 onLoadedMetadata={(e) => {
-                  try { (e.target as HTMLVideoElement).play(); } catch {}
+                  const target = e.currentTarget;
+                  target.muted = true;
+                  target.play().catch(() => {});
+                  setCameraReady(true);
                 }}
-                className="w-full h-full object-cover transition-all duration-300"
+                onCanPlay={(e) => {
+                  const target = e.currentTarget;
+                  target.muted = true;
+                  target.play().catch(() => {});
+                  setCameraReady(true);
+                }}
+                onPlay={() => {
+                  setCameraReady(true);
+                  setHasCameraPermission(true);
+                }}
+                className="w-full h-full object-cover"
                 style={{
                   transform: frontCamera ? 'scaleX(-1)' : 'none',
                 }}
               />
             )}
-            {hasCameraPermission === null && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-20 pointer-events-none">
-                <Loader2 className="w-9 h-9 text-white animate-spin opacity-80" />
+
+            {!cameraReady && hasCameraPermission !== false && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+                <Loader2 className="w-8 h-8 text-white animate-spin opacity-80" />
                 <span className="text-xs text-white/70 mt-2 font-medium">Opening camera...</span>
               </div>
             )}
+
             {hasCameraPermission === true && selectedEffect && selectedEffect.id !== 'none' && (
               <canvas ref={effectCanvasRef} className="camera-effect-output" aria-label="Live camera with selected effect" />
             )}
