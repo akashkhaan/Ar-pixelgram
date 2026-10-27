@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import StoryRing from '@/components/common/StoryRing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Trash2, VideoOff, UserCheck } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, cleanDisplayCaption, type Reel } from '@/services/api';
@@ -226,11 +226,13 @@ const ReelCard: React.FC<{
 
   // Count a view once this reel has actually been watched for a moment
   // (avoids counting a quick scroll-past as a "view").
+  const [viewsCount, setViewsCount] = useState(reel.views_count || 0);
   const viewRecordedRef = useRef(false);
   useEffect(() => {
     if (!isActive || viewRecordedRef.current) return;
     const t = setTimeout(() => {
       viewRecordedRef.current = true;
+      setViewsCount(c => c + 1);
       recordReelView(reel.id).catch(() => {});
     }, 1500);
     return () => clearTimeout(t);
@@ -297,7 +299,7 @@ const ReelCard: React.FC<{
   const profile = reel.profile as { username: string; full_name: string | null; avatar_url: string | null; is_verified: boolean; is_private: boolean; user_id: string } | undefined;
 
   return (
-    <div className="relative mx-auto h-full w-full max-w-[430px] overflow-hidden bg-black select-none">
+    <div className="relative w-full h-full bg-gradient-to-b from-[#13121d] via-[#0d0c15] to-[#07070b] select-none">
       {/* Purane (band ho chuke) server ka video kabhi chalega nahi */}
       {isLegacyMediaUrl(reel.video_url) ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#12111d] text-white/70 px-8 text-center">
@@ -418,81 +420,46 @@ const ReelCard: React.FC<{
       )}
 
       {/* Gradient overlays */}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(180deg,rgba(0,0,0,.45) 0,transparent 18%,transparent 55%,rgba(0,0,0,.72) 100%)" }} />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 pointer-events-none" />
 
-      {/* Slow-network feedback uses the compact reel toast style */}
+      {/* Castle-style Floating Slow Network Warning Banner */}
       {(isBufferingSlow || isSlowConnection) && (
-        <div className="absolute left-1/2 bottom-[120px] z-50 -translate-x-1/2 rounded-full bg-[rgba(30,30,30,.9)] px-3.5 py-2 text-[13px] text-white shadow-lg whitespace-nowrap">
-          Your network is slow, please check network
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-40 max-w-[92%] w-auto pointer-events-none transition-all duration-300 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#0d0c15]/85 backdrop-blur-xl border border-amber-500/50 shadow-[0_4px_20px_rgba(245,158,11,0.4),0_0_12px_rgba(245,158,11,0.2)] text-amber-300 text-xs font-semibold">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+            </span>
+            <span className="truncate tracking-wide">Your network is slow, please check network</span>
+          </div>
         </div>
       )}
 
-      {/* Header: exact HTML layout with Reels next to back and camera on the right */}
-      <div
-        className="absolute left-0 right-0 top-0 z-30 flex items-center justify-between px-4 pb-2.5"
-        style={{ paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))' }}
-      >
+      {/* Top bar — back button + REELS label + owner menu */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 pt-safe" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
         <button
-          type="button"
           onClick={() => navigate('/profile')}
-          className="flex items-center gap-1.5 text-[19px] font-bold text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]"
-          aria-label="Back to profile"
+          className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
-          Reels
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
         </button>
+        <div className="flex items-center gap-1 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          <span className="text-white text-xs font-bold tracking-widest">{t('reels').toUpperCase()}</span>
+        </div>
+        <div className="flex items-center gap-2">
         <button
-          type="button"
           onClick={() => navigate('/create-reel')}
-          className="flex items-center justify-center text-white"
-          aria-label="Open reel camera"
+          className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+          aria-label="Create reel"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-[26px] h-[26px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="14" rx="4"/><path d="M8.5 6 10 3.5h4L15.5 6"/><circle cx="12" cy="13" r="3.3"/></svg>
+          <Plus className="w-5 h-5 text-white" />
         </button>
-      </div>
-
-      {/* Right-side actions: match the supplied HTML's icon-only rail */}
-      <div className="absolute right-2.5 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-20 flex flex-col items-center gap-[22px]">
-        <button
-          type="button"
-          onClick={handleLike}
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
-          aria-label={liked ? 'Unlike reel (' + likesCount + ')' : 'Like reel (' + likesCount + ')'}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={"w-[30px] h-[30px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)] transition-transform " + (liked ? "scale-110" : "")} fill="none" stroke={liked ? "#ff2d55" : "white"} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 20.5s-8-4.9-8-11A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5c0 6.1-8 11-8 11Z" fill={liked ? "#ff2d55" : "transparent"} />
-          </svg>
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">{likesCount > 999 ? (likesCount / 1000).toFixed(1) + 'k' : likesCount}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setCommentsOpen(true)}
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
-          aria-label={'Comments (' + commentsCount + ')'}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-[30px] h-[30px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20.5 12A8.5 8.5 0 1 0 12 20.5c1.4 0 2.7-.3 3.8-.9l4.2.9-1-3.9A8.4 8.4 0 0 0 20.5 12Z" />
-          </svg>
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">{commentsCount > 999 ? (commentsCount / 1000).toFixed(1) + 'k' : commentsCount}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleShare}
-          className="flex items-center justify-center active:scale-90 transition-transform"
-          aria-label={t('share')}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-[30px] h-[30px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5 21 3Z" />
-          </svg>
-        </button>
-
         {isOwner ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button type="button" className="flex items-center justify-center active:scale-90 transition-transform" aria-label="More reel options">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
+              <button className="w-9 h-9 rounded-full bg-black/30 backdrop-blur flex items-center justify-center">
+                <MoreVertical className="w-4 h-4 text-white" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -501,43 +468,87 @@ const ReelCard: React.FC<{
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        ) : (
-          <button type="button" onClick={() => toast('More')} className="flex items-center justify-center active:scale-90 transition-transform" aria-label="More">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
-          </button>
-        )}
+        ) : null}
+        </div>
       </div>
 
-      {/* Bottom info: live creator, caption, and audio in the supplied HTML positions */}
-      <div className="absolute left-0 right-16 bottom-0 z-20 px-[14px] pb-[calc(16px+env(safe-area-inset-bottom))]">
-        <div className="flex items-center gap-[9px] text-white">
-          <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex min-w-0 items-center gap-[9px] group" aria-label="Open creator profile">
-            <div className="relative shrink-0 rounded-full bg-gradient-to-br from-orange-400 via-pink-600 to-violet-700 p-[2px]">
-              <StoryRing userId={profile?.user_id}>
-                <Avatar className="w-[34px] h-[34px] rounded-full border border-white/90 bg-black">
-                  <AvatarImage src={profile?.avatar_url || undefined} />
-                  <AvatarFallback className="bg-gradient-to-br from-orange-400 via-pink-600 to-violet-700 text-white text-[12px] font-bold">
-                    {profile?.username?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+      {/* Right side actions - Clean floating icons with dynamic color-shifting rainbow effect (NO circle container) */}
+      <div className="absolute right-3.5 bottom-36 flex flex-col items-center gap-5 z-20">
+        {/* Like */}
+        <button onClick={handleLike} className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" aria-label="Like reel">
+          <Heart
+            className={"w-8 h-8 dynamic-rainbow-icon transition-transform group-hover:scale-110 " + (liked ? "fill-current scale-110" : "fill-transparent")}
+            strokeWidth={2.4}
+          />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            {likesCount > 999 ? (likesCount/1000).toFixed(1) + 'k' : likesCount}
+          </span>
+        </button>
+
+        {/* Comment */}
+        <button className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" onClick={() => setCommentsOpen(true)} aria-label="Comments">
+          <MessageCircle
+            className="w-8 h-8 dynamic-rainbow-icon transition-transform group-hover:scale-110"
+            strokeWidth={2.4}
+          />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            {commentsCount > 999 ? (commentsCount/1000).toFixed(1) + 'k' : commentsCount}
+          </span>
+        </button>
+
+        {/* Share */}
+        <button className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" onClick={handleShare} aria-label="Share">
+          <Share2
+            className="w-7 h-7 dynamic-rainbow-icon transition-transform group-hover:scale-110"
+            strokeWidth={2.4}
+          />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            {t('share')}
+          </span>
+        </button>
+      </div>
+
+      {/* Bottom info */}
+      <div className="absolute left-0 right-16 bottom-[calc(6rem+env(safe-area-inset-bottom))] px-4 space-y-1.5">
+        {/* Creator row low on the left with glowing neon avatar and glowing Following button matching screenshot */}
+        <div className="flex items-center gap-2.5">
+          <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex items-center gap-2 min-w-0 group">
+            {/* Glowing multi-color neon avatar ring matching screenshot */}
+            <div className="relative p-[2px] rounded-full dynamic-rainbow-border shadow-[0_0_16px_rgba(168,85,247,0.8)] shrink-0">
+<StoryRing userId={profile?.user_id}>
+              <Avatar className="w-8 h-8 rounded-full border border-black/60">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="bg-gradient-to-tr from-indigo-600 to-purple-600 text-white text-[12px] font-bold flex items-center justify-center">
+                  {profile?.username?.[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
               </StoryRing>
             </div>
-            <span className="truncate text-[14.5px] font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">{profile?.username}</span>
+            <span className="text-white font-bold text-sm truncate group-hover:text-primary transition-colors">@{profile?.username}</span>
+            {profile?.is_verified && <BadgeCheck className="w-4 h-4 text-sky-400 shrink-0" />}
           </button>
           {!isOwner && (
             <button
               type="button"
               onClick={handleFollow}
               disabled={followLoading}
-              className={"ml-1 flex h-7 shrink-0 items-center gap-1.5 rounded-lg border bg-black/20 px-[13px] text-[13px] font-semibold text-white transition active:scale-95 disabled:opacity-50 " + (followStatus ? "border-white/55 text-white/85" : "border-white/90")}
+              className="relative shrink-0 rounded-full p-[2px] dynamic-rainbow-border shadow-[0_0_18px_rgba(129,140,248,0.8),0_0_30px_rgba(217,70,239,0.5)] hover:scale-105 active:scale-95 transition-all group disabled:opacity-50"
             >
-              {followStatus === 'accepted' ? (
-                <><UserCheck className="w-3.5 h-3.5" /><span>Following</span></>
-              ) : followStatus === 'pending' ? (
-                <span>Requested</span>
-              ) : (
-                <span>Follow</span>
-              )}
+              <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-[#0a0a14]/80 backdrop-blur-md">
+                {followStatus === 'accepted' ? (
+                  <>
+                    <UserCheck className="w-3.5 h-3.5 text-cyan-300 drop-shadow-[0_0_6px_rgba(103,232,249,0.8)]" />
+                    <span className="text-xs font-bold text-white tracking-wide">Following</span>
+                  </>
+                ) : followStatus === 'pending' ? (
+                  <span className="text-xs font-bold text-white/90">Requested</span>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5 text-pink-300 drop-shadow-[0_0_6px_rgba(244,114,182,0.8)]" />
+                    <span className="text-xs font-bold text-white tracking-wide">Follow</span>
+                  </>
+                )}
+              </div>
             </button>
           )}
         </div>
@@ -550,44 +561,59 @@ const ReelCard: React.FC<{
                 e.stopPropagation();
                 setCaptionExpanded(prev => !prev);
               }}
-              className="mt-[10px] max-w-full cursor-pointer select-none active:opacity-90"
+              className="cursor-pointer max-w-[85%] select-none active:opacity-90 group"
               title="Tap to expand full caption"
             >
-              <p className={"text-[13.5px] leading-[1.38] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)] transition-all " + (captionExpanded ? "max-h-48 overflow-y-auto pr-2" : "line-clamp-2")}>
+              <p className={`text-white/95 text-sm leading-relaxed transition-all ${captionExpanded ? "line-clamp-none max-h-48 overflow-y-auto pr-2 scrollbar-thin" : "line-clamp-2"}`}>
                 {cleanCap}
               </p>
               {cleanCap.length > 50 && (
-                <span className="mt-0.5 inline-block text-[11px] font-semibold text-white/70">
+                <span className="text-[11px] font-bold text-white/60 group-hover:text-white/90 mt-0.5 inline-block">
                   {captionExpanded ? '...less' : '...more'}
                 </span>
               )}
             </div>
           );
         })()}
+        {isOwner && (
+          <p className="text-white/70 text-xs flex items-center gap-1">
+            👁 {viewsCount > 999 ? (viewsCount / 1000).toFixed(1) + 'k' : viewsCount} views
+          </p>
+        )}
+      </div>
+
+      {/* Audio ticker in the lower-right corner, with the original creator photo */}
+      <div className="absolute right-4 bottom-[calc(2.75rem+env(safe-area-inset-bottom))] max-w-[48%] flex justify-end">
         <button
           type="button"
           onClick={() => navigate('/song/' + (reel.music_track_id || 'original__' + reel.id))}
-          className="mt-[11px] flex max-w-full items-center gap-2 overflow-hidden whitespace-nowrap text-[13px] text-white"
-          aria-label="Open reel audio"
+          className="flex items-center gap-2 max-w-full rounded-full bg-black/35 backdrop-blur px-2 py-1"
         >
           {isOriginalAudio ? (
-            <Avatar className="w-6 h-6 shrink-0 border border-white/50">
+            <Avatar className="w-6 h-6 border border-white/50 shrink-0">
               <AvatarImage src={(audioOwner || profile)?.avatar_url || undefined} />
-              <AvatarFallback className="bg-white/20 text-[9px] font-bold text-white">{(audioOwner || profile)?.username?.[0]?.toUpperCase()}</AvatarFallback>
+              <AvatarFallback className="bg-primary text-primary-foreground text-[9px] font-bold">
+                {(audioOwner || profile)?.username?.[0]?.toUpperCase()}
+              </AvatarFallback>
             </Avatar>
           ) : reel.music_artwork_url ? (
-            <img src={reel.music_artwork_url} alt={reel.music_title || 'song'} className="w-6 h-6 shrink-0 rounded-full border border-white/40 object-cover" />
+            <img
+              src={reel.music_artwork_url}
+              alt={reel.music_title || 'song'}
+              className="w-6 h-6 rounded-full object-cover border border-white/40 animate-spin-slow shrink-0"
+            />
           ) : (
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/20 text-base">♪</span>
+            <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur flex items-center justify-center animate-spin-slow shrink-0">
+              <span className="text-xs">♪</span>
+            </div>
           )}
-          <span className="truncate text-white/90">
+          <span className="text-white/85 text-xs truncate">
             {isOriginalAudio
-              ? 'Original audio · ' + ((audioOwner || profile)?.username || 'user')
+              ? 'Original audio · @' + ((audioOwner || profile)?.username || 'user')
               : reel.music_title + ' · ' + reel.music_artist}
           </span>
         </button>
       </div>
-
       <ReelCommentsSheet
         reelId={reel.id}
         reelOwnerId={reel.user_id}
@@ -915,15 +941,19 @@ const ReelsPage: React.FC = () => {
     return (
       <div className="h-[100dvh] w-full bg-[#0B0B0F] relative flex flex-col justify-between overflow-hidden select-none">
         <div
-          className="absolute left-0 right-0 top-0 z-30 flex items-center justify-between px-4 pb-2.5"
-          style={{ paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))' }}
+          className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4"
+          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 8px)', height: '56px' }}
         >
-          <button type="button" onClick={() => navigate('/profile')} className="flex items-center gap-1.5 text-[19px] font-bold text-white" aria-label="Back to profile">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
-            Reels
-          </button>
-          <button type="button" onClick={() => navigate('/create-reel')} className="flex items-center justify-center text-white" aria-label="Open reel camera">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-[26px] h-[26px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="14" rx="4"/><path d="M8.5 6 10 3.5h4L15.5 6"/><circle cx="12" cy="13" r="3.3"/></svg>
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#FF3D7F] animate-ping" />
+            <span className="text-white font-bold text-lg tracking-wide">रील्स</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/create-reel')}
+            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-95 transition-transform"
+          >
+            <Plus className="w-5 h-5 text-white" />
           </button>
         </div>
         <div className="flex-1 w-full flex items-center justify-center relative">
@@ -968,9 +998,10 @@ const ReelsPage: React.FC = () => {
         </div>
         <button
           onClick={() => navigate('/create-reel')}
-          className="flex items-center gap-2 rounded-lg border border-white/90 bg-black/25 px-6 py-3 font-semibold text-white"
+          className="px-6 py-3 rounded-full font-bold text-white"
+          style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }}
         >
-          <Camera className="h-5 w-5" /> {t('newReel')}
+          + {t('newReel')}
         </button>
       </div>
     );
@@ -995,7 +1026,7 @@ const ReelsPage: React.FC = () => {
             <div
               key={reel.id}
               data-reel-index={idx}
-              className="relative mx-auto h-full w-full max-w-[430px] snap-start snap-always shrink-0"
+              className="relative w-full h-full snap-start snap-always shrink-0"
               style={{
                 height: '100%',
                 minHeight: '100%',
