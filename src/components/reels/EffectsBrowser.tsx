@@ -4,18 +4,36 @@ import { Button } from '@/components/ui/button';
 import { EFFECTS, renderEffect, searchEffects, type CameraEffect, type EffectCategory } from '@/pages/reels/cameraEffects';
 import './camera-effects.css';
 
-export function EffectThumbnail({ effect, video }: { effect: CameraEffect; video: RefObject<HTMLVideoElement | null> }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const draw = () => {
-      const context = canvas.current?.getContext('2d');
-      const source = video.current;
-      if (context && source && source.readyState >= 2) renderEffect(context, source, source.videoWidth, source.videoHeight, effect, performance.now(), true);
-    };
-    draw(); const interval = setInterval(draw, 700);
-    return () => clearInterval(interval);
-  }, [effect, video]);
-  return <canvas ref={canvas} width={120} height={150} className="effect-thumbnail" aria-hidden="true" />;
+export function EffectThumbnail({ effect }: { effect: CameraEffect; video?: RefObject<HTMLVideoElement | null> }) {
+  if (effect.id === "none") {
+    return (
+      <div className="w-full h-full rounded-full flex items-center justify-center bg-white/20 text-white font-bold text-[10px]">
+        OFF
+      </div>
+    );
+  }
+  return (
+    <div
+      className="w-full h-full rounded-full flex flex-col items-center justify-center text-center p-1"
+      style={{
+        background: effect.overlay === "vignette"
+          ? "radial-gradient(circle, #38bdf8 20%, #0f172a 90%)"
+          : effect.overlay === "flare"
+          ? "linear-gradient(135deg, #f472b6, #fbbf24)"
+          : effect.overlay === "film"
+          ? "linear-gradient(135deg, #fdba74, #78716c)"
+          : effect.overlay === "glitter"
+          ? "radial-gradient(circle, #e879f9, #4c1d95)"
+          : effect.overlay === "hearts"
+          ? "linear-gradient(135deg, #f43f5e, #fb7185)"
+          : "linear-gradient(135deg, #818cf8, #c084fc)",
+      }}
+    >
+      <span className="text-[9px] font-black leading-none text-white drop-shadow truncate max-w-full">
+        {effect.name.slice(0, 7)}
+      </span>
+    </div>
+  );
 }
 
 interface Props {

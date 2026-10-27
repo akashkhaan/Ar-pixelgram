@@ -66,7 +66,7 @@ const CreateReelPage: React.FC = () => {
   const [frontCamera, setFrontCamera] = useState(true);
 
   // Camera effects only; duration and other controls keep their existing state.
-  const [showEffectsShelf, setShowEffectsShelf] = useState(true);
+  const [showEffectsShelf, setShowEffectsShelf] = useState(false);
   const [selectedEffect, setSelectedEffect] = useState<CameraEffect>(NO_EFFECT);
   const [showEffectsSearchModal, setShowEffectsSearchModal] = useState(false);
   const [searchEffectsInitially, setSearchEffectsInitially] = useState(false);
@@ -150,26 +150,51 @@ const CreateReelPage: React.FC = () => {
     }
   }, [location.state]);
 
-  // Start Camera Stream
+  // Start Camera Stream with multi-level constraint fallback
   const startCamera = useCallback(async () => {
     try {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: frontCamera ? 'user' : 'environment',
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
-        },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: frontCamera ? 'user' : 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+      } catch (err1) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: frontCamera ? 'user' : 'environment',
+            },
+            audio: false,
+          });
+        } catch (err2) {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
+      }
       streamRef.current = stream;
       if (videoStreamRef.current) {
-        videoStreamRef.current.srcObject = stream;
-        void videoStreamRef.current.play().catch(() => {
-          // The existing shutter interaction can resume playback if autoplay is blocked.
-        });
+        const v = videoStreamRef.current;
+        v.muted = true;
+        v.playsInline = true;
+        v.setAttribute('playsinline', 'true');
+        v.setAttribute('webkit-playsinline', 'true');
+        v.srcObject = stream;
+        try {
+          await v.play();
+        } catch (playErr) {
+          console.warn('Video play error:', playErr);
+        }
       }
       setHasCameraPermission(true);
     } catch (err) {
@@ -196,7 +221,7 @@ const CreateReelPage: React.FC = () => {
 
   // The visible canvas is also the recorder source: effects are baked into the video.
   useEffect(() => {
-    if (step !== 'camera' || hasCameraPermission !== true) return;
+    if (step !== 'camera' || hasCameraPermission !== true || !selectedEffect || selectedEffect.id === 'none') return;
     let frame = 0;
     const draw = (time: number) => {
       const video = videoStreamRef.current;
@@ -242,10 +267,14 @@ const CreateReelPage: React.FC = () => {
 
     try {
       const options = mimeType ? { mimeType } : undefined;
-      const canvas = effectCanvasRef.current;
       const camera = streamRef.current;
-      if (!canvas || !camera) throw new Error('Camera effects are not ready.');
-      const capture = createEffectRecordingStream(canvas, camera);
+      if (!camera) throw new Error('Camera is not ready.');
+      let capture: MediaStream;
+      if (selectedEffect && selectedEffect.id !== 'none' && effectCanvasRef.current) {
+        capture = createEffectRecordingStream(effectCanvasRef.current, camera);
+      } else {
+        capture = camera;
+      }
       recordingCaptureRef.current = capture;
       const recorder = new MediaRecorder(capture, options);
 
@@ -654,7 +683,7 @@ const CreateReelPage: React.FC = () => {
       {step === 'camera' && (
         <div className="relative w-full h-full flex flex-col justify-between overflow-hidden bg-black">
           {/* Live Viewfinder */}
-          <div className="absolute inset-0 bg-zinc-950 flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden">
             {hasCameraPermission === false ? (
               <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 max-w-xs z-10">
                 <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center text-white/80">
@@ -662,14 +691,23 @@ const CreateReelPage: React.FC = () => {
                 </div>
                 <p className="text-sm font-semibold text-white">Camera access nahi mila ya band hai</p>
                 <p className="text-xs text-white/60">Aap device gallery se video/photo select karke direct upload kar sakte hain.</p>
-                <button
-                  type="button"
-                  onClick={handleGalleryClick}
-                  className="px-5 py-2.5 rounded-full bg-primary text-white text-xs font-bold shadow-lg active:scale-95 transition-all flex items-center gap-2"
-                >
-                  <ImageIcon className="w-4 h-4" />
-                  <span>Gallery se select karein</span>
-                </button>
+                <div className="flex flex-col gap-2 w-full pt-1">
+                  <button
+                    type="button"
+                    onClick={() => startCamera()}
+                    className="px-5 py-2.5 rounded-full bg-gradient-to-r from-fuchsia-600 via-pink-500 to-amber-400 text-white text-xs font-bold shadow-lg active:scale-95 transition-all"
+                  >
+                    Retry Camera
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGalleryClick}
+                    className="px-5 py-2.5 rounded-full bg-white/10 text-white text-xs font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <span>Gallery se select karein</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <video
@@ -677,14 +715,24 @@ const CreateReelPage: React.FC = () => {
                 autoPlay
                 playsInline
                 muted
+                onLoadedMetadata={(e) => {
+                  try { (e.target as HTMLVideoElement).play(); } catch {}
+                }}
                 className="w-full h-full object-cover transition-all duration-300"
                 style={{
                   transform: frontCamera ? 'scaleX(-1)' : 'none',
                 }}
               />
             )}
-
-            {hasCameraPermission === true && <canvas ref={effectCanvasRef} className="camera-effect-output" aria-label="Live camera with selected effect" />}
+            {hasCameraPermission === null && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 z-20 pointer-events-none">
+                <Loader2 className="w-9 h-9 text-white animate-spin opacity-80" />
+                <span className="text-xs text-white/70 mt-2 font-medium">Opening camera...</span>
+              </div>
+            )}
+            {hasCameraPermission === true && selectedEffect && selectedEffect.id !== 'none' && (
+              <canvas ref={effectCanvasRef} className="camera-effect-output" aria-label="Live camera with selected effect" />
+            )}
 
             {/* Red recording pulse border */}
             {isRecording && (
