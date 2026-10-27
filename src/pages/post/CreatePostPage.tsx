@@ -142,7 +142,8 @@ const CreatePostPage: React.FC = () => {
     const uploadId = startUpload(
       'post',
       mediaType === 'video' ? 'Video post upload' : 'Photo post upload',
-      mediaPreview || undefined
+      mediaPreview || undefined,
+      mediaType === 'video' ? 'video' : 'image'
     );
     setLoading(true);
 

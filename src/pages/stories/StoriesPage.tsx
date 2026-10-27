@@ -179,7 +179,11 @@ const StoriesPage: React.FC = () => {
     }
   }, [loading, stories, location.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeViewer = () => {
-    storyAudioRef.current?.pause(); setViewerUserId(null); setShowReply(false); setShowViewers(false); };
+    // Story se back karte hi music aur video dono turant band — background me awaaz nahi aani chahiye
+    storyAudioRef.current?.pause();
+    if (storyAudioRef.current) storyAudioRef.current.currentTime = 0;
+    videoViewerRef.current?.pause();
+    setViewerUserId(null); setShowReply(false); setShowViewers(false); };
 
   const viewerGroup = viewerUserId ? groups[viewerUserId] : null;
   const currentStory = viewerGroup?.stories[storyIndex];
@@ -236,6 +240,14 @@ const StoriesPage: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('pagehide', pauseStoryAudio);
       window.removeEventListener('blur', pauseStoryAudio);
+    };
+  }, []);
+
+  // Stories page se bahar nikalte hi audio/video band (back button se bhi)
+  useEffect(() => {
+    return () => {
+      storyAudioRef.current?.pause();
+      videoViewerRef.current?.pause();
     };
   }, []);
 
@@ -307,7 +319,7 @@ const StoriesPage: React.FC = () => {
   const handleUploadStory = async () => {
     if (!mediaFile || !user) return;
     const captionText = caption;
-    const uploadId = startUpload('story', 'Story upload');
+    const uploadId = startUpload('story', 'Story upload', mediaPreview || undefined, mediaType);
     // Instagram jaisa: Post dabate hi screen band, upload peeche chalta rahe (upar % dikhta hai)
     setShowUpload(false);
     setMediaPreview(null);

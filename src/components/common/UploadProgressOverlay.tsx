@@ -31,7 +31,16 @@ const UploadProgressOverlay: React.FC = () => {
             <div className="flex items-center gap-3">
               {/* Thumbnail / Icon */}
               <div className="relative shrink-0 w-11 h-11 rounded-xl overflow-hidden border border-white/10 bg-zinc-900 shadow flex items-center justify-center">
-                {job.thumbnailUrl ? (
+                {job.thumbnailUrl && job.thumbnailType === 'video' ? (
+                  <video
+                    src={job.thumbnailUrl}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                ) : job.thumbnailUrl ? (
                   <img src={job.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                 ) : job.kind === 'reel' || job.kind === 'video' ? (
                   <Film className="h-5 w-5 text-primary" />

@@ -573,6 +573,7 @@ const CreateReelPage: React.FC = () => {
       kind: currentMode,
       label: `${modeLabel} Upload`,
       thumbnailUrl: coverPreview || mediaPreview || undefined,
+      thumbnailType: coverPreview ? 'image' : 'video',
       task: async (updateProgress) => {
         if (currentMode === 'reel') {
           const videoUrl = await uploadMediaWithProgress('reels', currentFile, currentUserId, (p) => {

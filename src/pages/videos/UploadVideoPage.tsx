@@ -99,7 +99,7 @@ const UploadVideoPage: React.FC = () => {
     if (!file) { toast.error('Video select karein'); return; }
     if (!title.trim()) { toast.error('Title likhein'); return; }
 
-    const uploadId = startUpload('video', title.trim() || 'Video upload', thumbPreview || undefined);
+    const uploadId = startUpload('video', title.trim() || 'Video upload', URL.createObjectURL(file), 'video');
     setUploading(true);
     setProgress(0);
 

@@ -9,6 +9,7 @@ export interface UploadJob {
   status: UploadStatus;
   error?: string;
   thumbnailUrl?: string;
+  thumbnailType?: 'image' | 'video';
 }
 
 type Listener = (jobs: UploadJob[]) => void;
@@ -138,9 +139,14 @@ export async function requestUploadNotifications(): Promise<boolean> {
   return false;
 }
 
-export function startUpload(kind: UploadKind, label: string, thumbnailUrl?: string): string {
+export function startUpload(
+  kind: UploadKind,
+  label: string,
+  thumbnailUrl?: string,
+  thumbnailType?: 'image' | 'video'
+): string {
   const id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const job: UploadJob = { id, kind, label, progress: 0, status: 'uploading', thumbnailUrl };
+  const job: UploadJob = { id, kind, label, progress: 0, status: 'uploading', thumbnailUrl, thumbnailType };
   jobs.set(id, job);
   void requestUploadNotifications();
   emit();
@@ -187,6 +193,7 @@ export function runBackgroundUpload({
   kind,
   label,
   thumbnailUrl,
+  thumbnailType,
   task,
   onSuccess,
   onError,
@@ -194,11 +201,12 @@ export function runBackgroundUpload({
   kind: UploadKind;
   label: string;
   thumbnailUrl?: string;
+  thumbnailType?: 'image' | 'video';
   task: (updateProgress: (p: number) => void) => Promise<void>;
   onSuccess?: () => void;
   onError?: (err: unknown) => void;
 }): string {
-  const id = startUpload(kind, label, thumbnailUrl);
+  const id = startUpload(kind, label, thumbnailUrl, thumbnailType);
 
   // Execute in microtask / detached promise
   (async () => {
