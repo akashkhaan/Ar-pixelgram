@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import StoryRing from '@/components/common/StoryRing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Camera, Trash2, Plus, VideoOff, UserCheck } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Camera, Trash2, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, cleanDisplayCaption, type Reel } from '@/services/api';
@@ -538,7 +538,7 @@ const ReelCard: React.FC<{
               ) : followStatus === 'pending' ? (
                 <span>Requested</span>
               ) : (
-                <><Plus className="w-3.5 h-3.5" /><span>Follow</span></>
+                <span>Follow</span>
               )}
             </button>
           )}
