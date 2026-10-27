@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import StoryRing from '@/components/common/StoryRing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, MoreHorizontal, Camera, Trash2, VideoOff, UserCheck } from 'lucide-react';
+import { Camera, Trash2, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, cleanDisplayCaption, type Reel } from '@/services/api';
@@ -439,7 +439,7 @@ const ReelCard: React.FC<{
           aria-label="Back to profile"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
-          {t('reels')}
+          Reels
         </button>
         <button
           type="button"
@@ -447,54 +447,50 @@ const ReelCard: React.FC<{
           className="flex items-center justify-center text-white"
           aria-label="Open reel camera"
         >
-          <Camera className="w-[26px] h-[26px]" strokeWidth={1.9} />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-[26px] h-[26px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="14" rx="4"/><path d="M8.5 6 10 3.5h4L15.5 6"/><circle cx="12" cy="13" r="3.3"/></svg>
         </button>
       </div>
 
-      {/* Right-side actions from the supplied Reels HTML, wired to existing app handlers */}
+      {/* Right-side actions: match the supplied HTML's icon-only rail */}
       <div className="absolute right-2.5 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-20 flex flex-col items-center gap-[22px]">
         <button
           type="button"
           onClick={handleLike}
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
-          aria-label={liked ? 'Unlike reel' : 'Like reel'}
+          className="flex items-center justify-center active:scale-90 transition-transform"
+          aria-label={liked ? 'Unlike reel (' + likesCount + ')' : 'Like reel (' + likesCount + ')'}
         >
-          <Heart
-            className={"w-[30px] h-[30px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)] transition-transform " + (liked ? "fill-[#ff2d55] text-[#ff2d55] scale-110" : "fill-transparent text-white")}
-            strokeWidth={1.9}
-          />
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
-            {likesCount > 999 ? (likesCount / 1000).toFixed(1) + 'k' : likesCount}
-          </span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={"w-[30px] h-[30px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)] transition-transform " + (liked ? "scale-110" : "")} fill="none" stroke={liked ? "#ff2d55" : "white"} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20.5s-8-4.9-8-11A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5c0 6.1-8 11-8 11Z" fill={liked ? "#ff2d55" : "transparent"} />
+          </svg>
         </button>
 
         <button
           type="button"
           onClick={() => setCommentsOpen(true)}
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
-          aria-label="Comments"
+          className="flex items-center justify-center active:scale-90 transition-transform"
+          aria-label={'Comments (' + commentsCount + ')'}
         >
-          <MessageCircle className="w-[30px] h-[30px] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" strokeWidth={1.9} />
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
-            {commentsCount > 999 ? (commentsCount / 1000).toFixed(1) + 'k' : commentsCount}
-          </span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-[30px] h-[30px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20.5 12A8.5 8.5 0 1 0 12 20.5c1.4 0 2.7-.3 3.8-.9l4.2.9-1-3.9A8.4 8.4 0 0 0 20.5 12Z" />
+          </svg>
         </button>
 
         <button
           type="button"
           onClick={handleShare}
-          className="flex flex-col items-center gap-1 active:scale-90 transition-transform"
-          aria-label="Share"
+          className="flex items-center justify-center active:scale-90 transition-transform"
+          aria-label={t('share')}
         >
-          <Share2 className="w-[30px] h-[30px] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" strokeWidth={1.9} />
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">{t('share')}</span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-[30px] h-[30px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5 21 3Z" />
+          </svg>
         </button>
 
         {isOwner ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button type="button" className="flex items-center justify-center active:scale-90 transition-transform" aria-label="More reel options">
-                <MoreHorizontal className="w-6 h-6 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" strokeWidth={2.5} />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -505,13 +501,13 @@ const ReelCard: React.FC<{
           </DropdownMenu>
         ) : (
           <button type="button" onClick={() => toast('More')} className="flex items-center justify-center active:scale-90 transition-transform" aria-label="More">
-            <MoreHorizontal className="w-6 h-6 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" strokeWidth={2.5} />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
           </button>
         )}
       </div>
 
       {/* Bottom info: live creator, caption, and audio in the supplied HTML positions */}
-      <div className="absolute left-0 right-16 bottom-0 z-20 px-[14px] pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
+      <div className="absolute left-0 right-16 bottom-0 z-20 px-[14px] pb-[calc(16px+env(safe-area-inset-bottom))]">
         <div className="flex items-center gap-[9px] text-white">
           <button onClick={() => navigate('/profile/' + profile?.user_id)} className="flex min-w-0 items-center gap-[9px] group" aria-label="Open creator profile">
             <div className="relative shrink-0 rounded-full bg-gradient-to-br from-orange-400 via-pink-600 to-violet-700 p-[2px]">
@@ -524,7 +520,7 @@ const ReelCard: React.FC<{
                 </Avatar>
               </StoryRing>
             </div>
-            <span className="truncate text-[14.5px] font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">@{profile?.username}</span>
+            <span className="truncate text-[14.5px] font-bold text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]">{profile?.username}</span>
           </button>
           {!isOwner && (
             <button
@@ -552,7 +548,7 @@ const ReelCard: React.FC<{
                 e.stopPropagation();
                 setCaptionExpanded(prev => !prev);
               }}
-              className="mt-[10px] max-w-[85%] cursor-pointer select-none active:opacity-90"
+              className="mt-[10px] max-w-full cursor-pointer select-none active:opacity-90"
               title="Tap to expand full caption"
             >
               <p className={"text-[13.5px] leading-[1.38] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)] transition-all " + (captionExpanded ? "max-h-48 overflow-y-auto pr-2" : "line-clamp-2")}>
@@ -584,7 +580,7 @@ const ReelCard: React.FC<{
           )}
           <span className="truncate text-white/90">
             {isOriginalAudio
-              ? 'Original audio · @' + ((audioOwner || profile)?.username || 'user')
+              ? 'Original audio · ' + ((audioOwner || profile)?.username || 'user')
               : reel.music_title + ' · ' + reel.music_artist}
           </span>
         </button>
@@ -922,10 +918,10 @@ const ReelsPage: React.FC = () => {
         >
           <button type="button" onClick={() => navigate('/profile')} className="flex items-center gap-1.5 text-[19px] font-bold text-white" aria-label="Back to profile">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
-            {t('reels')}
+            Reels
           </button>
           <button type="button" onClick={() => navigate('/create-reel')} className="flex items-center justify-center text-white" aria-label="Open reel camera">
-            <Camera className="w-[26px] h-[26px]" strokeWidth={1.9} />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-[26px] h-[26px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="6" width="18" height="14" rx="4"/><path d="M8.5 6 10 3.5h4L15.5 6"/><circle cx="12" cy="13" r="3.3"/></svg>
           </button>
         </div>
         <div className="flex-1 w-full flex items-center justify-center relative">
