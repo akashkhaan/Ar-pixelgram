@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import StoryRing from '@/components/common/StoryRing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, MoreVertical, Trash2, Plus, BadgeCheck, VideoOff, UserCheck } from 'lucide-react';
+import { Heart, MessageCircle, Share2, MoreHorizontal, Camera, Trash2, Plus, BadgeCheck, VideoOff, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, cleanDisplayCaption, type Reel } from '@/services/api';
@@ -435,31 +435,83 @@ const ReelCard: React.FC<{
         </div>
       )}
 
-      {/* Top bar — back button + REELS label + owner menu */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 pt-safe" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}>
+      {/* Reels header: back, centered label, and camera shortcut */}
+      <div
+        className="absolute top-0 left-0 right-0 z-30 grid grid-cols-[1fr_auto_1fr] items-center px-4"
+        style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 12px)' }}
+      >
         <button
+          type="button"
           onClick={() => navigate('/profile')}
-          className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+          className="w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+          aria-label="Go back"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 5 8 12l7 7" /></svg>
         </button>
-        <div className="flex items-center gap-1 bg-black/30 backdrop-blur-sm rounded-full px-3 py-1">
-          <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-          <span className="text-white text-xs font-bold tracking-widest">{t('reels').toUpperCase()}</span>
+        <div className="inline-flex items-center gap-1.5 rounded-full bg-black/40 backdrop-blur-sm px-3.5 py-1.5">
+          <span className="w-2 h-2 rounded-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,0.8)]" />
+          <span className="text-white text-xs font-semibold tracking-wide">{t('reels')}</span>
         </div>
-        <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={() => navigate('/create-reel')}
-          className="w-9 h-9 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
-          aria-label="Create reel"
+          className="justify-self-end w-11 h-11 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+          aria-label="Open reel camera"
         >
-          <Plus className="w-5 h-5 text-white" />
+          <Camera className="w-[22px] h-[22px] text-white" strokeWidth={2} />
         </button>
-        {isOwner ? (
+      </div>
+
+      {/* Right-side reel actions */}
+      <div className="absolute right-3.5 bottom-[calc(6rem+env(safe-area-inset-bottom))] flex flex-col items-center gap-[22px] z-20">
+        <button
+          type="button"
+          onClick={handleLike}
+          className="flex flex-col items-center gap-1 group active:scale-90 transition-transform"
+          aria-label={liked ? 'Unlike reel' : 'Like reel'}
+        >
+          <Heart
+            className={"w-[30px] h-[30px] transition-transform drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)] " + (liked ? "fill-[#ff2d55] text-[#ff2d55] scale-110" : "fill-transparent text-white")}
+            strokeWidth={2.1}
+          />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            {likesCount > 999 ? (likesCount / 1000).toFixed(1) + 'k' : likesCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="flex flex-col items-center gap-1 group active:scale-90 transition-transform"
+          onClick={() => setCommentsOpen(true)}
+          aria-label="Comments"
+        >
+          <MessageCircle className="w-[30px] h-[30px] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" strokeWidth={2.1} />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            {commentsCount > 999 ? (commentsCount / 1000).toFixed(1) + 'k' : commentsCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="flex flex-col items-center gap-1 group active:scale-90 transition-transform"
+          onClick={handleShare}
+          aria-label="Share"
+        >
+          <Share2 className="w-7 h-7 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" strokeWidth={2.1} />
+          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+            {t('share')}
+          </span>
+        </button>
+
+        {isOwner && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-9 h-9 rounded-full bg-black/30 backdrop-blur flex items-center justify-center">
-                <MoreVertical className="w-4 h-4 text-white" />
+              <button
+                type="button"
+                className="flex items-center justify-center active:scale-90 transition-transform"
+                aria-label="More reel options"
+              >
+                <MoreHorizontal className="w-6 h-6 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" strokeWidth={2.5} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -468,44 +520,7 @@ const ReelCard: React.FC<{
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        ) : null}
-        </div>
-      </div>
-
-      {/* Right side actions - Clean floating icons with dynamic color-shifting rainbow effect (NO circle container) */}
-      <div className="absolute right-3.5 bottom-36 flex flex-col items-center gap-5 z-20">
-        {/* Like */}
-        <button onClick={handleLike} className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" aria-label="Like reel">
-          <Heart
-            className={"w-8 h-8 dynamic-rainbow-icon transition-transform group-hover:scale-110 " + (liked ? "fill-current scale-110" : "fill-transparent")}
-            strokeWidth={2.4}
-          />
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
-            {likesCount > 999 ? (likesCount/1000).toFixed(1) + 'k' : likesCount}
-          </span>
-        </button>
-
-        {/* Comment */}
-        <button className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" onClick={() => setCommentsOpen(true)} aria-label="Comments">
-          <MessageCircle
-            className="w-8 h-8 dynamic-rainbow-icon transition-transform group-hover:scale-110"
-            strokeWidth={2.4}
-          />
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
-            {commentsCount > 999 ? (commentsCount/1000).toFixed(1) + 'k' : commentsCount}
-          </span>
-        </button>
-
-        {/* Share */}
-        <button className="flex flex-col items-center gap-1 group active:scale-75 transition-transform" onClick={handleShare} aria-label="Share">
-          <Share2
-            className="w-7 h-7 dynamic-rainbow-icon transition-transform group-hover:scale-110"
-            strokeWidth={2.4}
-          />
-          <span className="text-white text-xs font-bold tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
-            {t('share')}
-          </span>
-        </button>
+        )}
       </div>
 
       {/* Bottom info */}
