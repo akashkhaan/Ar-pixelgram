@@ -16,27 +16,17 @@ Sentry.init({
 // "Notifications" toggle in phone Settings → Apps. Without an active SW
 // registration here, the OS has nothing to attach a per-app permission to.
 //
-// Recovery note: an older deploy shipped a caching service worker while
-// /sw.js was missing (404), so phones stayed stuck on a stale cached build
-// (the endless "reels loading" screen). We now always purge caches, force the
-// new worker to activate, and reload once so the fresh app takes over.
+// The worker handles notifications and does not cache app assets.
+// Activate updates in the background; a forced reload during controller changes
+// can interrupt camera/auth startup on Android and leave the page black.
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   // PWA update flow (installed app ko same URL par hi naya build milta hai):
   //  1. har load + har baar app foreground me aane par registration.update()
   //  2. naya worker milte hi use turant activate karo (SKIP_WAITING)
-  //  3. jab naya worker control le le, page ko ek hi baar reload karo
+  // Page ko controller change par reload nahi karte, taaki camera/session restore
+  // Android browser me interrupt hokar black screen na dikhaye.
   // localStorage ko kabhi clear nahi karte, isliye login session bana rehta
   // hai — update ke baad dobara login nahi karna padta.
-  let reloadingForUpdate = false;
-
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloadingForUpdate) return;
-    reloadingForUpdate = true;
-    // Auth client ko persisted session write/refresh complete karne ka ek pal
-    // do; turant reload se kuch Android WebViews me session restore race hoti thi.
-    window.setTimeout(() => window.location.reload(), 500);
-  });
-
   window.addEventListener('load', () => {
     (async () => {
       try {
