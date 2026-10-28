@@ -18,6 +18,8 @@ import type { VerificationRequest } from '@/types/types';
 import ReportProblemSection from './ReportProblemSection';
 
 
+const THEME_STORAGE_KEY = 'pixelgram-theme';
+
 const SettingsPage: React.FC = () => {
   const { user, profile, signOut } = useAuth();
   const navigate = useNavigate();
@@ -124,8 +126,17 @@ const SettingsPage: React.FC = () => {
 
   const toggleTheme = (val: boolean) => {
     setDarkMode(val);
-    if (val) document.documentElement.classList.add('dark');
-    else document.documentElement.classList.remove('dark');
+    document.documentElement.classList.toggle('dark', val);
+    document.documentElement.style.colorScheme = val ? 'dark' : 'light';
+
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, val ? 'dark' : 'light');
+    } catch {
+      // Theme still applies for this session if storage is unavailable.
+    }
+
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (themeColor) themeColor.content = val ? '#0B0B0F' : '#f8f7fb';
   };
 
   const handleDeleteAccount = async () => {
