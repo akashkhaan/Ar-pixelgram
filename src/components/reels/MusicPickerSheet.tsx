@@ -35,6 +35,7 @@ import {
 import { getSavedSongs, saveSong, unsaveSong } from '@/services/savedSongs';
 import { toast } from 'sonner';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
+import { audioPlayerService } from '@/services/audioPlayerService';
 
 interface Props {
   open: boolean;
