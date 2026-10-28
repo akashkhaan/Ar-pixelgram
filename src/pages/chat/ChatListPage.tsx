@@ -18,7 +18,7 @@ import {
   Video,
   X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import PullToRefresh from "@/components/common/PullToRefresh";
@@ -69,6 +69,8 @@ const ChatListPage: React.FC = () => {
   const [chatFilter, setChatFilter] = useState<"all" | "unread" | "groups" | "requests">("all");
   const [onlineStatuses, setOnlineStatuses] = useState<Record<string, { is_online: boolean; last_seen_at?: string }>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const messageSearchRef = useRef<HTMLInputElement>(null);
   const [showComposeMenu, setShowComposeMenu] = useState(false);
   const [showNewChatDrawer, setShowNewChatDrawer] = useState(false);
   const [selectedPeople, setSelectedPeople] = useState<Profile[]>([]);
@@ -77,6 +79,10 @@ const ChatListPage: React.FC = () => {
   const [searchedProfiles, setSearchedProfiles] = useState<Profile[]>([]);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [isCreatingChatOrGroup, setIsCreatingChatOrGroup] = useState(false);
+
+  useEffect(() => {
+    if (showMessageSearch) messageSearchRef.current?.focus();
+  }, [showMessageSearch]);
 
   // Notes state
   const [myNote, setMyNote] = useState<UserNote | null>(null);
@@ -367,11 +373,6 @@ const ChatListPage: React.FC = () => {
     [filteredConversations]
   );
 
-  const totalUnreadCount = useMemo(
-    () => conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0),
-    [conversations]
-  );
-
   useEffect(() => {
     if (!peopleSearchQuery.trim()) {
       setSearchedProfiles([]);
@@ -546,18 +547,17 @@ const ChatListPage: React.FC = () => {
   return (
     <MobileLayout hideHeader hideNav>
       <style>{`
-        :root {
-          --bg: #0E0820;
-          --s1: #1A1233;
-          --s2: #2A2050;
-          --ink: #F7F3FF;
-          --mute: #A99FD2;
-          --line: rgba(255,255,255,.09);
+        .msg-root-body {
+          --bg: hsl(var(--background));
+          --s1: hsl(var(--card));
+          --s2: hsl(var(--muted));
+          --ink: hsl(var(--foreground));
+          --mute: hsl(var(--muted-foreground));
+          --line: hsl(var(--border) / .65);
           --pink: #FF3D7F;
           --vio: #7C5CFF;
           --green: #22D3A0;
           --grad: linear-gradient(135deg,#FF3D7F,#7C5CFF);
-          color-scheme: dark;
         }
         .msg-root-body {
           background: var(--bg);
@@ -597,13 +597,13 @@ const ChatListPage: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 12px;
-          margin-bottom: 16px;
+          margin-bottom: 0;
         }
         .top .back-btn {
           width: 42px;
           height: 42px;
           border-radius: 14px;
-          background: rgba(255,255,255,.07);
+          background: var(--s2);
           display: grid;
           place-items: center;
           flex: none;
@@ -614,7 +614,28 @@ const ChatListPage: React.FC = () => {
         }
         .top .back-btn:active {
           transform: scale(.92);
-          background: rgba(255,255,255,.12);
+          background: var(--s2);
+        }
+        .top .search-toggle {
+          width: 42px;
+          height: 42px;
+          border-radius: 14px;
+          background: var(--s2);
+          display: grid;
+          place-items: center;
+          flex: none;
+          cursor: pointer;
+          border: 1px solid var(--line);
+          color: var(--ink);
+          transition: transform .15s, background .15s;
+        }
+        .top .search-toggle:active {
+          transform: scale(.92);
+        }
+        .top .search-toggle svg {
+          width: 20px;
+          height: 20px;
+          stroke-width: 2.2;
         }
         h1 {
           font-size: 34px;
@@ -622,19 +643,6 @@ const ChatListPage: React.FC = () => {
           letter-spacing: -.045em;
           line-height: 1;
           color: var(--ink);
-        }
-        #count {
-          min-width: 32px;
-          height: 32px;
-          padding: 0 10px;
-          border-radius: 99px;
-          background: var(--grad);
-          color: #fff;
-          font-weight: 800;
-          font-size: 15px;
-          display: grid;
-          place-items: center;
-          box-shadow: 0 6px 20px rgba(255,61,127,.45);
         }
         .new {
           margin-left: auto;
@@ -666,16 +674,17 @@ const ChatListPage: React.FC = () => {
           display: flex;
           align-items: center;
           gap: 10px;
-          background: rgba(255,255,255,.06);
+          background: var(--s1);
           border: 1px solid var(--line);
           border-radius: 18px;
           padding: 0 16px;
           height: 50px;
+          margin-top: 14px;
           transition: border-color .2s, background .2s;
         }
         .search:focus-within {
           border-color: var(--pink);
-          background: rgba(255,255,255,.09);
+          background: var(--s1);
         }
         .search svg {
           width: 18px;
@@ -702,7 +711,7 @@ const ChatListPage: React.FC = () => {
           gap: 4px;
           margin-top: 12px;
           padding: 4px;
-          background: rgba(255,255,255,.06);
+          background: var(--s1);
           border: 1px solid var(--line);
           border-radius: 18px;
         }
@@ -833,7 +842,7 @@ const ChatListPage: React.FC = () => {
           margin-bottom: 8px;
           border-radius: 24px;
           text-align: left;
-          background: rgba(255,255,255,.04);
+          background: var(--s1);
           border: 1px solid var(--line);
           transition: background .2s, transform .15s, border-color .2s;
           cursor: pointer;
@@ -841,7 +850,7 @@ const ChatListPage: React.FC = () => {
           text-decoration: none;
         }
         .row:hover {
-          background: rgba(255,255,255,.08);
+          background: var(--s2);
         }
         .row:active {
           transform: scale(.985);
@@ -918,7 +927,7 @@ const ChatListPage: React.FC = () => {
           width: 32px;
           height: 32px;
           border-radius: 50%;
-          background: rgba(255,255,255,.06);
+          background: var(--s2);
           display: grid;
           place-items: center;
           color: var(--mute);
@@ -970,7 +979,7 @@ const ChatListPage: React.FC = () => {
           gap: 12px;
           padding: 12px 14px;
           border-bottom: 1px solid var(--line);
-          background: rgba(26,18,51,.7);
+          background: hsl(var(--background) / .92);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
         }
@@ -978,7 +987,7 @@ const ChatListPage: React.FC = () => {
           width: 42px;
           height: 42px;
           border-radius: 14px;
-          background: rgba(255,255,255,.07);
+          background: var(--s2);
           display: grid;
           place-items: center;
           flex: none;
@@ -1070,11 +1079,23 @@ const ChatListPage: React.FC = () => {
 
                 <h1>Messages</h1>
 
-                <div id="count">
-                  {totalUnreadCount > 0
-                    ? totalUnreadCount
-                    : (conversations.length + activeGroups.length) || 0}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showMessageSearch) {
+                      setShowMessageSearch(false);
+                      setSearchQuery("");
+                    } else {
+                      setShowMessageSearch(true);
+                    }
+                  }}
+                  className="search-toggle"
+                  aria-label={showMessageSearch ? "Close message search" : "Search messages"}
+                  aria-expanded={showMessageSearch}
+                  title={showMessageSearch ? "Close search" : "Search messages"}
+                >
+                  {showMessageSearch ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+                </button>
 
                 {/* NEW COMPOSE BUTTON (Pen icon from HTML) */}
                 <div className="relative ml-auto">
@@ -1098,11 +1119,11 @@ const ChatListPage: React.FC = () => {
                         className="fixed inset-0 z-40"
                         onClick={() => setShowComposeMenu(false)}
                       />
-                      <div className="absolute top-14 right-0 w-52 rounded-2xl border border-white/10 bg-[#1A1233]/95 backdrop-blur-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="absolute top-14 right-0 w-52 rounded-2xl border border-border bg-popover/95 text-popover-foreground backdrop-blur-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
                         <Link
                           to="/people"
                           onClick={() => setShowComposeMenu(false)}
-                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-[#F7F3FF] hover:bg-white/10 transition-colors"
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-popover-foreground hover:bg-muted transition-colors"
                         >
                           <div className="w-7 h-7 rounded-lg bg-[#FF3D7F]/20 text-[#FF3D7F] flex items-center justify-center shrink-0">
                             <UserPlus className="h-4 w-4" />
@@ -1112,7 +1133,7 @@ const ChatListPage: React.FC = () => {
                         <Link
                           to="/groups/new"
                           onClick={() => setShowComposeMenu(false)}
-                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-[#F7F3FF] hover:bg-[#22D3A0]/10 hover:text-[#22D3A0] transition-colors"
+                          className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-popover-foreground hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                         >
                           <div className="w-7 h-7 rounded-lg bg-[#22D3A0]/20 text-[#22D3A0] flex items-center justify-center shrink-0">
                             <Users className="h-4 w-4" />
@@ -1125,13 +1146,15 @@ const ChatListPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* SEARCH BAR (.search) */}
-              <div className="search">
+              {/* Message search opens from the header button. */}
+              {showMessageSearch && (
+              <div className="search" id="message-search">
                 <svg viewBox="0 0 24 24">
                   <circle cx="11" cy="11" r="8" />
                   <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 <input
+                  ref={messageSearchRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -1141,12 +1164,13 @@ const ChatListPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[#A99FD2] hover:text-[#F7F3FF]"
+                    className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
+              )}
 
               {/* CHIPS FILTER (.chips) */}
               <div className="chips">
@@ -1706,7 +1730,7 @@ const ChatListPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setPeopleSearchQuery("")}
-                        className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[#A99FD2] hover:text-[#F7F3FF]"
+                        className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>

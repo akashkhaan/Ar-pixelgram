@@ -419,12 +419,12 @@ const ChatPage: React.FC = () => {
     <MobileLayout hideHeader hideNav noScroll>
       <style>{`
         .chat-wrap {
-          --bg: #0E0820;
-          --s1: #1A1233;
-          --s2: #2A2050;
-          --ink: #F7F3FF;
-          --mute: #A99FD2;
-          --line: rgba(255,255,255,.09);
+          --bg: hsl(var(--background));
+          --s1: hsl(var(--card));
+          --s2: hsl(var(--muted));
+          --ink: hsl(var(--foreground));
+          --mute: hsl(var(--muted-foreground));
+          --line: hsl(var(--border) / .65);
           --pink: #FF3D7F;
           --vio: #7C5CFF;
           --green: #22D3A0;
@@ -459,7 +459,7 @@ const ChatPage: React.FC = () => {
           width: 40px;
           height: 40px;
           border-radius: 14px;
-          background: rgba(255,255,255,.07);
+          background: var(--s2);
           display: grid;
           place-items: center;
           flex: none;
@@ -470,7 +470,7 @@ const ChatPage: React.FC = () => {
         }
         .chat-wrap .back:active {
           transform: scale(.92);
-          background: rgba(255,255,255,.12);
+          background: var(--s2);
         }
         .chat-wrap .t {
           flex: 1;
@@ -498,7 +498,7 @@ const ChatPage: React.FC = () => {
           width: 38px;
           height: 38px;
           border-radius: 50%;
-          background: rgba(255,255,255,.06);
+          background: var(--s2);
           border: 1px solid var(--line);
           display: grid;
           place-items: center;
@@ -522,7 +522,7 @@ const ChatPage: React.FC = () => {
           display: flex;
           flex-direction: column;
           gap: 7px;
-          background-image: radial-gradient(rgba(255,255,255,.06) 1.2px, transparent 1.4px);
+          background-image: radial-gradient(hsl(var(--border) / .35) 1.2px, transparent 1.4px);
           background-size: 20px 20px;
         }
         .chat-wrap .b {
@@ -534,7 +534,7 @@ const ChatPage: React.FC = () => {
           line-height: 1.4;
         }
         .chat-wrap .b.them {
-          background: rgba(255,255,255,.1);
+          background: var(--s1);
           border: 1px solid var(--line);
           border-bottom-left-radius: 6px;
           color: var(--ink);
@@ -554,7 +554,7 @@ const ChatPage: React.FC = () => {
           margin: 6px 0 8px;
           padding: 4px 14px;
           border-radius: 99px;
-          background: rgba(255,255,255,.07);
+          background: var(--s2);
         }
         .chat-wrap .seen {
           align-self: flex-end;
@@ -568,7 +568,7 @@ const ChatPage: React.FC = () => {
           align-items: center;
           gap: 8px;
           padding: 10px 12px;
-          background: rgba(26,18,51,.9);
+          background: hsl(var(--background) / .92);
           border-top: 1px solid var(--line);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
@@ -578,7 +578,7 @@ const ChatPage: React.FC = () => {
           flex: 1;
           min-width: 0;
           height: 48px;
-          background: rgba(255,255,255,.07);
+          background: var(--s1);
           border: 1px solid var(--line);
           border-radius: 99px;
           padding: 0 18px;
@@ -610,7 +610,7 @@ const ChatPage: React.FC = () => {
           width: 38px;
           height: 38px;
           border-radius: 50%;
-          background: rgba(255,255,255,.06);
+          background: var(--s2);
           display: grid;
           place-items: center;
           color: var(--mute);
@@ -673,7 +673,7 @@ const ChatPage: React.FC = () => {
               )}
               </StoryRing>
               {onlineStatusState?.is_online && (
-                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#22D3A0] ring-2 ring-[#0E0820] shadow-[0_0_8px_#22D3A0]" />
+                <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#22D3A0] ring-2 ring-background shadow-[0_0_8px_#22D3A0]" />
               )}
             </div>
 
@@ -722,24 +722,24 @@ const ChatPage: React.FC = () => {
                 <MoreVertical className="w-5 h-5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border-white/10 bg-[#1A1233]/95 backdrop-blur-xl text-[#F7F3FF]">
+            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-1.5 shadow-2xl border border-border bg-popover/95 backdrop-blur-xl text-popover-foreground">
               <DropdownMenuItem
                 onClick={() => setShowWallpaperModal(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-muted"
               >
                 <ImageIcon className="w-4 h-4 text-[#FF3D7F]" />
                 <span>Wallpaper (इमेज / फोटो)</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowDetails(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-muted"
               >
                 <Info className="w-4 h-4 text-[#A99FD2]" />
                 <span>Conversation details</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowSearch(true)}
-                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-white/10"
+                className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-muted"
               >
                 <Search className="w-4 h-4 text-[#A99FD2]" />
                 <span>Search messages</span>
@@ -832,7 +832,7 @@ const ChatPage: React.FC = () => {
 
               <Link
                 to={`/profile/${otherProfile?.username || ''}`}
-                className="mt-3.5 inline-flex items-center justify-center px-5 py-1.5 rounded-full bg-[#3A3B3C] hover:bg-[#4E4F50] text-white text-xs font-semibold shadow-xs transition-colors"
+                className="mt-3.5 inline-flex items-center justify-center px-5 py-1.5 rounded-full bg-muted hover:bg-muted/80 text-foreground border border-border/60 text-xs font-semibold shadow-xs transition-colors"
               >
                 View Profile
               </Link>
@@ -965,7 +965,7 @@ const ChatPage: React.FC = () => {
                                 'w-fit max-w-full px-4 py-2 rounded-[20px] text-[15px] leading-snug shadow-2xs transition-all cursor-pointer select-text',
                                 isMe
                                   ? cn('rounded-br-[4px] text-white', activeTheme.bubble)
-                                  : 'bg-white/10 text-[#F7F3FF] rounded-bl-[4px] border border-white/10 dark:border-white/10 shadow-2xs'
+                                  : 'bg-muted/80 text-foreground rounded-bl-[4px] border border-border/70 shadow-2xs'
                               )}
                             >
                               <div className="whitespace-pre-wrap break-words [word-break:break-word] select-text">
@@ -1142,7 +1142,7 @@ const ChatPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => void handleSendQuickEmoji(chatEmoji)}
-                className="h-11 w-11 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-125 transition-transform text-2xl select-none shrink-0"
+                className="h-11 w-11 flex items-center justify-center rounded-full hover:bg-muted active:scale-125 transition-transform text-2xl select-none shrink-0"
                 title={`Send ${chatEmoji}`}
                 disabled={blocked || blockedByOther}
               >
