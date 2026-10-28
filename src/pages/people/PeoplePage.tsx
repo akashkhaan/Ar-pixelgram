@@ -113,8 +113,13 @@ const PeoplePage: React.FC = () => {
           position: relative;
           width: 100%;
           min-height: 100%;
-          background: #07070a;
-          color: #f5f5f7;
+          --people-bg: hsl(var(--background));
+          --people-surface: hsl(var(--card));
+          --people-muted-surface: hsl(var(--muted));
+          --people-foreground: hsl(var(--foreground));
+          --people-subtle: hsl(var(--muted-foreground));
+          background: var(--people-bg);
+          color: var(--people-foreground);
           font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
         }
         .people-orb {
@@ -125,7 +130,7 @@ const PeoplePage: React.FC = () => {
           width: 360px;
           height: 260px;
           border-radius: 50%;
-          background: radial-gradient(closest-side, rgba(255,255,255,.14), rgba(255,255,255,0));
+          background: radial-gradient(closest-side, rgba(255,61,127,.12), rgba(124,92,255,0));
           pointer-events: none;
         }
         .people-list {
@@ -140,9 +145,9 @@ const PeoplePage: React.FC = () => {
           gap: 10px;
           padding: 10px 12px;
           border-radius: 20px;
-          background: linear-gradient(160deg, #1b1b22 0%, #111116 55%, #16161c 100%);
-          border: 1px solid rgba(255,255,255,.10);
-          box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 6px 18px rgba(0,0,0,.45);
+          background: var(--people-surface);
+          border: 1px solid hsl(var(--border) / .75);
+          box-shadow: 0 6px 18px rgba(0,0,0,.08);
           transition: transform .15s ease, border-color .15s ease;
           width: 100%;
           box-sizing: border-box;
@@ -157,7 +162,7 @@ const PeoplePage: React.FC = () => {
           height: 46px;
           border-radius: 50%;
           overflow: hidden;
-          box-shadow: 0 0 18px rgba(255,255,255,.15);
+          box-shadow: 0 0 18px rgba(124,92,255,.18);
           cursor: pointer;
         }
         .people-ring {
@@ -166,20 +171,20 @@ const PeoplePage: React.FC = () => {
           left: -8px;
           width: 62px;
           height: 62px;
-          background: conic-gradient(from 0deg, rgba(255,255,255,.1), rgba(255,255,255,1) 25%, rgba(255,255,255,.1) 50%, rgba(255,255,255,.7) 75%, rgba(255,255,255,.1));
+          background: conic-gradient(from 0deg, rgba(124,92,255,.35), rgba(255,61,127,.9) 25%, rgba(124,92,255,.35) 50%, rgba(255,61,127,.8) 75%, rgba(124,92,255,.35));
           animation: spin 6s linear infinite;
         }
         .people-inner {
           position: absolute;
           inset: 2.5px;
           border-radius: 50%;
-          background: radial-gradient(circle at 30% 25%, #34343c 0%, #141418 100%);
+          background: linear-gradient(135deg, hsl(var(--muted)), hsl(var(--background)));
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 18px;
           font-weight: 800;
-          color: #fff;
+          color: var(--people-foreground);
         }
         .people-inner img {
           width: 100%;
@@ -210,7 +215,7 @@ const PeoplePage: React.FC = () => {
           font-size: 14.5px;
           font-weight: 800;
           letter-spacing: -.2px;
-          color: #fff;
+          color: var(--people-foreground);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -219,7 +224,7 @@ const PeoplePage: React.FC = () => {
         .people-fullname {
           font-size: 12px;
           font-weight: 500;
-          color: #a1a1ab;
+          color: var(--people-subtle);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -244,24 +249,49 @@ const PeoplePage: React.FC = () => {
           transform: scale(.93);
         }
         .people-btn.follow {
-          border: 0;
-          background: linear-gradient(180deg, #ffffff 0%, #d8d8e0 100%);
-          color: #07070a;
+          border: 1px solid hsl(var(--border) / .8);
+          background: linear-gradient(180deg, #ffffff 0%, #e8e8ee 100%);
+          color: #111116;
           font-weight: 800;
-          box-shadow: 0 3px 12px rgba(255,255,255,.25);
+          box-shadow: 0 3px 12px rgba(0,0,0,.1);
         }
         .people-btn.following {
-          border: 1px solid rgba(255,255,255,.25);
-          background: rgba(255,255,255,.10);
-          color: #f5f5f7;
+          border: 1px solid hsl(var(--border));
+          background: var(--people-muted-surface);
+          color: var(--people-foreground);
           font-weight: 700;
         }
         .people-btn.requested {
-          border: 1px solid rgba(255,255,255,.25);
-          background: rgba(255,255,255,.08);
-          color: #a1a1ab;
+          border: 1px solid hsl(var(--border));
+          background: var(--people-muted-surface);
+          color: var(--people-subtle);
           font-weight: 700;
         }
+        .people-search {
+          display: block;
+          box-sizing: border-box;
+          width: 100%;
+          height: 40px;
+          padding: 0 16px 0 40px;
+          border-radius: 12px;
+          background: var(--people-surface);
+          border: 1px solid hsl(var(--border));
+          color: var(--people-foreground);
+          font-size: 14px;
+          outline: none;
+          box-shadow: inset 0 1px 2px rgba(0,0,0,.05);
+          transition: border-color .2s, background .2s;
+        }
+        .people-search::placeholder { color: var(--people-subtle); }
+        .people-search:focus { border-color: #ff3d7f; }
+        .people-loading-icon { color: var(--people-subtle); }
+        .people-loading-label { color: var(--people-subtle); font-size: 12px; font-weight: 500; }
+        .people-empty-icon {
+          background: var(--people-muted-surface);
+          border: 1px solid hsl(var(--border));
+        }
+        .people-empty-title { color: var(--people-foreground); }
+        .people-empty-copy { color: var(--people-subtle); }
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
@@ -273,13 +303,13 @@ const PeoplePage: React.FC = () => {
         {/* Search Bar */}
         <div className="relative z-10 px-3.5 pt-3 pb-1.5">
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#a1a1ab]" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--people-subtle)' }} />
             <input
               type="text"
               placeholder="Search by name or username..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full h-10 pl-10 pr-4 rounded-xl bg-white/[0.06] border border-white/10 text-sm text-white placeholder-[#888894] outline-none focus:border-white/30 transition-colors shadow-inner"
+              className="people-search"
             />
           </div>
         </div>
@@ -287,16 +317,16 @@ const PeoplePage: React.FC = () => {
         {/* Content State */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-white/70" />
-            <span className="text-xs text-[#a1a1ab] font-medium">Loading people...</span>
+            <Loader2 className="w-8 h-8 animate-spin people-loading-icon" />
+            <span className="people-loading-label">Loading people...</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center px-6">
-            <div className="w-14 h-14 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center mb-3 text-2xl shadow-lg">
+            <div className="people-empty-icon w-14 h-14 rounded-2xl flex items-center justify-center mb-3 text-2xl shadow-lg">
               🔍
             </div>
-            <p className="text-[#a1a1ab] text-sm font-semibold">No people found</p>
-            <p className="text-[#6d6d78] text-xs mt-1">Try searching with a different name or username</p>
+            <p className="people-empty-title text-sm font-semibold">No people found</p>
+            <p className="people-empty-copy text-xs mt-1">Try searching with a different name or username</p>
           </div>
         ) : (
           <div className="people-list">

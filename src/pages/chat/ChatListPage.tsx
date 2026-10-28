@@ -589,7 +589,7 @@ const ChatListPage: React.FC = () => {
           top: 0;
           z-index: 10;
           padding: 18px 16px 14px;
-          background: linear-gradient(to bottom, rgba(14,8,32,.94) 70%, rgba(14,8,32,0));
+          background: var(--bg);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
         }
