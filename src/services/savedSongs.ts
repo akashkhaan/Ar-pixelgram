@@ -1,5 +1,6 @@
 import { supabase } from '@/db/supabase';
 import type { MusicTrack } from './music';
+import { hasFullAudio } from './musicAvailability';
 
 // ===================== SAVED SONGS =====================
 // Instagram jaisa "save song" — DB me save hota hai (har device par milega).
@@ -35,7 +36,7 @@ interface SavedSongRow {
 }
 
 function rowToTrack(r: SavedSongRow): MusicTrack {
-  return {
+  const track: MusicTrack = {
     id: r.track_id,
     title: r.title,
     artist: r.artist,
@@ -43,6 +44,7 @@ function rowToTrack(r: SavedSongRow): MusicTrack {
     previewUrl: r.preview_url,
     durationMs: r.duration_ms || 30000,
   };
+  return { ...track, isFullSong: hasFullAudio(track) };
 }
 
 export async function getSavedSongs(): Promise<MusicTrack[]> {

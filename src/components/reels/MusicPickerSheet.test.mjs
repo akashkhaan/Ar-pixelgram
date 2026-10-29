@@ -21,6 +21,7 @@ const audioPlayerService = { stop: () => { stops += 1; } };
 const locale = { countryCode: 'IN', countryName: 'India', localTerms: [] };
 const noOp = () => {};
 const mocks = {
+  '@/services/musicAvailability': { hasFullAudio: track => track.isFullSong === true },
   '@/services/audioPlayerService': { audioPlayerService },
   '@/hooks/useAudioPlayer': { useAudioPlayer: () => ({ currentTrack: null, isPlaying: false, currentTime: 0, duration: 0, playTrack: noOp, pause: noOp, resume: noOp, playNext: noOp, stop: audioPlayerService.stop }) },
   '@/services/music': { getDefaultMusicLocale: () => locale, detectMusicLocale: async () => locale, getTrendingMusic: async () => [], getRealReelsCounts: async () => ({}), searchMusic: async () => [], ORIGINAL_AUDIOS: [], INDIAN_REGION_TERMS: {}, COUNTRY_TERMS: {}, getCountryTerms: () => [], getCountryName: () => 'India', formatMusicDuration: () => '0:30', saveMusicLocale: noOp },

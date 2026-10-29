@@ -1,6 +1,7 @@
 import CryptoJS from 'crypto-js';
 import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { supabase } from '@/db/supabase';
+import { mergeMusicTracks } from './musicAvailability';
 // ===================== MUSIC (Songs for Stories, Reels & Posts) =====================
 // Full-length Saavn tracks plus short iTunes previews for catalog fallback.
 // The Render music API proxies Saavn because the upstream endpoint does not allow browser CORS.
@@ -498,8 +499,9 @@ function mapSaavnTracks(items: any[]): MusicTrack[] {
     const id = 'saavn_' + (r.id || r.song || r.name);
     if (seen.has(id)) continue;
     seen.add(id);
-    const durSec = typeof r.duration === 'string' ? parseInt(r.duration, 10) : Number(r.duration || 180);
-    const durationMs = (!isNaN(durSec) && durSec > 0 ? durSec : 180) * 1000;
+    const durSec = Number(r.duration);
+    if (!Number.isFinite(durSec) || durSec <= 0) continue;
+    const durationMs = durSec * 1000;
     const title = decodeHtml(r.song || r.name || r.title || 'Untitled Track');
     const artistList = r.artists?.primary || r.artists?.all;
     const artistNames = Array.isArray(artistList)
@@ -539,7 +541,11 @@ async function fetchSaavn(query: string, signal?: AbortSignal): Promise<MusicTra
     if (res.ok) {
       const json = (await res.json()) as any;
       if (Array.isArray(json?.results) && json.results.length > 0) {
-        return json.results;
+        return mergeMusicTracks(json.results.filter((track: MusicTrack) =>
+          track && typeof track.id === 'string' && typeof track.title === 'string' &&
+          typeof track.artist === 'string' && typeof track.previewUrl === 'string' &&
+          /^https?:\/\//i.test(track.previewUrl) && Number.isFinite(track.durationMs) && track.durationMs > 0
+        ));
       }
     }
   } catch {}
@@ -607,7 +613,7 @@ async function itunes(
 }
 
 /**
- * Unlimited Search: returns extensive songs (A to Z) with Full Songs via JioSaavn + iTunes catalogs.
+ * Search prefers available complete sources; iTunes fallback remains a short preview.
  */
 export async function searchMusic(
   query: string,
@@ -620,25 +626,12 @@ export async function searchMusic(
     const country = locale?.countryCode || 'IN';
     // Query JioSaavn (Full 320kbps songs + regional hits) and iTunes in parallel
     const [saavnResults, itunesGlobal, itunesCountry] = await Promise.all([
-      fetchSaavn(q, signal),
-      itunes(q, 80, signal),
-      itunes(q, 60, signal, country),
+      fetchSaavn(q, signal).catch(() => [] as MusicTrack[]),
+      itunes(q, 80, signal).catch(() => [] as MusicTrack[]),
+      itunes(q, 60, signal, country).catch(() => [] as MusicTrack[]),
     ]);
 
-    const merged = [...saavnResults, ...itunesGlobal, ...itunesCountry];
-    const seen = new Set<string>();
-    const seenTitles = new Set<string>();
-    const out: MusicTrack[] = [];
-
-    for (const t of merged) {
-      const cleanTitleKey = (t.title.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + t.artist.toLowerCase().slice(0, 10));
-      if (!seen.has(t.id) && !seenTitles.has(cleanTitleKey)) {
-        seen.add(t.id);
-        seenTitles.add(cleanTitleKey);
-        out.push(t);
-      }
-    }
-    return out;
+    return mergeMusicTracks([...saavnResults, ...itunesGlobal, ...itunesCountry]);
   } catch {
     return [];
   }
@@ -664,21 +657,9 @@ export async function getTrendingMusic(signal?: AbortSignal, locale?: MusicLocal
       Promise.all(terms.slice(0, 3).map((term) => itunes(term, 20, signal, loc.countryCode).catch(() => [] as MusicTrack[]))),
     ]);
 
-    const merged = [...saavnLists.flat(), ...itunesLists.flat()];
-    const seen = new Set<string>();
-    const seenTitles = new Set<string>();
-    const out: MusicTrack[] = [];
-    for (const t of merged) {
-      const cleanTitleKey = (t.title.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + t.artist.toLowerCase().slice(0, 10));
-      if (!seen.has(t.id) && !seenTitles.has(cleanTitleKey)) {
-        seen.add(t.id);
-        seenTitles.add(cleanTitleKey);
-        out.push(t);
-      }
-    }
-    return out.length > 0 ? out : ORIGINAL_AUDIOS;
+    return mergeMusicTracks([...saavnLists.flat(), ...itunesLists.flat()]);
   } catch {
-    return ORIGINAL_AUDIOS;
+    return [];
   }
 }
 

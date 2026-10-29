@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Music2, Volume2, VolumeX, Loader2 } from 'lucide-react';
 import { formatMusicDuration, type MusicTrack } from '@/services/music';
+import { playableDurationSeconds } from '@/services/musicAvailability';
 
 interface Props {
   track: MusicTrack;
@@ -37,9 +38,9 @@ const MusicTrimmer: React.FC<Props> = ({
 }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const declaredTrackDuration = track.durationMs > 0 ? track.durationMs / 1000 : 0;
+  const declaredTrackDuration = playableDurationSeconds(track);
   const [audioDuration, setAudioDuration] = useState(() =>
-    track.isFullSong && declaredTrackDuration > 0 ? declaredTrackDuration : 30,
+    declaredTrackDuration,
   );
   const [videoDuration, setVideoDuration] = useState(0);
   const [start, setStart] = useState(initialStartMs / 1000);
@@ -204,7 +205,7 @@ const MusicTrimmer: React.FC<Props> = ({
             const reportedDuration = e.currentTarget.duration;
             const actualDuration =
               Number.isFinite(reportedDuration) && reportedDuration > 0 ? reportedDuration : 0;
-            const fallbackDuration = track.isFullSong && declaredTrackDuration > 0 ? declaredTrackDuration : 30;
+            const fallbackDuration = declaredTrackDuration;
             const dur = actualDuration || fallbackDuration;
             setAudioDuration(dur);
             setReady(true);

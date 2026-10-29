@@ -33,6 +33,7 @@ import {
   type MusicTrack,
 } from '@/services/music';
 import { getSavedSongs, saveSong, unsaveSong } from '@/services/savedSongs';
+import { hasFullAudio } from '@/services/musicAvailability';
 import { toast } from 'sonner';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { audioPlayerService } from '@/services/audioPlayerService';
@@ -236,23 +237,43 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
   };
 
   // Import custom audio/video from device
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const url = URL.createObjectURL(file);
-    const customTrack: MusicTrack = {
-      id: `custom_${Date.now()}`,
-      title: file.name.replace(/\.[^/.]+$/, ''),
-      artist: 'Imported Audio',
-      artwork: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80',
-      previewUrl: url,
-      durationMs: 30000,
-      isOriginalAudio: true,
-      reelsCount: '1',
-    };
-
-    onSelect(customTrack);
+    const media = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio');
+    media.preload = 'metadata';
+    media.muted = true;
+    try {
+      const durationMs = await new Promise<number>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Audio metadata timeout')), 10_000);
+        media.onloadedmetadata = () => {
+          clearTimeout(timer);
+          if (Number.isFinite(media.duration) && media.duration > 0) resolve(Math.round(media.duration * 1000));
+          else reject(new Error('Invalid audio duration'));
+        };
+        media.onerror = () => { clearTimeout(timer); reject(new Error('Unsupported audio')); };
+        media.src = url;
+      });
+      onSelect({
+        id: `custom_${Date.now()}`,
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        artist: 'Imported Audio',
+        artwork: '',
+        previewUrl: url,
+        durationMs,
+        isFullSong: true,
+        isOriginalAudio: true,
+      });
+    } catch {
+      URL.revokeObjectURL(url);
+      toast.error('Could not read this audio file. Try another file.');
+    } finally {
+      media.onloadedmetadata = null;
+      media.onerror = null;
+      media.removeAttribute('src');
+      media.load();
+    }
   };
 
   // Manually select state / region
@@ -525,7 +546,7 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                 ? 'Try searching with another song or artist name.'
                 : tab === 'saved'
                 ? 'You have not saved any songs yet.'
-                : 'No songs available in this category.'}
+                : 'Music service unavailable. Try again shortly or import your own audio.'}
             </p>
           </div>
         )}
@@ -590,11 +611,12 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
                       })()}
                       <span>•</span>
                       <span>{formatMusicDuration(track.durationMs)}</span>
-                      {(track.isFullSong || track.durationMs > 35000) && (
+                      {hasFullAudio(track) && (
                         <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
                           Full Song
                         </span>
                       )}
+                      {!hasFullAudio(track) && <span className="shrink-0">Preview</span>}
                     </div>
                   </div>
 
