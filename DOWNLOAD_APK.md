@@ -1,8 +1,8 @@
-# AR Pixelgram — Android APK
+# Pixelgram — Android APK
 
 ## Download (asli signed APK)
 
-**[⬇️ Download latest APK](https://github.com/akashkhaan/Ar-pixelgram/releases/latest/download/ar-pixelgram.apk)**
+**[⬇️ Download latest APK](https://github.com/akashkhaan/Ar-pixelgram/releases/latest/download/pixelgram.apk)**
 
 Ye link hamesha GitHub Actions ke latest successful build ka **signed release APK** deta hai
 (`.github/workflows/android-apk.yml`). Koi demo/fake file nahi — wahi APK jo phone me install hota hai.
@@ -12,8 +12,8 @@ Build kab banta hai:
 - ya GitHub → **Actions** → *Build Android APK* → **Run workflow**
 
 Build khatam hone ke baad APK do jagah milta hai:
-1. **Releases → latest → `ar-pixelgram.apk`** (upar wala link)
-2. Actions run page → **Artifacts → ar-pixelgram-apk**
+1. **Releases → latest → `pixelgram.apk`** (upar wala link)
+2. Actions run page → **Artifacts → pixelgram-apk**
 
 ## Phone notifications ke liye zaroori setup (ek hi baar)
 
