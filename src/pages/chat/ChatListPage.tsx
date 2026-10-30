@@ -1200,6 +1200,14 @@ const ChatListPage: React.FC = () => {
                   Groups
                   {filteredGroups.length > 0 && <i>{filteredGroups.length}</i>}
                 </button>
+                <button
+                  type="button"
+                  className="chip"
+                  aria-pressed={false}
+                  onClick={() => navigate("/ai")}
+                >
+                  AI
+                </button>
                 {requestedGroups.length > 0 && (
                   <button
                     type="button"

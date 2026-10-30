@@ -13,6 +13,7 @@ import CreatePostPage from './pages/post/CreatePostPage';
 import PostDetailPage from './pages/post/PostDetailPage';
 import StoriesPage from './pages/stories/StoriesPage';
 import ChatListPage from './pages/chat/ChatListPage';
+import AiChatPage from './pages/chat/AiChatPage';
 import ChatPage from './pages/chat/ChatPage';
 import CreateGroupPage from './pages/chat/CreateGroupPage';
 import GroupChatPage from './pages/chat/GroupChatPage';
@@ -75,6 +76,7 @@ export const routes: RouteConfig[] = [
   { name: 'Song', path: '/song/:trackId', element: <SongPage /> },
   { name: 'People', path: '/people', element: <PeoplePage /> },
   { name: "Chat", path: "/chat", element: <ChatListPage /> },
+  { name: "AI", path: "/ai", element: <AiChatPage /> },
   { name: "Messages", path: "/messages", element: <ChatListPage /> },
   { name: "Direct Inbox", path: "/direct/inbox", element: <ChatListPage /> },
   { name: "Chat Conversation", path: "/chat/:receiverId", element: <ChatPage /> },

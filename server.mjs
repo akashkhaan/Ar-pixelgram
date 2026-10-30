@@ -106,6 +106,69 @@ function getAllowedOrigins() {
   ]);
 }
 
+const AI_SYSTEM_PROMPT = [
+  'You are Ar Pixelgram AI, a friendly and helpful AI assistant inside the Ar Pixelgram app.',
+  'You can chat, answer questions, write code, build websites and apps, explain things, and help with any task.',
+  'Reply in the same language the user writes in (Hindi, Hinglish, English, etc.).',
+  'If anyone asks who made you, who created you, or who your owner is, always answer: "Mere owner Akash Kumar hain." (match the user language).',
+  'If anyone asks where your owner is from, always answer: "Wo Bihar se hain - Nalanda University, Bihar Sharif, Asthawan." (match the user language).',
+].join(' ');
+
+async function readJsonBody(request, limit = 200_000) {
+  let size = 0;
+  const chunks = [];
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > limit) throw new Error('too_large');
+    chunks.push(chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+}
+
+async function handleAiChat(request, response, fetchImpl) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    sendJson(response, 503, { error: 'AI abhi setup nahi hai (GEMINI_API_KEY missing).' });
+    return;
+  }
+  let body;
+  try {
+    body = await readJsonBody(request);
+  } catch {
+    sendJson(response, 400, { error: 'Invalid request' });
+    return;
+  }
+  const messages = Array.isArray(body?.messages) ? body.messages.slice(-30) : [];
+  const contents = messages
+    .filter((m) => m && typeof m.content === 'string' && m.content.trim())
+    .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content.slice(0, 8000) }] }));
+  if (!contents.length) {
+    sendJson(response, 400, { error: 'Message empty hai' });
+    return;
+  }
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  try {
+    const upstream = await fetchImpl(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] }, contents }),
+        signal: AbortSignal.timeout(60_000),
+      },
+    );
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) {
+      sendJson(response, upstream.status === 429 ? 429 : 502, { error: data?.error?.message || 'AI abhi busy hai, thodi der baad try karo.' });
+      return;
+    }
+    const reply = (data?.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('').trim();
+    sendJson(response, 200, { reply: reply || 'Sorry, main abhi jawab nahi de paya.' });
+  } catch {
+    sendJson(response, 502, { error: 'AI abhi available nahi hai, thodi der baad try karo.' });
+  }
+}
+
 export function createMusicApiServer(fetchImpl = globalThis.fetch) {
   return createServer(async (request, response) => {
     const requestUrl = new URL(request.url || '/', 'http://localhost');
@@ -119,7 +182,7 @@ export function createMusicApiServer(fetchImpl = globalThis.fetch) {
     }
     if (origin) {
       response.setHeader('Access-Control-Allow-Origin', origin);
-      response.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     }
 
@@ -131,6 +194,11 @@ export function createMusicApiServer(fetchImpl = globalThis.fetch) {
 
     if (requestUrl.pathname === '/healthz' && request.method === 'GET') {
       sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (requestUrl.pathname === '/api/ai-chat' && request.method === 'POST') {
+      await handleAiChat(request, response, fetchImpl);
       return;
     }
 

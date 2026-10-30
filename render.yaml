@@ -9,6 +9,8 @@ services:
     envVars:
       - key: FRONTEND_ORIGIN
         value: https://ar-pixelgram.onrender.com
+      - key: GEMINI_API_KEY
+        sync: false
   - type: web
     name: ar-pixelgram
     env: static
