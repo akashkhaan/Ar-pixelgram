@@ -1,6 +1,7 @@
 import { markPostDeleted, markReelDeleted, filterDeletedPosts, filterDeletedReels } from '@/lib/hiddenContent';
 import { dropLegacyPosts, dropLegacyReels } from '@/lib/legacyCleanup';
 import { supabase } from '@/db/supabase';
+import { withTimeout } from '@/lib/withTimeout';
 import type { Profile, Post, Story, Comment, Message, Notification, VerificationRequest, Report, BroadcastNotification, ActivityLog } from '@/types/types';
 export type { Profile, Post, Story, Comment, Message, Notification, VerificationRequest, Report, BroadcastNotification, ActivityLog };
 
@@ -570,13 +571,13 @@ export async function sendMessage(
   return msg;
 }
 
-export async function getMessages(userAId: string, userBId: string): Promise<Message[]> {
+export async function getMessages(userAId: string, userBId: string, limit = 100): Promise<Message[]> {
   const { data } = await supabase
     .from('messages')
     .select('*')
     .or(`and(sender_id.eq.${userAId},receiver_id.eq.${userBId}),and(sender_id.eq.${userBId},receiver_id.eq.${userAId})`)
-    .order('created_at', { ascending: true })
-    .limit(100);
+    .order('created_at', { ascending: limit !== 1 })
+    .limit(limit);
   return Array.isArray(data) ? data : [];
 }
 
@@ -1499,16 +1500,19 @@ export async function getReelsFeed(limit = 20, offset = 0): Promise<Reel[]> {
   // rows pehle hi aa chuki hoti thin. Local persisted session enough hai for
   // the optional is_liked lookup; RLS still protects the database query.
   const rows = filterDeletedReels(dropLegacyReels((data || []) as Reel[])).map(decodeReelMusic);
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return rows;
-  const userId = session.user.id;
-  const ids = rows.map((r) => r.id);
-  let likedSet = new Set<string>();
-  if (ids.length > 0) {
-    const { data: likes } = await supabase.from('reel_likes').select('reel_id').eq('user_id', userId).in('reel_id', ids);
-    likedSet = new Set((likes || []).map((l: { reel_id: string }) => l.reel_id));
+  // Optional like decoration must not discard an already-loaded feed.
+  try {
+    const { data: { session } } = await withTimeout(supabase.auth.getSession(), 1500);
+    if (!session?.user || rows.length === 0) return rows;
+    const { data: likes, error: likesError } = await withTimeout(Promise.resolve(
+      supabase.from('reel_likes').select('reel_id').eq('user_id', session.user.id).in('reel_id', rows.map(r => r.id))
+    ), 1500);
+    if (likesError) return rows;
+    const likedSet = new Set((likes || []).map((l: { reel_id: string }) => l.reel_id));
+    return rows.map(r => ({ ...r, is_liked: likedSet.has(r.id) }));
+  } catch {
+    return rows;
   }
-  return rows.map((r) => ({ ...r, is_liked: likedSet.has(r.id) })) as Reel[];
 }
 
 export async function recordReelView(reelId: string): Promise<void> {

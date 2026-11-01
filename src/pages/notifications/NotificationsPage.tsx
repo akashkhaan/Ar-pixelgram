@@ -343,10 +343,11 @@ const NotificationsPage: React.FC = () => {
 
   // Load notifications and follow statuses
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       const notifs = await withTimeout(getNotifications(user.id), 20000);
       setNotifications(notifs);
+      setLoading(false);
 
       // Fetch follow status for all actors in the notifications list
       const actorIds = Array.from(
@@ -354,11 +355,11 @@ const NotificationsPage: React.FC = () => {
       ) as string[];
 
       if (actorIds.length > 0) {
-        const { data: followRows } = await supabase
+        const { data: followRows } = await withTimeout(Promise.resolve(supabase
           .from('follows')
           .select('following_id, status')
           .eq('follower_id', user.id)
-          .in('following_id', actorIds);
+          .in('following_id', actorIds)), 10000);
 
         const map: Record<string, 'accepted' | 'pending' | null> = {};
         (followRows || []).forEach((row: { following_id: string; status: 'accepted' | 'pending' }) => {
@@ -368,7 +369,7 @@ const NotificationsPage: React.FC = () => {
       }
 
       // Mark unread notifications as read in background after viewing
-      await markNotificationsRead(user.id).catch(() => {});
+      void markNotificationsRead(user.id).catch(() => {});
     } catch (e) {
       console.error('notifications load failed', e);
     } finally {
@@ -788,12 +789,12 @@ const NotificationsPage: React.FC = () => {
     <MobileLayout hideHeader autoHideNav>
       <style>{`
         .notifs-theme {
-          --bg: #110B22;
-          --s1: #1B1334;
-          --s2: #281E4B;
-          --ink: #F6F2FF;
-          --mute: #A79FCC;
-          --line: #2D2452;
+          --bg: hsl(var(--background));
+          --s1: hsl(var(--card));
+          --s2: hsl(var(--secondary));
+          --ink: hsl(var(--foreground));
+          --mute: hsl(var(--muted-foreground));
+          --line: hsl(var(--border));
           --pink: #FF3D7F;
           --blue: #38BDF8;
           background: var(--bg);
@@ -815,7 +816,7 @@ const NotificationsPage: React.FC = () => {
           align-items: center;
           gap: 12px;
           padding: 18px 18px 14px;
-          background: rgba(17, 11, 34, 0.88);
+          background: hsl(var(--background) / 0.88);
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
           border-bottom: 1px solid var(--line);
@@ -935,7 +936,7 @@ const NotificationsPage: React.FC = () => {
         }
         .notifs-theme .body b {
           font-weight: 800;
-          color: #fff;
+          color: var(--ink);
         }
         .notifs-theme .body .t {
           color: var(--mute);
@@ -945,7 +946,7 @@ const NotificationsPage: React.FC = () => {
         .notifs-theme .cm {
           display: block;
           margin-top: 3px;
-          color: #D9D2F4;
+          color: var(--ink);
           font-size: 14px;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -960,7 +961,7 @@ const NotificationsPage: React.FC = () => {
           height: 60px;
           border-radius: 10px;
           overflow: hidden;
-          background: #1B1334;
+          background: var(--s1);
           box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
         }
         .notifs-theme .reel::after {
@@ -987,7 +988,7 @@ const NotificationsPage: React.FC = () => {
           height: 44px;
           border-radius: 10px;
           overflow: hidden;
-          background: #1B1334;
+          background: var(--s1);
           box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
         }
         .notifs-theme .btn {
@@ -1017,6 +1018,7 @@ const NotificationsPage: React.FC = () => {
         }
         .notifs-theme .acts .btn:last-child {
           background: var(--s2);
+          color: var(--ink);
           font-weight: 600;
         }
         .notifs-theme .empty {

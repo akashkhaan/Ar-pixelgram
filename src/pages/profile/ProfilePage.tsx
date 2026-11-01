@@ -64,7 +64,7 @@ const ProfilePage: React.FC = () => {
     }
     let cancelled = false;
     setResolvingQuery(true);
-    resolveFacebookIdToUserId(queryId)
+    withTimeout(resolveFacebookIdToUserId(queryId), 10000)
       .then((uid) => {
         if (cancelled) return;
         if (uid) {
@@ -137,19 +137,19 @@ const ProfilePage: React.FC = () => {
       getUserVideos(targetUserId, user?.id).then(setVideos).catch(() => setVideos([]));
 
       if (!isOwnProfile && user) {
-        const status = await getFollowStatus(user.id, targetUserId);
+        const status = await withTimeout(getFollowStatus(user.id, targetUserId), 10000);
         setFollowStatus(status);
         if (status === 'accepted') {
-          const [userPosts, userReels] = await Promise.all([getUserPosts(targetUserId, user?.id), getUserReels(targetUserId)]);
+          const [userPosts, userReels] = await withTimeout(Promise.all([getUserPosts(targetUserId, user?.id), getUserReels(targetUserId)]), 10000);
           setPosts(userPosts);
           setReels(userReels);
         } else if (p && !p.is_private) {
-          const [userPosts, userReels] = await Promise.all([getUserPosts(targetUserId, user?.id), getUserReels(targetUserId)]);
+          const [userPosts, userReels] = await withTimeout(Promise.all([getUserPosts(targetUserId, user?.id), getUserReels(targetUserId)]), 10000);
           setPosts(userPosts);
           setReels(userReels);
         }
       } else {
-        const [userPosts, userReels] = await Promise.all([getUserPosts(targetUserId, user?.id), getUserReels(targetUserId)]);
+        const [userPosts, userReels] = await withTimeout(Promise.all([getUserPosts(targetUserId, user?.id), getUserReels(targetUserId)]), 10000);
         setPosts(userPosts);
         setReels(userReels);
       }

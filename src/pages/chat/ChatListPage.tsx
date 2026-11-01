@@ -155,7 +155,7 @@ const ChatListPage: React.FC = () => {
   }, [user, searchParams]);
 
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!user) { setLoading(false); return; }
     try {
       const [mutuals, messaged, groupList] = await withTimeout(
         Promise.all([
@@ -163,19 +163,15 @@ const ChatListPage: React.FC = () => {
           getMessagedProfiles(user.id),
           getMyGroups(user.id).catch(() => []),
         ]),
-        10000,
-        [[], [], []]
+        10000
       );
 
       setGroups(groupList);
 
-      // Fetch active calls for all user groups
-      try {
-        const callsMap = await getActiveGroupCallsForUser(user.id);
-        setActiveGroupCalls(callsMap);
-      } catch (err) {
-        console.warn("Could not fetch active group calls:", err);
-      }
+      // Presence and notes are independent of the inbox's critical path.
+      void withTimeout(getActiveGroupCallsForUser(user.id), 10000)
+        .then(setActiveGroupCalls).catch(err => console.warn("Could not fetch active group calls:", err));
+      void loadNotes();
 
       // Combine profiles without duplicates
       const seen = new Set<string>();
@@ -195,37 +191,21 @@ const ChatListPage: React.FC = () => {
           let lastMessage: Message | null = null;
           let unreadCount = 0;
           try {
-            const msgs = await getMessages(user.id, p.user_id);
+            const [msgs, count] = await Promise.all([
+              withTimeout(getMessages(user.id, p.user_id, 1), 10000),
+              withTimeout(getUnreadCount(user.id, p.user_id), 10000),
+            ]);
+            unreadCount = count;
             if (msgs.length > 0) {
               lastMessage = msgs[msgs.length - 1];
             }
-            unreadCount = await getUnreadCount(user.id, p.user_id);
+
           } catch {
             /* ignore individual errors */
           }
           return { profile: p, lastMessage, unreadCount };
         })
       );
-
-      // Fetch online presence for all conversation profiles
-      const userIds = combined.map((p) => p.user_id);
-      if (userIds.length > 0) {
-        try {
-          const { data: statusRows } = await supabase
-            .from("online_status")
-            .select("user_id, is_online, last_seen_at")
-            .in("user_id", userIds);
-          if (statusRows) {
-            const statusMap: Record<string, { is_online: boolean; last_seen_at?: string }> = {};
-            statusRows.forEach((r: any) => {
-              statusMap[r.user_id] = { is_online: r.is_online, last_seen_at: r.last_seen_at };
-            });
-            setOnlineStatuses(statusMap);
-          }
-        } catch {
-          /* ignore */
-        }
-      }
 
       setConversations(
         convs.sort((a, b) => {
@@ -239,8 +219,29 @@ const ChatListPage: React.FC = () => {
         })
       );
 
-      // Load notes
-      loadNotes();
+      setLoading(false);
+
+      // Fetch online presence for all conversation profiles
+      const userIds = combined.map((p) => p.user_id);
+      if (userIds.length > 0) {
+        try {
+          const { data: statusRows } = await withTimeout(Promise.resolve(supabase
+            .from("online_status")
+            .select("user_id, is_online, last_seen_at")
+            .in("user_id", userIds)), 10000);
+          if (statusRows) {
+            const statusMap: Record<string, { is_online: boolean; last_seen_at?: string }> = {};
+            statusRows.forEach((r: any) => {
+              statusMap[r.user_id] = { is_online: r.is_online, last_seen_at: r.last_seen_at };
+            });
+            setOnlineStatuses(statusMap);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+
     } catch {
       /* ignore */
     } finally {

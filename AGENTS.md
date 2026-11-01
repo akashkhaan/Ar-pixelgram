@@ -5,3 +5,8 @@
 - Test the shared music picker's closed mount and open/close lifecycle, including the Notes caller, because its effects run even when the picker is hidden and can crash all composers.
 
 - Keep music availability and recording deduplication in the shared browser-safe musicAvailability module; distinguish preview sources from complete audio and isolate catalog failures so every composer keeps available full tracks.
+
+- Lazy-load route pages behind the existing router suspense boundary so unrelated composers and admin tools do not block startup.
+- Bound each inbox/profile loading phase; publish inbox rows before optional presence and calls, and fetch only the newest message for inbox summaries while preserving full conversation history.
+- Keep reel like decoration best-effort: optional session/like failures must not discard successfully loaded feed rows.
+- Notification surfaces and text use global theme tokens so light/dark changes apply consistently.

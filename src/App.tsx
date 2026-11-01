@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { Suspense, useEffect } from "react";
 import { resumeAllPendingUploads } from '@/services/persistentUploadQueue';
 import {
   BrowserRouter as Router,
@@ -111,6 +111,7 @@ const App: React.FC = () => {
               <GlobalAudioAutoStopper />
               <UploadAutoResumer />
               <RouteGuard>
+                <Suspense fallback={<div className="min-h-screen bg-background" aria-busy="true" />}>
                 <Routes>
                   {routes.map((route, index) => (
                     <Route
@@ -121,6 +122,7 @@ const App: React.FC = () => {
                   ))}
                   <Route path="*" element={<Navigate to="/home" replace />} />
                 </Routes>
+                </Suspense>
               </RouteGuard>
               <IncomingCallModal />
               <IncomingGroupCallModal />
