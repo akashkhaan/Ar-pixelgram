@@ -46,6 +46,7 @@ import CreateNoteModal from "@/components/chat/CreateNoteModal";
 import ViewNoteModal from "@/components/chat/ViewNoteModal";
 import type { GroupCall } from "@/types/groups";
 import type { Message, Profile } from "@/types/types";
+import GlassSearch from '@/components/common/GlassSearch';
 
 interface ConversationItem {
   profile: Profile;
@@ -1149,27 +1150,14 @@ const ChatListPage: React.FC = () => {
 
               {/* Message search opens from the header button. */}
               {showMessageSearch && (
-              <div className="search" id="message-search">
-                <svg viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <input
+              <div className="gs-host" id="message-search">
+                <GlassSearch
+                  defaultOpen
                   ref={messageSearchRef}
-                  type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search messages..."
                 />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
               </div>
               )}
 
@@ -1200,14 +1188,6 @@ const ChatListPage: React.FC = () => {
                 >
                   Groups
                   {filteredGroups.length > 0 && <i>{filteredGroups.length}</i>}
-                </button>
-                <button
-                  type="button"
-                  className="chip"
-                  aria-pressed={false}
-                  onClick={() => navigate("/ai")}
-                >
-                  AI
                 </button>
                 {requestedGroups.length > 0 && (
                   <button
@@ -1723,27 +1703,13 @@ const ChatListPage: React.FC = () => {
                   </button>
                 </div>
                 <div className="npad">
-                  <div className="search">
-                    <svg viewBox="0 0 24 24">
-                      <circle cx="11" cy="11" r="8" />
-                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    <input
-                      type="text"
+                  <div className="gs-host">
+                    <GlassSearch
                       id="nSearch"
                       value={peopleSearchQuery}
                       onChange={(e) => setPeopleSearchQuery(e.target.value)}
                       placeholder="Search people..."
                     />
-                    {peopleSearchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setPeopleSearchQuery("")}
-                        className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    )}
                   </div>
                   {selectedPeople.length > 0 && (
                     <div className="sel" id="selectedChips">

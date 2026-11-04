@@ -4,6 +4,7 @@ import type { Group, GroupMember, GroupMedia, GroupPinnedMessage, GroupPermissio
 import type { Profile } from '@/types/types';
 import { supabase } from '@/db/supabase';
 import { getAllProfiles } from '@/services/api';
+import GlassSearch from '@/components/common/GlassSearch';
 import {
   searchGroupUsers,
   sendGroupMessage,
@@ -1133,9 +1134,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
       </div>
 
       <div style={{ position: 'relative', marginBottom: '14px' }}>
-        <input
-          type="text"
-          className="in"
+        <GlassSearch
           value={searchQuery}
           onChange={e => handleSearchChange(e.target.value)}
           placeholder="Search people by username or name..."
@@ -1255,8 +1254,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
     openSheet(
       'Search in Conversation',
       <div>
-        <input
-          className="in"
+        <GlassSearch
           value={messageSearchQuery}
           onChange={e => setMessageSearchQuery(e.target.value)}
           placeholder="Search messages..."

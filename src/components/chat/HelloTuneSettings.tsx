@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import GlassSearch from '@/components/common/GlassSearch';
 import {
   decodeHelloTuneFile,
   HELLO_TUNE_MOODS,
@@ -529,8 +530,7 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
 
         <div className="ht-overline">Pixelgram ke demo tunes</div>
         <div className="ht-search">
-          <Search size={17} color="#a99fd2" />
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Gana, mood ya artist search karo..." />
+          <GlassSearch value={query} onChange={event => setQuery(event.target.value)} placeholder="Gana, mood ya artist search karo..." />
           <button type="button" className="ht-icon-button" style={{ width: 34, height: 34, borderRadius: 11 }} onClick={startVoiceSearch} aria-label="Search by voice">
             <Mic size={15} color={isListening ? '#ff3d7f' : '#c7b8ff'} />
           </button>

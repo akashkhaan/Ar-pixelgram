@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getMessagedProfiles, sendMessage, type Profile } from '@/services/api';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
+import GlassSearch from '@/components/common/GlassSearch';
 
 interface InstagramShareSheetProps {
   open: boolean;
@@ -246,13 +247,10 @@ ${url}`;
         {/* Search friend */}
         <div className="px-4 py-2.5">
           <div className="relative flex items-center bg-muted/70 rounded-xl px-3 py-2 border border-border/50">
-            <Search className="w-4 h-4 text-muted-foreground mr-2 shrink-0" />
-            <input
-              type="text"
+            <GlassSearch
               placeholder="Search people..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
             {searching && (
               <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground mr-1.5 shrink-0" />

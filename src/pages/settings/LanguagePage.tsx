@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { ArrowLeft, Check, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import GlassSearch from '@/components/common/GlassSearch';
 
 const LanguagePage: React.FC = () => {
   const navigate = useNavigate();
@@ -44,12 +45,10 @@ const LanguagePage: React.FC = () => {
             <h2 className="text-base font-bold text-foreground">Language / भाषा</h2>
           </div>
           <div className="relative mt-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
+            <GlassSearch
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search language..."
-              className="pl-9 rounded-full"
             />
           </div>
         </div>

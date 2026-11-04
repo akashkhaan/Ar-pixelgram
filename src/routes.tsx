@@ -12,7 +12,6 @@ const CreatePostPage = lazy(() => import('./pages/post/CreatePostPage'));
 const PostDetailPage = lazy(() => import('./pages/post/PostDetailPage'));
 const StoriesPage = lazy(() => import('./pages/stories/StoriesPage'));
 const ChatListPage = lazy(() => import('./pages/chat/ChatListPage'));
-const AiChatPage = lazy(() => import('./pages/chat/AiChatPage'));
 const ChatPage = lazy(() => import('./pages/chat/ChatPage'));
 const CreateGroupPage = lazy(() => import('./pages/chat/CreateGroupPage'));
 const GroupChatPage = lazy(() => import('./pages/chat/GroupChatPage'));
@@ -75,7 +74,6 @@ export const routes: RouteConfig[] = [
   { name: 'Song', path: '/song/:trackId', element: <SongPage /> },
   { name: 'People', path: '/people', element: <PeoplePage /> },
   { name: "Chat", path: "/chat", element: <ChatListPage /> },
-  { name: "AI", path: "/ai", element: <AiChatPage /> },
   { name: "Messages", path: "/messages", element: <ChatListPage /> },
   { name: "Direct Inbox", path: "/direct/inbox", element: <ChatListPage /> },
   { name: "Chat Conversation", path: "/chat/:receiverId", element: <ChatPage /> },

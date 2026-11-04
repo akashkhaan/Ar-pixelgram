@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ChevronDown, Search, X, Check } from 'lucide-react';
 import { COUNTRIES, DEFAULT_COUNTRY, type Country } from '@/data/countries';
 import { Input } from '@/components/ui/input';
+import GlassSearch from '@/components/common/GlassSearch';
 
 export interface CountryPhoneInputProps {
   value: string; // E.164 format or raw digits, e.g. "+919876543210" or "9876543210"
@@ -181,24 +182,12 @@ export const CountryPhoneInput: React.FC<CountryPhoneInputProps> = ({
             {/* Search Input */}
             <div className="p-3 border-b border-border bg-muted/20">
               <div className="relative flex items-center">
-                <Search className="absolute left-3 w-4 h-4 text-muted-foreground pointer-events-none" />
-                <input
+                <GlassSearch
                   ref={searchInputRef}
-                  type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Search country or dial code (+91, India...)"
-                  className="w-full h-11 pl-9 pr-9 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
               </div>
             </div>
 

@@ -12,6 +12,7 @@ import useGoBack from '@/hooks/use-go-back';
 import { cn } from '@/lib/utils';
 import { followUser, getFollowers, getFollowing, getFollowStatus, unfollowUser } from '@/services/api';
 import type { Profile } from '@/types/types';
+import GlassSearch from '@/components/common/GlassSearch';
 
 // प्रत्येक username से unique gradient
 function userGradient(username: string) {
@@ -105,12 +106,10 @@ const FollowListPage: React.FC = () => {
         {/* Search */}
         <div className="px-4 py-2.5 border-b border-border/50">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
+            <GlassSearch
               placeholder="Search..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="pl-9 h-9 bg-muted/50 border-0 focus-visible:ring-1"
             />
           </div>
         </div>

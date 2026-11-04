@@ -26,6 +26,7 @@ import type { Post, Profile } from '@/types/types';
 import { FacebookProfileBottomSheet } from '@/components/profile/FacebookProfileBottomSheet';
 import { resolveFacebookIdToUserId } from '@/lib/facebookProfileUrl';
 import { isBlocked, unblockUser } from '@/services/api';
+import GlassSearch from '@/components/common/GlassSearch';
 
 
 // username से unique gradient ring color
@@ -408,24 +409,12 @@ const ProfilePage: React.FC = () => {
         {showSearch && (
           <div className="sticky top-12 z-20 px-4 py-2 bg-background border-b border-border/60 flex items-center gap-2 animate-in slide-in-from-top duration-150">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
+              <GlassSearch
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={`Search ${profile.full_name || profile.username}'s posts...`}
-                className="w-full pl-9 pr-8 py-1.5 rounded-full bg-muted/60 border border-border text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 autoFocus
               />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
             <button
               type="button"

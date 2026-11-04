@@ -56,6 +56,7 @@ import {
   uploadImage,
 } from '@/services/api';
 import type { Message, Profile } from '@/types/types';
+import GlassSearch from '@/components/common/GlassSearch';
 
 const EMOJI_LIST = ['😀', '😂', '❤️', '👍', '🎉', '😍', '🔥', '✨', '😎', '🙏', '💯', '🤔', '😭', '😘', '💪'];
 
@@ -760,13 +761,11 @@ const ChatPage: React.FC = () => {
         {/* IN-CONVERSATION SEARCH BAR */}
         {showSearch && (
           <div className="flex items-center gap-2 border-b border-border/60 bg-muted/40 backdrop-blur-md px-3 py-2 animate-in slide-in-from-top-2 duration-150 shrink-0">
-            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Input
+            <GlassSearch
               autoFocus
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search in conversation..."
-              className="h-8.5 rounded-xl text-xs bg-background/80 focus-visible:ring-1 focus-visible:ring-primary"
             />
             <button
               type="button"

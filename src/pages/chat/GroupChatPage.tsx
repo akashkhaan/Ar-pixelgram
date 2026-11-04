@@ -74,6 +74,7 @@ import type {
   GroupPinnedMessage,
 } from '@/types/groups';
 import type { Profile } from '@/types/types';
+import GlassSearch from '@/components/common/GlassSearch';
 
 const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡', '🙏'];
 
@@ -886,13 +887,11 @@ const GroupChatPage: React.FC = () => {
         {/* IN-CONVERSATION SEARCH BAR */}
         {showMessageSearch && (
           <div className="flex items-center gap-2 border-b border-white/10 bg-[#1A1233]/80 backdrop-blur-md px-3 py-2 animate-in slide-in-from-top-2 duration-150 shrink-0">
-            <Search className="h-4 w-4 text-[#A99FD2] shrink-0" />
-            <Input
+            <GlassSearch
               autoFocus
               value={messageQuery}
               onChange={e => setMessageQuery(e.target.value)}
               placeholder="Search in conversation..."
-              className="h-8.5 rounded-xl text-xs bg-white/5 border-white/10 text-[#F7F3FF] focus-visible:ring-1 focus-visible:ring-[#FF3D7F]"
             />
             <button
               type="button"

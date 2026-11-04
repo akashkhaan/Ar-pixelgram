@@ -4,6 +4,7 @@ import { getVisitorSessions, getRegisteredVisitors, type RegisteredVisitor, type
 import { Globe2, Smartphone, Users, Loader2, MapPin, Search, RefreshCw, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import GlassSearch from '@/components/common/GlassSearch';
 
 const fmt = (iso?: string | null) =>
   iso
@@ -122,12 +123,10 @@ const AdminVisitors: React.FC = () => {
         </div>
 
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
+          <GlassSearch
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="Search by user, country, state, device…"
-            className="pl-9"
           />
         </div>
 

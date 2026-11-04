@@ -8,6 +8,7 @@ import { getAllProfiles, getFollowStatus, followUser, unfollowUser, createNotifi
 import type { Profile } from '@/types/types';
 import { Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import GlassSearch from '@/components/common/GlassSearch';
 
 const VerifiedIcon: React.FC = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff" stroke="#07070a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label="Verified" className="shrink-0">
@@ -303,13 +304,10 @@ const PeoplePage: React.FC = () => {
         {/* Search Bar */}
         <div className="relative z-10 px-3.5 pt-3 pb-1.5">
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--people-subtle)' }} />
-            <input
-              type="text"
+            <GlassSearch
               placeholder="Search by name or username..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="people-search"
             />
           </div>
         </div>

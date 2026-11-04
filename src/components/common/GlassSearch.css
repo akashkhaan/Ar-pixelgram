@@ -1,0 +1,108 @@
+@property --gs-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+.glass-search {
+  --gs-blue: #3b82f6; --gs-violet: #8b5cf6; --gs-pink: #ec4899; --gs-cyan: #22d3ee;
+  --gs-text: #f2f5ff; --gs-muted: #8f9ab8;
+  --gs-ease: cubic-bezier(.22, 1, .36, 1); --gs-spring: cubic-bezier(.34, 1.45, .64, 1);
+  --gs-h: 40px;
+  --mx: 50%; --my: 50%;
+  position: relative;
+  width: var(--gs-h); height: var(--gs-h); max-width: 100%;
+  border-radius: calc(var(--gs-h) / 2);
+  display: flex; align-items: center; flex-shrink: 0;
+  cursor: pointer;
+  transition: width .8s var(--gs-ease), transform .4s var(--gs-spring);
+  font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.glass-search.open { width: 100%; cursor: text; flex-shrink: 1; }
+.glass-search:not(.open):active { transform: scale(.9); }
+
+.glass-search .gs-aura {
+  position: absolute; inset: -5px; border-radius: inherit; z-index: 0; pointer-events: none;
+  background: conic-gradient(from var(--gs-angle), var(--gs-blue), var(--gs-violet), var(--gs-pink), var(--gs-cyan), var(--gs-blue));
+  filter: blur(14px); opacity: .35;
+  animation: gs-spin 7s linear infinite, gs-breathe 3.2s ease-in-out infinite;
+  transition: opacity .6s ease;
+}
+.glass-search.open .gs-aura { opacity: .28; animation: gs-spin 5s linear infinite; }
+.glass-search.open:focus-within .gs-aura { opacity: .6; }
+.glass-search.has-text .gs-aura { animation-duration: 2.6s; }
+
+.glass-search .gs-glass {
+  position: absolute; inset: 0; border-radius: inherit; z-index: 1; overflow: hidden; pointer-events: none;
+  background:
+    radial-gradient(120px circle at var(--mx) var(--my), rgba(255,255,255,.16), transparent 70%),
+    linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.015) 60%),
+    rgba(12, 16, 30, .72);
+  -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -8px 18px rgba(0,0,0,.18);
+}
+.glass-search .gs-glass::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.28), transparent);
+  transform: translateX(-120%) skewX(-18deg); opacity: 0;
+}
+.glass-search.open .gs-glass::after { animation: gs-sweep 1s var(--gs-ease) .05s 1; }
+@keyframes gs-sweep {
+  0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateX(300%) skewX(-18deg); opacity: 0; }
+}
+
+.glass-search .gs-ring {
+  position: absolute; inset: 0; border-radius: inherit; z-index: 2; pointer-events: none;
+  padding: 1.5px;
+  background: conic-gradient(from var(--gs-angle), var(--gs-blue), var(--gs-violet), var(--gs-pink), var(--gs-cyan), var(--gs-blue));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: .55;
+  animation: gs-spin 7s linear infinite;
+  transition: opacity .5s ease;
+}
+.glass-search.open .gs-ring { opacity: .45; animation: gs-spin 5s linear infinite; }
+.glass-search.open:focus-within .gs-ring { opacity: 1; }
+.glass-search.has-text .gs-ring { animation-duration: 2.6s; }
+
+@keyframes gs-spin { to { --gs-angle: 360deg; } }
+@keyframes gs-breathe { 50% { transform: scale(1.12); } }
+
+.glass-search .gs-icon {
+  position: relative; z-index: 3;
+  flex: 0 0 var(--gs-h); width: var(--gs-h); height: var(--gs-h);
+  border: 0; background: transparent; color: var(--gs-text);
+  display: grid; place-items: center; cursor: inherit; border-radius: 50%; padding: 0;
+}
+.glass-search .gs-icon svg { width: 18px; height: 18px; transition: transform .6s var(--gs-spring), color .3s ease; }
+.glass-search:not(.open):hover .gs-icon svg { transform: scale(1.15) rotate(-12deg); }
+.glass-search.open .gs-icon svg { color: #cfd9f5; }
+.glass-search.open:focus-within .gs-icon svg { color: var(--gs-cyan); }
+
+.glass-search input.gs-input {
+  position: relative; z-index: 3;
+  flex: 1; min-width: 0; width: auto; height: var(--gs-h);
+  border: 0 !important; outline: 0 !important; box-shadow: none !important; background: transparent !important;
+  padding: 0 !important; margin: 0;
+  color: var(--gs-text) !important; font: 500 16px "Poppins", system-ui, sans-serif;
+  letter-spacing: .01em; caret-color: var(--gs-cyan);
+  opacity: 0; transform: translateX(-10px); pointer-events: none;
+  transition: opacity .3s ease, transform .6s var(--gs-ease);
+  -webkit-appearance: none; appearance: none;
+}
+.glass-search.open input.gs-input { opacity: 1; transform: none; pointer-events: auto; transition-delay: .2s; }
+.glass-search input.gs-input::placeholder { color: var(--gs-muted); font-weight: 400; transition: opacity .2s ease; }
+.glass-search input.gs-input:focus::placeholder { opacity: .55; }
+.glass-search input.gs-input::-webkit-search-cancel-button { display: none; }
+
+.glass-search .gs-clear {
+  position: relative; z-index: 3;
+  flex: 0 0 24px; width: 24px; height: 24px; margin-right: 8px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: rgba(255,255,255,.16); color: var(--gs-text);
+  display: grid; place-items: center; cursor: pointer;
+  transform: scale(0) rotate(-120deg); opacity: 0; pointer-events: none;
+  transition: transform .5s var(--gs-spring), opacity .2s ease, background .2s ease;
+}
+.glass-search .gs-clear svg { width: 10px; height: 10px; }
+.glass-search .gs-clear:hover { background: rgba(255,255,255,.3); }
+.glass-search.has-text .gs-clear { transform: scale(1) rotate(0); opacity: 1; pointer-events: auto; }

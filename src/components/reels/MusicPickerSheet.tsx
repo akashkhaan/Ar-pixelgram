@@ -37,6 +37,7 @@ import { hasFullAudio } from '@/services/musicAvailability';
 import { toast } from 'sonner';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { audioPlayerService } from '@/services/audioPlayerService';
+import GlassSearch from '@/components/common/GlassSearch';
 
 interface Props {
   open: boolean;
@@ -331,22 +332,11 @@ const MusicPickerSheet: React.FC<Props> = ({ open, onClose, onSelect }) => {
         <div className="flex items-center gap-2">
           {/* Search box */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-            <input
+            <GlassSearch
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search..."
-              className="w-full h-9 pl-9 pr-8 rounded-full bg-white/15 text-sm text-white placeholder:text-white/50 outline-none focus:ring-1 focus:ring-primary"
             />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-white/60 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
 
           {/* Import Button */}

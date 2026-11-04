@@ -3,6 +3,7 @@ import { ArrowLeft, Bookmark, Check, Search, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EFFECTS, renderEffect, searchEffects, type CameraEffect, type EffectCategory } from '@/pages/reels/cameraEffects';
 import './camera-effects.css';
+import GlassSearch from '@/components/common/GlassSearch';
 
 export function EffectThumbnail({ effect }: { effect: CameraEffect; video?: RefObject<HTMLVideoElement | null> }) {
   if (effect.id === "none") {
@@ -67,8 +68,7 @@ export function EffectsBrowser({ open, searchInitially, onClose, onSelect, selec
       <div className="effects-handle" />
       {search ? <div className="effects-search-header">
         <Button variant="ghost" size="icon" aria-label="Back to effects" onClick={() => { setSearch(false); setQuery(''); }}><ArrowLeft /></Button>
-        <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search effects" aria-label="Search effects" />
-        {query && <Button variant="ghost" size="icon" aria-label="Clear search" onClick={() => setQuery('')}><X /></Button>}
+        <GlassSearch autoFocus value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search effects" aria-label="Search effects" />
         <Button variant="ghost" size="icon" aria-label="Close effects" onClick={onClose}><X /></Button>
       </div> : <div className="effects-tabs">
         <Button variant="ghost" size="icon" aria-label="Search effects" onClick={() => { setSearch(true); setOnlySaved(false); }}><Search /></Button>
