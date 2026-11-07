@@ -1,3 +1,4 @@
+import { isDirectMediaUrl } from './ChatMediaRenderer';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Film, BadgeCheck, ExternalLink, User, Loader2, Tv, Users } from 'lucide-react';
@@ -133,6 +134,8 @@ export function parseSharedContent(content: string): ParsedShareInfo | null {
 
   // 7. Standalone URL: https://... or http://...
   const urlMatch = content.trim().match(/^(https?:\/\/[^\s]+)$/i);
+  // Sent photos/videos/audio are media, not link cards (WhatsApp/Instagram style)
+  if (urlMatch && isDirectMediaUrl(urlMatch[0]).isMedia) return null;
   if (urlMatch) {
     const rawUrl = urlMatch[0];
     let domain = 'link';

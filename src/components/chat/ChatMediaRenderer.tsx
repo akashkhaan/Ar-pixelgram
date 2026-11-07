@@ -13,16 +13,12 @@ interface ChatMediaRendererProps {
 export const isDirectMediaUrl = (url: string): { isMedia: boolean; type?: 'image' | 'video' | 'audio' } => {
   if (!url) return { isMedia: false };
   const clean = url.trim();
-  const isAudio = /\.(webm|mp3|wav|ogg|m4a)(\?.*)?$/i.test(clean);
-  if (isAudio) return { isMedia: true, type: 'audio' };
-
-  const isImage = /\.(jpe?g|png|webp|gif|svg|bmp)(\?.*)?$/i.test(clean) ||
-    /\/storage\/v1\/object\/public\/(posts|avatars|stories|chat_media)\//i.test(clean);
-  if (isImage) return { isMedia: true, type: 'image' };
-
-  const isVideo = /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(clean) ||
-    /\/storage\/v1\/object\/public\/(reels|videos)\//i.test(clean);
-  if (isVideo) return { isMedia: true, type: 'video' };
+  // Extensions first so a video stored in an image bucket still plays as video
+  if (/\.(mp4|mov|m4v|ogv)(\?.*)?$/i.test(clean)) return { isMedia: true, type: 'video' };
+  if (/\.(jpe?g|png|webp|gif|svg|bmp|heic)(\?.*)?$/i.test(clean)) return { isMedia: true, type: 'image' };
+  if (/\.(webm|mp3|wav|ogg|m4a|aac)(\?.*)?$/i.test(clean)) return { isMedia: true, type: 'audio' };
+  if (/\/storage\/v1\/object\/public\/(reels|videos)\//i.test(clean)) return { isMedia: true, type: 'video' };
+  if (/\/storage\/v1\/object\/public\/(posts|avatars|stories|chat_media|group-media)\//i.test(clean)) return { isMedia: true, type: 'image' };
 
   return { isMedia: false };
 };
@@ -152,9 +148,10 @@ export const ChatMediaRenderer: React.FC<ChatMediaRendererProps> = ({
   // 3. Direct URL Check
   const isDirectUrl = /^(https?:\/\/[^\s]+)$/i.test(raw);
   if (isDirectUrl) {
-    const isImage = /\.(jpe?g|png|webp|gif|svg)(\?.*)?$/i.test(raw) || /\/storage\/v1\/object\/public\/(posts|avatars|stories)\//i.test(raw);
-    const isVideo = /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(raw) || /\/storage\/v1\/object\/public\/(reels|videos)\//i.test(raw);
-    const isAudio = /\.(webm|mp3|wav|ogg|m4a)(\?.*)?$/i.test(raw);
+    const directType = isDirectMediaUrl(raw).type;
+    const isImage = directType === 'image';
+    const isVideo = directType === 'video';
+    const isAudio = directType === 'audio';
 
     if (isAudio) {
       return (

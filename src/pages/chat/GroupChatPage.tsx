@@ -1039,7 +1039,7 @@ const GroupChatPage: React.FC = () => {
                           return (
                             <div
                               id={"group-message-" + message.id}
-                              className="w-fit max-w-[85%] text-sm"
+                              className="w-fit max-w-full text-sm"
                             >
                               <InstagramSharedCard shareInfo={shareInfo} isMe={mine} />
                             </div>
