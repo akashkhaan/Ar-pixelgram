@@ -1039,12 +1039,7 @@ const GroupChatPage: React.FC = () => {
                           return (
                             <div
                               id={"group-message-" + message.id}
-                              className={cn(
-                                "w-full max-w-[340px] p-1.5 rounded-[22px] text-sm shadow-sm transition-all",
-                                mine
-                                  ? cn("rounded-br-[5px] text-white", activeTheme.bubble)
-                                  : "bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40"
-                              )}
+                              className="w-fit max-w-[85%] text-sm"
                             >
                               <InstagramSharedCard shareInfo={shareInfo} isMe={mine} />
                             </div>

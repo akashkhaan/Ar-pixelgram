@@ -926,24 +926,16 @@ const ChatPage: React.FC = () => {
                           {msg.content.trim()}
                         </div>
                       ) : shareInfo ? (
-                        <div
-                          className={cn(
-                            'w-full max-w-[340px] p-1.5 rounded-[22px] text-sm shadow-sm transition-all',
-                            isMe
-                              ? cn('rounded-br-[5px] text-white', activeTheme.bubble)
-                              : 'bg-muted/80 dark:bg-zinc-800/80 text-foreground rounded-bl-[5px] border border-border/40'
-                          )}
-                        >
+                        <div className={cn('flex flex-col w-fit max-w-[85%] text-sm', isMe ? 'items-end' : 'items-start')}>
                           <InstagramSharedCard shareInfo={shareInfo} isMe={isMe} />
                           <div
                             className={cn(
-                              'flex items-center gap-1 justify-end px-2 pt-1 pb-0.5 text-[10px]',
-                              isMe ? 'text-white/80' : 'text-muted-foreground'
+                              'flex items-center gap-1 justify-end px-1 pt-1 pb-0.5 text-[10px] text-muted-foreground'
                             )}
                           >
                             <span>{formatTime(msg.created_at)}</span>
                             {isMe && (
-                              <span className={cn('font-bold', msg.is_seen ? 'text-sky-300' : 'text-white/70')}>
+                              <span className={cn('font-bold', msg.is_seen ? 'text-sky-400' : 'text-muted-foreground')}>
                                 {msg.is_seen ? '✓✓' : '✓'}
                               </span>
                             )}
