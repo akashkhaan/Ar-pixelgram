@@ -55,6 +55,7 @@ const ProfilePage: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isUserBlocked, setIsUserBlocked] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   // Resolve Facebook-style numeric ID or query param to target user_id
   useEffect(() => {
@@ -107,7 +108,6 @@ const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'reels' | 'videos'>('posts');
-  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     if (queryId && resolvingQuery) return;

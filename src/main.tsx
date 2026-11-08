@@ -10,6 +10,22 @@ Sentry.init({
   environment: import.meta.env.MODE,
 });
 
+// Auto-recover from stale chunks or dynamic import failures on Render/Vite
+if (typeof window !== 'undefined') {
+  window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault();
+    const key = 'vite_preload_error_ts';
+    const last = sessionStorage.getItem(key);
+    const now = Date.now();
+    if (!last || now - Number(last) > 12000) {
+      sessionStorage.setItem(key, String(now));
+      const url = new URL(window.location.href);
+      url.searchParams.set('_v', String(now));
+      window.location.replace(url.toString());
+    }
+  });
+}
+
 // Register the service worker as early as possible, unconditionally. This is
 // what makes the browser treat the site as an installable PWA (together with
 // /manifest.json) — on Android that produces a real WebAPK with its own
@@ -61,9 +77,7 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   });
 }
 
-
 // Local bundle instant boot
-
 try {
   if (typeof window !== 'undefined') {
     (window as any).AndroidNotification?.setWebReady?.();
@@ -98,10 +112,13 @@ createRoot(document.getElementById("root")!).render(
                 const keys = await caches.keys();
                 for (const k of keys) await caches.delete(k);
               }
+              sessionStorage.clear();
             } catch {}
-            window.location.reload();
+            const cleanUrl = new URL(window.location.origin + window.location.pathname);
+            cleanUrl.searchParams.set('_r', Date.now().toString());
+            window.location.replace(cleanUrl.toString());
           }}
-          className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-95 transition-all shadow-md"
+          className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm active:scale-95 transition-all shadow-md cursor-pointer"
         >
           पेज रीफ्रेश करें
         </button>

@@ -1,47 +1,99 @@
 import RootRedirect from './components/common/RootRedirect';
-import { lazy, type ReactNode } from 'react';
-const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
-const ForgotPasswordPage = lazy(() => import('./pages/auth/ForgotPasswordPage'));
-const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
-const AccountDeletedPage = lazy(() => import('./pages/auth/AccountDeletedPage'));
-const HomePage = lazy(() => import('./pages/home/HomePage'));
-const VideosPage = lazy(() => import('./pages/videos/VideosPage'));
-const WatchVideoPage = lazy(() => import('./pages/videos/WatchVideoPage'));
-const UploadVideoPage = lazy(() => import('./pages/videos/UploadVideoPage'));
-const CreatePostPage = lazy(() => import('./pages/post/CreatePostPage'));
-const PostDetailPage = lazy(() => import('./pages/post/PostDetailPage'));
-const StoriesPage = lazy(() => import('./pages/stories/StoriesPage'));
-const ChatListPage = lazy(() => import('./pages/chat/ChatListPage'));
-const ChatPage = lazy(() => import('./pages/chat/ChatPage'));
-const CreateGroupPage = lazy(() => import('./pages/chat/CreateGroupPage'));
-const GroupChatPage = lazy(() => import('./pages/chat/GroupChatPage'));
-const GroupJoinPage = lazy(() => import('./pages/chat/GroupJoinPage'));
-const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'));
-const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'));
-const EditProfilePage = lazy(() => import('./pages/profile/EditProfilePage'));
-const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
-const AccountCenterPage = lazy(() => import('./pages/settings/AccountCenterPage'));
-const LanguagePage = lazy(() => import('./pages/settings/LanguagePage'));
-const NotificationSettingsPage = lazy(() => import('./pages/settings/NotificationSettingsPage'));
-const ReelsPage = lazy(() => import('./pages/reels/ReelsPage'));
-const CreateReelPage = lazy(() => import('./pages/reels/CreateReelPage'));
-const SongPage = lazy(() => import('./pages/music/SongPage'));
-const PeoplePage = lazy(() => import('./pages/people/PeoplePage'));
-const ReportUserPage = lazy(() => import('./pages/report/ReportUserPage'));
-const AppealPage = lazy(() => import('./pages/appeal/AppealPage'));
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
-const AdminContent = lazy(() => import('./pages/admin/AdminContent'));
-const AdminVerification = lazy(() => import('./pages/admin/AdminVerification'));
-const AdminReports = lazy(() => import('./pages/admin/AdminReports'));
-const AdminBroadcast = lazy(() => import('./pages/admin/AdminBroadcast'));
-const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'));
-const AdminVisitors = lazy(() => import('./pages/admin/AdminVisitors'));
-const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage'));
-const AccessTokenPage = lazy(() => import('./pages/settings/AccessTokenPage'));
-const AdminTokens = lazy(() => import('./pages/admin/AdminTokens'));
+import React, { lazy, type ReactNode } from 'react';
 
-const FollowListPage = lazy(() => import('./pages/profile/FollowListPage'));
+/**
+ * Safe lazy loader with auto-retry and cache-busting recovery on dynamic import errors.
+ * Fixes: "Failed to fetch dynamically imported module" caused by network drops
+ * or stale deployment chunk hashes on Render/Vercel/CDN.
+ */
+function safeLazy<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>,
+  retries = 2
+): React.LazyExoticComponent<T> {
+  return lazy(async () => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await factory();
+      } catch (error: any) {
+        const errorMsg = String(error?.message || error || '');
+        const isDynamicImportError =
+          errorMsg.includes('fetch dynamically imported module') ||
+          errorMsg.includes('error loading dynamically imported module') ||
+          errorMsg.includes('Loading chunk') ||
+          errorMsg.includes('Failed to fetch') ||
+          error?.name === 'ChunkLoadError';
+
+        if (attempt < retries && isDynamicImportError) {
+          // Wait before retry (600ms, 1200ms)
+          await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)));
+          continue;
+        }
+
+        if (isDynamicImportError && typeof window !== 'undefined') {
+          // Check if we haven't reloaded recently (prevents infinite loop)
+          const storageKey = 'chunk_fail_reload_' + window.location.pathname;
+          const lastReload = sessionStorage.getItem(storageKey);
+          const now = Date.now();
+
+          if (!lastReload || now - Number(lastReload) > 12000) {
+            sessionStorage.setItem(storageKey, String(now));
+            const reloadUrl = new URL(window.location.href);
+            reloadUrl.searchParams.set('_r', String(now));
+            window.location.replace(reloadUrl.toString());
+            // Keep Suspense pending until browser completes reload
+            return new Promise<{ default: T }>(() => {});
+          }
+        }
+
+        throw error;
+      }
+    }
+    throw new Error('Failed to load component');
+  });
+}
+
+const LoginPage = safeLazy(() => import('./pages/auth/LoginPage'));
+const ForgotPasswordPage = safeLazy(() => import('./pages/auth/ForgotPasswordPage'));
+const RegisterPage = safeLazy(() => import('./pages/auth/RegisterPage'));
+const AccountDeletedPage = safeLazy(() => import('./pages/auth/AccountDeletedPage'));
+const HomePage = safeLazy(() => import('./pages/home/HomePage'));
+const VideosPage = safeLazy(() => import('./pages/videos/VideosPage'));
+const WatchVideoPage = safeLazy(() => import('./pages/videos/WatchVideoPage'));
+const UploadVideoPage = safeLazy(() => import('./pages/videos/UploadVideoPage'));
+const CreatePostPage = safeLazy(() => import('./pages/post/CreatePostPage'));
+const PostDetailPage = safeLazy(() => import('./pages/post/PostDetailPage'));
+const StoriesPage = safeLazy(() => import('./pages/stories/StoriesPage'));
+const ChatListPage = safeLazy(() => import('./pages/chat/ChatListPage'));
+const ChatPage = safeLazy(() => import('./pages/chat/ChatPage'));
+const CreateGroupPage = safeLazy(() => import('./pages/chat/CreateGroupPage'));
+const GroupChatPage = safeLazy(() => import('./pages/chat/GroupChatPage'));
+const GroupJoinPage = safeLazy(() => import('./pages/chat/GroupJoinPage'));
+const NotificationsPage = safeLazy(() => import('./pages/notifications/NotificationsPage'));
+const ProfilePage = safeLazy(() => import('./pages/profile/ProfilePage'));
+const EditProfilePage = safeLazy(() => import('./pages/profile/EditProfilePage'));
+const SettingsPage = safeLazy(() => import('./pages/settings/SettingsPage'));
+const AccountCenterPage = safeLazy(() => import('./pages/settings/AccountCenterPage'));
+const LanguagePage = safeLazy(() => import('./pages/settings/LanguagePage'));
+const NotificationSettingsPage = safeLazy(() => import('./pages/settings/NotificationSettingsPage'));
+const ReelsPage = safeLazy(() => import('./pages/reels/ReelsPage'));
+const CreateReelPage = safeLazy(() => import('./pages/reels/CreateReelPage'));
+const SongPage = safeLazy(() => import('./pages/music/SongPage'));
+const PeoplePage = safeLazy(() => import('./pages/people/PeoplePage'));
+const ReportUserPage = safeLazy(() => import('./pages/report/ReportUserPage'));
+const AppealPage = safeLazy(() => import('./pages/appeal/AppealPage'));
+const AdminDashboard = safeLazy(() => import('./pages/admin/AdminDashboard'));
+const AdminUsers = safeLazy(() => import('./pages/admin/AdminUsers'));
+const AdminContent = safeLazy(() => import('./pages/admin/AdminContent'));
+const AdminVerification = safeLazy(() => import('./pages/admin/AdminVerification'));
+const AdminReports = safeLazy(() => import('./pages/admin/AdminReports'));
+const AdminBroadcast = safeLazy(() => import('./pages/admin/AdminBroadcast'));
+const AdminAnalytics = safeLazy(() => import('./pages/admin/AdminAnalytics'));
+const AdminVisitors = safeLazy(() => import('./pages/admin/AdminVisitors'));
+const AdminLoginPage = safeLazy(() => import('./pages/admin/AdminLoginPage'));
+const AccessTokenPage = safeLazy(() => import('./pages/settings/AccessTokenPage'));
+const AdminTokens = safeLazy(() => import('./pages/admin/AdminTokens'));
+
+const FollowListPage = safeLazy(() => import('./pages/profile/FollowListPage'));
 
 export interface RouteConfig {
   name: string;
