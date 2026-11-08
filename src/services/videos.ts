@@ -124,48 +124,88 @@ function resumableUpload(
   onProgress?: (percent: number) => void,
   fresh = false,
 ): Promise<void> {
+  const savedUrlKey = "tus_url_" + path;
+  const savedProgKey = "upload_progress_" + path;
+  const savedUrl = !fresh && typeof window !== "undefined" ? localStorage.getItem(savedUrlKey) : null;
+  const savedProgress = !fresh && typeof window !== "undefined" ? Number(localStorage.getItem(savedProgKey) || 0) : 0;
+
+  if (savedProgress > 0) {
+    onProgress?.(savedProgress);
+  }
+
   return new Promise((resolve, reject) => {
     const base = import.meta.env.VITE_SUPABASE_URL as string;
     const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-    const upload = new tus.Upload(file, {
+    const uploadOptions: tus.UploadOptions = {
       endpoint: `${base}/storage/v1/upload/resumable`,
       headers: {
         authorization: `Bearer ${accessToken}`,
         apikey: anon,
-        'x-upsert': 'true',
+        "x-upsert": "true",
       },
       uploadDataDuringCreation: true,
       chunkSize: 6 * 1024 * 1024,
       retryDelays: [0, 1000, 3000, 5000, 10000],
       removeFingerprintOnSuccess: true,
+      fingerprint: () => Promise.resolve("tus_" + path),
       metadata: {
         bucketName: BUCKET,
         objectName: path,
-        contentType: file.type || 'video/mp4',
-        cacheControl: '31536000',
+        contentType: file.type || "video/mp4",
+        cacheControl: "31536000",
+      },
+      onChunkComplete: () => {
+        if (upload.url && typeof window !== "undefined") {
+          localStorage.setItem(savedUrlKey, upload.url);
+        }
       },
       onError: (uploadError) => {
-        console.error('resumable video upload failed', uploadError);
+        console.error("resumable video upload failed", uploadError);
+        if (typeof window !== "undefined" && String(uploadError).includes("404")) {
+          localStorage.removeItem(savedUrlKey);
+        }
         reject(uploadError);
       },
       onProgress: (uploaded, total) => {
-        if (total > 0) onProgress?.(Math.min(99, Math.round((uploaded / total) * 100)));
+        if (total > 0) {
+          const currentPct = Math.min(99, Math.round((uploaded / total) * 100));
+          const effectivePct = Math.max(savedProgress, currentPct);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(savedProgKey, String(effectivePct));
+          }
+          onProgress?.(effectivePct);
+        }
       },
       onSuccess: () => {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem(savedUrlKey);
+          localStorage.removeItem(savedProgKey);
+        }
         onProgress?.(100);
         resolve();
       },
-    });
+    };
+
+    if (savedUrl) {
+      uploadOptions.uploadUrl = savedUrl;
+    }
+
+    const upload = new tus.Upload(file, uploadOptions);
 
     void (async () => {
       try {
-        const previous = await upload.findPreviousUploads();
-        if (!fresh && previous.length > 0) {
-          upload.resumeFromPreviousUpload(previous[0]);
+        if (!upload.url) {
+          const previous = await upload.findPreviousUploads();
+          if (!fresh && previous.length > 0) {
+            upload.resumeFromPreviousUpload(previous[0]);
+            if (upload.url && typeof window !== "undefined") {
+              localStorage.setItem(savedUrlKey, upload.url);
+            }
+          }
         }
       } catch (resumeError) {
-        console.warn('Could not inspect previous upload; starting fresh', resumeError);
+        console.warn("Could not inspect previous upload; starting fresh", resumeError);
       }
       upload.start();
     })();

@@ -120,6 +120,9 @@ export async function deletePersistentJob(id: string): Promise<void> {
 }
 
 export async function updatePersistentJobProgress(id: string, progress: number): Promise<void> {
+  if (typeof window !== "undefined") {
+    try { localStorage.setItem("job_prog_" + id, String(progress)); } catch {}
+  }
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -172,7 +175,10 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
   markUploadActiveInSession(job.id);
 
   const file = new File([job.fileBlob], job.fileName, { type: job.fileType });
-  const uploadId = startUpload(job.kind, job.label, undefined, undefined, job.progress || 0);
+  const savedProg = typeof window !== "undefined" && job.storagePath
+    ? Number(localStorage.getItem("upload_progress_" + job.storagePath) || localStorage.getItem("job_prog_" + job.id) || job.progress || 0)
+    : (job.progress || 0);
+  const uploadId = startUpload(job.kind, job.label, undefined, undefined, savedProg);
 
   try {
     if (job.kind === 'reel') {
