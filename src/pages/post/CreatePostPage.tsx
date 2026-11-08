@@ -23,7 +23,7 @@ import MusicTrimmer from '@/components/reels/MusicTrimmer';
 import type { MusicTrack } from '@/services/music';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
 import { doneUrlFor, finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
-import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive, markUploadActiveInSession, clearUploadActiveInSession } from '@/services/persistentUploadQueue';
 
 const CreatePostPage: React.FC = () => {
   const { user } = useAuth();
@@ -160,40 +160,46 @@ const CreatePostPage: React.FC = () => {
         }
       : null;
 
-    // Refresh-proof: job IndexedDB me save hota hai; refresh ke baad app load par resume hota hai.
+        // Refresh-proof: consistent storage path taaki refresh par 50% se aage resume ho, 1% se nahi
     const persistentJobId = `upload_post_${Date.now()}`;
+    const extension = (mediaFile.name.split(".").pop() || (mediaType === "video" ? "mp4" : "jpg")).toLowerCase();
+    const storagePath = `${user.id}/posts_${persistentJobId}.${extension}`;
     markJobActive(persistentJobId);
+    markUploadActiveInSession(persistentJobId);
     void savePersistentJob({
       id: persistentJobId,
-      kind: 'post',
-      label: mediaType === 'video' ? 'Video Post Upload' : 'Photo Post Upload',
+      kind: "post",
+      label: mediaType === "video" ? "Video Post Upload" : "Photo Post Upload",
       fileBlob: mediaFile,
       fileName: mediaFile.name,
       fileType: mediaFile.type,
+      storagePath,
       userId: user.id,
       caption: caption.trim() || null,
       musicPayload: music,
       progress: 0,
-      status: 'uploading',
+      status: "uploading",
       createdAt: Date.now(),
     });
 
     try {
       // 1 to 100% upload progress to Supabase posts bucket
-      const mediaUrl = await uploadMediaWithProgress('posts', mediaFile, user.id, (progress) => {
+      const mediaUrl = await uploadMediaWithProgress("posts", mediaFile, user.id, (progress) => {
         updateUpload(uploadId, progress);
         void updatePersistentJobProgress(persistentJobId, progress);
-      });
-
+      }, storagePath);
       const postId = await createPost(mediaUrl, caption.trim() || null, music);
       await deletePersistentJob(persistentJobId);
-      finishUpload(uploadId, undefined, doneUrlFor('post', postId));
-      toast.success(mediaType === 'video' ? 'Video post shared! 🎬✨' : 'Post shared! 📷✨');
-      navigate('/stories');
+      clearUploadActiveInSession(persistentJobId);
+      finishUpload(uploadId, undefined, doneUrlFor("post", postId));
+      toast.success(mediaType === "video" ? "Video post shared! 🎬✨" : "Post shared! 📷✨");
+      navigate("/stories");
     } catch (err) {
-      console.error('Post upload failed:', err);
-      finishUpload(uploadId, 'Post upload fail hua');
-      toast.error('Failed to create post. Please try again.');
+      console.error("Post upload failed:", err);
+      await deletePersistentJob(persistentJobId);
+      clearUploadActiveInSession(persistentJobId);
+      finishUpload(uploadId, "Post upload fail hua");
+      toast.error("Failed to create post. Please try again.");
     } finally {
       unmarkJobActive(persistentJobId);
       setLoading(false);

@@ -27,7 +27,7 @@ import { composeMediaWithMusic } from '@/services/mediaComposer';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
 import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
 import StoryViewersSheet, { EyeIcon, HeartIcon, type ViewerFilter } from './StoryViewersSheet';
-import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive, markUploadActiveInSession, clearUploadActiveInSession } from '@/services/persistentUploadQueue';
 
 function groupStoriesByUser(stories: Story[]): Record<string, { profile: Profile; stories: Story[] }> {
   const groups: Record<string, { profile: Profile; stories: Story[] }> = {};
@@ -337,32 +337,38 @@ const StoriesPage: React.FC = () => {
           mute_original: muteOriginal,
         }
       : null;
-    // Refresh-proof: job IndexedDB me save hota hai; refresh ke baad app load par resume hota hai.
+        // Refresh-proof: consistent storage path taaki refresh par 50% se aage resume ho, 1% se nahi
     const persistentJobId = `upload_story_${Date.now()}`;
+    const extension = (mediaFile.name.split(".").pop() || (mediaFile.type.includes("image") ? "jpg" : "webm")).toLowerCase();
+    const storagePath = `${user.id}/stories_${persistentJobId}.${extension}`;
     markJobActive(persistentJobId);
+    markUploadActiveInSession(persistentJobId);
     void savePersistentJob({
       id: persistentJobId,
-      kind: 'story',
-      label: 'Story Upload',
+      kind: "story",
+      label: "Story Upload",
       fileBlob: mediaFile,
       fileName: mediaFile.name,
       fileType: mediaFile.type,
+      storagePath,
       userId: user.id,
       caption: captionText.trim() || null,
       musicPayload,
       progress: 0,
-      status: 'uploading',
+      status: "uploading",
       createdAt: Date.now(),
     });
+
     try {
       let fileToUpload = mediaFile;
-      const url = await uploadMediaWithProgress('stories', fileToUpload, user.id, (progress) => {
+      const url = await uploadMediaWithProgress("stories", fileToUpload, user.id, (progress) => {
         updateUpload(uploadId, progress);
         void updatePersistentJobProgress(persistentJobId, progress);
-      });
+      }, storagePath);
       await createStory(url, captionText.trim() || null, musicPayload);
       await deletePersistentJob(persistentJobId);
-      toast.success(t('newStory') + ' posted! ✨');
+      clearUploadActiveInSession(persistentJobId);
+      toast.success(t("newStory") + " posted! ✨");
       const updated = await getFeedStories(user.id);
       setStories(updated);
       void refreshStoryUsers(user.id);
@@ -372,8 +378,10 @@ const StoriesPage: React.FC = () => {
       setMuteOriginal(true);
       finishUpload(uploadId);
     } catch {
-      toast.error('Failed to post story');
-      finishUpload(uploadId, 'Story upload fail hua');
+      await deletePersistentJob(persistentJobId);
+      clearUploadActiveInSession(persistentJobId);
+      toast.error("Failed to post story");
+      finishUpload(uploadId, "Story upload fail hua");
     } finally {
       unmarkJobActive(persistentJobId);
       setUploading(false);

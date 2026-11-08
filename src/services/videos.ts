@@ -176,9 +176,10 @@ export async function uploadVideoFile(
   file: File,
   userId: string,
   onProgress?: (percent: number) => void,
+  customPath?: string,
 ): Promise<string> {
   const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
-  const path = `${userId}/${Date.now()}.${ext}`;
+  const path = customPath || `${userId}/${Date.now()}.${ext}`;
 
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !sessionData.session?.access_token) {
@@ -193,7 +194,6 @@ export async function uploadVideoFile(
   // ek hi baar me poora body bhejti hai jisme proxy/timeouts fail kar sakte hain.
   // Har size ka video resumable chunks se jata hai taaki progress real-time 0-100% dikhe
   // (pehle chhote videos 5% par ruk jaate the kyunki direct upload progress nahi deta).
-  onProgress?.(1);
 
   try {
     await resumableUpload(file, path, accessToken, onProgress);

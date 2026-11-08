@@ -35,7 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
-import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive, markUploadActiveInSession, clearUploadActiveInSession } from '@/services/persistentUploadQueue';
 import { doneUrlFor, finishUpload, startUpload, updateUpload, runBackgroundUpload, requestUploadNotifications } from '@/services/uploadManager';
 import {
   sendBrowserPushNotification,
@@ -582,7 +582,10 @@ const CreateReelPage: React.FC = () => {
       : null;
 
     const persistentJobId = `upload_${currentMode}_${Date.now()}`;
+    const extension = (currentFile.name.split('.').pop() || (currentMode === 'reel' || currentMode === 'video' ? 'mp4' : 'jpg')).toLowerCase();
+    const storagePath = `${currentUserId}/${currentMode}_${persistentJobId}.${extension}`;
     markJobActive(persistentJobId);
+    markUploadActiveInSession(persistentJobId);
     void savePersistentJob({
       id: persistentJobId,
       kind: currentMode,
@@ -590,6 +593,7 @@ const CreateReelPage: React.FC = () => {
       fileBlob: currentFile,
       fileName: currentFile.name,
       fileType: currentFile.type,
+      storagePath,
       coverBlob: currentCoverBlob,
       userId: currentUserId,
       caption: currentCaption,
@@ -617,7 +621,7 @@ const CreateReelPage: React.FC = () => {
             setUploadPercent(p);
             updateProgress(p);
             void updatePersistentJobProgress(persistentJobId, p);
-          });
+          }, storagePath);
 
           let coverUrl: string | null = null;
           if (currentCoverBlob) {
@@ -636,14 +640,14 @@ const CreateReelPage: React.FC = () => {
             setUploadPercent(p);
             updateProgress(p);
             void updatePersistentJobProgress(persistentJobId, p);
-          });
+          }, storagePath);
           await createStory(mediaUrl, currentCaption.trim() || null, musicPayload);
         } else if (currentMode === 'post') {
           const mediaUrl = await uploadMediaWithProgress('posts', currentFile, currentUserId, (p) => {
             setUploadPercent(p);
             updateProgress(p);
             void updatePersistentJobProgress(persistentJobId, p);
-          });
+          }, storagePath);
           const postId = await createPost(mediaUrl, currentCaption.trim() || null, musicPayload);
           return doneUrlFor('post', postId);
         } else if (currentMode === 'video') {
@@ -676,12 +680,13 @@ const CreateReelPage: React.FC = () => {
       },
       onSuccess: () => {
         unmarkJobActive(persistentJobId);
+        clearUploadActiveInSession(persistentJobId);
         void deletePersistentJob(persistentJobId);
         toast.success(`${modeLabel} successfully upload ho gaya! 🎉`);
       },
       onError: (err) => {
         unmarkJobActive(persistentJobId);
-        // Fail hua job hata do, warna refresh par apne aap dobara upload hota tha.
+        clearUploadActiveInSession(persistentJobId);
         void deletePersistentJob(persistentJobId);
         toast.error(err instanceof Error ? err.message : 'Upload fail ho gaya. Kripya dobara try karein.');
       },

@@ -7,12 +7,14 @@ type MediaBucket = 'stories' | 'reels' | 'posts';
  * Storage-only upload helper. It changes no database rows and uses Supabase's
  * resumable storage endpoint so navigation away from the upload screen does
  * not cancel the request while the app tab remains alive.
+ * Uses a consistent customPath so page refresh can resume from exact byte offset (e.g. 50%).
  */
 export async function uploadMediaWithProgress(
   bucket: MediaBucket,
   file: File,
   userId: string,
   onProgress?: (percent: number) => void,
+  customPath?: string,
 ): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
   if (error || !data.session?.access_token) {
@@ -20,7 +22,7 @@ export async function uploadMediaWithProgress(
   }
 
   const extension = (file.name.split('.').pop() || (file.type.includes('image') ? 'jpg' : 'webm')).toLowerCase();
-  const path = `${userId}/${bucket}_${Date.now()}.${extension}`;
+  const path = customPath || `${userId}/${bucket}_${Date.now()}.${extension}`;
   const base = import.meta.env.VITE_SUPABASE_URL as string;
   const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 

@@ -27,35 +27,9 @@ const UploadAutoResumer: React.FC = () => {
     try {
       void resumeAllPendingUploads();
     } catch (e) {
-      console.warn('Upload resume error:', e);
+      console.warn("Upload resume error:", e);
     }
-
-    const handleOnline = () => {
-      try {
-        void resumeAllPendingUploads();
-      } catch (e) {
-        console.warn('Online resume error:', e);
-      }
-    };
-    window.addEventListener('online', handleOnline);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        try {
-          void resumeAllPendingUploads();
-        } catch (e) {
-          console.warn('Visibility resume error:', e);
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
   }, []);
-
   return null;
 };
 

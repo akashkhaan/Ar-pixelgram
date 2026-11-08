@@ -166,10 +166,12 @@ export function startUpload(
   kind: UploadKind,
   label: string,
   thumbnailUrl?: string,
-  thumbnailType?: 'image' | 'video'
+  thumbnailType?: 'image' | 'video',
+  initialProgress = 0,
 ): string {
   const id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const job: UploadJob = { id, kind, label, progress: 0, status: 'uploading', thumbnailUrl, thumbnailType };
+  const progress = Math.max(0, Math.min(100, Math.round(initialProgress)));
+  const job: UploadJob = { id, kind, label, progress, status: 'uploading', thumbnailUrl, thumbnailType };
   jobs.set(id, job);
   void requestUploadNotifications();
   emit();
@@ -190,6 +192,14 @@ export function dismissUpload(id: string) {
   jobs.delete(id);
   notifiedAt.delete(id);
   emit();
+  try {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("active_upload_" + id);
+      import("./persistentUploadQueue").then(({ deletePersistentJob }) => {
+        void deletePersistentJob(id);
+      }).catch(() => {});
+    }
+  } catch {}
 }
 
 export function finishUpload(id: string, error?: string, openUrl?: string) {

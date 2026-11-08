@@ -1,5 +1,5 @@
 import { startUpload, updateUpload, finishUpload } from '@/services/uploadManager';
-import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
+import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive, markUploadActiveInSession, clearUploadActiveInSession } from '@/services/persistentUploadQueue';
 import useGoBack from '@/hooks/use-go-back';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -103,9 +103,12 @@ const UploadVideoPage: React.FC = () => {
     setUploading(true);
     setProgress(0);
 
-    // Refresh-proof: job IndexedDB me save hota hai; refresh ke baad app load par resume hota hai.
+    // Refresh-proof: consistent storage path taaki refresh par 50% se aage resume ho, 1% se nahi
     const persistentJobId = `upload_video_${Date.now()}`;
+    const ext = (file.name.split('.').pop() || 'mp4').toLowerCase();
+    const storagePath = `${user.id}/videos_${persistentJobId}.${ext}`;
     markJobActive(persistentJobId);
+    markUploadActiveInSession(persistentJobId);
     void savePersistentJob({
       id: persistentJobId,
       kind: 'video',
@@ -113,6 +116,7 @@ const UploadVideoPage: React.FC = () => {
       fileBlob: file,
       fileName: file.name,
       fileType: file.type,
+      storagePath,
       coverBlob: thumbBlob,
       userId: user.id,
       videoTitle: title.trim(),
@@ -129,7 +133,7 @@ const UploadVideoPage: React.FC = () => {
         setProgress(p);
         updateUpload(uploadId, p);
         void updatePersistentJobProgress(persistentJobId, p);
-      });
+      }, storagePath);
       let thumbnailUrl: string | null = null;
       if (thumbBlob) {
         try {
@@ -148,6 +152,7 @@ const UploadVideoPage: React.FC = () => {
         visibility,
       });
       await deletePersistentJob(persistentJobId);
+      clearUploadActiveInSession(persistentJobId);
       finishUpload(uploadId, undefined, `/videos/${created.id}`);
       toast.success('Video upload ho gaya!');
       navigate(`/videos/${created.id}`, { replace: true });
@@ -155,6 +160,7 @@ const UploadVideoPage: React.FC = () => {
       console.error('video upload failed', e);
       // Fail hua job hata do, warna refresh par apne aap dobara upload hota tha.
       await deletePersistentJob(persistentJobId);
+      clearUploadActiveInSession(persistentJobId);
       finishUpload(uploadId, e instanceof Error ? e.message : 'Upload fail hua');
       toast.error(e instanceof Error ? e.message : 'Upload fail hua — dobara try karein');
     } finally {

@@ -1,10 +1,8 @@
 /**
  * Persistent Upload Queue using IndexedDB.
  * Ensures uploads survive website closing, browser tab closing, or page reloads.
- * When the website is closed and re-opened, or when background sync triggers,
- * the upload resumes from the exact byte offset and finishes publishing.
+ * When the website is refreshed, the upload resumes from the exact byte offset and finishes publishing.
  */
-
 import { uploadMediaWithProgress } from './mediaUpload';
 import { uploadVideoFile, uploadVideoThumbnail, createVideo } from './videos';
 import { createReel, createPost, createStory, uploadImage, type ReelMusic } from './api';
@@ -18,6 +16,7 @@ export interface PersistentUploadJob {
   fileBlob: Blob;
   fileName: string;
   fileType: string;
+  storagePath?: string;
   coverBlob?: Blob | null;
   userId: string;
   caption?: string | null;
@@ -54,8 +53,25 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
+export function markUploadActiveInSession(id: string) {
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.setItem('active_upload_' + id, 'true');
+    } catch {}
+  }
+}
+
+export function clearUploadActiveInSession(id: string) {
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.removeItem('active_upload_' + id);
+    } catch {}
+  }
+}
+
 export async function savePersistentJob(job: PersistentUploadJob): Promise<void> {
   try {
+    markUploadActiveInSession(job.id);
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
@@ -89,6 +105,7 @@ export async function getPersistentJobs(): Promise<PersistentUploadJob[]> {
 
 export async function deletePersistentJob(id: string): Promise<void> {
   try {
+    clearUploadActiveInSession(id);
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
@@ -111,7 +128,7 @@ export async function updatePersistentJobProgress(id: string, progress: number):
     req.onsuccess = () => {
       const job = req.result as PersistentUploadJob | undefined;
       if (job) {
-        job.progress = progress;
+        job.progress = Math.max(job.progress || 0, Math.round(progress));
         job.status = 'uploading';
         store.put(job);
       }
@@ -139,6 +156,7 @@ const activeResumingIds = new Set<string>();
 
 export function markJobActive(id: string) {
   activeResumingIds.add(id);
+  markUploadActiveInSession(id);
 }
 
 export function unmarkJobActive(id: string) {
@@ -146,21 +164,22 @@ export function unmarkJobActive(id: string) {
 }
 
 /**
- * Resumes and executes a persistent upload job.
+ * Resumes and executes a persistent upload job from its current progress.
  */
 export async function executePersistentJob(job: PersistentUploadJob): Promise<void> {
   if (activeResumingIds.has(job.id)) return;
   activeResumingIds.add(job.id);
+  markUploadActiveInSession(job.id);
 
   const file = new File([job.fileBlob], job.fileName, { type: job.fileType });
-  const uploadId = startUpload(job.kind, job.label);
+  const uploadId = startUpload(job.kind, job.label, undefined, undefined, job.progress || 0);
 
   try {
     if (job.kind === 'reel') {
       const videoUrl = await uploadMediaWithProgress('reels', file, job.userId, (p) => {
         updateUpload(uploadId, p);
         void updatePersistentJobProgress(job.id, p);
-      });
+      }, job.storagePath);
 
       let coverUrl: string | null = null;
       if (job.coverBlob) {
@@ -175,30 +194,33 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
       const reelId = await createReel(job.userId, videoUrl, job.caption || '', coverUrl || undefined, job.musicPayload);
       finishUpload(uploadId, undefined, doneUrlFor('reel', reelId));
       await deletePersistentJob(job.id);
+      clearUploadActiveInSession(job.id);
       toast.success('Aapka Reel successfully upload ho gaya! 🎬🎉');
     } else if (job.kind === 'story') {
       const mediaUrl = await uploadMediaWithProgress('stories', file, job.userId, (p) => {
         updateUpload(uploadId, p);
         void updatePersistentJobProgress(job.id, p);
-      });
+      }, job.storagePath);
       await createStory(mediaUrl, job.caption || null, job.musicPayload);
       finishUpload(uploadId);
       await deletePersistentJob(job.id);
+      clearUploadActiveInSession(job.id);
       toast.success('Aapki Story successfully add ho gayi! 🌟🎉');
     } else if (job.kind === 'post') {
       const mediaUrl = await uploadMediaWithProgress('posts', file, job.userId, (p) => {
         updateUpload(uploadId, p);
         void updatePersistentJobProgress(job.id, p);
-      });
+      }, job.storagePath);
       const postId = await createPost(mediaUrl, job.caption || null, job.musicPayload);
       finishUpload(uploadId, undefined, doneUrlFor('post', postId));
       await deletePersistentJob(job.id);
+      clearUploadActiveInSession(job.id);
       toast.success('Aapka Post successfully share ho gaya! 📷🎉');
     } else if (job.kind === 'video') {
       const videoUrl = await uploadVideoFile(file, job.userId, (p) => {
         updateUpload(uploadId, p);
         void updatePersistentJobProgress(job.id, p);
-      });
+      }, job.storagePath);
 
       let thumbUrl: string | null = null;
       if (job.coverBlob) {
@@ -221,12 +243,13 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
 
       finishUpload(uploadId, undefined, doneUrlFor('video', createdVideo?.id));
       await deletePersistentJob(job.id);
+      clearUploadActiveInSession(job.id);
       toast.success('Aapka Video successfully upload ho gaya! 🎥🎉');
     }
   } catch (err) {
     console.error('Persistent job execution failed:', err);
-    // Fail hone par job hata do, warna har refresh par wahi video dobara upload hota tha.
     await deletePersistentJob(job.id);
+    clearUploadActiveInSession(job.id);
     const msg = err instanceof Error ? err.message : 'Upload fail hua — dobara try karein';
     finishUpload(uploadId, msg);
     toast.error(msg);
@@ -236,25 +259,35 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
 }
 
 /**
- * Checks IndexedDB for any unfinished jobs and resumes them.
- * Call this on app load, on network online, and on visibility change.
+ * Checks IndexedDB for any unfinished jobs.
+ * Automatically clears stale/ghost uploads so they never appear on normal refresh.
+ * Only resumes active in-flight jobs that were actually started by the user in this session.
  */
 export async function resumeAllPendingUploads(): Promise<void> {
   try {
     const jobs = await getPersistentJobs();
     const now = Date.now();
+
     for (const j of jobs) {
-      if (now - (j.createdAt || 0) > 24 * 60 * 60 * 1000) {
+      // 1. If older than 15 minutes or completed, purge it immediately
+      if (j.status === 'completed' || now - (j.createdAt || 0) > 15 * 60 * 1000) {
         void deletePersistentJob(j.id);
+        clearUploadActiveInSession(j.id);
+        continue;
       }
-    }
-    const pending = jobs.filter(
-      (j) => j.status !== 'completed' && now - (j.createdAt || 0) <= 24 * 60 * 60 * 1000 && !activeResumingIds.has(j.id)
-    );
-    if (pending.length > 0) {
-      toast.info(`Adhoore upload resume ho rahe hain (${pending.length}) 🚀`);
-      for (const job of pending) {
-        void executePersistentJob(job);
+
+      // 2. Check if this job was actively started in this browser session
+      const isActiveSession = typeof window !== 'undefined' && sessionStorage.getItem('active_upload_' + j.id);
+
+      // If it is NOT an active session upload, delete it (purges existing ghost uploads)
+      if (!isActiveSession) {
+        void deletePersistentJob(j.id);
+        continue;
+      }
+
+      // 3. Resume ONLY active in-flight upload from where it left off
+      if (!activeResumingIds.has(j.id)) {
+        void executePersistentJob(j);
       }
     }
   } catch (err) {
