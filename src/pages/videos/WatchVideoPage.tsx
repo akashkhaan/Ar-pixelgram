@@ -85,6 +85,79 @@ function toggleSaveVideoLocal(id: string): boolean {
  * - Comments preview card & Comments Bottom Sheet
  * - Recommended videos feed
  */
+function renderDescriptionWithLinks(text?: string | null) {
+  if (!text || !text.trim()) {
+    return <span className="text-muted-foreground italic">No description provided.</span>;
+  }
+
+  // Regex to split text by URLs (http://, https://, or www.)
+  const urlRegex = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+  const parts = text.split(urlRegex);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (/^(?:https?:\/\/|www\.)/i.test(part)) {
+          // Clean trailing punctuation from URL if user wrote e.g. "www.facebook.com."
+          let cleanUrl = part;
+          let trailing = "";
+          const match = part.match(/([.,;:!?)]+)$/);
+          if (match) {
+            trailing = match[1];
+            cleanUrl = part.slice(0, -trailing.length);
+          }
+          const href = cleanUrl.startsWith("http") ? cleanUrl : `https://${cleanUrl}`;
+
+          return (
+            <React.Fragment key={index}>
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                className="text-blue-500 dark:text-blue-400 font-medium underline underline-offset-2 hover:text-blue-600 dark:hover:text-blue-300 break-all cursor-pointer transition-colors"
+              >
+                {cleanUrl}
+              </a>
+              {trailing}
+            </React.Fragment>
+          );
+        }
+
+        // Highlight hashtags
+        const hashtagRegex = /(#[a-zA-Z0-9_\u0900-\u097F]+)/g;
+        if (hashtagRegex.test(part)) {
+          const subParts = part.split(hashtagRegex);
+          return (
+            <React.Fragment key={index}>
+              {subParts.map((sub, sIdx) => {
+                if (sub.startsWith("#")) {
+                  return (
+                    <span
+                      key={sIdx}
+                      className="text-blue-500 dark:text-blue-400 font-medium hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      {sub}
+                    </span>
+                  );
+                }
+                return sub;
+              })}
+            </React.Fragment>
+          );
+        }
+
+        return <React.Fragment key={index}>{part}</React.Fragment>;
+      })}
+    </>
+  );
+}
+
 const WatchVideoPage: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
   const navigate = useNavigate();
@@ -752,7 +825,7 @@ const WatchVideoPage: React.FC = () => {
 
               {/* Text content */}
               <div className="text-xs text-foreground whitespace-pre-wrap leading-relaxed bg-muted/30 p-3 rounded-2xl border border-border/30">
-                {video.description || 'No description provided.'}
+                {renderDescriptionWithLinks(video.description)}
               </div>
 
               {/* Creator info */}
