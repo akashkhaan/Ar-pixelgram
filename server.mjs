@@ -134,6 +134,11 @@ function isImageUrl(url) {
   return !/\.(mp4|mov|webm|m4v|3gp|mkv)(\?|$)/i.test(url);
 }
 
+// Free image converter (wsrv.nl): koi bhi photo -> 400x400 JPG (~30KB), jo WhatsApp turant dikhata hai.
+export function whatsappSafeImage(url) {
+  return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=400&h=400&fit=cover&output=jpg&q=82`;
+}
+
 export function appPathForShare(type, id) {
   if (type === 'video') return `/videos/${id}`;
   if (type === 'post') return `/post/${id}`;
@@ -206,7 +211,8 @@ export async function buildSharePreview(fetchImpl, type, id, frontendOrigin) {
       const name = profile.full_name || profile.username || 'Pixelgram user';
       preview.title = profile.username ? `${name} (@${profile.username}) • Pixelgram` : `${name} • Pixelgram`;
       preview.description = clip(profile.bio || `${name} ki Pixelgram profile dekho`, 180);
-      preview.image = isImageUrl(profile.avatar_url) ? profile.avatar_url : fallbackImage;
+      // WhatsApp .webp aur badi (1MB+) photo nahi dikhata, isliye DP ko chhoti JPG bana ke dete hain
+      preview.image = isImageUrl(profile.avatar_url) ? whatsappSafeImage(profile.avatar_url) : fallbackImage;
       preview.ogType = 'profile';
     }
   }

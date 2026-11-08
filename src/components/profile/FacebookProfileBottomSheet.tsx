@@ -130,7 +130,8 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
   // Handle Copy Profile Link
   const handleCopyLink = async () => {
     try {
-      const { canonicalUrl } = await copyProfileLink(profile.user_id || profile.id);
+      // Copy kiya link WhatsApp me paste karne par bhi DP ke saath dikhe
+      const { liveUrl: canonicalUrl } = await copyProfileLink(profile.user_id || profile.id, previewProfileUrl);
       setCopied(true);
       toast.success(
         <div className="flex flex-col gap-0.5">

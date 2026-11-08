@@ -134,3 +134,20 @@ test('share link rejects unknown ids', async (t) => {
   const res = await fetch(`http://127.0.0.1:${port}/s/video/not-an-id`);
   assert.equal(res.status, 404);
 });
+
+test('profile share link gives WhatsApp the profile photo as a small JPG (webp/large photos are converted)', async (t) => {
+  const server = createMusicApiServer(async (url) => {
+    const u = String(url);
+    if (u.includes('/rest/v1/profiles')) {
+      return new Response(JSON.stringify([{ user_id: 'u1', username: 'akash_57', full_name: 'Akash', avatar_url: 'https://img.example/dp.webp' }]), { status: 200 });
+    }
+    return new Response('[]', { status: 200 });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+  const { port } = server.address();
+  const id = '352daec4-a4fa-4f1a-ab0e-6e9a0c478a9b';
+  const html = await (await fetch(`http://127.0.0.1:${port}/s/profile/${id}`)).text();
+  assert.match(html, /og:image" content="https:\/\/wsrv\.nl\/\?url=https%3A%2F%2Fimg\.example%2Fdp\.webp&amp;w=400&amp;h=400&amp;fit=cover&amp;output=jpg/);
+  assert.match(html, new RegExp(`url=https://ar-pixelgram\\.onrender\\.com/profile/${id}`));
+});

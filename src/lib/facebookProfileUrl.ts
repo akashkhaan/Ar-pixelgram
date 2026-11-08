@@ -115,9 +115,12 @@ export async function resolveFacebookIdToUserId(idParam: string): Promise<string
 /**
  * Copies the profile link to clipboard and returns the copied URL
  */
-export async function copyProfileLink(userIdOrProfileId: string): Promise<{ liveUrl: string; canonicalUrl: string }> {
+export async function copyProfileLink(
+  userIdOrProfileId: string,
+  urlOverride?: string
+): Promise<{ liveUrl: string; canonicalUrl: string }> {
   const numericId = getFacebookNumericId(userIdOrProfileId);
-  const liveUrl = getShareableProfileUrl(userIdOrProfileId);
+  const liveUrl = urlOverride || getShareableProfileUrl(userIdOrProfileId);
   const canonicalUrl = `https://www.pixelgram.com/profile.php?id=${numericId}`;
 
   const textToCopy = liveUrl;
