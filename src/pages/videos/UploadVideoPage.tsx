@@ -153,6 +153,8 @@ const UploadVideoPage: React.FC = () => {
       navigate(`/videos/${created.id}`, { replace: true });
     } catch (e) {
       console.error('video upload failed', e);
+      // Fail hua job hata do, warna refresh par apne aap dobara upload hota tha.
+      await deletePersistentJob(persistentJobId);
       finishUpload(uploadId, e instanceof Error ? e.message : 'Upload fail hua');
       toast.error(e instanceof Error ? e.message : 'Upload fail hua — dobara try karein');
     } finally {

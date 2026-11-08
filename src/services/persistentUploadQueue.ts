@@ -225,7 +225,11 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
     }
   } catch (err) {
     console.error('Persistent job execution failed:', err);
-    finishUpload(uploadId, 'Upload retry me hai...');
+    // Fail hone par job hata do, warna har refresh par wahi video dobara upload hota tha.
+    await deletePersistentJob(job.id);
+    const msg = err instanceof Error ? err.message : 'Upload fail hua — dobara try karein';
+    finishUpload(uploadId, msg);
+    toast.error(msg);
   } finally {
     activeResumingIds.delete(job.id);
   }

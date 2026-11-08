@@ -678,7 +678,9 @@ const CreateReelPage: React.FC = () => {
       },
       onError: (err) => {
         unmarkJobActive(persistentJobId);
-        toast.error('Upload fail ho gaya. Kripya dobara try karein.');
+        // Fail hua job hata do, warna refresh par apne aap dobara upload hota tha.
+        void deletePersistentJob(persistentJobId);
+        toast.error(err instanceof Error ? err.message : 'Upload fail ho gaya. Kripya dobara try karein.');
       },
     });
   };

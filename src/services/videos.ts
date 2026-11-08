@@ -240,7 +240,9 @@ export async function createVideo(input: {
       description: input.description || null,
       video_url: input.videoUrl,
       thumbnail_url: input.thumbnailUrl || null,
-      duration_sec: input.durationSec || null,
+      // duration_sec INTEGER column hai — decimal (23.47) bhejne par insert fail hota tha.
+      duration_sec:
+        input.durationSec && Number.isFinite(input.durationSec) ? Math.round(input.durationSec) : null,
       visibility: input.visibility,
     })
     .select('*')
