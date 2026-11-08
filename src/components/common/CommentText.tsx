@@ -1,4 +1,5 @@
 import React from 'react';
+import { Youtube, Instagram, Facebook, Globe } from 'lucide-react';
 import { openInAppBrowser } from './InAppBrowserModal';
 
 interface CommentTextProps {
@@ -30,6 +31,21 @@ export const CommentText: React.FC<CommentTextProps> = ({ text, className = '' }
           }
 
           const targetUrl = cleanUrl.startsWith('http') ? cleanUrl : `https://${cleanUrl}`;
+          const lower = cleanUrl.toLowerCase();
+
+          let Icon = Globe;
+          let colorClass = 'text-blue-500 dark:text-blue-400 hover:text-blue-600';
+
+          if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+            Icon = Youtube;
+            colorClass = 'text-red-500 dark:text-red-400 hover:text-red-600';
+          } else if (lower.includes('instagram.com')) {
+            Icon = Instagram;
+            colorClass = 'text-pink-500 dark:text-pink-400 hover:text-pink-600';
+          } else if (lower.includes('facebook.com') || lower.includes('fb.com')) {
+            Icon = Facebook;
+            colorClass = 'text-blue-600 dark:text-blue-400 hover:text-blue-700';
+          }
 
           return (
             <React.Fragment key={index}>
@@ -40,10 +56,11 @@ export const CommentText: React.FC<CommentTextProps> = ({ text, className = '' }
                   e.preventDefault();
                   openInAppBrowser(targetUrl);
                 }}
-                className="text-blue-500 dark:text-blue-400 font-medium hover:underline break-all inline cursor-pointer text-left transition-colors"
+                className={`inline-flex items-center gap-1 font-medium hover:underline break-all cursor-pointer text-left transition-colors align-baseline ${colorClass}`}
                 title={`Open ${cleanUrl} in In-App Browser`}
               >
-                {cleanUrl}
+                <Icon className="w-3.5 h-3.5 shrink-0 inline self-center" />
+                <span>{cleanUrl}</span>
               </button>
               {trailing}
             </React.Fragment>

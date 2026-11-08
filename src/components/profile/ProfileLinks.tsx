@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link2, Instagram, Facebook, Plus } from 'lucide-react';
+import { Link2, Instagram, Facebook, Youtube, Globe, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Profile } from '@/types/types';
 import type { User } from '@supabase/supabase-js';
@@ -11,56 +11,104 @@ interface ProfileLinksProps {
   isOwnProfile?: boolean;
 }
 
-function cleanDomain(url: string): string {
-  try {
-    const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
-    return parsed.hostname.replace(/^www\./, '') + (parsed.pathname !== '/' ? parsed.pathname : '');
-  } catch {
-    return url.replace(/^https?:\/\/(www\.)?/, '');
+interface ParsedLink {
+  url: string;
+  label: string;
+  type: 'youtube' | 'instagram' | 'facebook' | 'website';
+}
+
+function parseSmartLink(raw: string, defaultType?: 'website' | 'instagram' | 'facebook'): ParsedLink | null {
+  if (!raw || !raw.trim()) return null;
+  const val = raw.trim();
+
+  // If designated Instagram field
+  if (defaultType === 'instagram') {
+    let clean = val;
+    if (clean.startsWith('@')) clean = clean.slice(1);
+    const url = /^https?:\/\//i.test(clean) ? clean : `https://instagram.com/${clean}`;
+    const match = clean.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
+    const label = match ? `@${match[1]}` : (clean.startsWith('http') ? 'Instagram' : `@${clean}`);
+    return { url, label, type: 'instagram' };
   }
+
+  // If designated Facebook field
+  if (defaultType === 'facebook') {
+    const url = /^https?:\/\//i.test(val) ? val : `https://facebook.com/${val}`;
+    return { url, label: 'Facebook', type: 'facebook' };
+  }
+
+  // Generic link 1 or 2 — auto-detect platform (YouTube, Instagram, Facebook, or Website)
+  const lower = val.toLowerCase();
+  const url = /^https?:\/\//i.test(val) ? val : `https://${val}`;
+
+  // YouTube Detection
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+    let label = 'YouTube';
+    const handleMatch = val.match(/@([a-zA-Z0-9_.-]+)/);
+    if (handleMatch) {
+      label = `@${handleMatch[1]}`;
+    }
+    return { url, label, type: 'youtube' };
+  }
+
+  // Instagram Detection in generic link
+  if (lower.includes('instagram.com')) {
+    const handleMatch = val.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
+    const label = handleMatch ? `@${handleMatch[1]}` : 'Instagram';
+    return { url, label, type: 'instagram' };
+  }
+
+  // Facebook Detection in generic link
+  if (lower.includes('facebook.com') || lower.includes('fb.com') || lower.includes('fb.me')) {
+    return { url, label: 'Facebook', type: 'facebook' };
+  }
+
+  // Clean generic website domain
+  let domain = '';
+  try {
+    const parsed = new URL(url);
+    domain = parsed.hostname.replace(/^www\./, '');
+  } catch {
+    domain = val.replace(/^https?:\/\/(www\.)?/, '');
+  }
+
+  return { url, label: domain || 'Website', type: 'website' };
 }
 
 export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwnProfile }) => {
   const navigate = useNavigate();
 
-  // Primary from profile columns, fallback to user_metadata for instant sync if migration is pending
-  const link1 = profile.website_link_1 || (isOwnProfile ? (user?.user_metadata?.website_link_1 as string) : null);
-  const link2 = profile.website_link_2 || (isOwnProfile ? (user?.user_metadata?.website_link_2 as string) : null);
+  // Read from profile columns with fallback to user_metadata for instant sync
+  const rawLink1 = profile.website_link_1 || (isOwnProfile ? (user?.user_metadata?.website_link_1 as string) : null);
+  const rawLink2 = profile.website_link_2 || (isOwnProfile ? (user?.user_metadata?.website_link_2 as string) : null);
   const rawInsta = profile.instagram_url || (isOwnProfile ? (user?.user_metadata?.instagram_url as string) : null);
   const rawFb = profile.facebook_url || (isOwnProfile ? (user?.user_metadata?.facebook_url as string) : null);
 
-  const formatInstaUrl = (val: string): { url: string; handle: string } => {
-    let clean = val.trim();
-    if (clean.startsWith('@')) clean = clean.slice(1);
-    if (/^https?:\/\//i.test(clean)) {
-      const match = clean.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
-      const handle = match ? match[1] : 'Instagram';
-      return { url: clean, handle: `@${handle}` };
-    }
-    return { url: `https://instagram.com/${clean}`, handle: `@${clean}` };
-  };
+  const links: ParsedLink[] = [];
 
-  const formatFbUrl = (val: string): { url: string; label: string } => {
-    let clean = val.trim();
-    if (/^https?:\/\//i.test(clean)) {
-      return { url: clean, label: 'Facebook' };
-    }
-    return { url: `https://facebook.com/${clean}`, label: `fb.com/${clean}` };
-  };
+  const parsed1 = rawLink1 ? parseSmartLink(rawLink1, 'website') : null;
+  if (parsed1) links.push(parsed1);
 
-  const hasAnyLink = Boolean(link1 || link2 || rawInsta || rawFb);
+  const parsed2 = rawLink2 ? parseSmartLink(rawLink2, 'website') : null;
+  if (parsed2) links.push(parsed2);
 
-  if (!hasAnyLink) {
+  const parsedInsta = rawInsta ? parseSmartLink(rawInsta, 'instagram') : null;
+  if (parsedInsta) links.push(parsedInsta);
+
+  const parsedFb = rawFb ? parseSmartLink(rawFb, 'facebook') : null;
+  if (parsedFb) links.push(parsedFb);
+
+  if (links.length === 0) {
     if (isOwnProfile) {
       return (
-        <div className="flex justify-center mt-2.5">
+        <div className="flex justify-center mt-2">
           <button
             type="button"
             onClick={() => navigate('/edit-profile')}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add links (Website, Insta, FB)</span>
+            <Plus className="w-3 h-3" />
+            <span>Add links</span>
           </button>
         </div>
       );
@@ -69,68 +117,43 @@ export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwn
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 mt-2.5 px-2">
-      {/* Link 1 */}
-      {link1 && (
-        <button
-          type="button"
-          onClick={() => openInAppBrowser(link1, 'Website')}
-          className="inline-flex items-center gap-1.5 max-w-[180px] px-2.5 py-1 rounded-full text-xs font-medium text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 transition-all cursor-pointer truncate"
-          title={link1}
-        >
-          <Link2 className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-          <span className="truncate">{cleanDomain(link1)}</span>
-        </button>
-      )}
+    <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2 px-3 max-w-sm mx-auto">
+      {links.map((item, idx) => {
+        let badgeStyle = '';
+        let IconComponent = Globe;
 
-      {/* Link 2 */}
-      {link2 && (
-        <button
-          type="button"
-          onClick={() => openInAppBrowser(link2, 'Website')}
-          className="inline-flex items-center gap-1.5 max-w-[180px] px-2.5 py-1 rounded-full text-xs font-medium text-blue-500 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 transition-all cursor-pointer truncate"
-          title={link2}
-        >
-          <Link2 className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-          <span className="truncate">{cleanDomain(link2)}</span>
-        </button>
-      )}
+        switch (item.type) {
+          case 'youtube':
+            badgeStyle = 'text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 border-red-500/25';
+            IconComponent = Youtube;
+            break;
+          case 'instagram':
+            badgeStyle = 'text-pink-600 dark:text-pink-400 bg-pink-500/10 hover:bg-pink-500/20 border-pink-500/25';
+            IconComponent = Instagram;
+            break;
+          case 'facebook':
+            badgeStyle = 'text-blue-600 dark:text-blue-400 bg-blue-600/10 hover:bg-blue-600/20 border-blue-600/25';
+            IconComponent = Facebook;
+            break;
+          default:
+            badgeStyle = 'text-foreground/90 bg-muted/70 hover:bg-muted border-border/70';
+            IconComponent = Link2;
+            break;
+        }
 
-      {/* Instagram */}
-      {rawInsta && (
-        (() => {
-          const { url, handle } = formatInstaUrl(rawInsta);
-          return (
-            <button
-              type="button"
-              onClick={() => openInAppBrowser(url, 'Instagram')}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-pink-600 dark:text-pink-400 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 transition-all cursor-pointer truncate max-w-[170px]"
-              title={`Instagram: ${handle}`}
-            >
-              <Instagram className="w-3.5 h-3.5 shrink-0 text-pink-500" />
-              <span className="truncate">{handle}</span>
-            </button>
-          );
-        })()
-      )}
-
-      {/* Facebook */}
-      {rawFb && (
-        (() => {
-          const { url, label } = formatFbUrl(rawFb);
-          return (
-            <button
-              type="button"
-              onClick={() => openInAppBrowser(url, 'Facebook')}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-600/20 transition-all cursor-pointer truncate max-w-[170px]"
-              title="Facebook Profile"
-            >
-              <Facebook className="w-3.5 h-3.5 shrink-0 text-blue-600" />
-              <span className="truncate">{label}</span>
-            </button>
-          );
-        })()
-      )}
+        return (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => openInAppBrowser(item.url, item.type.toUpperCase())}
+            className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-medium border transition-all cursor-pointer truncate max-w-[150px] shadow-xs active:scale-95 ${badgeStyle}`}
+            title={`${item.type.toUpperCase()}: ${item.url}`}
+          >
+            <IconComponent className="w-3 h-3 shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 };

@@ -226,7 +226,7 @@ const EditProfilePage: React.FC = () => {
 
             {/* Add Link 1 */}
             <div className="space-y-1.5">
-              <Label htmlFor="link1" className="text-xs text-muted-foreground">Add Link 1 (Website URL)</Label>
+              <Label htmlFor="link1" className="text-xs text-muted-foreground">Add Link 1 (Website ya YouTube URL)</Label>
               <div className="relative">
                 <Globe className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <Input
@@ -242,7 +242,7 @@ const EditProfilePage: React.FC = () => {
 
             {/* Add Link 2 */}
             <div className="space-y-1.5">
-              <Label htmlFor="link2" className="text-xs text-muted-foreground">Add Link 2 (Website URL)</Label>
+              <Label htmlFor="link2" className="text-xs text-muted-foreground">Add Link 2 (Website ya YouTube URL)</Label>
               <div className="relative">
                 <Globe className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
                 <Input
