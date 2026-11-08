@@ -1,11 +1,14 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { InputHTMLAttributes, MouseEvent, PointerEvent } from "react";
+import type { InputHTMLAttributes, MouseEvent, PointerEvent, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import "./GlassSearch.css";
 
 type GlassSearchProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
   /** Start expanded (also true when autoFocus or a value is present). */
   defaultOpen?: boolean;
   wrapperClassName?: string;
+  /** Optional input action, visible only while search is expanded. */
+  trailingAction?: ReactNode;
 };
 
 /**
@@ -15,7 +18,7 @@ type GlassSearchProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size"> & {
  * search logic keeps working unchanged.
  */
 const GlassSearch = forwardRef<HTMLInputElement, GlassSearchProps>(function GlassSearch(
-  { defaultOpen, wrapperClassName, className, autoFocus, placeholder = "Search", ...inputProps },
+  { defaultOpen, wrapperClassName, trailingAction, className, autoFocus, placeholder = "Search", ...inputProps },
   ref,
 ) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -70,12 +73,18 @@ const GlassSearch = forwardRef<HTMLInputElement, GlassSearchProps>(function Glas
       className={`glass-search${open ? " open" : ""}${hasText ? " has-text" : ""}${wrapperClassName ? ` ${wrapperClassName}` : ""}`}
       onClick={() => !open && openBar()}
       onPointerMove={onMove}
+      onBlur={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget)) return;
+        if (!inputRef.current?.value && !defaultOpen && !autoFocus) setOpen(false);
+      }}
     >
       <span className="gs-aura" aria-hidden="true" />
       <span className="gs-glass" aria-hidden="true" />
       <span className="gs-ring" aria-hidden="true" />
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         className="gs-icon"
         aria-label="Search"
         onClick={(e) => {
@@ -88,7 +97,7 @@ const GlassSearch = forwardRef<HTMLInputElement, GlassSearchProps>(function Glas
           <circle cx="11" cy="11" r="7" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
-      </button>
+      </Button>
       <input
         ref={inputRef}
         type="search"
@@ -103,16 +112,17 @@ const GlassSearch = forwardRef<HTMLInputElement, GlassSearchProps>(function Glas
           setHasText(e.target.value.length > 0);
           inputProps.onChange?.(e);
         }}
-        onBlur={(e) => {
-          inputProps.onBlur?.(e);
-          if (!e.target.value && !defaultOpen && !autoFocus) setOpen(false);
-        }}
       />
-      <button
+      {open && trailingAction && (
+        <span className="gs-action">{trailingAction}</span>
+      )}
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         className="gs-clear"
         aria-label="Clear search"
-        tabIndex={hasText ? 0 : -1}
+        tabIndex={open && hasText ? 0 : -1}
         onMouseDown={(e) => e.preventDefault()}
         onClick={clear}
       >
@@ -120,7 +130,7 @@ const GlassSearch = forwardRef<HTMLInputElement, GlassSearchProps>(function Glas
           <line x1="6" y1="6" x2="18" y2="18" />
           <line x1="18" y1="6" x2="6" y2="18" />
         </svg>
-      </button>
+      </Button>
     </div>
   );
 });

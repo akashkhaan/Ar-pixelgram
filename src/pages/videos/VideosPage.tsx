@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
-import { Input } from '@/components/ui/input';
-import { Search, Mic, Loader2, Lock, Eye, Share2 } from 'lucide-react';
+import GlassSearch from '@/components/common/GlassSearch';
+import { Button } from '@/components/ui/button';
+import { Mic, Loader2, Lock, Eye, Share2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -91,26 +92,31 @@ const VideosPage: React.FC = () => {
   return (
     <MobileLayout autoHideNav>
       <div className="p-4 page-transition">
-        {/* Search + voice + upload */}
+        {/* Search + voice */}
         <div className="flex items-center gap-2 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
+          <div className="flex-1 min-w-0">
+            <GlassSearch
               placeholder="गाना, film, comedy — कुछ भी खोजें…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="h-11 pl-9 pr-11"
+              trailingAction={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={startVoice}
+                  aria-label="Voice search"
+                  aria-pressed={listening}
+                  title={listening ? 'Stop voice search' : 'Voice search'}
+                  className={`w-8 h-8 rounded-full shrink-0 ${
+                    listening ? 'bg-destructive text-destructive-foreground animate-pulse hover:bg-destructive' : 'text-muted-foreground'
+                  }`}
+                >
+                  <Mic className="w-4 h-4" />
+                </Button>
+              }
             />
-            <button
-              type="button"
-              onClick={startVoice}
-              aria-label="Voice search"
-              className={`absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-                listening ? 'bg-destructive text-destructive-foreground animate-pulse' : 'hover:bg-muted'
-              }`}
-            >
-              <Mic className={`w-4 h-4 ${listening ? 'text-white' : 'text-muted-foreground'}`} />
-            </button>
           </div>
 
         </div>

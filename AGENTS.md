@@ -10,3 +10,4 @@
 - Bound each inbox/profile loading phase; publish inbox rows before optional presence and calls, and fetch only the newest message for inbox summaries while preserving full conversation history.
 - Keep reel like decoration best-effort: optional session/like failures must not discard successfully loaded feed rows.
 - Notification surfaces and text use global theme tokens so light/dark changes apply consistently.
+- Put optional search actions in GlassSearch's expanded-only trailingAction slot; keep focus transitions inside the control open so voice and clear actions remain usable.

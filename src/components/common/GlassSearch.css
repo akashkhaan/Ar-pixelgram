@@ -94,6 +94,13 @@
 .glass-search input.gs-input:focus::placeholder { opacity: .55; }
 .glass-search input.gs-input::-webkit-search-cancel-button { display: none; }
 
+.glass-search .gs-action {
+  position: relative; z-index: 3;
+  display: flex; align-items: center; flex-shrink: 0;
+  color: var(--gs-text);
+}
+.glass-search .gs-action button:not([aria-pressed="true"]) { color: inherit; }
+
 .glass-search .gs-clear {
   position: relative; z-index: 3;
   flex: 0 0 24px; width: 24px; height: 24px; margin-right: 8px; padding: 0;
