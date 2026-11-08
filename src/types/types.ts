@@ -22,6 +22,10 @@ export interface Profile {
   hello_tune_start_seconds?: number | null;
   hello_tune_duration_seconds?: number | null;
   hello_tune_expires_at?: string | null;
+  website_link_1?: string | null;
+  website_link_2?: string | null;
+  instagram_url?: string | null;
+  facebook_url?: string | null;
 }
 
 export interface Post {

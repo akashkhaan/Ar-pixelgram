@@ -1,3 +1,4 @@
+import { ProfileLinks } from "@/components/profile/ProfileLinks";
 import { PixelgramProfileCard } from "@/components/profile/PixelgramProfileCard";
 import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
 import { ArrowLeft, BadgeCheck, Camera, Film, Flag, Grid3X3, Heart, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
@@ -486,6 +487,9 @@ const ProfilePage: React.FC = () => {
               {profile.bio}
             </p>
           )}
+
+          {/* Links: Website, Instagram, Facebook */}
+          <ProfileLinks profile={profile} user={user} isOwnProfile={isOwnProfile} />
         </div>
         {/* Posts / Reels tab bar */}
         <div id="posts-tab-section" className="border-t border-border sticky top-12 bg-background/95 backdrop-blur-sm z-10">

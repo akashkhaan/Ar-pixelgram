@@ -1,3 +1,4 @@
+import { CommentText } from "./CommentText";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Send, CornerDownRight, Trash2 } from 'lucide-react';
@@ -103,7 +104,7 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
           {c.profile?.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-primary" />}
           <span className="text-xs text-muted-foreground ml-1">{new Date(c.created_at).toLocaleDateString()}</span>
         </div>
-        <p className="text-sm text-foreground break-words">{c.content}</p>
+        <p className="text-sm text-foreground break-words"><CommentText text={c.content} /></p>
         <div className="flex items-center gap-3 mt-1">
           <button
             className="text-xs text-muted-foreground hover:text-primary"

@@ -1,3 +1,4 @@
+import InAppBrowserModal from "@/components/common/InAppBrowserModal";
 import React, { Suspense, useEffect } from "react";
 import { resumeAllPendingUploads } from '@/services/persistentUploadQueue';
 import {
@@ -103,6 +104,7 @@ const App: React.FC = () => {
               <CallOverlay />
               <GroupCallOverlay />
               <UploadProgressOverlay />
+              <InAppBrowserModal />
             </GroupCallProvider>
           </CallProvider>
         </AuthProvider>

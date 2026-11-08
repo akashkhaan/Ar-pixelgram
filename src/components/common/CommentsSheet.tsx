@@ -1,3 +1,4 @@
+import { CommentText } from "./CommentText";
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -133,7 +134,7 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
                     {comment.profile?.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-primary" />}
                     <span className="text-xs text-muted-foreground ml-1">{new Date(comment.created_at).toLocaleDateString()}</span>
                   </div>
-                  <p className="text-sm text-foreground text-pretty">{comment.content}</p>
+                  <p className="text-sm text-foreground text-pretty break-words"><CommentText text={comment.content} /></p>
                 </div>
               </div>
             ))
