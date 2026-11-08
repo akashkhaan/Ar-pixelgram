@@ -191,20 +191,9 @@ export async function uploadVideoFile(
   // Chhote videos: seedha upload (fast + sabse reliable).
   // Bade videos (10 min tak) seedha resumable TUS chunks se — direct request
   // ek hi baar me poora body bhejti hai jisme proxy/timeouts fail kar sakte hain.
-  const DIRECT_LIMIT = 20 * 1024 * 1024;
-  if (file.size <= DIRECT_LIMIT) {
-    onProgress?.(5);
-    const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-      contentType: file.type || 'video/mp4',
-      cacheControl: '31536000',
-      upsert: true,
-    });
-    if (!error) {
-      onProgress?.(100);
-      return publicUrl();
-    }
-    console.warn('direct video upload failed, trying resumable', error);
-  }
+  // Har size ka video resumable chunks se jata hai taaki progress real-time 0-100% dikhe
+  // (pehle chhote videos 5% par ruk jaate the kyunki direct upload progress nahi deta).
+  onProgress?.(1);
 
   try {
     await resumableUpload(file, path, accessToken, onProgress);
