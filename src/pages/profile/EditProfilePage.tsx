@@ -11,7 +11,21 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Camera, Loader2, ArrowLeft, CheckCircle2, XCircle, Link2, Globe, Instagram, Facebook } from 'lucide-react';
+import {
+  Camera,
+  Loader2,
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  Link2,
+  Globe,
+  Instagram,
+  Facebook,
+  Youtube,
+  ChevronRight,
+  X,
+  Trash2,
+} from 'lucide-react';
 
 const EditProfilePage: React.FC = () => {
   const { user, profile, refreshProfile } = useAuth();
@@ -29,24 +43,42 @@ const EditProfilePage: React.FC = () => {
     instagram_url: '',
     facebook_url: '',
   });
+
+  // Modal for editing the 4 links
+  const [showLinksModal, setShowLinksModal] = useState(false);
+  const [modalLinks, setModalLinks] = useState({
+    website_link_1: '',
+    website_link_2: '',
+    instagram_url: '',
+    facebook_url: '',
+  });
+
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [linksSaving, setLinksSaving] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
 
   useEffect(() => {
     if (profile) {
+      const initialLinks = {
+        website_link_1: profile.website_link_1 || (user?.user_metadata?.website_link_1 as string) || '',
+        website_link_2: profile.website_link_2 || (user?.user_metadata?.website_link_2 as string) || '',
+        instagram_url: profile.instagram_url || (user?.user_metadata?.instagram_url as string) || '',
+        facebook_url: profile.facebook_url || (user?.user_metadata?.facebook_url as string) || '',
+      };
+
       setForm({
         full_name: profile.full_name || '',
         username: profile.username || '',
         bio: profile.bio || '',
         dob: profile.dob || '',
         is_private: profile.is_private,
-        website_link_1: profile.website_link_1 || (user?.user_metadata?.website_link_1 as string) || '',
-        website_link_2: profile.website_link_2 || (user?.user_metadata?.website_link_2 as string) || '',
-        instagram_url: profile.instagram_url || (user?.user_metadata?.instagram_url as string) || '',
-        facebook_url: profile.facebook_url || (user?.user_metadata?.facebook_url as string) || '',
+        ...initialLinks,
       });
+
+      setModalLinks(initialLinks);
+
       if (profile.avatar_url) setAvatarPreview(profile.avatar_url);
     }
   }, [profile, user]);
@@ -72,6 +104,74 @@ const EditProfilePage: React.FC = () => {
     if (file.size > 2 * 1024 * 1024) { toast.error('Avatar must be under 2MB'); return; }
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  // Open links modal with fresh form data
+  const handleOpenLinksModal = () => {
+    setModalLinks({
+      website_link_1: form.website_link_1 || '',
+      website_link_2: form.website_link_2 || '',
+      instagram_url: form.instagram_url || '',
+      facebook_url: form.facebook_url || '',
+    });
+    setShowLinksModal(true);
+  };
+
+  // Save links from the 4-box modal
+  const handleSaveLinksModal = async () => {
+    const cleanLink1 = modalLinks.website_link_1.trim();
+    const cleanLink2 = modalLinks.website_link_2.trim();
+    const cleanInsta = modalLinks.instagram_url.trim();
+    const cleanFb = modalLinks.facebook_url.trim();
+
+    // Update main form state
+    setForm(prev => ({
+      ...prev,
+      website_link_1: cleanLink1,
+      website_link_2: cleanLink2,
+      instagram_url: cleanInsta,
+      facebook_url: cleanFb,
+    }));
+
+    if (!user) {
+      setShowLinksModal(false);
+      return;
+    }
+
+    setLinksSaving(true);
+    try {
+      const payload: any = {
+        website_link_1: cleanLink1 || null,
+        website_link_2: cleanLink2 || null,
+        instagram_url: cleanInsta || null,
+        facebook_url: cleanFb || null,
+      };
+
+      try {
+        await updateProfile(user.id, payload);
+      } catch (err) {
+        console.warn('Fallback update if migration pending:', err);
+      }
+
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            website_link_1: cleanLink1 || null,
+            website_link_2: cleanLink2 || null,
+            instagram_url: cleanInsta || null,
+            facebook_url: cleanFb || null,
+          },
+        });
+      } catch {}
+
+      await refreshProfile();
+      toast.success('Links save ho gaye ✨');
+      setShowLinksModal(false);
+    } catch {
+      toast.error('Links save nahi huye, dobara koshish karein');
+    } finally {
+      setLinksSaving(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,7 +211,6 @@ const EditProfilePage: React.FC = () => {
         await updateProfile(user.id, profilePayload);
       } catch (dbErr: any) {
         console.warn('Fallback update if migration pending:', dbErr);
-        // Fallback: update core fields if schema migration hasn't run on remote yet
         const { website_link_1, website_link_2, instagram_url, facebook_url, ...corePayload } = profilePayload;
         await updateProfile(user.id, corePayload);
       }
@@ -139,6 +238,14 @@ const EditProfilePage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Count how many links are currently active
+  const activeLinksCount = [
+    form.website_link_1,
+    form.website_link_2,
+    form.instagram_url,
+    form.facebook_url,
+  ].filter(l => Boolean(l && l.trim())).length;
 
   return (
     <MobileLayout hideNav>
@@ -214,81 +321,35 @@ const EditProfilePage: React.FC = () => {
             <Input id="dob" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} className="h-11" />
           </div>
 
-          {/* Links Section (Instagram style: Link 1, Link 2, Instagram, Facebook) */}
-          <div className="pt-2 border-t border-border/70 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Link2 className="w-4 h-4 text-primary" />
-                <span className="font-semibold text-sm text-foreground">Add Links (Profile)</span>
+          {/* Links Row (Instagram Style: Tap to open 4-box modal) */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={handleOpenLinksModal}
+              className="w-full flex items-center justify-between p-3.5 rounded-xl bg-card border border-border hover:bg-muted/40 transition-colors group cursor-pointer text-left shadow-xs"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0 group-hover:scale-105 transition-transform">
+                  <Link2 className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm text-foreground">Add Links</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {activeLinksCount > 0
+                      ? `${activeLinksCount} link${activeLinksCount > 1 ? 's' : ''} added (YouTube, Insta, FB, Web)`
+                      : 'Website, YouTube, Instagram, Facebook'}
+                  </p>
+                </div>
               </div>
-              <span className="text-[11px] text-muted-foreground">Instagram Style</span>
-            </div>
-
-            {/* Add Link 1 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="link1" className="text-xs text-muted-foreground">Add Link 1 (Website ya YouTube URL)</Label>
-              <div className="relative">
-                <Globe className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input
-                  id="link1"
-                  type="url"
-                  value={form.website_link_1}
-                  onChange={e => setForm(p => ({ ...p, website_link_1: e.target.value }))}
-                  placeholder="https://yourwebsite.com"
-                  className="h-11 pl-9 text-sm"
-                />
+              <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
+                {activeLinksCount > 0 && (
+                  <span className="text-xs font-semibold text-primary px-2.5 py-0.5 rounded-full bg-primary/10">
+                    {activeLinksCount}
+                  </span>
+                )}
+                <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
               </div>
-            </div>
-
-            {/* Add Link 2 */}
-            <div className="space-y-1.5">
-              <Label htmlFor="link2" className="text-xs text-muted-foreground">Add Link 2 (Website ya YouTube URL)</Label>
-              <div className="relative">
-                <Globe className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input
-                  id="link2"
-                  type="url"
-                  value={form.website_link_2}
-                  onChange={e => setForm(p => ({ ...p, website_link_2: e.target.value }))}
-                  placeholder="https://youtube.com/@channel"
-                  className="h-11 pl-9 text-sm"
-                />
-              </div>
-            </div>
-
-            {/* Instagram Account */}
-            <div className="space-y-1.5">
-              <Label htmlFor="instagram_url" className="text-xs text-muted-foreground">Instagram Account (Link ya @handle)</Label>
-              <div className="relative">
-                <Instagram className="w-4 h-4 text-pink-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input
-                  id="instagram_url"
-                  value={form.instagram_url}
-                  onChange={e => setForm(p => ({ ...p, instagram_url: e.target.value }))}
-                  placeholder="https://instagram.com/user ya @username"
-                  className="h-11 pl-9 text-sm"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                />
-              </div>
-            </div>
-
-            {/* Facebook Account */}
-            <div className="space-y-1.5">
-              <Label htmlFor="facebook_url" className="text-xs text-muted-foreground">Facebook Account (Profile URL ya Username)</Label>
-              <div className="relative">
-                <Facebook className="w-4 h-4 text-blue-600 absolute left-3 top-1/2 -translate-y-1/2" />
-                <Input
-                  id="facebook_url"
-                  value={form.facebook_url}
-                  onChange={e => setForm(p => ({ ...p, facebook_url: e.target.value }))}
-                  placeholder="https://facebook.com/username"
-                  className="h-11 pl-9 text-sm"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                />
-              </div>
-            </div>
+            </button>
           </div>
 
           {/* Private Account */}
@@ -305,6 +366,182 @@ const EditProfilePage: React.FC = () => {
           </Button>
         </form>
       </div>
+
+      {/* 4-Box Links Modal (Instagram Style Dialog) */}
+      {showLinksModal && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-lg bg-card border border-border rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-5 duration-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-border/70">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  <Link2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Add Links</h3>
+                  <p className="text-xs text-muted-foreground">YouTube, Instagram, Facebook & Website URLs</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLinksModal(false)}
+                className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 4 Input Boxes */}
+            <div className="space-y-3.5 pt-1">
+              {/* Box 1: Link 1 (Website / YouTube) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="m_link1" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Youtube className="w-3.5 h-3.5 text-red-500" />
+                    <span>Link 1 (YouTube ya Website URL)</span>
+                  </Label>
+                  {modalLinks.website_link_1 && (
+                    <button
+                      type="button"
+                      onClick={() => setModalLinks(p => ({ ...p, website_link_1: '' }))}
+                      className="text-[11px] text-destructive hover:underline flex items-center gap-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" /> Clear
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Globe className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    id="m_link1"
+                    type="url"
+                    value={modalLinks.website_link_1}
+                    onChange={e => setModalLinks(p => ({ ...p, website_link_1: e.target.value }))}
+                    placeholder="https://youtube.com/@channel ya website"
+                    className="h-10 pl-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Box 2: Link 2 (Website URL) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="m_link2" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Link 2 (Website URL)</span>
+                  </Label>
+                  {modalLinks.website_link_2 && (
+                    <button
+                      type="button"
+                      onClick={() => setModalLinks(p => ({ ...p, website_link_2: '' }))}
+                      className="text-[11px] text-destructive hover:underline flex items-center gap-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" /> Clear
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Globe className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    id="m_link2"
+                    type="url"
+                    value={modalLinks.website_link_2}
+                    onChange={e => setModalLinks(p => ({ ...p, website_link_2: e.target.value }))}
+                    placeholder="https://yourwebsite.com"
+                    className="h-10 pl-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Box 3: Instagram */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="m_insta" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Instagram className="w-3.5 h-3.5 text-pink-500" />
+                    <span>Instagram Account (Link ya @handle)</span>
+                  </Label>
+                  {modalLinks.instagram_url && (
+                    <button
+                      type="button"
+                      onClick={() => setModalLinks(p => ({ ...p, instagram_url: '' }))}
+                      className="text-[11px] text-destructive hover:underline flex items-center gap-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" /> Clear
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Instagram className="w-4 h-4 text-pink-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    id="m_insta"
+                    value={modalLinks.instagram_url}
+                    onChange={e => setModalLinks(p => ({ ...p, instagram_url: e.target.value }))}
+                    placeholder="https://instagram.com/username ya @username"
+                    className="h-10 pl-9 text-xs"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+
+              {/* Box 4: Facebook */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="m_fb" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Facebook className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Facebook Account (Profile URL ya Username)</span>
+                  </Label>
+                  {modalLinks.facebook_url && (
+                    <button
+                      type="button"
+                      onClick={() => setModalLinks(p => ({ ...p, facebook_url: '' }))}
+                      className="text-[11px] text-destructive hover:underline flex items-center gap-0.5"
+                    >
+                      <Trash2 className="w-3 h-3" /> Clear
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Facebook className="w-4 h-4 text-blue-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    id="m_fb"
+                    value={modalLinks.facebook_url}
+                    onChange={e => setModalLinks(p => ({ ...p, facebook_url: e.target.value }))}
+                    placeholder="https://facebook.com/username"
+                    className="h-10 pl-9 text-xs"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground pt-1 bg-muted/30 p-2.5 rounded-lg border border-border/40">
+                💡 <b>Tip:</b> Kisi link ko profile se hatane ke liye uska box khali (delete) karke <b>Save Links</b> par click karein.
+              </p>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowLinksModal(false)}
+                className="flex-1 h-10 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSaveLinksModal}
+                disabled={linksSaving}
+                className="flex-1 h-10 text-xs font-semibold"
+              >
+                {linksSaving ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Saving…</> : 'Save Links'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </MobileLayout>
   );
 };

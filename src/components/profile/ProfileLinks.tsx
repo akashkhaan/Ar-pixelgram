@@ -26,9 +26,7 @@ function parseSmartLink(raw: string, defaultType?: 'website' | 'instagram' | 'fa
     let clean = val;
     if (clean.startsWith('@')) clean = clean.slice(1);
     const url = /^https?:\/\//i.test(clean) ? clean : `https://instagram.com/${clean}`;
-    const match = clean.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
-    const label = match ? `@${match[1]}` : (clean.startsWith('http') ? 'Instagram' : `@${clean}`);
-    return { url, label, type: 'instagram' };
+    return { url, label: 'Instagram', type: 'instagram' };
   }
 
   // If designated Facebook field
@@ -43,19 +41,12 @@ function parseSmartLink(raw: string, defaultType?: 'website' | 'instagram' | 'fa
 
   // YouTube Detection
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
-    let label = 'YouTube';
-    const handleMatch = val.match(/@([a-zA-Z0-9_.-]+)/);
-    if (handleMatch) {
-      label = `@${handleMatch[1]}`;
-    }
-    return { url, label, type: 'youtube' };
+    return { url, label: 'YouTube', type: 'youtube' };
   }
 
   // Instagram Detection in generic link
   if (lower.includes('instagram.com')) {
-    const handleMatch = val.match(/instagram\.com\/([a-zA-Z0-9_.]+)/i);
-    const label = handleMatch ? `@${handleMatch[1]}` : 'Instagram';
-    return { url, label, type: 'instagram' };
+    return { url, label: 'Instagram', type: 'instagram' };
   }
 
   // Facebook Detection in generic link
@@ -63,16 +54,7 @@ function parseSmartLink(raw: string, defaultType?: 'website' | 'instagram' | 'fa
     return { url, label: 'Facebook', type: 'facebook' };
   }
 
-  // Clean generic website domain
-  let domain = '';
-  try {
-    const parsed = new URL(url);
-    domain = parsed.hostname.replace(/^www\./, '');
-  } catch {
-    domain = val.replace(/^https?:\/\/(www\.)?/, '');
-  }
-
-  return { url, label: domain || 'Website', type: 'website' };
+  return { url, label: 'Website', type: 'website' };
 }
 
 export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwnProfile }) => {
@@ -90,7 +72,13 @@ export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwn
   if (parsed1) links.push(parsed1);
 
   const parsed2 = rawLink2 ? parseSmartLink(rawLink2, 'website') : null;
-  if (parsed2) links.push(parsed2);
+  if (parsed2) {
+    // If both are websites, distinguish or keep label clean
+    if (parsed2.type === 'website' && parsed1?.type === 'website') {
+      parsed2.label = 'Website 2';
+    }
+    links.push(parsed2);
+  }
 
   const parsedInsta = rawInsta ? parseSmartLink(rawInsta, 'instagram') : null;
   if (parsedInsta) links.push(parsedInsta);
@@ -116,8 +104,9 @@ export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwn
     return null;
   }
 
+  // All 4 links in ONE single horizontal line (flex-nowrap)
   return (
-    <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2 px-3 max-w-sm mx-auto">
+    <div className="flex flex-nowrap items-center justify-center gap-1.5 mt-2 px-1 w-full max-w-full overflow-x-auto no-scrollbar">
       {links.map((item, idx) => {
         let badgeStyle = '';
         let IconComponent = Globe;
@@ -145,12 +134,12 @@ export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwn
           <button
             key={idx}
             type="button"
-            onClick={() => openInAppBrowser(item.url, item.type.toUpperCase())}
-            className={`inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[11px] font-medium border transition-all cursor-pointer truncate max-w-[150px] shadow-xs active:scale-95 ${badgeStyle}`}
-            title={`${item.type.toUpperCase()}: ${item.url}`}
+            onClick={() => openInAppBrowser(item.url, item.label)}
+            className={`inline-flex items-center gap-1 h-6 px-2 rounded-full text-[10px] font-semibold border transition-all cursor-pointer shrink-0 shadow-xs active:scale-95 ${badgeStyle}`}
+            title={`${item.label}: ${item.url}`}
           >
             <IconComponent className="w-3 h-3 shrink-0" />
-            <span className="truncate">{item.label}</span>
+            <span>{item.label}</span>
           </button>
         );
       })}

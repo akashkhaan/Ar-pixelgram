@@ -452,7 +452,7 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        <div className="px-2 pt-1 pb-2">
+        <div className="px-0.5 pt-0.5 pb-2">
           {/* Pixelgram 3D Profile Card (New Profile System from HTML) */}
           <PixelgramProfileCard
             profile={profile}
