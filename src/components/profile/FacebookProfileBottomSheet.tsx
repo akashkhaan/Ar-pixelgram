@@ -39,6 +39,7 @@ import {
   getFacebookNumericId,
   getShareableProfileUrl,
 } from '@/lib/facebookProfileUrl';
+import { previewShareUrl, warmShareServer } from '@/lib/shareLinks';
 
 interface FacebookProfileBottomSheetProps {
   isOpen: boolean;
@@ -101,6 +102,8 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
   const numericId = getFacebookNumericId(profile.user_id || profile.id);
   const canonicalUrl = getCanonicalFacebookProfileUrl(profile.user_id || profile.id);
   const liveShareUrl = getShareableProfileUrl(profile.user_id || profile.id);
+  // WhatsApp par profile photo ke saath preview aaye
+  const previewProfileUrl = profile.user_id ? previewShareUrl('profile', profile.user_id) : liveShareUrl;
 
   // Check if currently blocked
   useEffect(() => {
@@ -113,6 +116,7 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
   // Reset view on close/open
   useEffect(() => {
     if (isOpen) {
+      warmShareServer();
       setCurrentView('menu');
       setCopied(false);
       setSelectedReportReason(null);
@@ -143,7 +147,7 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
 
   // Handle WhatsApp Share
   const handleWhatsAppShare = () => {
-    const text = `Check out ${displayName}'s profile on Pixelgram:\n${liveShareUrl}`;
+    const text = `Check out ${displayName}'s profile on Pixelgram:\n${previewProfileUrl}`;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
     window.open(waUrl, '_blank');
     onClose();
@@ -156,7 +160,7 @@ export const FacebookProfileBottomSheet: React.FC<FacebookProfileBottomSheetProp
         await navigator.share({
           title: `${displayName} on Pixelgram`,
           text: `Check out ${displayName}'s profile on Pixelgram!`,
-          url: liveShareUrl,
+          url: previewProfileUrl,
         });
         onClose();
         return;

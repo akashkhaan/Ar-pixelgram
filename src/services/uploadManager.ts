@@ -10,6 +10,8 @@ export interface UploadJob {
   error?: string;
   thumbnailUrl?: string;
   thumbnailType?: 'image' | 'video';
+  /** Notification par tap karne se ye page khulega (upload ke baad: naya item). */
+  openUrl?: string;
 }
 
 type Listener = (jobs: UploadJob[]) => void;
@@ -56,6 +58,25 @@ function updateBeforeUnloadGuard() {
 
 import { notifyPhone } from "@/lib/notifyPhone";
 
+/** Upload chalte waqt notification tap → wo page jahan upload dikh raha hai. */
+export function uploadingUrlForKind(kind: UploadKind): string {
+  if (kind === 'reel') return '/reels';
+  if (kind === 'video') return '/videos';
+  if (kind === 'story') return '/stories';
+  return '/home';
+}
+
+/** Upload ho jane ke baad tap → naya item seedha khule (Instagram jaisa). */
+export function doneUrlFor(kind: UploadKind, createdId?: string | null): string {
+  if (createdId) {
+    if (kind === 'reel') return `/reels?r=${createdId}`;
+    if (kind === 'video') return `/videos/${createdId}`;
+    if (kind === 'post') return `/post/${createdId}`;
+  }
+  if (kind === 'post') return '/profile';
+  return uploadingUrlForKind(kind);
+}
+
 function renderProgressBar(percent: number): string {
   const total = 10;
   const filled = Math.min(total, Math.max(0, Math.round((percent / 100) * total)));
@@ -87,9 +108,11 @@ async function notifyOnPhone(job: UploadJob) {
       title,
       body,
       tag: `upload_${job.id}`,
+      url: job.openUrl || (isDone ? doneUrlFor(job.kind) : uploadingUrlForKind(job.kind)),
       progress: isDone ? 100 : job.progress,
+      uploadState: job.status,
       isOngoing: job.status === "uploading",
-      image: job.thumbnailUrl || undefined,
+      image: job.thumbnailUrl && /^https?:/i.test(job.thumbnailUrl) ? job.thumbnailUrl : undefined,
     });
   } catch {
     // Notification permission/plugin unavailable
@@ -169,12 +192,13 @@ export function dismissUpload(id: string) {
   emit();
 }
 
-export function finishUpload(id: string, error?: string) {
+export function finishUpload(id: string, error?: string, openUrl?: string) {
   const job = jobs.get(id);
   if (!job) return;
   job.status = error ? 'error' : 'complete';
   job.progress = error ? job.progress : 100;
   job.error = error;
+  if (!error) job.openUrl = openUrl || doneUrlFor(job.kind);
   emit();
   maybeNotify(job);
 
@@ -202,7 +226,8 @@ export function runBackgroundUpload({
   label: string;
   thumbnailUrl?: string;
   thumbnailType?: 'image' | 'video';
-  task: (updateProgress: (p: number) => void) => Promise<void>;
+  /** Optional: naye item ka page (notification tap par khulega). */
+  task: (updateProgress: (p: number) => void) => Promise<string | void>;
   onSuccess?: () => void;
   onError?: (err: unknown) => void;
 }): string {
@@ -211,10 +236,10 @@ export function runBackgroundUpload({
   // Execute in microtask / detached promise
   (async () => {
     try {
-      await task((p: number) => {
+      const openUrl = await task((p: number) => {
         updateUpload(id, p);
       });
-      finishUpload(id);
+      finishUpload(id, undefined, typeof openUrl === 'string' ? openUrl : undefined);
       onSuccess?.();
     } catch (err: unknown) {
       console.error('Background upload failed:', err);
@@ -235,4 +260,21 @@ export function subscribeToUploads(listener: Listener): () => void {
 
 export function getUploadJobs(): UploadJob[] {
   return snapshot();
+}
+
+// Website/PWA: notification hata diya gaya par upload abhi chal raha hai → wapas dikhao.
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  try {
+    navigator.serviceWorker.addEventListener('message', (event: MessageEvent) => {
+      const data = event.data as { type?: string; tag?: string } | null;
+      if (!data || data.type !== 'upload-notification-closed') return;
+      for (const job of jobs.values()) {
+        if (job.status === 'uploading' && (!data.tag || data.tag === `upload_${job.id}`)) {
+          void notifyOnPhone(job);
+        }
+      }
+    });
+  } catch {
+    /* ignore */
+  }
 }

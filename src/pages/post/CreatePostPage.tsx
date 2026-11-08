@@ -22,7 +22,7 @@ import MusicPickerSheet from '@/components/reels/MusicPickerSheet';
 import MusicTrimmer from '@/components/reels/MusicTrimmer';
 import type { MusicTrack } from '@/services/music';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
-import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
+import { doneUrlFor, finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
 import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
 
 const CreatePostPage: React.FC = () => {
@@ -185,9 +185,9 @@ const CreatePostPage: React.FC = () => {
         void updatePersistentJobProgress(persistentJobId, progress);
       });
 
-      await createPost(mediaUrl, caption.trim() || null, music);
+      const postId = await createPost(mediaUrl, caption.trim() || null, music);
       await deletePersistentJob(persistentJobId);
-      finishUpload(uploadId);
+      finishUpload(uploadId, undefined, doneUrlFor('post', postId));
       toast.success(mediaType === 'video' ? 'Video post shared! 🎬✨' : 'Post shared! 📷✨');
       navigate('/stories');
     } catch (err) {

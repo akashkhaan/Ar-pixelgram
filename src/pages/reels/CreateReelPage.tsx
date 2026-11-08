@@ -36,7 +36,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
 import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive } from '@/services/persistentUploadQueue';
-import { finishUpload, startUpload, updateUpload, runBackgroundUpload, requestUploadNotifications } from '@/services/uploadManager';
+import { doneUrlFor, finishUpload, startUpload, updateUpload, runBackgroundUpload, requestUploadNotifications } from '@/services/uploadManager';
 import {
   sendBrowserPushNotification,
   requestNotificationPermission,
@@ -629,7 +629,8 @@ const CreateReelPage: React.FC = () => {
             }
           }
 
-          await createReel(currentUserId, videoUrl, currentCaption.trim() || '', coverUrl || undefined, musicPayload);
+          const reelId = await createReel(currentUserId, videoUrl, currentCaption.trim() || '', coverUrl || undefined, musicPayload);
+          return doneUrlFor('reel', reelId);
         } else if (currentMode === 'story') {
           const mediaUrl = await uploadMediaWithProgress('stories', currentFile, currentUserId, (p) => {
             setUploadPercent(p);
@@ -643,7 +644,8 @@ const CreateReelPage: React.FC = () => {
             updateProgress(p);
             void updatePersistentJobProgress(persistentJobId, p);
           });
-          await createPost(mediaUrl, currentCaption.trim() || null, musicPayload);
+          const postId = await createPost(mediaUrl, currentCaption.trim() || null, musicPayload);
+          return doneUrlFor('post', postId);
         } else if (currentMode === 'video') {
           const videoUrl = await uploadVideoFile(currentFile, currentUserId, (p) => {
             setUploadPercent(p);
@@ -660,7 +662,7 @@ const CreateReelPage: React.FC = () => {
             }
           }
 
-          await createVideo({
+          const createdVideo = await createVideo({
             userId: currentUserId,
             title: currentTitle.trim(),
             description: currentDesc.trim() || undefined,
@@ -669,6 +671,7 @@ const CreateReelPage: React.FC = () => {
             durationSec: currentDur ? Math.round(currentDur) : null,
             visibility: currentVis,
           });
+          return doneUrlFor('video', createdVideo?.id);
         }
       },
       onSuccess: () => {

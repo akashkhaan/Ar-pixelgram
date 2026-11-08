@@ -116,7 +116,7 @@ export async function createPost(
   imageUrl: string,
   caption: string | null,
   music?: ReelMusic | null,
-): Promise<void> {
+): Promise<string | null> {
   const finalCaption = music ? encodePostMusic(caption, music) : caption;
   const row: Record<string, any> = { image_url: imageUrl, caption: finalCaption };
   if (music) {
@@ -147,6 +147,7 @@ export async function createPost(
   }
   if (error) throw error;
   if (data?.user_id) void notifyFollowersOfNewContent(data.user_id, 'new_post', data.id, caption);
+  return data?.id ?? null;
 }
 
 // posts.user_id ka foreign key auth.users par hai, profiles par nahi — isliye
@@ -371,7 +372,7 @@ export async function createStory(
   imageUrl: string,
   caption: string | null,
   music?: ReelMusic | null,
-): Promise<void> {
+): Promise<string | null> {
   const finalCaption = music ? encodePostMusic(caption, music) : caption;
   const row: Record<string, any> = { image_url: imageUrl, caption: finalCaption };
   if (music) {
@@ -401,6 +402,7 @@ export async function createStory(
   }
   if (error) throw error;
   if (data?.user_id) void notifyFollowersOfNewContent(data.user_id, "new_story", data.id, caption);
+  return data?.id ?? null;
 }
 export async function getFeedStories(userId: string): Promise<Story[]> {
   const { data: followData } = await supabase
@@ -1553,7 +1555,7 @@ export async function createReel(
   caption: string,
   thumbnailUrl?: string,
   music?: ReelMusic | null,
-): Promise<void> {
+): Promise<string | null> {
   const cleanCap = cleanDisplayCaption(caption);
   const base = {
     user_id: userId, video_url: videoUrl, caption: cleanCap, thumbnail_url: thumbnailUrl || null,
@@ -1583,6 +1585,7 @@ export async function createReel(
   }
   if (error) throw error;
   if (userId) void notifyFollowersOfNewContent(userId, "new_reel", created?.id, cleanCap);
+  return created?.id ?? null;
 }
 export async function toggleReelLike(reelId: string, userId: string, isLiked: boolean): Promise<void> {
   try {

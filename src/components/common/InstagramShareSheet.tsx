@@ -13,6 +13,7 @@ import { getMessagedProfiles, sendMessage, type Profile } from '@/services/api';
 import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import GlassSearch from '@/components/common/GlassSearch';
+import { toPreviewShareUrl, warmShareServer } from '@/lib/shareLinks';
 
 interface InstagramShareSheetProps {
   open: boolean;
@@ -39,6 +40,12 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   const [searching, setSearching] = useState(false);
   const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
+
+  // WhatsApp/Facebook par photo ke saath dikhne wala link (chat DM me app ka link hi jata hai)
+  const externalUrl = useMemo(() => toPreviewShareUrl(url), [url]);
+  useEffect(() => {
+    if (open) warmShareServer();
+  }, [open]);
 
   // Fetch ONLY users with whom the current user has chatted/messaged
   useEffect(() => {
@@ -130,7 +137,7 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(externalUrl);
       setCopied(true);
       toast.success('Link copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
@@ -165,7 +172,7 @@ ${url}`;
         await navigator.share({
           title,
           text: `Check out this ${mediaType} on Pixelgram:`,
-          url,
+          url: externalUrl,
         });
       } catch {
         /* user dismissed */
@@ -175,8 +182,8 @@ ${url}`;
     }
   };
 
-  const shareText = encodeURIComponent(`Check out this ${mediaType} on Pixelgram: ${url}`);
-  const encodedUrl = encodeURIComponent(url);
+  const shareText = encodeURIComponent(`Check out this ${mediaType} on Pixelgram: ${externalUrl}`);
+  const encodedUrl = encodeURIComponent(externalUrl);
 
   const socialChannels = [
     {

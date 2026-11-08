@@ -212,6 +212,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onDestroy() {
         if (instance == this) instance = null;
+        UploadNotificationReceiver.clearIfActive(this);
         try {
             Intent stop = new Intent(this, CallForegroundService.class);
             stop.setAction(CallForegroundService.ACTION_STOP);
@@ -434,6 +435,8 @@ public class MainActivity extends BridgeActivity {
                 intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                 if (url != null && !url.isEmpty()) {
                     intent.putExtra("target_url", url);
+                    // Tap par app wahi page khole
+                    intent.putExtra("notifUrl", url);
                 }
                 PendingIntent pi = PendingIntent.getActivity(
                     context,
@@ -517,29 +520,13 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void showUploadNotification(int progress, String title, String body) {
-            try {
-                NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-                if (nm == null) return;
+            showUploadProgress(progress, title, body, "/", progress >= 100 ? "complete" : "uploading");
+        }
 
-                boolean complete = progress >= 100;
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(context, complete ? CHANNEL_ALERTS : CHANNEL_UPLOADS)
-                    .setSmallIcon(R.mipmap.ic_launcher)
-                    .setContentTitle(title != null ? title : (complete ? "Upload Complete! 🎉" : "Uploading..."))
-                    .setContentText(body != null ? body : (progress + "%"))
-                    .setPriority(complete ? NotificationCompat.PRIORITY_HIGH : NotificationCompat.PRIORITY_LOW)
-                    .setOngoing(!complete)
-                    .setAutoCancel(complete);
-
-                if (!complete && progress >= 0) {
-                    builder.setProgress(100, progress, false);
-                } else if (!complete) {
-                    builder.setProgress(0, 0, true);
-                }
-
-                nm.notify("upload_progress", 8888, builder.build());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        /** Upload progress: hata nahi sakte jab tak upload chal raha hai; tap par wahi page khulta hai. */
+        @JavascriptInterface
+        public void showUploadProgress(int progress, String title, String body, String url, String state) {
+            UploadNotificationReceiver.show(context, progress, title, body, url, state);
         }
 
         @JavascriptInterface

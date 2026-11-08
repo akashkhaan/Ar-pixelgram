@@ -17,6 +17,8 @@ export interface NotifyPhoneOptions {
   isCall?: boolean;
   isOngoing?: boolean;
   progress?: number;
+  /** Upload notification ki state: chalte waqt hata nahi sakte, tap par app khulta hai. */
+  uploadState?: 'uploading' | 'complete' | 'error';
   actions?: NotifyPhoneAction[];
 }
 
@@ -31,6 +33,7 @@ type AndroidBridge = {
   showNotification?: (t: string, b: string, tag: string, u: string, icon?: string) => void;
   showCallNotification?: (t: string, b: string, tag: string, ongoing: boolean, icon?: string) => void;
   showUploadNotification?: (p: number, t: string, b: string) => void;
+  showUploadProgress?: (p: number, t: string, b: string, url: string, state: string) => void;
   dismissNotification?: (tag: string) => void;
   setCallActive?: (active: boolean, title: string) => void;
   startCallService?: (title: string, body: string, video: boolean, startedAt: number) => void;
@@ -91,6 +94,7 @@ export function notifyPhone(options: NotifyPhoneOptions) {
     isCall,
     isOngoing,
     progress,
+    uploadState,
     actions,
   } = options;
 
@@ -103,7 +107,12 @@ export function notifyPhone(options: NotifyPhoneOptions) {
   if (android) {
     try {
       if (progress !== undefined) {
-        android.showUploadNotification?.(progress, title, body);
+        const state = uploadState || (progress >= 100 ? 'complete' : 'uploading');
+        if (android.showUploadProgress) {
+          android.showUploadProgress(progress, title, body, url || '/', state);
+        } else {
+          android.showUploadNotification?.(state === 'error' ? 100 : progress, title, body);
+        }
         return;
       }
       if (isCall) {
@@ -162,6 +171,7 @@ export function notifyPhone(options: NotifyPhoneOptions) {
                 badge: resolvedBadge,
                 data: {
                   url: url || '/',
+                  uploading: uploadState === 'uploading',
                   joinUrl: actions?.find(a => a.action === 'join_call' || a.action === 'receive_call') ? url : undefined,
                 },
                 vibrate: isCall ? [500, 250, 500, 250, 500, 250, 500] : (progress !== undefined && progress < 100 ? undefined : [200, 100, 200]),
@@ -170,6 +180,10 @@ export function notifyPhone(options: NotifyPhoneOptions) {
               };
               if (image) {
                 notifOpts.image = image;
+              }
+              if (uploadState === 'uploading') {
+                // Upload ke dauraan notification khud se band na ho
+                notifOpts.requireInteraction = true;
               }
               if (actions && actions.length > 0) {
                 notifOpts.actions = actions;

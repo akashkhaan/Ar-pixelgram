@@ -106,9 +106,175 @@ function getAllowedOrigins() {
   ]);
 }
 
+// ---------- Link previews (WhatsApp / Facebook / Telegram photo card) ----------
+// Static website crawler ko photo nahi de sakti, isliye share link yahan aata hai:
+// crawler ko og:image wala HTML milta hai, aur insaan turant app par pahunch jata hai.
+const DEFAULT_SUPABASE_URL = 'https://jfizzduvmzavtqwzqacy.supabase.co';
+// Public (anon) key — yahi key website ke andar bhi hoti hai.
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmaXp6ZHV2bXphdnRxd3pxYWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjQ2MTIsImV4cCI6MjEwMTU0MDYxMn0.9i77iYIYBEBDWzm528gVDpV3qgiiwkvE5MVTTKIG19s';
+const SHARE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SHARE_TYPES = new Set(['video', 'post', 'reel', 'profile']);
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function clip(value, max) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function isImageUrl(url) {
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
+  return !/\.(mp4|mov|webm|m4v|3gp|mkv)(\?|$)/i.test(url);
+}
+
+export function appPathForShare(type, id) {
+  if (type === 'video') return `/videos/${id}`;
+  if (type === 'post') return `/post/${id}`;
+  if (type === 'reel') return `/reels?r=${id}`;
+  return `/profile/${id}`;
+}
+
+async function fetchRow(fetchImpl, table, filter) {
+  const base = (process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/+$/, '');
+  const key = process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+  const url = `${base}/rest/v1/${table}?${filter}&limit=1`;
+  try {
+    const res = await fetchImpl(url, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, Accept: 'application/json' },
+      signal: AbortSignal.timeout(4_000),
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return Array.isArray(rows) && rows[0] ? rows[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getProfile(fetchImpl, userId) {
+  if (!userId) return null;
+  return fetchRow(fetchImpl, 'profiles', `user_id=eq.${userId}&select=user_id,username,full_name,avatar_url,bio`);
+}
+
+export async function buildSharePreview(fetchImpl, type, id, frontendOrigin) {
+  const fallbackImage = `${frontendOrigin}/icon-512.png`;
+  const preview = {
+    title: 'Pixelgram',
+    description: 'Pixelgram - Short videos, reels, calls, and chats',
+    image: fallbackImage,
+    ogType: 'website',
+  };
+  const by = (profile) => (profile?.username ? `@${profile.username}` : profile?.full_name || 'Pixelgram user');
+
+  if (type === 'video') {
+    const row = await fetchRow(fetchImpl, 'videos', `id=eq.${id}&select=id,user_id,title,description,thumbnail_url`);
+    const profile = await getProfile(fetchImpl, row?.user_id);
+    if (row) {
+      preview.title = clip(row.title || 'Video on Pixelgram', 90);
+      preview.description = clip(row.description || `Video by ${by(profile)} on Pixelgram`, 180);
+      preview.image = isImageUrl(row.thumbnail_url) ? row.thumbnail_url : (isImageUrl(profile?.avatar_url) ? profile.avatar_url : fallbackImage);
+      preview.ogType = 'video.other';
+    }
+  } else if (type === 'post') {
+    const row = await fetchRow(fetchImpl, 'posts', `id=eq.${id}&select=id,user_id,image_url,caption`);
+    const profile = await getProfile(fetchImpl, row?.user_id);
+    if (row) {
+      preview.title = `Post by ${by(profile)} on Pixelgram`;
+      preview.description = clip(String(row.caption || '').replace(/<!--pixelgram_music:[\s\S]*?-->/g, '') || 'Pixelgram par ye post dekho', 180);
+      preview.image = isImageUrl(row.image_url) ? row.image_url : (isImageUrl(profile?.avatar_url) ? profile.avatar_url : fallbackImage);
+      preview.ogType = 'article';
+    }
+  } else if (type === 'reel') {
+    const row = await fetchRow(fetchImpl, 'reels', `id=eq.${id}&select=id,user_id,thumbnail_url,caption`);
+    const profile = await getProfile(fetchImpl, row?.user_id);
+    if (row) {
+      preview.title = `Reel by ${by(profile)} on Pixelgram`;
+      preview.description = clip(String(row.caption || '').replace(/<!--pixelgram_music:[\s\S]*?-->/g, '') || 'Pixelgram par ye reel dekho', 180);
+      preview.image = isImageUrl(row.thumbnail_url) ? row.thumbnail_url : (isImageUrl(profile?.avatar_url) ? profile.avatar_url : fallbackImage);
+      preview.ogType = 'video.other';
+    }
+  } else if (type === 'profile') {
+    const profile = await getProfile(fetchImpl, id);
+    if (profile) {
+      const name = profile.full_name || profile.username || 'Pixelgram user';
+      preview.title = profile.username ? `${name} (@${profile.username}) • Pixelgram` : `${name} • Pixelgram`;
+      preview.description = clip(profile.bio || `${name} ki Pixelgram profile dekho`, 180);
+      preview.image = isImageUrl(profile.avatar_url) ? profile.avatar_url : fallbackImage;
+      preview.ogType = 'profile';
+    }
+  }
+  return preview;
+}
+
+export function renderShareHtml(preview, targetUrl, shareUrl) {
+  const t = escapeHtml(preview.title);
+  const d = escapeHtml(preview.description);
+  const img = escapeHtml(preview.image);
+  const target = escapeHtml(targetUrl);
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${t}</title>
+<meta name="description" content="${d}">
+<meta property="og:site_name" content="Pixelgram">
+<meta property="og:type" content="${escapeHtml(preview.ogType)}">
+<meta property="og:title" content="${t}">
+<meta property="og:description" content="${d}">
+<meta property="og:image" content="${img}">
+<meta property="og:image:secure_url" content="${img}">
+<meta property="og:image:alt" content="${t}">
+<meta property="og:url" content="${escapeHtml(shareUrl)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${t}">
+<meta name="twitter:description" content="${d}">
+<meta name="twitter:image" content="${img}">
+<link rel="canonical" href="${target}">
+<meta http-equiv="refresh" content="0;url=${target}">
+</head><body style="background:#0B0B0F;color:#fff;font-family:sans-serif;text-align:center;padding:40px">
+<p>Opening Pixelgram…</p><p><a style="color:#e1306c" href="${target}">Tap here if it doesn't open</a></p>
+<script>location.replace(${JSON.stringify(targetUrl).replace(/</g, '\\u003c')});</script>
+</body></html>`;
+}
+
+async function handleShareRoute(fetchImpl, request, response, requestUrl) {
+  const match = requestUrl.pathname.match(/^\/s\/([a-z]+)\/([^/]+)\/?$/i);
+  if (!match) return false;
+  const type = match[1].toLowerCase();
+  const id = decodeURIComponent(match[2]);
+  if (!SHARE_TYPES.has(type) || !SHARE_ID_PATTERN.test(id)) {
+    response.statusCode = 404;
+    response.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    response.end('Not found');
+    return true;
+  }
+  const frontendOrigin = (process.env.FRONTEND_ORIGIN || DEFAULT_FRONTEND_ORIGIN).replace(/\/+$/, '');
+  const targetUrl = `${frontendOrigin}${appPathForShare(type, id)}`;
+  const host = request.headers['x-forwarded-host'] || request.headers.host || '';
+  const shareUrl = host ? `https://${host}${requestUrl.pathname}` : targetUrl;
+  const preview = await buildSharePreview(fetchImpl, type, id, frontendOrigin);
+  const html = renderShareHtml(preview, targetUrl, shareUrl);
+  response.statusCode = 200;
+  response.setHeader('Content-Type', 'text/html; charset=utf-8');
+  response.setHeader('Cache-Control', 'public, max-age=300');
+  response.end(request.method === 'HEAD' ? undefined : html);
+  return true;
+}
+
 export function createMusicApiServer(fetchImpl = globalThis.fetch) {
   return createServer(async (request, response) => {
     const requestUrl = new URL(request.url || '/', 'http://localhost');
+
+    if ((request.method === 'GET' || request.method === 'HEAD') && requestUrl.pathname.startsWith('/s/')) {
+      if (await handleShareRoute(fetchImpl, request, response, requestUrl)) return;
+    }
     const origin = request.headers.origin;
     const allowedOrigins = getAllowedOrigins();
 

@@ -148,7 +148,7 @@ const UploadVideoPage: React.FC = () => {
         visibility,
       });
       await deletePersistentJob(persistentJobId);
-      finishUpload(uploadId);
+      finishUpload(uploadId, undefined, `/videos/${created.id}`);
       toast.success('Video upload ho gaya!');
       navigate(`/videos/${created.id}`, { replace: true });
     } catch (e) {

@@ -8,7 +8,7 @@
 import { uploadMediaWithProgress } from './mediaUpload';
 import { uploadVideoFile, uploadVideoThumbnail, createVideo } from './videos';
 import { createReel, createPost, createStory, uploadImage, type ReelMusic } from './api';
-import { startUpload, updateUpload, finishUpload, type UploadKind } from './uploadManager';
+import { startUpload, updateUpload, finishUpload, doneUrlFor, type UploadKind } from './uploadManager';
 import { toast } from 'sonner';
 
 export interface PersistentUploadJob {
@@ -172,8 +172,8 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
         }
       }
 
-      await createReel(job.userId, videoUrl, job.caption || '', coverUrl || undefined, job.musicPayload);
-      finishUpload(uploadId);
+      const reelId = await createReel(job.userId, videoUrl, job.caption || '', coverUrl || undefined, job.musicPayload);
+      finishUpload(uploadId, undefined, doneUrlFor('reel', reelId));
       await deletePersistentJob(job.id);
       toast.success('Aapka Reel successfully upload ho gaya! 🎬🎉');
     } else if (job.kind === 'story') {
@@ -190,8 +190,8 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
         updateUpload(uploadId, p);
         void updatePersistentJobProgress(job.id, p);
       });
-      await createPost(mediaUrl, job.caption || null, job.musicPayload);
-      finishUpload(uploadId);
+      const postId = await createPost(mediaUrl, job.caption || null, job.musicPayload);
+      finishUpload(uploadId, undefined, doneUrlFor('post', postId));
       await deletePersistentJob(job.id);
       toast.success('Aapka Post successfully share ho gaya! 📷🎉');
     } else if (job.kind === 'video') {
@@ -209,7 +209,7 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
         }
       }
 
-      await createVideo({
+      const createdVideo = await createVideo({
         userId: job.userId,
         title: job.videoTitle || 'Untitled Video',
         description: job.videoDescription,
@@ -219,7 +219,7 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
         visibility: job.videoVisibility || 'public',
       });
 
-      finishUpload(uploadId);
+      finishUpload(uploadId, undefined, doneUrlFor('video', createdVideo?.id));
       await deletePersistentJob(job.id);
       toast.success('Aapka Video successfully upload ho gaya! 🎥🎉');
     }

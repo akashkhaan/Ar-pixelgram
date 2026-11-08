@@ -67,6 +67,18 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+// Upload chal raha ho aur user notification hata de → app ko batao, wo wapas dikha dega.
+self.addEventListener('notificationclose', (event) => {
+  const data = event.notification.data || {};
+  if (!data.uploading) return;
+  const tag = event.notification.tag;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((all) => {
+      all.forEach((client) => client.postMessage({ type: 'upload-notification-closed', tag }));
+    }),
+  );
+});
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
