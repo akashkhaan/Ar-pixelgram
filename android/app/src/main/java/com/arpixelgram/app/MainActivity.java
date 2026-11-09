@@ -570,11 +570,10 @@ public class MainActivity extends BridgeActivity {
                         byte[] buf = new byte[64 * 1024];
                         int n;
                         while ((n = in.read(buf)) != -1) fos.write(buf, 0, n);
+                        fos.flush();
                     } finally {
                         conn.disconnect();
                     }
-
-                    fos.flush();
                     if (out.length() < 1000) {
                         throw new java.io.IOException("File download incomplete: " + out.length());
                     }

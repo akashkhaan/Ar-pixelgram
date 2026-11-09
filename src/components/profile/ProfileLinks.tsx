@@ -87,20 +87,6 @@ export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwn
   if (parsedFb) links.push(parsedFb);
 
   if (links.length === 0) {
-    if (isOwnProfile) {
-      return (
-        <div className="flex justify-center mt-2">
-          <button
-            type="button"
-            onClick={() => navigate('/edit-profile')}
-            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
-          >
-            <Plus className="w-3 h-3" />
-            <span>Add links</span>
-          </button>
-        </div>
-      );
-    }
     return null;
   }
 
