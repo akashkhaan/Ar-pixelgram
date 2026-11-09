@@ -574,9 +574,14 @@ public class MainActivity extends BridgeActivity {
                         conn.disconnect();
                     }
 
+                    fos.flush();
+                    if (out.length() < 1000) {
+                        throw new java.io.IOException("File download incomplete: " + out.length());
+                    }
+                    out.setReadable(true, false);
                     final Uri uri = androidx.core.content.FileProvider.getUriForFile(
                         context, context.getPackageName() + ".fileprovider", out);
-                    runOnUiThread(() -> openWhatsAppStatus(uri, caption));
+                    runOnUiThread(() -> openWhatsAppStatus(uri));
                 } catch (Exception e) {
                     e.printStackTrace();
                     if (out != null) out.delete();
@@ -585,48 +590,30 @@ public class MainActivity extends BridgeActivity {
             }).start();
         }
 
-        private void openWhatsAppStatus(Uri uri, String reelUrl) {
+        private void openWhatsAppStatus(Uri uri) {
             String[] packages = new String[] { "com.whatsapp", "com.whatsapp.w4b" };
             for (String pkg : packages) {
                 try {
-                    // 1. WhatsApp official Status API with app attribution (View on Pixelgram)
-                    Intent statusIntent = new Intent(Intent.ACTION_VIEW);
-                    statusIntent.setData(Uri.parse("https://wa.me/status"));
-                    statusIntent.setPackage(pkg);
-                    statusIntent.putExtra("share_type", "SHARE_TO_STATUS");
-                    statusIntent.putExtra("source_app_package_name", context.getPackageName());
-                    if (reelUrl != null && !reelUrl.isEmpty()) {
-                        statusIntent.putExtra("content_url", reelUrl);
-                        statusIntent.putExtra("attribution_url", reelUrl);
-                    }
-                    statusIntent.putExtra(Intent.EXTRA_STREAM, uri);
-                    statusIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    MainActivity.this.startActivityForResult(statusIntent, RC_WA_STATUS);
+                    // ACTION_SEND with status@broadcast loads directly into WhatsApp Status editor
+                    Intent intent = new Intent(Intent.ACTION_SEND);
+                    intent.setType("video/mp4");
+                    intent.putExtra(Intent.EXTRA_STREAM, uri);
+                    // Crucial: NO EXTRA_TEXT so video plays clean without bottom text caption
+                    intent.putExtra("jid", "status@broadcast");
+                    intent.setPackage(pkg);
+                    intent.setClipData(android.content.ClipData.newRawUri("Pixelgram Reel", uri));
+                    try {
+                        context.grantUriPermission(pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    } catch (Exception ignored) {}
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                    startActivity(intent);
                     notifyWaShare("opened");
                     return;
-                } catch (Exception e1) {
-                    // 2. Fallback to status broadcast without bottom text caption
-                    try {
-                        Intent intent = new Intent(Intent.ACTION_SEND);
-                        intent.setType("video/mp4");
-                        intent.putExtra(Intent.EXTRA_STREAM, uri);
-                        intent.putExtra("source_app_package_name", context.getPackageName());
-                        if (reelUrl != null && !reelUrl.isEmpty()) {
-                            intent.putExtra("content_url", reelUrl);
-                            intent.putExtra("attribution_url", reelUrl);
-                        }
-                        // Note: NO EXTRA_TEXT so no text is placed at the bottom!
-                        intent.putExtra("jid", "status@broadcast");
-                        intent.setPackage(pkg);
-                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                        MainActivity.this.startActivityForResult(intent, RC_WA_STATUS);
-                        notifyWaShare("opened");
-                        return;
-                    } catch (android.content.ActivityNotFoundException ignored) {
-                        // try next WhatsApp variant
-                    } catch (Exception e2) {
-                        e2.printStackTrace();
-                    }
+                } catch (android.content.ActivityNotFoundException ignored) {
+                    // try next WhatsApp variant (e.g. WhatsApp Business)
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
             notifyWaShare("no_whatsapp");
@@ -713,24 +700,6 @@ public class MainActivity extends BridgeActivity {
     }
 
     
-    private static final int RC_WA_STATUS = 7861;
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == RC_WA_STATUS) {
-            runOnUiThread(() -> {
-                try {
-                    if (getBridge() != null && getBridge().getWebView() != null) {
-                        getBridge().getWebView().evaluateJavascript(
-                            "window.dispatchEvent(new CustomEvent(\"pixelgram-wa-status\",{detail:\"completed\"}))",
-                            null
-                        );
-                    }
-                } catch (Exception ignored) {}
-            });
-        }
-    }
 
     private void ensureRuntimePermissions() {
         List<String> needed = new ArrayList<>();
