@@ -45,46 +45,8 @@ const ReelCard: React.FC<{
   const [captionExpanded, setCaptionExpanded] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
-  const [isBufferingSlow, setIsBufferingSlow] = useState(false);
-  const [isSlowConnection, setIsSlowConnection] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const bufferTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    const checkConn = () => {
-      if (!navigator.onLine) {
-        setIsSlowConnection(true);
-        return;
-      }
-      const navConn = (navigator as unknown as { connection?: { effectiveType?: string; downlink?: number; rtt?: number } }).connection;
-      if (navConn) {
-        const is2g = navConn.effectiveType === 'slow-2g' || navConn.effectiveType === '2g';
-        const isHighPing = typeof navConn.rtt === 'number' && navConn.rtt > 800;
-        const isLowBandwidth = typeof navConn.downlink === 'number' && navConn.downlink < 0.9;
-        if (is2g || (isHighPing && isLowBandwidth)) {
-          setIsSlowConnection(true);
-          return;
-        }
-      }
-      setIsSlowConnection(false);
-    };
-
-    checkConn();
-    window.addEventListener('online', checkConn);
-    window.addEventListener('offline', checkConn);
-
-    const navConn = (navigator as unknown as { connection?: { addEventListener?: (e: string, cb: () => void) => void; removeEventListener?: (e: string, cb: () => void) => void } }).connection;
-    if (navConn?.addEventListener) {
-      navConn.addEventListener('change', checkConn);
-    }
-
-    return () => {
-      window.removeEventListener('online', checkConn);
-      window.removeEventListener('offline', checkConn);
-      if (navConn?.removeEventListener) {
-        navConn.removeEventListener('change', checkConn);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -331,20 +293,25 @@ const ReelCard: React.FC<{
         <video
           ref={videoRef}
           src={reel.video_url}
-          className={
-            "absolute inset-0 w-full h-full object-cover transition-opacity duration-300 z-0 " +
-            (videoReady ? "opacity-100" : "opacity-0")
-          }
+          className="absolute inset-0 w-full h-full object-cover z-0"
           muted={muteOriginal}
           autoPlay={isActive}
           loop
           playsInline
-          poster={reel.thumbnail_url || undefined}
-          preload="auto"
-          onLoadedData={() => setVideoReady(true)}
+          poster={reel.thumbnail_url || (reel.video_url ? `${reel.video_url}#t=0.001` : undefined)}
+          preload={isActive ? "auto" : "metadata"}
+          onLoadedMetadata={() => setVideoReady(true)}
+          onLoadedData={() => {
+            setVideoReady(true);
+            setIsBuffering(false);
+          }}
+          onCanPlay={() => {
+            setVideoReady(true);
+            setIsBuffering(false);
+          }}
           onPlaying={() => {
             if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
-            setIsBufferingSlow(false);
+            setIsBuffering(false);
             setVideoReady(true);
             if (isActive && hasMusic && audioRef.current) {
               try {
@@ -366,14 +333,14 @@ const ReelCard: React.FC<{
           onWaiting={() => {
             if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
             bufferTimerRef.current = setTimeout(() => {
-              setIsBufferingSlow(true);
-            }, 1400);
+              setIsBuffering(true);
+            }, 500);
           }}
           onStalled={() => {
             if (bufferTimerRef.current) clearTimeout(bufferTimerRef.current);
             bufferTimerRef.current = setTimeout(() => {
-              setIsBufferingSlow(true);
-            }, 1800);
+              setIsBuffering(true);
+            }, 800);
           }}
           onError={(e) => retryMediaOnError(e.currentTarget, reel.video_url)}
           onClick={() => {
@@ -420,10 +387,10 @@ const ReelCard: React.FC<{
       {/* Gradient overlays */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(180deg,rgba(0,0,0,.45) 0,transparent 18%,transparent 55%,rgba(0,0,0,.72) 100%)" }} />
 
-      {/* Slow-network feedback uses the compact reel toast style */}
-      {(isBufferingSlow || isSlowConnection) && (
-        <div className="absolute left-1/2 bottom-[120px] z-50 -translate-x-1/2 rounded-full bg-[rgba(30,30,30,.9)] px-3.5 py-2 text-[13px] text-white shadow-lg whitespace-nowrap">
-          Your network is slow, please check network
+      {/* Sleek Instagram / YouTube style center buffering spinner */}
+      {isBuffering && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+          <div className="w-10 h-10 rounded-full border-2 border-white/20 border-t-white animate-spin drop-shadow-md" />
         </div>
       )}
 
