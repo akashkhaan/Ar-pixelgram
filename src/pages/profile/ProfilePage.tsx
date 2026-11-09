@@ -627,7 +627,7 @@ const ProfilePage: React.FC = () => {
                           </svg>
                           <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white border-r-white/50 animate-spin" />
                           <span className="absolute font-black text-[11px] sm:text-xs text-white font-mono drop-shadow">
-                            ${p}%
+                            {p}%
                           </span>
                         </div>
                         <span className="mt-1 text-[9px] sm:text-[10px] font-bold text-white drop-shadow tracking-tight">
@@ -735,7 +735,7 @@ const ProfilePage: React.FC = () => {
                           Reel
                         </span>
                         <span className="text-[9px] font-bold text-primary-foreground bg-primary px-1.5 py-0.5 rounded-full font-mono shadow-xs">
-                          ${p}%
+                          {p}%
                         </span>
                       </div>
                       <div className="relative z-10 flex flex-col items-center justify-center my-auto">
@@ -760,7 +760,7 @@ const ProfilePage: React.FC = () => {
                           </svg>
                           <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white border-r-white/50 animate-spin" />
                           <span className="absolute font-black text-xs sm:text-sm text-white font-mono drop-shadow">
-                            ${p}%
+                            {p}%
                           </span>
                         </div>
                         <span className="mt-1 text-[10px] font-bold text-white drop-shadow text-center">
@@ -775,7 +775,7 @@ const ProfilePage: React.FC = () => {
                           />
                         </div>
                         <p className="text-[9px] text-white/90 truncate font-medium">
-                          ${job.label}
+                          {job.label}
                         </p>
                       </div>
                     </div>
@@ -882,7 +882,7 @@ const ProfilePage: React.FC = () => {
                             </svg>
                             <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white border-r-white/50 animate-spin" />
                             <span className="absolute font-black text-[11px] text-white font-mono drop-shadow">
-                              ${p}%
+                              {p}%
                             </span>
                           </div>
                           <span className="mt-1 text-[10px] font-bold text-white drop-shadow">
@@ -897,7 +897,7 @@ const ProfilePage: React.FC = () => {
                         </div>
                       </div>
                       <p className="mt-1.5 text-xs font-semibold text-foreground truncate">{job.label}</p>
-                      <p className="text-[10px] text-primary font-medium">Processing • ${p}%</p>
+                      <p className="text-[10px] text-primary font-medium">Processing • {p}%</p>
                     </div>
                   );
                 })}
