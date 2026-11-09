@@ -20,3 +20,5 @@
 .pxu-x{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#9aa0bd;background:rgba(255,255,255,.06);border:0;cursor:pointer}
 .pxu-x:active{transform:scale(.9);background:rgba(255,255,255,.14)}
 .pxu-x svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+
+.pxu-fly-to-profile{transition:transform 1s cubic-bezier(.2,.8,.2,1),opacity 1s cubic-bezier(.2,.8,.2,1),filter 1s ease!important;transform:translate(calc(50vw - 60px),calc(100vh - 90px)) scale(.12)!important;opacity:0!important;filter:blur(1.5px)!important;pointer-events:none!important}

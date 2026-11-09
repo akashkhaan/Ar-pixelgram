@@ -1,3 +1,4 @@
+import { subscribeToUploads } from "@/services/uploadManager";
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -93,6 +94,12 @@ interface Props {
 }
 
 const BottomNav: React.FC<Props> = ({ hidden = false }) => {
+  const [hasUpload, setHasUpload] = useState(false);
+  useEffect(() => {
+    return subscribeToUploads((jobs) => {
+      setHasUpload(jobs.some((j) => j.status === "uploading"));
+    });
+  }, []);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -351,6 +358,12 @@ const BottomNav: React.FC<Props> = ({ hidden = false }) => {
               onClick={() => handleNavClick(i, item.path)}
             >
               {ICONS[i]}
+              {i === 5 && hasUpload && (
+                <span className="absolute top-1.5 right-2 flex h-2 w-2 pointer-events-none">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500" />
+                </span>
+              )}
             </button>
           ))}
         </div>

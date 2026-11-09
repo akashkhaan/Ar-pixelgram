@@ -12,6 +12,7 @@ export interface UploadJob {
   thumbnailType?: 'image' | 'video';
   /** Notification par tap karne se ye page khulega (upload ke baad: naya item). */
   openUrl?: string;
+  startedAt?: number;
 }
 
 type Listener = (jobs: UploadJob[]) => void;
@@ -171,7 +172,8 @@ export function startUpload(
 ): string {
   const id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const progress = Math.max(0, Math.min(100, Math.round(initialProgress)));
-  const job: UploadJob = { id, kind, label, progress, status: 'uploading', thumbnailUrl, thumbnailType };
+  const startedAt = Date.now();
+  const job: UploadJob = { id, kind, label, progress, status: 'uploading', thumbnailUrl, thumbnailType, startedAt };
   jobs.set(id, job);
   void requestUploadNotifications();
   emit();

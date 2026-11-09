@@ -1,4 +1,5 @@
 import { ProfileLinks } from "@/components/profile/ProfileLinks";
+import { subscribeToUploads, type UploadJob } from "@/services/uploadManager";
 import { PixelgramProfileCard } from "@/components/profile/PixelgramProfileCard";
 import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
 import { ArrowLeft, BadgeCheck, Camera, Film, Flag, Grid3X3, Heart, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
@@ -109,6 +110,35 @@ const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'reels' | 'videos'>('posts');
+  // YouTube-style upload tracking on Profile
+  const [uploadJobs, setUploadJobs] = useState<UploadJob[]>([]);
+  useEffect(() => {
+    return subscribeToUploads((jobs) => {
+      setUploadJobs(jobs);
+    });
+  }, []);
+
+  const prevUploadStatusRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    let shouldReload = false;
+    uploadJobs.forEach((job) => {
+      const prev = prevUploadStatusRef.current[job.id];
+      if (prev === "uploading" && job.status === "complete") {
+        shouldReload = true;
+      }
+      prevUploadStatusRef.current[job.id] = job.status;
+    });
+    if (shouldReload) {
+      const timer = setTimeout(() => {
+        load();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [uploadJobs, load]);
+
+  const activePostUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "post" && j.status === "uploading") : [];
+  const activeReelUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "reel" && j.status === "uploading") : [];
+  const activeVideoUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "video" && j.status === "uploading") : [];
 
   const load = useCallback(async () => {
     if (queryId && resolvingQuery) return;
@@ -545,12 +575,12 @@ const ProfilePage: React.FC = () => {
                 <h3 className="font-semibold text-foreground mb-1">This account is private</h3>
                 <p className="text-sm text-muted-foreground text-pretty">Follow this account to see their posts.</p>
               </div>
-            ) : posts.length === 0 ? (
+            ) : posts.length === 0 && activePostUploads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                 <Grid3X3 className="w-12 h-12 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">{t('noPostsYet')}</p>
               </div>
-            ) : filteredPosts.length === 0 ? (
+            ) : filteredPosts.length === 0 && activePostUploads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                 <Search className="w-10 h-10 text-muted-foreground/60 mb-2" />
                 <p className="text-sm font-semibold text-foreground">No posts found</p>
@@ -558,6 +588,61 @@ const ProfilePage: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-[1px] bg-border">
+                {/* 1. YouTube-style Active Uploading Posts */}
+                {activePostUploads.map((job) => {
+                  const p = Math.max(0, Math.min(100, Math.round(job.progress)));
+                  return (
+                    <div
+                      key={job.id}
+                      className="aspect-square w-full bg-neutral-950 border border-primary/50 relative overflow-hidden flex flex-col items-center justify-center select-none"
+                    >
+                      {job.thumbnailUrl ? (
+                        <img
+                          src={job.thumbnailUrl}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover brightness-[0.38] blur-[0.5px]"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-neutral-900" />
+                      )}
+                      <div className="relative z-10 flex flex-col items-center justify-center p-2 text-center">
+                        <div className="relative w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center">
+                          <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-white/20"
+                              strokeWidth="3.2"
+                              stroke="currentColor"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-primary transition-all duration-200"
+                              strokeDasharray={`${p}, 100`}
+                              strokeWidth="3.2"
+                              strokeLinecap="round"
+                              stroke="currentColor"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white border-r-white/50 animate-spin" />
+                          <span className="absolute font-black text-[11px] sm:text-xs text-white font-mono drop-shadow">
+                            ${p}%
+                          </span>
+                        </div>
+                        <span className="mt-1 text-[9px] sm:text-[10px] font-bold text-white drop-shadow tracking-tight">
+                          Processing…
+                        </span>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+                        <div
+                          className="h-full bg-gradient-to-r from-primary to-pink-500 transition-all duration-200"
+                          style={{ width: `${p}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
                 {filteredPosts.map(post => (
                   <button
                     key={post.id}
@@ -604,7 +689,7 @@ const ProfilePage: React.FC = () => {
                 <Lock className="w-12 h-12 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">Follow this account to see their reels.</p>
               </div>
-            ) : reels.length === 0 ? (
+            ) : reels.length === 0 && activeReelUploads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                 <Film className="w-12 h-12 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">{t('noReelsYet')}</p>
@@ -620,6 +705,82 @@ const ProfilePage: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-[2px] bg-border/40">
+                {/* 1. YouTube-style Active Uploading Reels */}
+                {activeReelUploads.map((job) => {
+                  const p = Math.max(0, Math.min(100, Math.round(job.progress)));
+                  return (
+                    <div
+                      key={job.id}
+                      className="aspect-[9/16] w-full bg-gradient-to-br from-purple-950/70 to-neutral-950 border-2 border-primary/60 relative overflow-hidden flex flex-col items-center justify-between p-2 select-none shadow-lg"
+                    >
+                      {job.thumbnailUrl && job.thumbnailType === "video" ? (
+                        <video
+                          src={job.thumbnailUrl}
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          className="absolute inset-0 w-full h-full object-cover brightness-[0.32]"
+                        />
+                      ) : job.thumbnailUrl ? (
+                        <img
+                          src={job.thumbnailUrl}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover brightness-[0.32]"
+                        />
+                      ) : null}
+                      <div className="relative z-10 w-full flex justify-between items-center">
+                        <span className="text-[9px] font-bold text-white bg-black/60 backdrop-blur-xs px-2 py-0.5 rounded-full flex items-center gap-1 border border-white/20">
+                          <Film className="w-2.5 h-2.5 text-primary" />
+                          Reel
+                        </span>
+                        <span className="text-[9px] font-bold text-primary-foreground bg-primary px-1.5 py-0.5 rounded-full font-mono shadow-xs">
+                          ${p}%
+                        </span>
+                      </div>
+                      <div className="relative z-10 flex flex-col items-center justify-center my-auto">
+                        <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center">
+                          <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                            <path
+                              className="text-white/20"
+                              strokeWidth="3.2"
+                              stroke="currentColor"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                            <path
+                              className="text-primary transition-all duration-200"
+                              strokeDasharray={`${p}, 100`}
+                              strokeWidth="3.2"
+                              strokeLinecap="round"
+                              stroke="currentColor"
+                              fill="none"
+                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white border-r-white/50 animate-spin" />
+                          <span className="absolute font-black text-xs sm:text-sm text-white font-mono drop-shadow">
+                            ${p}%
+                          </span>
+                        </div>
+                        <span className="mt-1 text-[10px] font-bold text-white drop-shadow text-center">
+                          Uploading…
+                        </span>
+                      </div>
+                      <div className="relative z-10 w-full">
+                        <div className="w-full bg-white/20 h-1 rounded-full overflow-hidden mb-1">
+                          <div
+                            className="h-full bg-gradient-to-r from-primary to-pink-500 transition-all duration-200"
+                            style={{ width: `${p}%` }}
+                          />
+                        </div>
+                        <p className="text-[9px] text-white/90 truncate font-medium">
+                          ${job.label}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
                 {reels.map(reel => (
                   <div key={reel.id} className="aspect-[9/16] w-full bg-gradient-to-br from-[#1a1429] via-[#0f0e17] to-[#1e1022] border border-white/5 overflow-hidden group relative cursor-pointer active:scale-[0.98] transition-all"
                     onClick={() => navigate(`/reels?r=${reel.id}`)}>
@@ -665,7 +826,7 @@ const ProfilePage: React.FC = () => {
                 <Lock className="w-12 h-12 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">Follow this account to see their videos.</p>
               </div>
-            ) : videos.length === 0 ? (
+            ) : videos.length === 0 && activeVideoUploads.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                 <VideoIcon className="w-12 h-12 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">अभी कोई video upload नहीं हुआ</p>
@@ -681,6 +842,65 @@ const ProfilePage: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 px-2 py-2">
+                {/* 1. YouTube-style Active Uploading Videos */}
+                {activeVideoUploads.map((job) => {
+                  const p = Math.max(0, Math.min(100, Math.round(job.progress)));
+                  return (
+                    <div key={job.id} className="text-left w-full">
+                      <div
+                        className="relative w-full rounded-xl overflow-hidden bg-neutral-900 border-2 border-primary/60 shadow-md flex items-center justify-center"
+                        style={{ aspectRatio: "16 / 9" }}
+                      >
+                        {job.thumbnailUrl ? (
+                          <img
+                            src={job.thumbnailUrl}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover brightness-[0.32]"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-neutral-900" />
+                        )}
+                        <div className="relative z-10 flex flex-col items-center justify-center p-2">
+                          <div className="relative w-12 h-12 flex items-center justify-center">
+                            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                              <path
+                                className="text-white/20"
+                                strokeWidth="3.2"
+                                stroke="currentColor"
+                                fill="none"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                              />
+                              <path
+                                className="text-primary transition-all duration-200"
+                                strokeDasharray={`${p}, 100`}
+                                strokeWidth="3.2"
+                                strokeLinecap="round"
+                                stroke="currentColor"
+                                fill="none"
+                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                              />
+                            </svg>
+                            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white border-r-white/50 animate-spin" />
+                            <span className="absolute font-black text-[11px] text-white font-mono drop-shadow">
+                              ${p}%
+                            </span>
+                          </div>
+                          <span className="mt-1 text-[10px] font-bold text-white drop-shadow">
+                            Processing…
+                          </span>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+                          <div
+                            className="h-full bg-gradient-to-r from-primary to-pink-500 transition-all duration-200"
+                            style={{ width: `${p}%` }}
+                          />
+                        </div>
+                      </div>
+                      <p className="mt-1.5 text-xs font-semibold text-foreground truncate">{job.label}</p>
+                      <p className="text-[10px] text-primary font-medium">Processing • ${p}%</p>
+                    </div>
+                  );
+                })}
                 {videos.map(v => (
                   <button
                     key={v.id}
