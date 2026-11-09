@@ -193,11 +193,8 @@ ${url}`;
     const toastId = toast.loading('Reel WhatsApp Status ke liye taiyaar ho rahi hai…');
     try {
       const result = await shareReelToWhatsAppStatus(videoUrl, externalUrl);
-      if (result === 'opened') {
-        toast.success('WhatsApp khul gaya — status laga do', { id: toastId });
-        onClose();
-      } else if (result === 'shared') {
-        toast.success('Shared!', { id: toastId });
+      if (result === 'opened' || result === 'shared' || result === 'completed') {
+        toast.success('WhatsApp status par lagaya gaya ✨', { id: toastId });
         onClose();
       } else if (result === 'cancelled') {
         toast.dismiss(toastId);
