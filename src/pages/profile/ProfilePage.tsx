@@ -118,24 +118,6 @@ const ProfilePage: React.FC = () => {
     });
   }, []);
 
-  const prevUploadStatusRef = useRef<Record<string, string>>({});
-  useEffect(() => {
-    let shouldReload = false;
-    uploadJobs.forEach((job) => {
-      const prev = prevUploadStatusRef.current[job.id];
-      if (prev === "uploading" && job.status === "complete") {
-        shouldReload = true;
-      }
-      prevUploadStatusRef.current[job.id] = job.status;
-    });
-    if (shouldReload) {
-      const timer = setTimeout(() => {
-        load();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [uploadJobs, load]);
-
   const activePostUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "post" && j.status === "uploading") : [];
   const activeReelUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "reel" && j.status === "uploading") : [];
   const activeVideoUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "video" && j.status === "uploading") : [];
@@ -193,6 +175,25 @@ const ProfilePage: React.FC = () => {
   }, [targetUserId, isOwnProfile, user, queryId, resolvingQuery, resolvedUserId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const prevUploadStatusRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    let shouldReload = false;
+    uploadJobs.forEach((job) => {
+      const prev = prevUploadStatusRef.current[job.id];
+      if (prev === "uploading" && job.status === "complete") {
+        shouldReload = true;
+      }
+      prevUploadStatusRef.current[job.id] = job.status;
+    });
+    if (shouldReload) {
+      const timer = setTimeout(() => {
+        load();
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [uploadJobs, load]);
+
 
   const handleFollow = async () => {
     if (!user || !profile) return;
