@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import CommentsSheet from '@/components/common/CommentsSheet';
 import { SmartImage } from '@/components/common/SmartMedia';
 import InstagramShareSheet from '@/components/common/InstagramShareSheet';
+import PhotoViewer from '@/components/common/PhotoViewer';
 
 interface PostCardProps {
   post: Post;
@@ -33,6 +34,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
   const [isVideoMuted, setIsVideoMuted] = useState(true);
   const lastTapRef = useRef(0);
   const [showHeartAnim, setShowHeartAnim] = useState(false);
+  const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+  const singleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isOwner = user?.id === post.user_id;
   const hasMusic = Boolean(post.music_preview_url || post.music_title);
@@ -102,19 +105,38 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
     const now = Date.now();
     if (now - lastTapRef.current < 320) {
       // Double tap -> Instagram like
+      if (singleTapTimerRef.current) {
+        clearTimeout(singleTapTimerRef.current);
+        singleTapTimerRef.current = null;
+      }
       if (!liked) handleLike();
       setShowHeartAnim(true);
       setTimeout(() => setShowHeartAnim(false), 900);
-    } else {
-      // Single tap: toggle music or video mute
-      if (hasMusic) {
-        toggleAudio(e);
-      } else if (isVideo) {
-        setIsVideoMuted((m) => !m);
-      }
+      lastTapRef.current = 0;
+      return;
     }
     lastTapRef.current = now;
+    if (!isVideo && post.image_url) {
+      // Photo: single tap -> full screen (Instagram jaisa). Thoda ruk ke kholte
+      // hain taaki double tap (like) se takraye nahi.
+      if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+      singleTapTimerRef.current = setTimeout(() => {
+        singleTapTimerRef.current = null;
+        setShowPhotoViewer(true);
+      }, 320);
+      return;
+    }
+    // Video: single tap -> music ya awaaz on/off (pehle jaisa)
+    if (hasMusic) {
+      toggleAudio(e);
+    } else if (isVideo) {
+      setIsVideoMuted((m) => !m);
+    }
   };
+
+  useEffect(() => () => {
+    if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
+  }, []);
 
   const handleLike = async () => {
     if (!user) return;
@@ -375,6 +397,16 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
           open={showComments}
           onClose={() => setShowComments(false)}
           onCountChange={setCommentsCount}
+        />
+      )}
+
+      {/* Full screen photo */}
+      {!isVideo && post.image_url && (
+        <PhotoViewer
+          open={showPhotoViewer}
+          src={post.image_url}
+          alt={post.caption || 'Post'}
+          onClose={() => setShowPhotoViewer(false)}
         />
       )}
 
