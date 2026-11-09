@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Play, Film, BadgeCheck, ExternalLink, User, Loader2, Tv, Users } from 'lucide-react';
 import { getReelById, getProfile, type Reel, type Profile } from '@/services/api';
 import { resolveFacebookIdToUserId } from '@/lib/facebookProfileUrl';
+import { resolveGroupId } from '@/services/groupUid';
 import { supabase } from '@/db/supabase';
 import {
   getVideoById,
@@ -18,6 +19,17 @@ const reelCache = new Map<string, Reel>();
 const profileCache = new Map<string, Profile>();
 const postCache = new Map<string, any>();
 const videoCache = new Map<string, AppVideo>();
+
+export interface GroupPreviewInfo {
+  id: string;
+  name: string;
+  description?: string | null;
+  avatar_url?: string | null;
+  member_count?: number;
+  invite_token?: string;
+}
+
+const groupCache = new Map<string, GroupPreviewInfo>();
 
 export interface ParsedShareInfo {
   isShare: boolean;
@@ -117,7 +129,7 @@ export function parseSharedContent(content: string): ParsedShareInfo | null {
     };
   }
 
-  // 6. Group invite URL: /group/join/UUID or https://.../group/join/UUID
+  // 6. Group invite URL: /group(?:\/join)?\/([a-zA-Z0-9_\-]+) or https://.../group/join/UUID
   const groupInviteMatch = content.match(/(?:https?:\/\/[^\s/]+)?\/group\/join\/([a-zA-Z0-9_\-]+)/i);
   if (groupInviteMatch) {
     const rawUrl = groupInviteMatch[0];
@@ -180,7 +192,10 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
     return shareInfo.type === 'video' ? videoCache.get(shareInfo.id) || null : null;
   });
 
-  const [loading, setLoading] = useState(!reel && !profile && !post && !video);
+  const [group, setGroup] = useState<GroupPreviewInfo | null>(() => {
+    return shareInfo.type === 'group_invite' ? groupCache.get(shareInfo.id) || null : null;
+  });
+  const [loading, setLoading] = useState(!reel && !profile && !post && !video && !group);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
@@ -277,6 +292,96 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
           }
         } catch {
           if (!isCancelled) setLoadError(true);
+        } finally {
+          if (!isCancelled) setLoading(false);
+        }
+      } else if (shareInfo.type === 'group_invite') {
+        if (groupCache.has(shareInfo.id)) {
+          setGroup(groupCache.get(shareInfo.id)!);
+          setLoading(false);
+          return;
+        }
+        try {
+          setLoading(true);
+          let groupData: GroupPreviewInfo | null = null;
+          // 1. Try secure preview_group_by_invite RPC
+          try {
+            const { data, error } = await supabase.rpc('preview_group_by_invite', { p_token: shareInfo.id });
+            if (!error && data) {
+              const row = Array.isArray(data) ? data[0] : data;
+              if (row && row.name) {
+                groupData = {
+                  id: row.id,
+                  name: row.name,
+                  description: row.description || null,
+                  avatar_url: row.avatar_url || null,
+                  member_count: Number(row.member_count) || 1,
+                  invite_token: shareInfo.id,
+                };
+              }
+            }
+          } catch {
+            // fallback
+          }
+
+          // 2. Fallback: query groups table directly
+          if (!groupData) {
+            try {
+              const resolved = await resolveGroupId(shareInfo.id);
+              const targetId = resolved || shareInfo.id;
+              const { data, error } = await supabase
+                .from('groups')
+                .select('id, name, description, avatar_url, invite_token')
+                .or(`invite_token.eq.${shareInfo.id},id.eq.${targetId}`)
+                .maybeSingle();
+
+              if (!error && data) {
+                let count = 1;
+                try {
+                  const { count: memberCount } = await supabase
+                    .from('group_members')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('group_id', data.id);
+                  if (typeof memberCount === 'number' && memberCount > 0) count = memberCount;
+                } catch {
+                  // ignore
+                }
+
+                groupData = {
+                  id: data.id,
+                  name: data.name,
+                  description: data.description || null,
+                  avatar_url: data.avatar_url || null,
+                  member_count: count,
+                  invite_token: data.invite_token || shareInfo.id,
+                };
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          if (isCancelled) return;
+          if (groupData) {
+            groupCache.set(shareInfo.id, groupData);
+            if (groupData.invite_token) groupCache.set(groupData.invite_token, groupData);
+            if (groupData.id) groupCache.set(groupData.id, groupData);
+            setGroup(groupData);
+          } else {
+            setGroup({
+              id: shareInfo.id,
+              name: 'Pixelgram Group',
+              invite_token: shareInfo.id,
+            });
+          }
+        } catch {
+          if (!isCancelled) {
+            setGroup({
+              id: shareInfo.id,
+              name: 'Pixelgram Group',
+              invite_token: shareInfo.id,
+            });
+          }
         } finally {
           if (!isCancelled) setLoading(false);
         }
@@ -713,8 +818,14 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
   if (shareInfo.type === 'group_invite') {
     const handleJoinClick = (e: React.MouseEvent) => {
       e.stopPropagation();
-      navigate('/group/join/' + shareInfo.id);
+      navigate('/group/join/' + (group?.invite_token || shareInfo.id));
     };
+
+    const groupName = group?.name || 'Pixelgram Group';
+    const groupAvatar = group?.avatar_url;
+    const groupDesc = group?.description || 'You are invited to join this group chat on Pixelgram. Tap to join!';
+    const memberCount = group?.member_count;
+
     return (
       <div className="space-y-1.5">
         {shareInfo.customText && (
@@ -722,28 +833,74 @@ export const InstagramSharedCard: React.FC<InstagramSharedCardProps> = ({
         )}
         <div
           onClick={handleJoinClick}
-          className="group relative w-60 sm:w-64 rounded-2xl overflow-hidden bg-card text-card-foreground shadow-md border border-border/60 cursor-pointer select-none transition-all active:scale-[0.98] hover:border-primary/50"
+          className="group relative w-64 sm:w-72 rounded-2xl overflow-hidden bg-card text-card-foreground shadow-md border border-border/60 cursor-pointer select-none transition-all active:scale-[0.98] hover:border-primary/50"
         >
           {/* Header Banner */}
           <div className="p-4 bg-gradient-to-tr from-violet-600 via-indigo-600 to-pink-500 text-white flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 shadow-inner">
-              <Users className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 ring-2 ring-white/40 shadow-md bg-white/20 flex items-center justify-center">
+              {groupAvatar ? (
+                <img
+                  src={groupAvatar}
+                  alt={groupName}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const el = e.currentTarget;
+                    el.style.display = 'none';
+                    if (el.nextElementSibling) {
+                      (el.nextElementSibling as HTMLElement).style.display = 'flex';
+                    }
+                  }}
+                />
+              ) : null}
+              <div
+                className={`w-full h-full items-center justify-center ${
+                  groupAvatar ? 'hidden' : 'flex'
+                }`}
+              >
+                <Users className="w-6 h-6 text-white" />
+              </div>
             </div>
+
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-white/80">
-                Group Invite
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/80 flex items-center gap-1.5">
+                <span>Group Invite</span>
+                {memberCount ? (
+                  <span className="text-[9px] bg-white/20 backdrop-blur-xs px-1.5 py-0.5 rounded-full font-semibold">
+                    {memberCount} {memberCount === 1 ? 'member' : 'members'}
+                  </span>
+                ) : null}
               </div>
               <h4 className="font-bold text-sm text-white truncate drop-shadow">
-                Pixelgram Group
+                {groupName}
               </h4>
             </div>
           </div>
+
+          {/* Group Photo Preview Banner */}
+          {groupAvatar && (
+            <div className="relative w-full h-36 bg-muted overflow-hidden border-b border-border/40">
+              <img
+                src={groupAvatar}
+                alt={groupName}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-white text-[11px] drop-shadow font-semibold">
+                <span className="truncate">{groupName}</span>
+                <span className="text-[10px] bg-white/25 backdrop-blur-xs px-2 py-0.5 rounded-full">
+                  Tap to Join
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Invite description */}
           <div className="p-3 bg-card space-y-1">
             <p className="text-xs text-muted-foreground line-clamp-2">
-              You are invited to join this group chat on Pixelgram. Tap to join!
+              {groupDesc}
             </p>
           </div>
+
           {/* Join action */}
           <div className="px-3.5 py-2.5 bg-primary/10 border-t border-border/50 flex items-center justify-between text-xs font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
             <span>Join Group</span>
