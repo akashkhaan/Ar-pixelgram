@@ -14,6 +14,7 @@ import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import GlassSearch from '@/components/common/GlassSearch';
 import { toPreviewShareUrl, warmShareServer } from '@/lib/shareLinks';
+import { shareReelToWhatsAppStatus } from '@/lib/whatsappStatus';
 
 interface InstagramShareSheetProps {
   open: boolean;
@@ -22,6 +23,8 @@ interface InstagramShareSheetProps {
   title?: string;
   mediaType?: 'post' | 'reel' | 'video';
   thumbnailUrl?: string;
+  /** Reel ki video file — "WhatsApp Status" button ke liye */
+  videoUrl?: string;
 }
 
 export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
@@ -31,6 +34,7 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   title = 'Pixelgram',
   mediaType = 'post',
   thumbnailUrl,
+  videoUrl,
 }) => {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
@@ -40,6 +44,7 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   const [searching, setSearching] = useState(false);
   const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
 
   // WhatsApp/Facebook par photo ke saath dikhne wala link (chat DM me app ka link hi jata hai)
   const externalUrl = useMemo(() => toPreviewShareUrl(url), [url]);
@@ -182,10 +187,58 @@ ${url}`;
     }
   };
 
+  const handleWhatsAppStatus = async () => {
+    if (!videoUrl || statusBusy) return;
+    setStatusBusy(true);
+    const toastId = toast.loading('Reel WhatsApp Status ke liye taiyaar ho rahi hai…');
+    try {
+      const result = await shareReelToWhatsAppStatus(videoUrl, externalUrl);
+      if (result === 'opened') {
+        toast.success('WhatsApp khul gaya — status laga do', { id: toastId });
+        onClose();
+      } else if (result === 'shared') {
+        toast.success('Shared!', { id: toastId });
+        onClose();
+      } else if (result === 'cancelled') {
+        toast.dismiss(toastId);
+      } else if (result === 'no_whatsapp') {
+        toast.error('Phone me WhatsApp nahi mila', { id: toastId });
+      } else if (result === 'fallback') {
+        toast.message('Video share nahi ho paya, WhatsApp me link bheja ja raha hai', { id: toastId });
+      } else {
+        toast.error('Reel download nahi ho payi, dobara try karo', { id: toastId });
+      }
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
   const shareText = encodeURIComponent(`Check out this ${mediaType} on Pixelgram: ${externalUrl}`);
   const encodedUrl = encodeURIComponent(externalUrl);
 
-  const socialChannels = [
+  const statusChannel =
+    mediaType === 'reel' && videoUrl
+      ? [
+          {
+            name: 'WhatsApp Status',
+            color: '#25D366',
+            isStatus: true,
+            action: handleWhatsAppStatus,
+          },
+        ]
+      : [];
+
+  const socialChannels: Array<{
+    name: string;
+    color: string;
+    iconUrl?: string;
+    fallbackEmoji?: string;
+    isCopy?: boolean;
+    isMore?: boolean;
+    isStatus?: boolean;
+    action: () => void;
+  }> = [
+    ...statusChannel,
     {
       name: 'WhatsApp',
       color: '#25D366',
@@ -358,7 +411,19 @@ ${url}`;
                   className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-md transition-transform group-hover:scale-105"
                   style={{ backgroundColor: item.color }}
                 >
-                  {item.isCopy ? (
+                  {item.isStatus ? (
+                    statusBusy ? (
+                      <Loader2 className="w-6 h-6 text-white animate-spin" />
+                    ) : (
+                      <span className="relative w-8 h-8 rounded-full border-2 border-dashed border-white flex items-center justify-center">
+                        <img
+                          src="https://cdn-icons-png.flaticon.com/512/3670/3670051.png"
+                          alt=""
+                          className="w-4 h-4 object-contain"
+                        />
+                      </span>
+                    )
+                  ) : item.isCopy ? (
                     copied ? <Check className="w-6 h-6 text-white" /> : <Copy className="w-6 h-6 text-white" />
                   ) : item.isMore ? (
                     <Share2 className="w-6 h-6 text-white" />

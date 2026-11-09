@@ -529,6 +529,97 @@ public class MainActivity extends BridgeActivity {
             UploadNotificationReceiver.show(context, progress, title, body, url, state);
         }
 
+        /**
+         * Reel ko WhatsApp Status par lagana (Instagram jaisa): video download karke
+         * seedha WhatsApp ke status screen par bhejta hai, caption me reel ka link.
+         */
+        @JavascriptInterface
+        public boolean canShareToWhatsAppStatus() {
+            return true;
+        }
+
+        @JavascriptInterface
+        public void shareVideoToWhatsAppStatus(final String videoUrl, final String caption) {
+            new Thread(() -> {
+                java.io.File out = null;
+                try {
+                    java.io.File dir = new java.io.File(context.getCacheDir(), "wa_share");
+                    if (!dir.exists()) dir.mkdirs();
+                    java.io.File[] old = dir.listFiles();
+                    if (old != null) for (java.io.File f : old) f.delete();
+                    out = new java.io.File(dir, "pixelgram_reel_" + System.currentTimeMillis() + ".mp4");
+
+                    String current = videoUrl;
+                    java.net.HttpURLConnection conn = null;
+                    for (int i = 0; i < 5; i++) {
+                        conn = (java.net.HttpURLConnection) new java.net.URL(current).openConnection();
+                        conn.setInstanceFollowRedirects(true);
+                        conn.setConnectTimeout(20000);
+                        conn.setReadTimeout(60000);
+                        int code = conn.getResponseCode();
+                        if (code >= 300 && code < 400 && conn.getHeaderField("Location") != null) {
+                            current = new java.net.URL(new java.net.URL(current), conn.getHeaderField("Location")).toString();
+                            conn.disconnect();
+                            continue;
+                        }
+                        if (code < 200 || code >= 300) throw new java.io.IOException("HTTP " + code);
+                        break;
+                    }
+                    try (java.io.InputStream in = conn.getInputStream();
+                         java.io.FileOutputStream fos = new java.io.FileOutputStream(out)) {
+                        byte[] buf = new byte[64 * 1024];
+                        int n;
+                        while ((n = in.read(buf)) != -1) fos.write(buf, 0, n);
+                    } finally {
+                        conn.disconnect();
+                    }
+
+                    final Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                        context, context.getPackageName() + ".fileprovider", out);
+                    runOnUiThread(() -> openWhatsAppStatus(uri, caption));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    if (out != null) out.delete();
+                    notifyWaShare("error");
+                }
+            }).start();
+        }
+
+        private void openWhatsAppStatus(Uri uri, String caption) {
+            String[] packages = new String[] { "com.whatsapp", "com.whatsapp.w4b" };
+            for (String pkg : packages) {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_SEND);
+                    intent.setType("video/mp4");
+                    intent.putExtra(Intent.EXTRA_STREAM, uri);
+                    if (caption != null && !caption.isEmpty()) intent.putExtra(Intent.EXTRA_TEXT, caption);
+                    // WhatsApp ko seedha "My status" par bhejta hai
+                    intent.putExtra("jid", "status@broadcast");
+                    intent.setPackage(pkg);
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(intent);
+                    notifyWaShare("opened");
+                    return;
+                } catch (android.content.ActivityNotFoundException ignored) {
+                    // agla WhatsApp try karo
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            notifyWaShare("no_whatsapp");
+        }
+
+        private void notifyWaShare(final String status) {
+            runOnUiThread(() -> {
+                try {
+                    getBridge().getWebView().evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('pixelgram-wa-status',{detail:'" + status + "'}))",
+                        null
+                    );
+                } catch (Exception ignored) {}
+            });
+        }
+
         @JavascriptInterface
         public String getFcmToken() {
             try {

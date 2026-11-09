@@ -603,6 +603,7 @@ const ReelCard: React.FC<{
         title={`Reel by @${profile?.username || 'user'} on Pixelgram`}
         mediaType="reel"
         thumbnailUrl={reel.thumbnail_url || undefined}
+        videoUrl={reel.video_url || undefined}
       />
     </div>
   );
