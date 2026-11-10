@@ -13,7 +13,7 @@ import {
 } from '@/services/groups';
 import { createNotification, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
-import { CALL_AUDIO_CONSTRAINTS } from '@/lib/callMedia';
+import { CALL_AUDIO_CONSTRAINTS, applyCallAudioRoute, cleanCallAudio, prepareCallAudio, tuneAudioSender } from '@/lib/callMedia';
 import type { GroupCallParticipant, GroupMember } from '@/types/groups';
 import { toast } from 'sonner';
 
@@ -210,7 +210,10 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Add local audio and video tracks to peer connection
       localStreamRef.current?.getTracks().forEach(track => {
-        try { pc.addTrack(track, localStreamRef.current as MediaStream); } catch {}
+        try {
+          const sender = pc.addTrack(track, localStreamRef.current as MediaStream);
+          if (track.kind === 'audio') void tuneAudioSender(sender);
+        } catch {}
       });
 
       // ALWAYS ensure both audio and video transceivers exist so camera can be turned on/off dynamically
@@ -379,6 +382,11 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return () => { void channel.unsubscribe(); };
   }, [active, callId]);
 
+  // Voice-call audio mode (Android echo canceller / noise suppressor) + speaker routing
+  useEffect(() => {
+    applyCallAudioRoute(active, speakerOn);
+  }, [active, speakerOn]);
+
   // Elapsed timer
   useEffect(() => {
     if (!active || !startedAt) {
@@ -457,11 +465,12 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('Audio/video calls need HTTPS and microphone/camera permission');
     }
+    prepareCallAudio();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await cleanCallAudio(await navigator.mediaDevices.getUserMedia({
         audio: CALL_AUDIO_CONSTRAINTS,
         video: requestedKind === 'video' ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-      });
+      }));
       localStreamRef.current = stream;
       setLocalStream(stream);
       return stream;
@@ -469,14 +478,15 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (requestedKind === 'video') {
         console.warn('Camera failed, falling back to audio only:', err);
         toast.info('Camera unavailable, starting audio-only call');
-        const audioStream = await navigator.mediaDevices.getUserMedia({
+        const audioStream = await cleanCallAudio(await navigator.mediaDevices.getUserMedia({
           audio: CALL_AUDIO_CONSTRAINTS,
           video: false,
-        });
+        }));
         localStreamRef.current = audioStream;
         setLocalStream(audioStream);
         return audioStream;
       }
+      applyCallAudioRoute(false, false);
       throw err;
     }
   };
