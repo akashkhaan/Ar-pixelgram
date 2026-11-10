@@ -102,9 +102,9 @@ const StoryEditor: React.FC<StoryEditorProps> = ({
     <div className="fixed inset-0 z-[70] bg-black select-none" style={{ height: '100dvh' }}>
       <div ref={frameRef} className="absolute inset-0 overflow-hidden" style={{ containerType: 'inline-size' }}>
         {mediaType === 'video' ? (
-          <video src={mediaUrl} className="absolute inset-0 h-full w-full object-contain" autoPlay muted loop playsInline />
+          <video src={mediaUrl} className="absolute inset-0 h-full w-full object-cover" autoPlay muted loop playsInline />
         ) : (
-          <img src={mediaUrl} alt="" className="absolute inset-0 h-full w-full object-contain" />
+          <img src={mediaUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
         )}
 
         {overlays.map(o => (

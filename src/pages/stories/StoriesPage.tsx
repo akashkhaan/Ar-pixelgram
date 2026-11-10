@@ -584,14 +584,14 @@ const StoriesPage: React.FC = () => {
             <video
               ref={videoViewerRef}
               src={currentStory.image_url}
-              className="absolute inset-0 w-full h-full object-contain"
+              className="absolute inset-0 w-full h-full object-cover"
               autoPlay
               loop
               playsInline
               muted={!!currentStory.music_preview_url && !!currentStory.mute_original}
             />
           ) : (
-            <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-contain" />
+            <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
           )}
           <StoryTextLayer overlays={currentStory.text_overlays} />
 
