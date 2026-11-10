@@ -221,6 +221,15 @@ export const GroupCallOverlay: React.FC = () => {
     dismissIncoming,
   } = groupCall;
 
+  const [isPip, setIsPip] = useState(false);
+  useEffect(() => {
+    const onPip = (event: Event) => {
+      setIsPip(Boolean((event as CustomEvent<{ isPip?: boolean }>).detail?.isPip));
+    };
+    window.addEventListener('pipModeChanged', onPip);
+    return () => window.removeEventListener('pipModeChanged', onPip);
+  }, []);
+
   const [toastMsg, setToastMsg] = useState<string>('');
   const [toastActive, setToastActive] = useState<boolean>(false);
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
@@ -389,7 +398,52 @@ export const GroupCallOverlay: React.FC = () => {
         ))}
       </div>
 
-      {minimized ? (
+      {isPip ? (
+        /* Android picture-in-picture window: End call + expand are native PiP actions */
+        <div className="fixed inset-0 z-[120] flex flex-col gap-2 overflow-hidden bg-gradient-to-b from-[#1a1033] to-[#0b0716] p-2.5 text-white">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/30 ring-2 ring-emerald-400/60">
+              {groupAvatarUrl ? (
+                <img src={groupAvatarUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-sm font-bold">{(groupName || 'G')[0]?.toUpperCase()}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-bold leading-tight">{groupName || 'Group call'}</p>
+              <p className="truncate text-[11px] leading-tight text-emerald-300">
+                {callModeLabel === 'video' ? 'Video' : 'Audio'} · {totalInCall} in call
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-center gap-1.5 rounded-full bg-white/10 py-1 text-sm font-semibold tabular-nums">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            {formatTime(elapsedSeconds)}
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
+            {[
+              { id: 'local-user', username: localUsername, avatarUrl: profile?.avatar_url || null, isMuted: muted, you: true },
+              ...remoteSlots.map(slot => ({ id: slot.id, username: slot.username, avatarUrl: slot.avatarUrl, isMuted: slot.isMuted, you: false })),
+            ].map(person => (
+              <div key={person.id} className="flex min-w-0 items-center gap-2 rounded-xl bg-white/8 px-2 py-1.5">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/40 text-xs font-bold">
+                  {person.avatarUrl ? (
+                    <img src={person.avatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    (person.username || '?')[0]?.toUpperCase()
+                  )}
+                </div>
+                <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
+                  {person.you ? 'You' : `@${person.username}`}
+                </span>
+                {person.isMuted && <MicOff className="h-3.5 w-3.5 shrink-0 text-red-400" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : minimized ? (
         <MessengerCallBubble
           avatarUrl={groupAvatarUrl}
           title={groupName || 'Group'}

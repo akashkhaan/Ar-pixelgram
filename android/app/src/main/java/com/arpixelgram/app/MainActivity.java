@@ -5,6 +5,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.PictureInPictureParams;
+import android.app.RemoteAction;
+import android.graphics.drawable.Icon;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -273,9 +275,7 @@ public class MainActivity extends BridgeActivity {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 try {
-                    PictureInPictureParams.Builder pipBuilder = new PictureInPictureParams.Builder();
-                    pipBuilder.setAspectRatio(new Rational(9, 16));
-                    enterPictureInPictureMode(pipBuilder.build());
+                    enterPictureInPictureMode(buildCallPipParams());
                     return;
                 } catch (Exception ignored) {}
             }
@@ -299,12 +299,29 @@ public class MainActivity extends BridgeActivity {
         if (isCallActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 try {
-                    PictureInPictureParams.Builder pipBuilder = new PictureInPictureParams.Builder();
-                    pipBuilder.setAspectRatio(new Rational(9, 16));
-                    enterPictureInPictureMode(pipBuilder.build());
+                    enterPictureInPictureMode(buildCallPipParams());
                 } catch (Exception ignored) {}
             }
         }
+    }
+
+    /** PiP window for calls: 9:16 with an "End call" action next to the system expand button. */
+    @androidx.annotation.RequiresApi(api = Build.VERSION_CODES.O)
+    private PictureInPictureParams buildCallPipParams() {
+        PictureInPictureParams.Builder pipBuilder = new PictureInPictureParams.Builder();
+        pipBuilder.setAspectRatio(new Rational(9, 16));
+        try {
+            Intent hangup = new Intent(this, CallForegroundService.class);
+            hangup.setAction(CallForegroundService.ACTION_HANGUP);
+            PendingIntent hangupPi = PendingIntent.getService(this, 993, hangup,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            List<RemoteAction> actions = new ArrayList<>();
+            actions.add(new RemoteAction(
+                Icon.createWithResource(this, R.drawable.ic_call_end),
+                "End call", "End call", hangupPi));
+            pipBuilder.setActions(actions);
+        } catch (Exception ignored) {}
+        return pipBuilder.build();
     }
 
     @Override
