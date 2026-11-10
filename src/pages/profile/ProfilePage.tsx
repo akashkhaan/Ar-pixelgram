@@ -23,7 +23,11 @@ import {createNotification, followUser, getFollowersCount, cleanDisplayCaption,
   getProfile, getUserPosts, getUserReels,unfollowUser, updateProfile, 
   uploadImage 
 } from '@/services/api';
-import { type AppVideo, formatDuration, formatVideoViews, getUserVideos } from '@/services/videos';
+import { type AppVideo, deleteVideo, formatDuration, formatVideoViews, getUserVideos, updateVideoDetails, uploadVideoThumbnail } from '@/services/videos';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import type { Post, Profile } from '@/types/types';
 import { FacebookProfileBottomSheet } from '@/components/profile/FacebookProfileBottomSheet';
 import { resolveFacebookIdToUserId } from '@/lib/facebookProfileUrl';
@@ -91,6 +95,44 @@ const ProfilePage: React.FC = () => {
   }, [queryId]);
 
   const targetUserId = queryId ? (resolvedUserId || undefined) : (userId || user?.id);
+  const openVideoEdit = (v: AppVideo) => {
+    setEditVideo(v);
+    setVideoTitle(v.title || '');
+    setVideoDescription(v.description || '');
+    setVideoThumbFile(null);
+  };
+
+  const saveVideoEdit = async () => {
+    if (!editVideo || !user) return;
+    setSavingVideo(true);
+    try {
+      const changes: { title: string; description: string | null; thumbnail_url?: string | null } = {
+        title: videoTitle.trim(),
+        description: videoDescription.trim() || null,
+      };
+      if (videoThumbFile) changes.thumbnail_url = await uploadVideoThumbnail(videoThumbFile, user.id);
+      await updateVideoDetails(editVideo.id, changes);
+      setVideos(list => list.map(x => (x.id === editVideo.id ? { ...x, ...changes } : x)));
+      toast.success('Video updated');
+      setEditVideo(null);
+    } catch {
+      toast.error('Video update nahi hua, dobara try karein');
+    } finally {
+      setSavingVideo(false);
+    }
+  };
+
+  const handleDeleteVideo = async (v: AppVideo) => {
+    if (!window.confirm('Ye video hamesha ke liye delete karni hai?')) return;
+    try {
+      await deleteVideo(v.id);
+      setVideos(list => list.filter(x => x.id !== v.id));
+      toast.success('Video deleted');
+    } catch {
+      toast.error('Video delete nahi hui');
+    }
+  };
+
   const isOwnProfile = !userId && !queryId ? true : (targetUserId === user?.id);
 
   // Sign out करके hard-navigate — async/await ensures signOut completes before redirect
@@ -104,6 +146,11 @@ const ProfilePage: React.FC = () => {
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [reels, setReels] = useState<Reel[]>([]);
   const [videos, setVideos] = useState<AppVideo[]>([]);
+  const [editVideo, setEditVideo] = useState<AppVideo | null>(null);
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
+  const [videoThumbFile, setVideoThumbFile] = useState<File | null>(null);
+  const [savingVideo, setSavingVideo] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [followStatus, setFollowStatus] = useState<'accepted' | 'pending' | null>(null);
@@ -678,6 +725,7 @@ const ProfilePage: React.FC = () => {
               <PostCard
                 post={openPost}
                 onDelete={isOwnProfile ? (id) => { setPosts(p => p.filter(x => x.id !== id)); setOpenPost(null); } : undefined}
+                onCaptionChange={(id, caption) => setPosts(p => p.map(x => (x.id === id ? { ...x, caption } : x)))}
               />
             </div>
           </div>
@@ -784,7 +832,7 @@ const ProfilePage: React.FC = () => {
                 })}
                 {reels.map(reel => (
                   <div key={reel.id} className="aspect-[9/16] w-full bg-gradient-to-br from-[#1a1429] via-[#0f0e17] to-[#1e1022] border border-white/5 overflow-hidden group relative cursor-pointer active:scale-[0.98] transition-all"
-                    onClick={() => navigate(`/reels?r=${reel.id}`)}>
+                    onClick={() => navigate(`/reels?r=${reel.id}&from=profile&u=${reel.user_id}`)}>
                     {reel.thumbnail_url ? (
                       <SmartImage src={reel.thumbnail_url} compact className="transition-transform group-hover:scale-105" />
                     ) : (
@@ -903,11 +951,11 @@ const ProfilePage: React.FC = () => {
                   );
                 })}
                 {videos.map(v => (
+                  <div key={v.id} className="relative">
                   <button
-                    key={v.id}
                     type="button"
                     onClick={() => navigate(`/videos/${v.id}`)}
-                    className="text-left"
+                    className="w-full text-left"
                   >
                     <div className="relative w-full rounded-xl overflow-hidden bg-muted" style={{ aspectRatio: '16 / 9' }}>
                       {v.thumbnail_url ? (
@@ -926,9 +974,23 @@ const ProfilePage: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-xs font-semibold text-foreground line-clamp-2">{v.title}</p>
+                    <p className={`mt-1 text-xs font-semibold text-foreground line-clamp-2 ${user?.id === v.user_id ? 'pr-6' : ''}`}>{v.title}</p>
                     <p className="text-[11px] text-muted-foreground">{formatVideoViews(v.views_count)} views</p>
                   </button>
+                  {user?.id === v.user_id && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button type="button" aria-label="Video options" className="absolute right-0 top-[calc(100%-2.6rem)] p-1 rounded-full text-muted-foreground hover:bg-muted">
+                          <MoreHorizontal className="w-4 h-4 rotate-90" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openVideoEdit(v)}>Edit video</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDeleteVideo(v)} className="text-destructive">Delete video</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                  </div>
                 ))}
               </div>
             )}
@@ -936,6 +998,37 @@ const ProfilePage: React.FC = () => {
         )}
       </div>
       </PullToRefresh>
+
+      <Dialog open={!!editVideo} onOpenChange={(open) => { if (!open) setEditVideo(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit video</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Title</label>
+              <Input value={videoTitle} onChange={e => setVideoTitle(e.target.value)} maxLength={150} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Description</label>
+              <Textarea value={videoDescription} onChange={e => setVideoDescription(e.target.value)} rows={3} maxLength={5000} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground">Thumbnail</label>
+              <div className="relative w-full rounded-lg overflow-hidden bg-muted" style={{ aspectRatio: '16 / 9' }}>
+                {(videoThumbFile || editVideo?.thumbnail_url) && (
+                  <img src={videoThumbFile ? URL.createObjectURL(videoThumbFile) : editVideo?.thumbnail_url || ''} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                )}
+              </div>
+              <Input type="file" accept="image/*" onChange={e => setVideoThumbFile(e.target.files?.[0] || null)} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditVideo(null)}>Cancel</Button>
+            <Button onClick={saveVideoEdit} disabled={savingVideo || !videoTitle.trim()}>{savingVideo ? 'Saving...' : 'Save'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Facebook 3-Dot Options Bottom Sheet */}
       {profile && (

@@ -51,12 +51,7 @@ const PostDetailPage: React.FC = () => {
           </div>
         ) : post ? (
           <div className="max-w-xl mx-auto pb-12">
-            <PostCard
-              post={post}
-              onDelete={() => {
-                navigate("/home");
-              }}
-            />
+            <PostCard post={post} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">

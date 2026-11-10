@@ -1610,6 +1610,60 @@ export async function deleteReel(reelId: string): Promise<void> {
   // Local hide list delete ko permanent bana deti hai.
 }
 
+/** Keeps the hidden music tag when the owner edits the visible caption. */
+function replaceVisibleCaption(raw: string | null | undefined, next: string): string {
+  const tag = (raw || '').match(/<!--pixelgram_music:[\s\S]*?-->/)?.[0];
+  const clean = next.trim();
+  if (!tag) return clean;
+  return clean ? `${clean}\n\n${tag}` : tag;
+}
+
+export async function updateReelCaption(reelId: string, caption: string): Promise<string> {
+  const { data: row } = await supabase.from('reels').select('caption').eq('id', reelId).maybeSingle();
+  const { data, error } = await supabase
+    .from('reels')
+    .update({ caption: replaceVisibleCaption(row?.caption, caption) })
+    .eq('id', reelId)
+    .select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Reel title could not be saved');
+  return caption.trim();
+}
+
+export async function updatePostCaption(postId: string, caption: string): Promise<string> {
+  const { data: row } = await supabase.from('posts').select('caption').eq('id', postId).maybeSingle();
+  const { data, error } = await supabase
+    .from('posts')
+    .update({ caption: replaceVisibleCaption(row?.caption, caption) || null })
+    .eq('id', postId)
+    .select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Post title could not be saved');
+  return caption.trim();
+}
+
+export const REEL_REPORT_REASONS = [
+  'Galat / gandi (inappropriate) reel',
+  'Fake reel / jhooti jaankari',
+  'Owner ki permission ke bina upload ki gayi',
+  'Fake account se upload ki gayi',
+  'Spam ya dhokha (scam)',
+] as const;
+
+export async function reportReel(reel: Pick<Reel, 'id' | 'user_id'>, reason: string): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const { error } = await supabase.from('reports').insert({
+    reporter_id: session?.user?.id,
+    reported_user_id: reel.user_id,
+    report_type: 'post',
+    target_id: reel.id,
+    reason: `Reel report: ${reason}`,
+    description: `reel_id: ${reel.id}`,
+    status: 'pending',
+  });
+  if (error) throw error;
+}
+
 // ===================== REEL COMMENTS =====================
 export interface ReelComment {
   id: string;

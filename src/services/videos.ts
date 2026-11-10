@@ -378,6 +378,15 @@ export async function deleteVideo(videoId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function updateVideoDetails(
+  videoId: string,
+  changes: { title: string; description: string | null; thumbnail_url?: string | null },
+): Promise<void> {
+  const { data, error } = await supabase.from('videos').update(changes).eq('id', videoId).select('id');
+  if (error) throw error;
+  if (!data?.length) throw new Error('Video could not be updated');
+}
+
 export async function updateVideoVisibility(
   videoId: string,
   visibility: 'public' | 'private',

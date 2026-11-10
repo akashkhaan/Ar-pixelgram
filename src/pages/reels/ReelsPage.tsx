@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import StoryRing from '@/components/common/StoryRing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Trash2, VideoOff, UserCheck } from 'lucide-react';
+import { Camera, Trash2, VideoOff, UserCheck, Pencil, Flag } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, cleanDisplayCaption, type Reel } from '@/services/api';
+import { getReelsFeed, getReelById, recordReelView, toggleReelLike, deleteReel, createNotification, getReelCommentsCount, getFollowStatus, followUser, unfollowUser, cleanDisplayCaption, getUserReels, updateReelCaption, reportReel, REEL_REPORT_REASONS, type Reel } from '@/services/api';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
@@ -17,15 +20,19 @@ import { retryMediaOnError, isLegacyMediaUrl } from '@/lib/mediaUrl';
 
 // Only render video for active ± 1 reels — prevents loading all videos at once
 const RENDER_WINDOW = 3;
+const FEED_PAGE = 20;
 
 const ReelCard: React.FC<{
   reel: Reel;
   isActive: boolean;
   isNear: boolean; // within render window — mount video element
   onDelete: (id: string) => void;
+  onUpdate: (reel: Reel) => void;
+  /** Opened from the owner's profile: only then can the owner edit/delete. */
+  manageable: boolean;
   autoOpenComments?: boolean;
   highlightCommentId?: string | null;
-}> = ({ reel, isActive, isNear, onDelete, autoOpenComments, highlightCommentId }) => {
+}> = ({ reel, isActive, isNear, onDelete, onUpdate, manageable, autoOpenComments, highlightCommentId }) => {
   const { user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -246,7 +253,49 @@ const ReelCard: React.FC<{
     setShareSheetOpen(true);
   };
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editCaption, setEditCaption] = useState('');
+  const [savingCaption, setSavingCaption] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<string>('');
+  const [reporting, setReporting] = useState(false);
+
+  const openEdit = () => {
+    setEditCaption(cleanDisplayCaption(reel.caption));
+    setEditOpen(true);
+  };
+
+  const saveCaption = async () => {
+    setSavingCaption(true);
+    try {
+      const caption = await updateReelCaption(reel.id, editCaption);
+      onUpdate({ ...reel, caption });
+      toast.success('Title updated');
+      setEditOpen(false);
+    } catch {
+      toast.error('Title save nahi hua, dobara try karein');
+    } finally {
+      setSavingCaption(false);
+    }
+  };
+
+  const submitReport = async () => {
+    if (!reportReason) return;
+    setReporting(true);
+    try {
+      await reportReel(reel, reportReason);
+      toast.success('Report bhej di gayi. Shukriya!');
+      setReportOpen(false);
+      setReportReason('');
+    } catch {
+      toast.error('Report nahi bheji ja saki');
+    } finally {
+      setReporting(false);
+    }
+  };
+
   const handleDelete = async () => {
+    if (!window.confirm('Ye reel hamesha ke liye delete karni hai?')) return;
     try {
       await deleteReel(reel.id);
       toast.success('Reel deleted');
@@ -260,6 +309,42 @@ const ReelCard: React.FC<{
 
   return (
     <div className="relative mx-auto h-full w-full max-w-[430px] overflow-hidden bg-black select-none">
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change reel title</DialogTitle>
+          </DialogHeader>
+          <Textarea value={editCaption} onChange={e => setEditCaption(e.target.value)} rows={4} maxLength={2200} placeholder="Reel title / caption" />
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={saveCaption} disabled={savingCaption}>{savingCaption ? 'Saving...' : 'Save'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Report reel</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Is reel me kya problem hai?</p>
+          <div className="flex flex-col gap-2">
+            {REEL_REPORT_REASONS.map(reason => (
+              <button
+                key={reason}
+                type="button"
+                onClick={() => setReportReason(reason)}
+                className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${reportReason === reason ? 'border-destructive bg-destructive/10 text-destructive font-semibold' : 'border-border hover:bg-muted'}`}
+              >
+                {reason}
+              </button>
+            ))}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setReportOpen(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={submitReport} disabled={!reportReason || reporting}>{reporting ? 'Sending...' : 'Report'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Purane (band ho chuke) server ka video kabhi chalega nahi */}
       {isLegacyMediaUrl(reel.video_url) ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#12111d] text-white/70 px-8 text-center">
@@ -455,24 +540,33 @@ const ReelCard: React.FC<{
           </svg>
         </button>
 
-        {isOwner ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" className="flex items-center justify-center active:scale-90 transition-transform" aria-label="More reel options">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleDelete} className="text-destructive gap-2">
-                <Trash2 className="w-4 h-4" /> {t('delete')}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className="flex items-center justify-center active:scale-90 transition-transform" aria-label="More reel options">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isOwner && manageable ? (
+              <>
+                <DropdownMenuItem onClick={openEdit} className="gap-2">
+                  <Pencil className="w-4 h-4" /> Change title
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDelete} className="text-destructive gap-2">
+                  <Trash2 className="w-4 h-4" /> {t('delete')}
+                </DropdownMenuItem>
+              </>
+            ) : isOwner ? (
+              <DropdownMenuItem onClick={() => navigate(`/profile/${reel.user_id}`)} className="gap-2">
+                <Pencil className="w-4 h-4" /> Edit / delete: profile se reel kholein
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <button type="button" onClick={() => toast('More')} className="flex items-center justify-center active:scale-90 transition-transform" aria-label="More">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="w-6 h-6 drop-shadow-[0_1px_3px_rgba(0,0,0,0.45)]" fill="none" stroke="white" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
-          </button>
-        )}
+            ) : (
+              <DropdownMenuItem onClick={() => setReportOpen(true)} className="text-destructive gap-2">
+                <Flag className="w-4 h-4" /> Report reel
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Bottom info: live creator, caption, and audio in the supplied HTML positions */}
@@ -582,7 +676,14 @@ const ReelsPage: React.FC = () => {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [profileUserId] = useState<string | null>(() =>
+    searchParams.get('from') === 'profile' ? searchParams.get('u') : null,
+  );
+  const feedOffsetRef = useRef(0);
+  const hasMoreRef = useRef(true);
+  const loadingMoreRef = useRef(false);
   const [reels, setReels] = useState<Reel[]>(() => {
+    if (searchParams.get('from') === 'profile') return [];
     try {
       const cached = localStorage.getItem('pixelgram_cached_reels') || sessionStorage.getItem('pixelgram_cached_reels');
       return cached ? JSON.parse(cached) : [];
@@ -591,6 +692,7 @@ const ReelsPage: React.FC = () => {
     }
   });
   const [loading, setLoading] = useState<boolean>(() => {
+    if (searchParams.get('from') === 'profile') return true;
     try {
       const cached = localStorage.getItem('pixelgram_cached_reels') || sessionStorage.getItem('pixelgram_cached_reels');
       if (cached) {
@@ -632,7 +734,13 @@ const ReelsPage: React.FC = () => {
       const targetId = searchParams.get('r');
       const wantsComments = searchParams.get('comments') === '1';
       const commentIdParam = searchParams.get('c');
-      let data = await withTimeout(getReelsFeed(10), 10000);
+      let data = profileUserId
+        ? await withTimeout(getUserReels(profileUserId), 10000)
+        : await withTimeout(getReelsFeed(FEED_PAGE), 10000);
+      if (!profileUserId) {
+        feedOffsetRef.current = FEED_PAGE;
+        hasMoreRef.current = data.length > 0;
+      }
 
       // Deep link from a notification/share link — if that reel isn't in the
       // first page, fetch it directly and pin it to the front.
@@ -643,7 +751,7 @@ const ReelsPage: React.FC = () => {
 
       setReels(data);
       try {
-        if (data && data.length > 0) {
+        if (!profileUserId && data && data.length > 0) {
           localStorage.setItem('pixelgram_cached_reels', JSON.stringify(data.slice(0, 15)));
           sessionStorage.setItem('pixelgram_cached_reels', JSON.stringify(data.slice(0, 15)));
         }
@@ -674,6 +782,27 @@ const ReelsPage: React.FC = () => {
   }, [activateReel]);
 
   useEffect(() => { loadReels(); }, [loadReels]);
+
+  // Feed shows every user's reels: keep fetching older pages while scrolling.
+  useEffect(() => {
+    if (profileUserId || loading || !hasMoreRef.current || loadingMoreRef.current) return;
+    if (activeIndex < reels.length - 3) return;
+    loadingMoreRef.current = true;
+    const offset = feedOffsetRef.current;
+    getReelsFeed(FEED_PAGE, offset)
+      .then(more => {
+        feedOffsetRef.current = offset + FEED_PAGE;
+        hasMoreRef.current = more.length > 0;
+        setReels(prev => {
+          const seen = new Set(prev.map(r => r.id));
+          const next = [...prev, ...more.filter(r => !seen.has(r.id))];
+          reelsCountRef.current = next.length;
+          return next;
+        });
+      })
+      .catch(() => {})
+      .finally(() => { loadingMoreRef.current = false; });
+  }, [activeIndex, reels.length, loading, profileUserId]);
 
   // Instagram-style IntersectionObserver: Active reel detection runs completely
   // off the main thread without re-rendering while swiping.
@@ -869,6 +998,10 @@ const ReelsPage: React.FC = () => {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  const handleUpdate = (updated: Reel) => {
+    setReels(prev => prev.map(r => (r.id === updated.id ? updated : r)));
+  };
+
   const handleDelete = (id: string) => {
     setReels(prev => {
       const next = prev.filter(r => r.id !== id);
@@ -979,6 +1112,8 @@ const ReelsPage: React.FC = () => {
                 isActive={isActive}
                 isNear={isNear}
                 onDelete={handleDelete}
+                onUpdate={handleUpdate}
+                manageable={!!profileUserId}
                 autoOpenComments={openCommentsFor === reel.id}
                 highlightCommentId={openCommentsFor === reel.id ? highlightCommentFor : null}
               />

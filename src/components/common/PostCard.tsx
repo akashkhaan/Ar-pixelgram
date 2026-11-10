@@ -3,7 +3,10 @@ import StoryRing from '@/components/common/StoryRing';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, BadgeCheck, Music2, Volume2, VolumeX, Film } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { likePost, unlikePost, savePost, unsavePost } from '@/services/api';
+import { likePost, unlikePost, savePost, unsavePost, deletePost, updatePostCaption } from '@/services/api';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 import { createNotification } from '@/services/api';
 import type { Post, Comment } from '@/types/types';
 import { cn } from '@/lib/utils';
@@ -15,10 +18,16 @@ import PhotoViewer from '@/components/common/PhotoViewer';
 
 interface PostCardProps {
   post: Post;
+  /** Passed only where the owner manages posts (their profile). */
   onDelete?: (postId: string) => void;
+  onCaptionChange?: (postId: string, caption: string) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onCaptionChange }) => {
+  const [caption, setCaption] = useState(post.caption || '');
+  const [editOpen, setEditOpen] = useState(false);
+  const [editCaption, setEditCaption] = useState('');
+  const [savingCaption, setSavingCaption] = useState(false);
   const { user, profile: myProfile } = useAuth();
   const [liked, setLiked] = useState(post.is_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
@@ -172,8 +181,30 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
   };
 
   const handleDelete = async () => {
-    if (onDelete) onDelete(post.id);
     setShowMenu(false);
+    if (!onDelete || !window.confirm('Ye post hamesha ke liye delete karni hai?')) return;
+    try {
+      await deletePost(post.id);
+      toast.success('Post deleted');
+      onDelete(post.id);
+    } catch {
+      toast.error('Post delete nahi hui, dobara try karein');
+    }
+  };
+
+  const saveCaption = async () => {
+    setSavingCaption(true);
+    try {
+      const next = await updatePostCaption(post.id, editCaption);
+      setCaption(next);
+      onCaptionChange?.(post.id, next);
+      toast.success('Title updated');
+      setEditOpen(false);
+    } catch {
+      toast.error('Title save nahi hua, dobara try karein');
+    } finally {
+      setSavingCaption(false);
+    }
   };
 
   const authorProfile = post.profile;
@@ -182,6 +213,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
 
   return (
     <article ref={cardRef} className="bg-card border-b border-border">
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Change post title</DialogTitle>
+          </DialogHeader>
+          <Textarea value={editCaption} onChange={e => setEditCaption(e.target.value)} rows={4} maxLength={2200} placeholder="Post title / caption" />
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button onClick={saveCaption} disabled={savingCaption}>{savingCaption ? 'Saving...' : 'Save'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Post header */}
       <div className="flex items-center gap-3 px-4 py-3">
         <StoryRing userId={post.user_id}>
@@ -217,13 +260,21 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
             )}
           </div>
         </div>
-        {(isOwner || myProfile?.is_admin) && (
+        {onDelete && (isOwner || myProfile?.is_admin) && (
           <div className="relative">
             <button onClick={() => setShowMenu(!showMenu)} className="p-1 rounded-lg hover:bg-muted transition-colors">
               <MoreHorizontal className="w-5 h-5 text-muted-foreground" />
             </button>
             {showMenu && (
               <div className="absolute right-0 top-8 z-50 bg-popover border border-border rounded-xl shadow-lg min-w-[140px] overflow-hidden">
+                {isOwner && (
+                  <button
+                    onClick={() => { setShowMenu(false); setEditCaption(caption); setEditOpen(true); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                  >
+                    Change title
+                  </button>
+                )}
                 <button
                   onClick={handleDelete}
                   className="w-full text-left px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
@@ -372,10 +423,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete }) => {
           </p>
         )}
 
-        {post.caption && (
+        {caption && (
           <p className="text-sm text-foreground">
             <Link to={`/profile/${post.user_id}`} className="font-semibold mr-1">{username}</Link>
-            <span className="text-pretty">{post.caption}</span>
+            <span className="text-pretty">{caption}</span>
           </p>
         )}
 

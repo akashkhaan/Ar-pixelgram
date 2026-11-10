@@ -457,7 +457,7 @@ const StoriesPage: React.FC = () => {
           ) : (
             <div className="flex flex-col">
               {posts.map(post => (
-                <PostCard key={post.id} post={post} onDelete={handleDeletePost} />
+                <PostCard key={post.id} post={post} />
               ))}
               {hasMorePosts && (
                 <div className="flex justify-center py-4">
