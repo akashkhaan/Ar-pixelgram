@@ -11,6 +11,7 @@ import {
   PhoneOff,
   RefreshCw,
   ChevronDown,
+  Users,
 } from 'lucide-react';
 import { MessengerCallBubble } from './MessengerCallBubble';
 import { Button } from '@/components/ui/button';
@@ -400,47 +401,63 @@ export const GroupCallOverlay: React.FC = () => {
 
       {isPip ? (
         /* Android picture-in-picture window: End call + expand are native PiP actions */
-        <div className="fixed inset-0 z-[120] flex flex-col gap-2 overflow-hidden bg-gradient-to-b from-[#1a1033] to-[#0b0716] p-2.5 text-white">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/30 ring-2 ring-emerald-400/60">
-              {groupAvatarUrl ? (
-                <img src={groupAvatarUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-sm font-bold">{(groupName || 'G')[0]?.toUpperCase()}</span>
-              )}
+        <div className="fixed inset-0 z-[120] bg-[#0b0716] p-1 text-white">
+          <div className="flex h-full flex-col overflow-hidden rounded-[22px] border-2 border-violet-500 bg-gradient-to-b from-[#120a24] to-[#1a0b2e] px-2.5 pb-2 pt-2.5 shadow-[0_0_18px_rgba(168,85,247,0.45)]">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="min-w-0">
+                <p className="line-clamp-2 break-words text-[13px] font-bold leading-tight">{groupName || 'Group call'}</p>
+                <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium tabular-nums text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  {formatTime(elapsedSeconds)}
+                </p>
+              </div>
+              <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold text-white/85">
+                <Users className="h-3 w-3" />
+                {totalInCall} Joined
+              </span>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-bold leading-tight">{groupName || 'Group call'}</p>
-              <p className="truncate text-[11px] leading-tight text-emerald-300">
-                {callModeLabel === 'video' ? 'Video' : 'Audio'} · {totalInCall} in call
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center justify-center gap-1.5 rounded-full bg-white/10 py-1 text-sm font-semibold tabular-nums">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            {formatTime(elapsedSeconds)}
-          </div>
-
-          <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
-            {[
-              { id: 'local-user', username: localUsername, avatarUrl: profile?.avatar_url || null, isMuted: muted, you: true },
-              ...remoteSlots.map(slot => ({ id: slot.id, username: slot.username, avatarUrl: slot.avatarUrl, isMuted: slot.isMuted, you: false })),
-            ].map(person => (
-              <div key={person.id} className="flex min-w-0 items-center gap-2 rounded-xl bg-white/8 px-2 py-1.5">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/40 text-xs font-bold">
-                  {person.avatarUrl ? (
-                    <img src={person.avatarUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    (person.username || '?')[0]?.toUpperCase()
+            {(() => {
+              const people = [
+                { id: 'local-user', username: localUsername, avatarUrl: profile?.avatar_url || null, isMuted: muted },
+                ...remoteSlots.map(slot => ({ id: slot.id, username: slot.username, avatarUrl: slot.avatarUrl, isMuted: slot.isMuted })),
+              ];
+              const extra = people.length > 6 ? people.length - 5 : 0;
+              const shown = extra ? people.slice(0, 5) : people;
+              return (
+                <div className="mt-2 grid min-h-0 flex-1 grid-cols-2 content-start gap-x-1.5 gap-y-2 overflow-hidden">
+                  {shown.map(person => (
+                    <div key={person.id} className="flex min-w-0 flex-col items-center gap-1">
+                      <div className="relative">
+                        <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-fuchsia-500 to-orange-400 text-base font-bold ring-2 ring-white/15">
+                          {person.avatarUrl ? (
+                            <img src={person.avatarUrl} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            (person.username || '?')[0]?.toUpperCase()
+                          )}
+                        </div>
+                        {person.isMuted ? (
+                          <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 ring-2 ring-[#120a24]">
+                            <MicOff className="h-2.5 w-2.5" />
+                          </span>
+                        ) : (
+                          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-[#120a24]" />
+                        )}
+                      </div>
+                      <span className="w-full truncate text-center text-[11px] font-semibold leading-tight">
+                        {person.username}
+                      </span>
+                    </div>
+                  ))}
+                  {extra > 0 && (
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-sm font-bold">+{extra}</div>
+                      <span className="text-[11px] font-semibold leading-tight">more</span>
+                    </div>
                   )}
                 </div>
-                <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
-                  {person.you ? 'You' : `@${person.username}`}
-                </span>
-                {person.isMuted && <MicOff className="h-3.5 w-3.5 shrink-0 text-red-400" />}
-              </div>
-            ))}
+              );
+            })()}
           </div>
         </div>
       ) : minimized ? (
