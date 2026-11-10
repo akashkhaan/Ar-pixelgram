@@ -1,3 +1,4 @@
+import { startNativeBackgroundUpload } from '@/services/nativeBackgroundUpload';
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MobileLayout from '@/components/layouts/MobileLayout';
@@ -166,7 +167,7 @@ const CreatePostPage: React.FC = () => {
     const storagePath = `${user.id}/posts_${persistentJobId}.${extension}`;
     markJobActive(persistentJobId);
     markUploadActiveInSession(persistentJobId);
-    void savePersistentJob({
+    const persistentJob = {
       id: persistentJobId,
       kind: "post",
       label: mediaType === "video" ? "Video Post Upload" : "Photo Post Upload",
@@ -180,9 +181,16 @@ const CreatePostPage: React.FC = () => {
       progress: 0,
       status: "uploading",
       createdAt: Date.now(),
-    });
+    } satisfies import("@/services/persistentUploadQueue").PersistentUploadJob;
+    await savePersistentJob(persistentJob);
 
     try {
+      const native = await startNativeBackgroundUpload(persistentJob, uploadId);
+      if (native) {
+        toast.success(mediaType === "video" ? "Video post shared! 🎬✨" : "Post shared! 📷✨");
+        navigate("/stories");
+        return;
+      }
       // 1 to 100% upload progress to Supabase posts bucket
       const mediaUrl = await uploadMediaWithProgress("posts", mediaFile, user.id, (progress) => {
         updateUpload(uploadId, progress);

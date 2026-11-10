@@ -1,5 +1,6 @@
 import InAppBrowserModal from "@/components/common/InAppBrowserModal";
 import React, { Suspense, useEffect } from "react";
+import { useAuth } from '@/contexts/AuthContext';
 import { resumeAllPendingUploads } from '@/services/persistentUploadQueue';
 import {
   BrowserRouter as Router,
@@ -24,13 +25,15 @@ import { useVisitTracker } from "@/hooks/useVisitTracker";
 
 
 const UploadAutoResumer: React.FC = () => {
+  const { user } = useAuth();
   useEffect(() => {
+    if (!user) return;
     try {
       void resumeAllPendingUploads();
     } catch (e) {
       console.warn("Upload resume error:", e);
     }
-  }, []);
+  }, [user?.id]);
   return null;
 };
 

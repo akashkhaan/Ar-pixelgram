@@ -1,3 +1,4 @@
+import { startNativeBackgroundUpload, supportsNativeBackgroundUpload } from '@/services/nativeBackgroundUpload';
 import useGoBack from '@/hooks/use-go-back';
 import { NO_EFFECT, renderEffect, createEffectRecordingStream, recordingFileExtension, type CameraEffect } from './cameraEffects';
 import { EffectsBrowser, EffectsCarousel } from '@/components/reels/EffectsBrowser';
@@ -586,7 +587,7 @@ const CreateReelPage: React.FC = () => {
     const storagePath = `${currentUserId}/${currentMode}_${persistentJobId}.${extension}`;
     markJobActive(persistentJobId);
     markUploadActiveInSession(persistentJobId);
-    void savePersistentJob({
+    const persistentJob = {
       id: persistentJobId,
       kind: currentMode,
       label: `${modeLabel} Upload`,
@@ -605,10 +606,25 @@ const CreateReelPage: React.FC = () => {
       progress: 0,
       status: 'uploading',
       createdAt: Date.now(),
-    });
+    } satisfies import("@/services/persistentUploadQueue").PersistentUploadJob;
+    await savePersistentJob(persistentJob);
 
     toast.success(`${modeLabel} upload shuru ho gaya... (1 se 100% count upar dekhein) 🚀`);
     navigate(currentMode === 'video' ? '/videos' : currentMode === 'reel' ? '/reels' : '/stories');
+
+    if (supportsNativeBackgroundUpload()) {
+      try {
+        await startNativeBackgroundUpload(persistentJob);
+        toast.success(`${modeLabel} successfully upload ho gaya! 🎉`);
+      } catch (error) {
+        await deletePersistentJob(persistentJobId);
+        toast.error(error instanceof Error ? error.message : 'Upload fail ho gaya');
+      } finally {
+        unmarkJobActive(persistentJobId);
+        clearUploadActiveInSession(persistentJobId);
+      }
+      return;
+    }
 
     runBackgroundUpload({
       kind: currentMode,
@@ -655,7 +671,7 @@ const CreateReelPage: React.FC = () => {
             setUploadPercent(p);
             updateProgress(p);
             void updatePersistentJobProgress(persistentJobId, p);
-          });
+          }, storagePath);
 
           let thumbUrl: string | null = null;
           if (currentCoverBlob) {

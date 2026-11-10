@@ -1,3 +1,4 @@
+import { startNativeBackgroundUpload } from '@/services/nativeBackgroundUpload';
 import { startUpload, updateUpload, finishUpload } from '@/services/uploadManager';
 import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive, markUploadActiveInSession, clearUploadActiveInSession } from '@/services/persistentUploadQueue';
 import useGoBack from '@/hooks/use-go-back';
@@ -109,7 +110,7 @@ const UploadVideoPage: React.FC = () => {
     const storagePath = `${user.id}/videos_${persistentJobId}.${ext}`;
     markJobActive(persistentJobId);
     markUploadActiveInSession(persistentJobId);
-    void savePersistentJob({
+    const persistentJob = {
       id: persistentJobId,
       kind: 'video',
       label: 'Video Upload',
@@ -126,9 +127,16 @@ const UploadVideoPage: React.FC = () => {
       progress: 0,
       status: 'uploading',
       createdAt: Date.now(),
-    });
+    } satisfies import("@/services/persistentUploadQueue").PersistentUploadJob;
+    await savePersistentJob(persistentJob);
 
     try {
+      const native = await startNativeBackgroundUpload(persistentJob, uploadId);
+      if (native) {
+        toast.success("Video upload ho gaya!");
+        navigate(`/videos/${native.recordId}`, { replace: true });
+        return;
+      }
       const videoUrl = await uploadVideoFile(file, user.id, (p) => {
         setProgress(p);
         updateUpload(uploadId, p);

@@ -11,3 +11,6 @@
 - Keep reel like decoration best-effort: optional session/like failures must not discard successfully loaded feed rows.
 - Notification surfaces and text use global theme tokens so light/dark changes apply consistently.
 - Put optional search actions in GlassSearch's expanded-only trailingAction slot; keep focus transitions inside the control open so voice and clear actions remain usable.
+
+- Android background uploads use the locally registered BackgroundUpload Capacitor plugin and a dataSync foreground service, owning private file bytes and final publishing; never rely on WebView timers or keep-alive tricks.
+- Native publishing uses a stable record UUID and read-back before retry; reconcile native-owned jobs before browser recovery to avoid duplicate uploads after reopening.

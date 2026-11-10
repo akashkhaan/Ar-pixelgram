@@ -1,6 +1,6 @@
 /**
  * Persistent Upload Queue using IndexedDB.
- * Ensures uploads survive website closing, browser tab closing, or page reloads.
+ * Retains browser jobs for reload recovery; Android owns native background work.
  * When the website is refreshed, the upload resumes from the exact byte offset and finishes publishing.
  */
 import { uploadMediaWithProgress } from './mediaUpload';
@@ -8,6 +8,7 @@ import { uploadVideoFile, uploadVideoThumbnail, createVideo } from './videos';
 import { createReel, createPost, createStory, uploadImage, type ReelMusic } from './api';
 import { startUpload, updateUpload, finishUpload, doneUrlFor, type UploadKind } from './uploadManager';
 import { toast } from 'sonner';
+import { installNativeUploadObserver, reconcileNativeUploads, resumeNativeUploads, startNativeBackgroundUpload } from './nativeBackgroundUpload';
 
 export interface PersistentUploadJob {
   id: string;
@@ -181,6 +182,8 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
   const uploadId = startUpload(job.kind, job.label, undefined, undefined, savedProg);
 
   try {
+    const native = await startNativeBackgroundUpload(job, uploadId);
+    if (native) return;
     if (job.kind === 'reel') {
       const videoUrl = await uploadMediaWithProgress('reels', file, job.userId, (p) => {
         updateUpload(uploadId, p);
@@ -271,10 +274,15 @@ export async function executePersistentJob(job: PersistentUploadJob): Promise<vo
  */
 export async function resumeAllPendingUploads(): Promise<void> {
   try {
+    installNativeUploadObserver();
+    await resumeNativeUploads();
+    const nativeOwned = await reconcileNativeUploads();
     const jobs = await getPersistentJobs();
     const now = Date.now();
 
     for (const j of jobs) {
+      // Android can still be uploading/publishing even when this session has ended.
+      if (nativeOwned.has(j.id)) continue;
       // 1. If older than 15 minutes or completed, purge it immediately
       if (j.status === 'completed' || now - (j.createdAt || 0) > 15 * 60 * 1000) {
         void deletePersistentJob(j.id);
