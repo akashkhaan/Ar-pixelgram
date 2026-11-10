@@ -113,7 +113,6 @@ const StoriesPage: React.FC = () => {
     }
   };
 
-  const handleDeletePost = (postId: string) => setPosts(prev => prev.filter(p => p.id !== postId));
 
   // Instagram jaisa pull-to-refresh — stories + posts dono dobara load
   const handleRefresh = async () => {
