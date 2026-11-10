@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { getStoryTapDirection } from './storyNavigation';
+import { STORY_IMAGE_DURATION_MS, getStoryProgress } from './storyPlayback';
 import { Plus, X, MoreVertical, Trash2, Loader2, Share2, Heart, Send, Clock, Music2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -73,6 +74,9 @@ const StoriesPage: React.FC = () => {
   const [viewersMap, setViewersMap] = useState<Record<string, StoryViewer[] | undefined>>({});
   const videoViewerRef = useRef<HTMLVideoElement>(null);
   const storyAudioRef = useRef<HTMLAudioElement>(null);
+  const [progress, setProgress] = useState(0);
+  const nextStoryRef = useRef<() => void>(() => {});
+  const rafRef = useRef<number | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
   const [postsPage, setPostsPage] = useState(0);
@@ -225,6 +229,29 @@ const StoriesPage: React.FC = () => {
     }
   }, [viewerUserId, currentStory, storyIndex]);
 
+  // Instagram jaisa auto-advance: image 5 second baad, video khatam hote hi agli story
+  useEffect(() => {
+    if (!viewerUserId || !currentStory) return;
+    setProgress(0);
+    const isVideo = currentStory.media_type === 'video'
+      || !!currentStory.image_url?.match(/\.(mp4|mov|webm|avi)(\?|$)/i);
+    if (isVideo) return; // video apne onEnded par khud aage badhti hai
+    const startedAt = Date.now();
+    let lastPaint = 0;
+    const tick = () => {
+      const elapsed = Date.now() - startedAt;
+      // Har frame pe state set karne se pura page 60fps re-render hota hai; ~20fps kaafi hai
+      if (elapsed - lastPaint >= 50) {
+        lastPaint = elapsed;
+        setProgress(getStoryProgress(elapsed, STORY_IMAGE_DURATION_MS));
+      }
+      if (elapsed >= STORY_IMAGE_DURATION_MS) { setProgress(1); nextStoryRef.current(); return; }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
+  }, [viewerUserId, storyIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Pause story audio when screen turns off or page loses focus
   useEffect(() => {
     const pauseStoryAudio = () => {
@@ -269,6 +296,9 @@ const StoriesPage: React.FC = () => {
   const prevStory = () => {
     if (storyIndex > 0) { setStoryIndex(i => i - 1); setShowReply(false); }
   };
+
+  // Keep the newest nextStory in a ref so the auto-advance timer never fires a stale one.
+  useEffect(() => { nextStoryRef.current = nextStory; });
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -507,7 +537,13 @@ const StoriesPage: React.FC = () => {
           <div className="absolute top-0 left-0 right-0 flex gap-1 p-3 z-10">
             {viewerGroup.stories.map((_, i) => (
               <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
-                <div className={`h-full bg-white transition-all ${i < storyIndex ? 'w-full' : i === storyIndex ? 'w-full' : 'w-0'}`} />
+                <div
+                  className="h-full bg-white"
+                  style={{
+                    width: i < storyIndex ? '100%' : i === storyIndex ? `${progress * 100}%` : '0%',
+                    transition: i === storyIndex ? 'width 80ms linear' : undefined,
+                  }}
+                />
               </div>
             ))}
           </div>
@@ -528,12 +564,20 @@ const StoriesPage: React.FC = () => {
                 <p className="text-white font-semibold text-sm truncate">{viewerGroup.profile.username}</p>
               </button>
               {currentStory.music_title ? (
-                <div className="flex items-center gap-1.5 text-white/95 text-xs bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full mt-0.5 w-fit">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trackId = currentStory.music_track_id || `original__${currentStory.id}`;
+                    closeViewer();
+                    navigate(`/song/${trackId}`);
+                  }}
+                  className="flex items-center gap-1.5 text-white/95 text-xs bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full mt-0.5 w-fit max-w-full active:scale-95 transition-transform"
+                >
                   <Music2 className="w-3 h-3 text-primary animate-pulse shrink-0" />
                   <span className="font-semibold truncate max-w-[170px]">
                     {currentStory.music_title} · {currentStory.music_artist}
                   </span>
-                </div>
+                </button>
               ) : (
                 <div className="flex items-center gap-2">
                   <p className="text-white/70 text-xs">{new Date(currentStory.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
@@ -583,12 +627,17 @@ const StoriesPage: React.FC = () => {
           {currentIsVideo ? (
             <video
               ref={videoViewerRef}
+              key={currentStory.id}
               src={currentStory.image_url}
               className="absolute inset-0 w-full h-full object-cover"
               autoPlay
-              loop
               playsInline
               muted={!!currentStory.music_preview_url && !!currentStory.mute_original}
+              onTimeUpdate={e => {
+                const v = e.currentTarget;
+                if (v.duration && Number.isFinite(v.duration)) setProgress(getStoryProgress(v.currentTime * 1000, v.duration * 1000));
+              }}
+              onEnded={() => nextStoryRef.current()}
             />
           ) : (
             <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
@@ -599,9 +648,9 @@ const StoriesPage: React.FC = () => {
           {currentStory.music_preview_url && (
             <audio
               ref={storyAudioRef}
+              key={currentStory.id}
               src={currentStory.music_preview_url}
               autoPlay
-              loop
               preload="auto"
               playsInline
               onLoadedMetadata={(e) => {
