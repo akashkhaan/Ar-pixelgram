@@ -867,6 +867,19 @@ const GroupChatPage: React.FC = () => {
 
           {activeGroupCall && !(groupCall.active && groupCall.groupId === currentGroup.id) ? (
             /* Call running in this group: replace call buttons with Join */
+            <div className="flex shrink-0 items-center gap-1.5">
+            {callParticipants.length > 0 && (
+              <div className="flex -space-x-2" title={callParticipants.map(p => p.profile?.username || p.profile?.full_name || 'Member').join(', ')}>
+                {callParticipants.slice(0, 3).map(p => (
+                  <Avatar key={p.user_id} profile={p.profile} size="w-6 h-6 ring-2 ring-background" />
+                ))}
+                {callParticipants.length > 3 && (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-semibold text-white ring-2 ring-background">
+                    +{callParticipants.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => void handleStartCall(activeGroupCall.kind)}
@@ -876,6 +889,7 @@ const GroupChatPage: React.FC = () => {
               {activeGroupCall.kind === 'video' ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
               {activeGroupCall.kind === 'video' ? 'Join video call' : 'Join call'}
             </button>
+            </div>
           ) : (
             <>
             {/* Call button 📞 */}
@@ -978,44 +992,6 @@ const GroupChatPage: React.FC = () => {
               className="h-7.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 shadow-sm shadow-emerald-500/30 shrink-0"
             >
               Return to Call
-            </Button>
-          </div>
-        ) : activeGroupCall ? (
-          <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-emerald-500/30 bg-emerald-950/40 px-3.5 py-2 backdrop-blur text-emerald-200 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="relative flex h-3 w-3 items-center justify-center shrink-0">
-                <span className="absolute h-3 w-3 rounded-full bg-emerald-400 animate-ping opacity-75" />
-                <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-emerald-100 truncate">
-                  Group {activeGroupCall.kind === 'video' ? 'video' : 'audio'} call active
-                </p>
-                <p className="text-[11px] text-emerald-300/80 truncate">
-                  {callParticipants.length > 0
-                    ? `${callParticipants.map(p => p.profile?.username || p.profile?.full_name || 'Member').join(', ')} · ${callParticipants.length} in call`
-                    : 'Tap Join to connect with group members'}
-                </p>
-              </div>
-              {callParticipants.length > 0 && (
-                <div className="flex shrink-0 -space-x-2">
-                  {callParticipants.slice(0, 4).map(p => (
-                    <Avatar key={p.user_id} profile={p.profile} size="w-6 h-6 ring-2 ring-emerald-950" />
-                  ))}
-                  {callParticipants.length > 4 && (
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-semibold text-white ring-2 ring-emerald-950">
-                      +{callParticipants.length - 4}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-            <Button
-              size="sm"
-              onClick={() => void handleStartCall(activeGroupCall.kind)}
-              className="h-7.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 shadow-sm shadow-emerald-500/30 shrink-0"
-            >
-              {activeGroupCall.kind === 'video' ? 'Join video call' : 'Join call'}
             </Button>
           </div>
         ) : null}
