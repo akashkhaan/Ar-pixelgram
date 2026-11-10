@@ -47,6 +47,12 @@ export interface ParsedShareInfo {
 export function parseSharedContent(content: string): ParsedShareInfo | null {
   if (!content || typeof content !== 'string') return null;
 
+  // Chat me bheja gaya photo/video/voice seedha media URL hota hai, share card nahi.
+  // Storage path me "/reels/" ya "/videos/" hone ki wajah se niche ke reel/video
+  // share patterns galti se match ho jaate the aur video ki jagah uska URL text
+  // dikhta tha. Direct media ko yahin se share parse nahi karna chahiye.
+  if (isDirectMediaUrl(content.trim()).isMedia) return null;
+
   // 1. Reel URL: /reels?r=UUID or /reels/UUID
   const reelMatch = content.match(/(?:https?:\/\/[^\s/]+)?\/reels(?:\?r=|\/)([a-zA-Z0-9_\-]+)/i);
   if (reelMatch) {
