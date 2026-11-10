@@ -9,8 +9,8 @@ const StoryTextLayer: React.FC<{ overlays?: StoryTextOverlay[] }> = ({ overlays 
       {overlays.map(o => (
         <div
           key={o.id}
-          className="absolute max-w-[90%]"
-          style={{ left: `${o.x}%`, top: `${o.y}%`, transform: 'translate(-50%, -50%)' }}
+          className="absolute"
+          style={{ left: `${o.x}%`, top: `${o.y}%`, transform: 'translate(-50%, -50%)', width: 'max-content', maxWidth: '90cqw', textAlign: 'center' }}
         >
           <span style={storyTextStyle(o)}>{o.text}</span>
         </div>

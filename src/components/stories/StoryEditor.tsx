@@ -112,8 +112,8 @@ const StoryEditor: React.FC<StoryEditorProps> = ({
             key={o.id}
             role="button"
             tabIndex={0}
-            className="absolute max-w-[90%] cursor-move touch-none"
-            style={{ left: `${o.x}%`, top: `${o.y}%`, transform: 'translate(-50%, -50%)' }}
+            className="absolute cursor-move touch-none"
+            style={{ left: `${o.x}%`, top: `${o.y}%`, transform: 'translate(-50%, -50%)', width: 'max-content', maxWidth: '90cqw', textAlign: 'center' }}
             onPointerDown={e => onPointerDown(e, o.id)}
             onPointerMove={onPointerMove}
             onPointerUp={() => onPointerUp(o)}
