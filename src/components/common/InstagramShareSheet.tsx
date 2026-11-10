@@ -25,6 +25,9 @@ interface InstagramShareSheetProps {
   thumbnailUrl?: string;
   /** Reel ki video file — "WhatsApp Status" button ke liye */
   videoUrl?: string;
+  /** Reel banane wale ka username/DP — status video par chhapne ke liye */
+  creatorUsername?: string | null;
+  creatorAvatarUrl?: string | null;
 }
 
 export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
@@ -35,6 +38,8 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   mediaType = 'post',
   thumbnailUrl,
   videoUrl,
+  creatorUsername,
+  creatorAvatarUrl,
 }) => {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
@@ -192,7 +197,10 @@ ${url}`;
     setStatusBusy(true);
     const toastId = toast.loading('Reel WhatsApp Status ke liye taiyaar ho rahi hai…');
     try {
-      const result = await shareReelToWhatsAppStatus(videoUrl, externalUrl);
+      const result = await shareReelToWhatsAppStatus(videoUrl, externalUrl, {
+        username: creatorUsername,
+        avatarUrl: creatorAvatarUrl,
+      });
       if (result === 'opened') {
         toast.success('WhatsApp khul gaya — Status lagayein ✨', { id: toastId });
         onClose();

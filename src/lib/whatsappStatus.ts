@@ -5,7 +5,16 @@
 type WaBridge = {
   canShareToWhatsAppStatus?: () => boolean;
   shareVideoToWhatsAppStatus?: (videoUrl: string, reelUrl: string) => void;
+  shareVideoToWhatsAppStatusWithBadge?: (
+    videoUrl: string,
+    reelUrl: string,
+    username: string,
+    avatarUrl: string
+  ) => void;
 };
+
+/** Reel banane wale ki pehchan — status video par DP + @username chhapne ke liye */
+export type StatusCreator = { username?: string | null; avatarUrl?: string | null };
 
 const getBridge = (): WaBridge | undefined =>
   (window as unknown as { AndroidNotification?: WaBridge }).AndroidNotification;
@@ -32,6 +41,8 @@ function waitForNativeResult(timeoutMs: number): Promise<WaStatusResult> {
     }, timeoutMs);
 
     function onResult(e: CustomEvent<string>) {
+      // "processing" = video par naam/logo chhap raha hai, abhi intezaar karo
+      if (e.detail === 'processing') return;
       window.clearTimeout(timer);
       window.removeEventListener('pixelgram-wa-status', onResult as EventListener);
       const d = e.detail;
@@ -48,9 +59,22 @@ function waitForNativeResult(timeoutMs: number): Promise<WaStatusResult> {
 
 export async function shareReelToWhatsAppStatus(
   videoUrl: string,
-  link: string
+  link: string,
+  creator?: StatusCreator
 ): Promise<WaStatusResult> {
   const bridge = getBridge();
+
+  // 1a. Naya APK: video par Instagram jaisa DP + @username + "View on Pixelgram"
+  if (bridge?.shareVideoToWhatsAppStatusWithBadge) {
+    const result = waitForNativeResult(4 * 60_000);
+    bridge.shareVideoToWhatsAppStatusWithBadge(
+      videoUrl,
+      link,
+      creator?.username || '',
+      creator?.avatarUrl || ''
+    );
+    return result;
+  }
 
   // 1. Phone app (APK): native intent with attribution and automatic return
   if (bridge?.shareVideoToWhatsAppStatus) {

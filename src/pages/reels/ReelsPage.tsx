@@ -571,6 +571,8 @@ const ReelCard: React.FC<{
         mediaType="reel"
         thumbnailUrl={reel.thumbnail_url || undefined}
         videoUrl={reel.video_url || undefined}
+        creatorUsername={profile?.username}
+        creatorAvatarUrl={profile?.avatar_url}
       />
     </div>
   );

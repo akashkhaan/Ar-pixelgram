@@ -541,6 +541,18 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void shareVideoToWhatsAppStatus(final String videoUrl, final String caption) {
+            shareReelToStatus(videoUrl, false, null, null);
+        }
+
+        /** Instagram jaisa: video par creator ki DP + @username + "View on Pixelgram" chhap ke status. */
+        @JavascriptInterface
+        public void shareVideoToWhatsAppStatusWithBadge(final String videoUrl, final String caption,
+                                                       final String username, final String avatarUrl) {
+            shareReelToStatus(videoUrl, true, username, avatarUrl);
+        }
+
+        private void shareReelToStatus(final String videoUrl, final boolean withBadge,
+                                       final String username, final String avatarUrl) {
             new Thread(() -> {
                 java.io.File out = null;
                 try {
@@ -579,6 +591,23 @@ public class MainActivity extends BridgeActivity {
                         throw new java.io.IOException("File download incomplete: " + out.length());
                     }
                     out.setReadable(true, false);
+                    final java.io.File original = out;
+                    if (withBadge) {
+                        notifyWaShare("processing");
+                        WaStatusWatermark.apply(context, original, username, avatarUrl, result -> {
+                            java.io.File toShare = result != null ? result : original;
+                            if (result != null) original.delete();
+                            try {
+                                Uri u = androidx.core.content.FileProvider.getUriForFile(
+                                    context, context.getPackageName() + ".fileprovider", toShare);
+                                openWhatsAppStatus(u);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                notifyWaShare("error");
+                            }
+                        });
+                        return;
+                    }
                     final Uri uri = androidx.core.content.FileProvider.getUriForFile(
                         context, context.getPackageName() + ".fileprovider", out);
                     runOnUiThread(() -> openWhatsAppStatus(uri));
