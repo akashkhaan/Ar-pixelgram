@@ -1,4 +1,5 @@
 import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
+import PhotoViewer from '@/components/common/PhotoViewer';
 import { ChatMediaRenderer, isMediaMessage } from '@/components/chat/ChatMediaRenderer';
 import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { CallMessageCard, isCallEventMessage } from '@/components/chat/CallMessageCard';
@@ -191,6 +192,8 @@ const GroupChatPage: React.FC = () => {
   const [content, setContent] = useState('');
   const [replyTo, setReplyTo] = useState<GroupMessage | null>(null);
   const [selectedMsgTimeId, setSelectedMsgTimeId] = useState<string | null>(null);
+  // Group chat photo tap par app ke andar full screen viewer khule (browser tab nahi)
+  const [photoViewerSrc, setPhotoViewerSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -1052,6 +1055,13 @@ const GroupChatPage: React.FC = () => {
                                 content={message.content}
                                 isMe={mine}
                                 activeBubbleClass={activeTheme.bubble}
+                                onOpenMedia={(url, type) => {
+                                  if (type === 'photo') {
+                                    setPhotoViewerSrc(url);
+                                  } else {
+                                    window.open(url, '_blank');
+                                  }
+                                }}
                               />
                             </div>
                           );
@@ -1344,6 +1354,12 @@ const GroupChatPage: React.FC = () => {
           currentWallpaper={groupWallpaper}
           onSelectWallpaper={handleSelectGroupWallpaper}
           title="Group Wallpaper (ग्रुप बैकग्राउंड फोटो)"
+        />
+        <PhotoViewer
+          open={!!photoViewerSrc}
+          src={photoViewerSrc || ''}
+          alt="Chat photo"
+          onClose={() => setPhotoViewerSrc(null)}
         />
       </MobileLayout>
   );

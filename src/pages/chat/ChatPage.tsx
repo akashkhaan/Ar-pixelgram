@@ -1,4 +1,5 @@
 import ChatWallpaperModal from '@/components/chat/ChatWallpaperModal';
+import PhotoViewer from '@/components/common/PhotoViewer';
 import StoryRing from '@/components/common/StoryRing';
 import { ChatMediaRenderer, isMediaMessage } from '@/components/chat/ChatMediaRenderer';
 import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
@@ -100,6 +101,8 @@ const ChatPage: React.FC = () => {
 
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [selectedMsgTimeId, setSelectedMsgTimeId] = useState<string | null>(null);
+  // Chat photo tap par app ke andar full screen viewer khule (browser tab nahi)
+  const [photoViewerSrc, setPhotoViewerSrc] = useState<string | null>(null);
 
   const renderMessageText = (text: string, isMe: boolean) => {
     const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
@@ -948,6 +951,13 @@ const ChatPage: React.FC = () => {
                               content={msg.content}
                               isMe={isMe}
                               activeBubbleClass={activeTheme.bubble}
+                              onOpenMedia={(url, type) => {
+                                if (type === 'photo') {
+                                  setPhotoViewerSrc(url);
+                                } else {
+                                  window.open(url, '_blank');
+                                }
+                              }}
                             />
                           ) : (
                             <div
@@ -1183,6 +1193,12 @@ const ChatPage: React.FC = () => {
           currentWallpaper={wallpaper}
           onSelectWallpaper={handleSelectWallpaper}
           title="Chat Wallpaper (बैकग्राउंड फोटो)"
+        />
+        <PhotoViewer
+          open={!!photoViewerSrc}
+          src={photoViewerSrc || ''}
+          alt="Chat photo"
+          onClose={() => setPhotoViewerSrc(null)}
         />
       </MobileLayout>
   );
