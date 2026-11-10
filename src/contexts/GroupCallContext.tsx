@@ -12,6 +12,7 @@ import {
 } from '@/services/groups';
 import { createNotification, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
+import { CALL_AUDIO_CONSTRAINTS } from '@/lib/callMedia';
 import type { GroupMember } from '@/types/groups';
 import { toast } from 'sonner';
 
@@ -428,7 +429,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+        audio: CALL_AUDIO_CONSTRAINTS,
         video: requestedKind === 'video' ? { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } : false,
       });
       localStreamRef.current = stream;
@@ -439,7 +440,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         console.warn('Camera failed, falling back to audio only:', err);
         toast.info('Camera unavailable, starting audio-only call');
         const audioStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
+          audio: CALL_AUDIO_CONSTRAINTS,
           video: false,
         });
         localStreamRef.current = audioStream;

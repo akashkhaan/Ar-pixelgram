@@ -36,6 +36,8 @@ public class MainActivity extends BridgeActivity {
     public static final String CHANNEL_ALERTS = "ar_pixelgram_alerts_v2";
     public static final String CHANNEL_CALLS = "ar_pixelgram_calls_v2";
     public static final String CHANNEL_UPLOADS = "ar_pixelgram_uploads_v2";
+    /** Single notification id for a call, shared with ArFirebaseMessagingService. */
+    public static final int CALL_NOTIF_ID = 4321;
 
     private static final AtomicInteger notifIdSeq = new AtomicInteger(100);
     private PowerManager.WakeLock wakeLock;
@@ -184,6 +186,9 @@ public class MainActivity extends BridgeActivity {
 
         // Native Notification Bridge exposed directly to window.AndroidNotification
         webView.addJavascriptInterface(new NativeNotificationBridge(this), "AndroidNotification");
+        // Call audio routing (window.AndroidAudio) — WebRTC in a WebView only
+        // cancels echo properly when the phone is in the voice-call audio mode.
+        webView.addJavascriptInterface(new NativeAudioBridge(this), "AndroidAudio");
 
         webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
             // Android WebView bina poster wali video par apna grey "play"
@@ -512,8 +517,9 @@ public class MainActivity extends BridgeActivity {
                     builder.setDefaults(NotificationCompat.DEFAULT_ALL);
                 }
 
-                int id = 7777;
-                nm.notify(tag, id, builder.build());
+                // Same id Firebase uses, so the ring notification and this one
+                // replace each other instead of showing twice for one call.
+                nm.notify(tag, CALL_NOTIF_ID, builder.build());
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -729,6 +735,54 @@ public class MainActivity extends BridgeActivity {
     }
 
     
+
+    /**
+     * Routes call audio the way a native messenger does: puts the audio manager
+     * in MODE_IN_COMMUNICATION while a call is live (enables the platform echo
+     * canceller / noise suppressor) and switches between the earpiece and the
+     * loudspeaker. Exposed to the web layer as window.AndroidAudio.
+     */
+    public class NativeAudioBridge {
+        private final Context context;
+
+        public NativeAudioBridge(Context context) {
+            this.context = context;
+        }
+
+        private android.media.AudioManager audioManager() {
+            return (android.media.AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        }
+
+        @JavascriptInterface
+        public void setCallAudioActive(boolean active) {
+            try {
+                android.media.AudioManager am = audioManager();
+                if (am == null) return;
+                if (active) {
+                    am.setMode(android.media.AudioManager.MODE_IN_COMMUNICATION);
+                } else {
+                    am.setSpeakerphoneOn(false);
+                    am.setMode(android.media.AudioManager.MODE_NORMAL);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        @JavascriptInterface
+        public void setSpeakerphoneOn(boolean on) {
+            try {
+                android.media.AudioManager am = audioManager();
+                if (am == null) return;
+                if (am.getMode() != android.media.AudioManager.MODE_IN_COMMUNICATION) {
+                    am.setMode(android.media.AudioManager.MODE_IN_COMMUNICATION);
+                }
+                am.setSpeakerphoneOn(on);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     private void ensureRuntimePermissions() {
         List<String> needed = new ArrayList<>();

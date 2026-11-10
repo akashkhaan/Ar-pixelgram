@@ -82,10 +82,10 @@ export const CallOverlay: React.FC = () => {
       el.play().catch(() => {});
     }
 
-    // Normal ear-call vs Loudspeaker:
-    // When speaker is ON: 1.0 (loudspeaker)
-    // When speaker is OFF: 0.25 (earpiece receiver)
-    el.volume = call.speakerOn ? 1.0 : 0.25;
+    // Normal ear-call vs Loudspeaker: routing is done natively (AndroidAudio
+    // audio mode), so the element always plays at full volume — scaling it to
+    // 0.25 for the earpiece made the other person barely audible.
+    el.volume = 1;
 
     const anyEl = el as HTMLMediaElement & { setSinkId?: (id: string) => Promise<void> };
     if (typeof anyEl.setSinkId === 'function') {
@@ -96,6 +96,20 @@ export const CallOverlay: React.FC = () => {
     const android = (window as unknown as { AndroidAudio?: { setSpeakerphoneOn?: (on: boolean) => void } }).AndroidAudio;
     android?.setSpeakerphoneOn?.(call.speakerOn);
   }, [call.speakerOn, call.remoteStream]);
+
+  // The remote audio track can arrive / unmute a moment after the call state
+  // flips to active; nudge playback so the voice is never silent at the start.
+  useEffect(() => {
+    if (call.status !== 'connecting' && call.status !== 'active') return;
+    const el = remoteAudioRef.current;
+    if (!el) return;
+    if (call.remoteStream && el.srcObject !== call.remoteStream) {
+      el.srcObject = call.remoteStream;
+    }
+    el.play().catch(() => {});
+    const retry = window.setTimeout(() => { el.play().catch(() => {}); }, 700);
+    return () => window.clearTimeout(retry);
+  }, [call.status, call.remoteStream]);
 
   // Call timer
   useEffect(() => {

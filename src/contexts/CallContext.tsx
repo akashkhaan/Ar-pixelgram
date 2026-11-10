@@ -1,10 +1,12 @@
 // WebRTC 1:1 audio/video calling with Supabase Realtime signaling.
 // No DB migration — signaling flows over a per-user broadcast channel.
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, createNotification, sendMessage, saveCallLog, formatCallDuration, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
+import { getCallMedia, attachCallStream, applyCallAudioRoute } from '@/lib/callMedia';
 import type { Profile } from '@/types/types';
 import { getHelloTuneFromProfile, isHelloTuneActive } from '@/services/helloTunes';
 
@@ -58,6 +60,14 @@ const ICE_SERVERS: RTCIceServer[] = [
 
 const channelName = (uid: string) => `calls:${uid}`;
 
+const newId = () =>
+  (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+    ? crypto.randomUUID()
+    : `call-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+/** Channel we broadcast signaling on, kept alive so sends are never dropped. */
+type SignalChannel = { ch: RealtimeChannel; ready: Promise<boolean>; closeTimer: number | null };
+
 export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, profile } = useAuth();
   const [state, setState] = useState<CallState>({
@@ -85,6 +95,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const inviteRetryRef = useRef<number | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const autoAcceptRef = useRef<boolean>(false);
+  const signalChannelsRef = useRef<Map<string, SignalChannel>>(new Map());
   const durationRef = useRef<number>(0);
   const startedAtRef = useRef<number | null>(null);
   const acceptCallRef = useRef<(() => Promise<void>) | null>(null);
@@ -92,6 +103,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const endCallRef = useRef<(() => void) | null>(null);
   const stateRef = useRef<CallState | null>(null);
   const missedTimerRef = useRef<number | null>(null);
+  // Unique id per call attempt — carried on the push payload so the phone can
+  // tell a fresh call apart from one that was already cancelled.
+  const callIdRef = useRef<string>(newId());
+  // The caller we are currently ringing for (guards duplicate invites).
+  const ringingFromRef = useRef<string | null>(null);
+  const cameraOffRef = useRef(false);
 
   const stopInviteRetry = useCallback(() => {
     if (inviteRetryRef.current) { clearInterval(inviteRetryRef.current); inviteRetryRef.current = null; }
@@ -100,6 +117,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Keep a ref of the latest state so timers/handlers can read it.
   stateRef.current = state;
+  cameraOffRef.current = cameraOff;
 
   // Sends a "missed call" alert (lock-screen push + in-app notification) to a
   // user. Used when a call is declined, unanswered, or the peer is busy.
@@ -139,14 +157,57 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  // Send helper — pushes signaling event to peer's channel
+  // Send helper — pushes signaling event to peer's channel.
+  //
+  // Supabase silently drops a broadcast that is sent before the channel has
+  // finished joining, and the old code created a throw-away channel for every
+  // single signal. That is why invites were often lost (call never rang) and
+  // why a "call-end" could be lost too (the other phone kept ringing after the
+  // caller hung up). Channels are now cached, we wait for SUBSCRIBED before
+  // sending, and the channel is closed only after a short idle period.
+  const closeSignalChannel = useCallback((peerId: string) => {
+    const entry = signalChannelsRef.current.get(peerId);
+    if (!entry) return;
+    signalChannelsRef.current.delete(peerId);
+    if (entry.closeTimer) window.clearTimeout(entry.closeTimer);
+    try { supabase.removeChannel(entry.ch); } catch { /* noop */ }
+  }, []);
+
+  const getSignalChannel = useCallback((peerId: string): SignalChannel => {
+    const cached = signalChannelsRef.current.get(peerId);
+    if (cached) return cached;
+    const ch = supabase.channel(channelName(peerId));
+    const ready = new Promise<boolean>(resolve => {
+      let settled = false;
+      const finish = (ok: boolean) => { if (settled) return; settled = true; resolve(ok); };
+      ch.subscribe(status => {
+        if (status === 'SUBSCRIBED') finish(true);
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') finish(false);
+      });
+      window.setTimeout(() => finish(false), 6000);
+    });
+    const entry: SignalChannel = { ch, ready, closeTimer: null };
+    signalChannelsRef.current.set(peerId, entry);
+    return entry;
+  }, []);
+
   const sendSignal = useCallback(async (peerId: string, event: string, payload: unknown) => {
     if (!user) return;
-    const ch = supabase.channel(channelName(peerId));
-    await ch.subscribe();
-    await ch.send({ type: 'broadcast', event, payload: { from: user.id, ...(payload as object) } });
-    setTimeout(() => { ch.unsubscribe(); }, 500);
-  }, [user]);
+    const entry = getSignalChannel(peerId);
+    const joined = await entry.ready;
+    if (!joined) {
+      // Drop the half-open channel so the next attempt starts clean.
+      closeSignalChannel(peerId);
+      return;
+    }
+    try {
+      await entry.ch.send({ type: 'broadcast', event, payload: { from: user.id, ...(payload as object) } });
+    } catch (e) {
+      console.warn('signal send failed', event, e);
+    }
+    if (entry.closeTimer) window.clearTimeout(entry.closeTimer);
+    entry.closeTimer = window.setTimeout(() => closeSignalChannel(peerId), 20000);
+  }, [user, getSignalChannel, closeSignalChannel]);
 
   const cleanup = useCallback(() => {
     dismissPhoneNotification("call_ongoing");
@@ -169,6 +230,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setScreenSharing(false);
     setSpeakerOn(true);
     setFacingFront(true);
+    ringingFromRef.current = null;
     if (ringAudioRef.current) { ringAudioRef.current.pause(); ringAudioRef.current = null; }
   }, [localStream, stopInviteRetry]);
 
@@ -197,23 +259,29 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rtcpMuxPolicy: 'require',
       iceCandidatePoolSize: 4,
     });
-    // Ensure a single remote MediaStream we control (fixes cases where
-    // e.streams[0] is missing → no remote audio on the caller side).
+    // A single remote MediaStream we own, so audio is always played even when
+    // the remote peer never sends e.streams[0].
     const remote = new MediaStream();
+    remoteStreamRef.current = remote;
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSignal(peerId, 'call-ice', { candidate: e.candidate.toJSON() });
     };
     pc.ontrack = (e) => {
-      // Always attach the incoming track to our own remote stream so audio
-      // and video are guaranteed to play on both peers.
-      try { remote.addTrack(e.track); } catch { /* dupe */ }
+      // Add the track to that one stream and publish it once. Re-creating the
+      // stream on every track started (and re-binding srcObject) used to cut
+      // and click the audio mid-call.
+      if (!remote.getTracks().some(t => t.id === e.track.id)) {
+        try { remote.addTrack(e.track); } catch { /* dupe */ }
+      }
       setRemoteStream(remote);
-      remoteStreamRef.current = remote;
-      e.track.onunmute = () => setRemoteStream(new MediaStream(remote.getTracks()));
+      // Answering side may start muted for a tick — start playback again.
+      e.track.onunmute = () => setRemoteStream(prev => prev ?? remote);
     };
+    let disconnectTimer: number | null = null;
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
       if (s === 'connected') {
+        if (disconnectTimer) { window.clearTimeout(disconnectTimer); disconnectTimer = null; }
         setState(prev => {
           if (prev.startedAt) return prev;
           const now = Date.now();
@@ -223,7 +291,21 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         stopInviteRetry();
         if (ringAudioRef.current) { ringAudioRef.current.pause(); ringAudioRef.current = null; }
       }
-      if (s === 'failed' || s === 'disconnected' || s === 'closed') {
+      if (s === 'disconnected') {
+        // Network blip only — a few seconds of grace keeps the call alive
+        // instead of tearing the audio down immediately.
+        if (!disconnectTimer) {
+          disconnectTimer = window.setTimeout(() => {
+            disconnectTimer = null;
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+              setState(prev => prev.status === 'idle' ? prev : { ...prev, status: 'ended', endedReason: 'Disconnected' });
+            }
+          }, 12000);
+        }
+        return;
+      }
+      if (s === 'failed' || s === 'closed') {
+        if (disconnectTimer) { window.clearTimeout(disconnectTimer); disconnectTimer = null; }
         setState(prev => prev.status === 'idle' ? prev : { ...prev, status: 'ended', endedReason: 'Disconnected' });
       }
     };
@@ -231,10 +313,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [sendSignal, stopInviteRetry]);
 
   const getMedia = useCallback(async (kind: CallKind) => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: kind === 'video' ? { facingMode: 'user' } : false,
-    });
+    // echoCancellation / noiseSuppression / autoGainControl come from
+    // callMedia so the far end hears clean speech instead of speaker bleed.
+    const stream = await getCallMedia(kind);
     setLocalStream(stream);
     const vt = stream.getVideoTracks()[0];
     if (vt) camVideoTrackRef.current = vt;
@@ -249,24 +330,22 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const peerProfile = await getProfile(peerId);
       const peerTune = getHelloTuneFromProfile(peerProfile);
       const hasActiveHelloTune = isHelloTuneActive(peerTune);
+      callIdRef.current = newId();
       setState({ status: 'ringing-out', kind, peerId, peerProfile, startedAt: null });
       const stream = await getMedia(kind);
       const pc = buildPc(peerId); pcRef.current = pc;
-      stream.getTracks().forEach(t => {
-        const sender = pc.addTrack(t, stream);
-        if (t.kind === 'video') videoSenderRef.current = sender;
-      });
+      videoSenderRef.current = attachCallStream(pc, stream);
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       if (!hasActiveHelloTune) playRingtone();
       pendingOfferRef.current = offer;
-      await sendSignal(peerId, 'call-invite', { kind, offer });
+      await sendSignal(peerId, 'call-invite', { kind, offer, callId: callIdRef.current });
       // Retry every 2s until answer/reject/timeout — lets the receiver pick
       // up the invite when they open the app after tapping the push.
       if (inviteRetryRef.current) clearInterval(inviteRetryRef.current);
       inviteRetryRef.current = window.setInterval(() => {
         if (pendingOfferRef.current) {
-          sendSignal(peerId, 'call-invite', { kind, offer: pendingOfferRef.current }).catch(() => {});
+          sendSignal(peerId, 'call-invite', { kind, offer: pendingOfferRef.current, callId: callIdRef.current }).catch(() => {});
         }
       }, 2000);
       // No answer after 45s → end the call and alert the caller locally.
@@ -288,7 +367,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch { /* noop */ }
         }
         sendMessage(peerId, `📵 Missed ${label}`).catch(() => {});
-        void sendPushTo(peerId, 'Call cancelled', '', `/chat/${user.id}`, `call-${user.id}`, null, { type: 'call_cancelled' });
+        void sendPushTo(peerId, 'Call cancelled', '', `/chat/${user.id}`, `call-${user.id}`, null, { type: 'call_cancelled', callId: callIdRef.current });
         cleanup();
         setState(prev => ({ ...prev, status: 'ended', endedReason: 'No answer' }));
         setTimeout(() => setState({ status: 'idle', kind: 'audio', peerId: null, peerProfile: null, startedAt: null }), 1500);
@@ -314,6 +393,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
               callerAvatar: myAvatar,
               url: `/chat/${user.id}`,
               icon: myAvatar,
+              callId: callIdRef.current,
+              ts: Date.now(),
             },
           },
         });
@@ -331,10 +412,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const stream = await getMedia(state.kind);
       const pc = buildPc(state.peerId); pcRef.current = pc;
-      stream.getTracks().forEach(t => {
-        const sender = pc.addTrack(t, stream);
-        if (t.kind === 'video') videoSenderRef.current = sender;
-      });
+      videoSenderRef.current = attachCallStream(pc, stream);
       await pc.setRemoteDescription(new RTCSessionDescription(incomingOfferRef.current));
       // flush queued ICE
       for (const c of pendingIceRef.current) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* noop */ } }
@@ -343,6 +421,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await pc.setLocalDescription(answer);
       await sendSignal(state.peerId, 'call-answer', { answer });
       if (ringAudioRef.current) { ringAudioRef.current.pause(); ringAudioRef.current = null; }
+      // Drop the ringing notification on this phone right away so only the
+      // single ongoing-call notification remains once connected.
+      dismissPhoneNotification('call_ongoing');
+      ringingFromRef.current = null;
       setState(prev => ({ ...prev, status: 'connecting' }));
     } catch (err) {
       console.error('acceptCall failed', err);
@@ -404,6 +486,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const endCall = useCallback(() => {
     if (missedTimerRef.current) { clearTimeout(missedTimerRef.current); missedTimerRef.current = null; }
+    // Stop the invite retry first — otherwise a pending retry could re-ring the
+    // other phone right after we told it the call is over.
+    stopInviteRetry();
     // Post a "call log" message to chat with duration so both sides see it.
     const startedAt = startedAtRef.current;
     const kind = state.kind;
@@ -411,7 +496,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const currentStatus = state.status;
     const durSec = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
     durationRef.current = durSec;
-    if (state.peerId) sendSignal(state.peerId, 'call-end', { reason: 'ended', durationSec: durSec });
+    ringingFromRef.current = null;
+    if (state.peerId) {
+      sendSignal(state.peerId, 'call-end', { reason: 'ended', durationSec: durSec, callId: callIdRef.current });
+    }
     if (peerId && user) {
       if (startedAt && durSec > 0) {
         const mm = Math.floor(durSec / 60).toString().padStart(2, '0');
@@ -438,7 +526,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const label = kind === 'video' ? 'video call' : 'audio call';
         sendMessage(peerId, `📵 Missed ${label}`).catch(() => {});
         // Caller hung up while ringing: remove the ringing notification on the other phone.
-        void sendPushTo(peerId, 'Call cancelled', '', `/chat/${user.id}`, `call-${user.id}`, null, { type: 'call_cancelled' });
+        void sendPushTo(peerId, 'Call cancelled', '', `/chat/${user.id}`, `call-${user.id}`, null, { type: 'call_cancelled', callId: callIdRef.current });
         void saveCallLog({
           callerId: user.id,
           receiverId: peerId,
@@ -452,7 +540,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     cleanup();
     setState(prev => ({ ...prev, status: 'ended' }));
     setTimeout(() => setState({ status: 'idle', kind: 'audio', peerId: null, peerProfile: null, startedAt: null }), 1500);
-  }, [state.peerId, state.kind, state.status, sendSignal, cleanup, user]);
+  }, [state.peerId, state.kind, state.status, sendSignal, cleanup, user, stopInviteRetry]);
   endCallRef.current = endCall;
 
   const toggleMute = useCallback(() => {
@@ -634,82 +722,151 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [recording, localStream]);
 
+  // Latest callbacks/profile for the long-lived signaling listener, so it can
+  // stay subscribed without re-running on every render.
+  const cleanupRef = useRef(cleanup); cleanupRef.current = cleanup;
+  const stopInviteRetryRef = useRef(stopInviteRetry); stopInviteRetryRef.current = stopInviteRetry;
+  const sendMissedAlertRef = useRef(sendMissedAlert); sendMissedAlertRef.current = sendMissedAlert;
+  const playRingtoneRef = useRef(playRingtone); playRingtoneRef.current = playRingtone;
+  const profileRef = useRef(profile); profileRef.current = profile;
+
   // ---- Global signaling listener
+  //
+  // Subscribed ONCE per signed-in user. It used to depend on state.status /
+  // state.peerId, so every ringing transition tore the channel down and built
+  // it again — invites and "call-end" events that arrived inside that window
+  // were lost (call never rang, or the other phone kept ringing after the
+  // caller hung up). Handlers now read live values from refs instead.
   useEffect(() => {
-    if (!user) return;
-    const ch = supabase.channel(channelName(user.id));
-    ch.on('broadcast', { event: 'call-invite' }, async ({ payload }) => {
-      const { from, kind, offer } = payload as { from: string; kind: CallKind; offer: RTCSessionDescriptionInit };
-      // Busy — auto-reject
-      if (state.status !== 'idle' && state.status !== 'ended') {
-        // Ignore duplicate invites from the same caller (we're already ringing).
-        if (state.peerId === from) return;
-        const busyCh = supabase.channel(channelName(from));
-        await busyCh.subscribe();
-        await busyCh.send({ type: 'broadcast', event: 'call-end', payload: { from: user.id, reason: 'busy' } });
-        setTimeout(() => busyCh.unsubscribe(), 300);
-        sendMissedAlert(from, kind, profile?.username || (user.user_metadata?.username as string | undefined), 'busy');
-        return;
-      }
-      incomingOfferRef.current = offer;
-      const peerProfile = await getProfile(from).catch(() => null);
-      setState({ status: 'ringing-in', kind, peerId: from, peerProfile, startedAt: null });
-      playRingtone();
-      // System notification (phone/browser)
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    if (!user?.id) return;
+    const myId = user.id;
+    let disposed = false;
+    let retryTimer: number | null = null;
+    let channel: RealtimeChannel | null = null;
+
+    const attach = () => {
+      const ch = supabase.channel(channelName(myId));
+      channel = ch;
+
+      ch.on('broadcast', { event: 'call-invite' }, async ({ payload }) => {
+        const { from, kind, offer, callId } = payload as {
+          from: string;
+          kind: CallKind;
+          offer: RTCSessionDescriptionInit;
+          callId?: string;
+        };
+        if (!from || from === myId) return;
+        const cur = stateRef.current;
+        const busy = !!cur && cur.status !== 'idle' && cur.status !== 'ended';
+        // Same caller ringing again (invite retry every 2s) — already handled.
+        if (ringingFromRef.current === from) return;
+        if (busy) {
+          if (cur?.peerId === from) return;
+          await sendSignal(from, 'call-end', { reason: 'busy' });
+          void sendMissedAlertRef.current?.(
+            from, kind, profileRef.current?.username, 'busy',
+          );
+          return;
+        }
+        ringingFromRef.current = from;
+        incomingOfferRef.current = offer;
+        callIdRef.current = callId || newId();
+        // Ring immediately with whatever profile we already have, then fill the
+        // profile in so the ringtone never waits on a network round-trip.
+        setState(prev => ({
+          status: 'ringing-in',
+          kind,
+          peerId: from,
+          peerProfile: prev.peerId === from ? prev.peerProfile : null,
+          startedAt: null,
+        }));
+        playRingtoneRef.current();
+        void getProfile(from)
+          .then(peerProfile => {
+            if (disposed || ringingFromRef.current !== from) return;
+            setState(prev => (prev.peerId === from ? { ...prev, peerProfile } : prev));
+          })
+          .catch(() => { /* keep the call ringing without a profile */ });
+        // Auto-accept if the user tapped "Answer" on the phone notification.
+        if (autoAcceptRef.current) {
+          autoAcceptRef.current = false;
+          window.setTimeout(() => { acceptCallRef.current?.(); }, 250);
+        }
+      });
+
+      ch.on('broadcast', { event: 'call-answer' }, async ({ payload }) => {
+        const { answer } = payload as { answer: RTCSessionDescriptionInit };
+        const pc = pcRef.current;
+        if (!pc) return;
         try {
-          new Notification(`Incoming ${kind} call`, {
-            body: peerProfile?.username ? `From ${peerProfile.username}` : 'Someone is calling you',
-            icon: peerProfile?.avatar_url || '/images/logo/logo-icon.svg',
-            tag: `call-${from}`,
-          });
-        } catch { /* noop */ }
-      }
-      // Auto-accept if user tapped the push "Accept" action
-      if (autoAcceptRef.current) {
-        autoAcceptRef.current = false;
-        setTimeout(() => { acceptCallRef.current?.(); }, 200);
-      }
-    });
-    ch.on('broadcast', { event: 'call-answer' }, async ({ payload }) => {
-      const { answer } = payload as { answer: RTCSessionDescriptionInit };
-      if (!pcRef.current) return;
-      try {
-        await pcRef.current.setRemoteDescription(new RTCSessionDescription(answer));
-        for (const c of pendingIceRef.current) { try { await pcRef.current.addIceCandidate(new RTCIceCandidate(c)); } catch { /* noop */ } }
-        pendingIceRef.current = [];
-        setState(prev => ({ ...prev, status: 'connecting' }));
-      } catch (err) { console.error('answer apply failed', err); }
-    });
-    ch.on('broadcast', { event: 'call-ice' }, async ({ payload }) => {
-      const { candidate } = payload as { candidate: RTCIceCandidateInit };
-      if (pcRef.current?.remoteDescription) {
-        try { await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate)); } catch { /* noop */ }
-      } else {
-        pendingIceRef.current.push(candidate);
-      }
-    });
-    ch.on('broadcast', { event: 'camera-toggle' }, ({ payload }) => {
-      const { cameraOff: remoteCamOff } = (payload || {}) as { cameraOff?: boolean };
-      if (remoteCamOff === false) {
-        setState(prev => ({ ...prev, kind: 'video' }));
-      } else if (remoteCamOff === true) {
-        if (cameraOff) {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+          for (const c of pendingIceRef.current) { try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { /* noop */ } }
+          pendingIceRef.current = [];
+          setState(prev => ({ ...prev, status: 'connecting' }));
+        } catch (err) { console.error('answer apply failed', err); }
+      });
+
+      ch.on('broadcast', { event: 'call-ice' }, async ({ payload }) => {
+        const { candidate } = payload as { candidate: RTCIceCandidateInit };
+        const pc = pcRef.current;
+        if (pc?.remoteDescription) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch { /* noop */ }
+        } else {
+          pendingIceRef.current.push(candidate);
+        }
+      });
+
+      ch.on('broadcast', { event: 'camera-toggle' }, ({ payload }) => {
+        const { cameraOff: remoteCamOff } = (payload || {}) as { cameraOff?: boolean };
+        if (remoteCamOff === false) {
+          setState(prev => ({ ...prev, kind: 'video' }));
+        } else if (remoteCamOff === true && cameraOffRef.current) {
           setState(prev => ({ ...prev, kind: 'audio' }));
         }
-      }
+      });
+
+      ch.on('broadcast', { event: 'call-end' }, ({ payload }) => {
+        const { reason } = payload as { reason?: string };
+        stopInviteRetryRef.current();
+        ringingFromRef.current = null;
+        cleanupRef.current();
+        setState(prev => (prev.status === 'idle' ? prev : { ...prev, status: 'ended', endedReason: reason || 'Call ended' }));
+        window.setTimeout(() => setState({ status: 'idle', kind: 'audio', peerId: null, peerProfile: null, startedAt: null }), 1500);
+      });
+
+      ch.subscribe(status => {
+        if (disposed) return;
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          // Rebuild the channel so calls keep landing after a network blip.
+          try { supabase.removeChannel(ch); } catch { /* noop */ }
+          if (retryTimer) window.clearTimeout(retryTimer);
+          retryTimer = window.setTimeout(() => { if (!disposed) attach(); }, 1500);
+        }
+      });
+    };
+
+    attach();
+    return () => {
+      disposed = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+      if (channel) { try { supabase.removeChannel(channel); } catch { /* noop */ } }
+    };
+  }, [user?.id, sendSignal]);
+
+  // Put the phone into voice-call audio mode while a call is live, so Android's
+  // echo canceller / noise suppressor run and the speaker toggle is respected.
+  useEffect(() => {
+    const inCall = state.status === 'connecting' || state.status === 'active';
+    applyCallAudioRoute(inCall, speakerOn);
+  }, [state.status, speakerOn]);
+
+  // Close cached signaling channels when the provider goes away.
+  useEffect(() => () => {
+    signalChannelsRef.current.forEach(entry => {
+      try { supabase.removeChannel(entry.ch); } catch { /* noop */ }
     });
-    ch.on('broadcast', { event: 'call-end' }, ({ payload }) => {
-      const { reason } = payload as { reason?: string };
-      stopInviteRetry();
-      cleanup();
-      setState(prev => ({ ...prev, status: 'ended', endedReason: reason || 'Call ended' }));
-      setTimeout(() => setState({ status: 'idle', kind: 'audio', peerId: null, peerProfile: null, startedAt: null }), 1500);
-    });
-    ch.subscribe();
-    return () => { ch.unsubscribe(); };
-     
-  }, [user, profile, state.status, state.peerId, playRingtone, cleanup, stopInviteRetry]);
+    signalChannelsRef.current.clear();
+  }, []);
 
   // Ask notification permission once
   useEffect(() => {

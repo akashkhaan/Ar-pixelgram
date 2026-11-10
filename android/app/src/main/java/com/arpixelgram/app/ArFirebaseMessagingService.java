@@ -39,6 +39,14 @@ public class ArFirebaseMessagingService extends FirebaseMessagingService {
 
     private static final int CALL_NOTIF_ID = 4321;
 
+    // Guard state for call notifications. Delayed / retried FCM deliveries used
+    // to ring a phone twice for the same call, and a call that the caller had
+    // already cancelled could still arrive afterwards and start ringing.
+    private static final String GUARD_PREFS = "ar_pixelgram_call_guard";
+    private static final long CALL_TTL_MS = 45000L;        // FCM ttl used when sending
+    private static final long CALL_DUPE_WINDOW_MS = 20000L; // same call, second delivery
+    private static final long CALL_CANCEL_WINDOW_MS = 60000L; // cancelled just now
+
     @Override
     public void onNewToken(@NonNull String token) {
         super.onNewToken(token);
@@ -85,20 +93,83 @@ public class ArFirebaseMessagingService extends FirebaseMessagingService {
             return;
         }
 
+        // One identity per call attempt: explicit callId, else the push tag
+        // (caller id) so cancels still match invites from older builds.
+        String callKey = !TextUtils.isEmpty(callId) ? callId : tag;
+
         if ("call_cancelled".equals(type) || "call_ended".equals(type)) {
+            if (!TextUtils.isEmpty(callKey)) markCallCancelled(callKey);
             NotificationManager nm = getSystemService(NotificationManager.class);
-            if (nm != null) nm.cancel(CALL_NOTIF_ID);
+            if (nm != null) {
+                nm.cancel(CALL_NOTIF_ID);
+                nm.cancel("call_ongoing", 7777);
+                nm.cancel(7777);
+            }
             return;
         }
 
-        Bitmap avatar = loadBitmap(icon);
-
         if (isCall) {
+            // Never ring for a call that is already over, and never show the
+            // same call twice (retries / multiple device tokens).
+            if (isStaleCall(data)) return;
+            if (!TextUtils.isEmpty(callKey)) {
+                if (wasCallCancelled(callKey) || wasCallShown(callKey)) return;
+                markCallShown(callKey);
+            }
+            Bitmap avatar = loadBitmap(icon);
             showIncomingCall(title, body, callerName, groupName, kind, peerId, groupId, callId, url, avatar, isGroupCall);
             return;
         }
 
+        Bitmap avatar = loadBitmap(icon);
         showStandard(type, title, body, tag, url, avatar);
+    }
+
+    // ------------------------------------------------------------- call guard
+
+    private android.content.SharedPreferences guardPrefs() {
+        return getSharedPreferences(GUARD_PREFS, MODE_PRIVATE);
+    }
+
+    /** Drops call pushes that were queued long enough to be useless. */
+    private boolean isStaleCall(Map<String, String> data) {
+        String raw = data.get("ts");
+        if (TextUtils.isEmpty(raw)) return false;
+        try {
+            long ts = Long.parseLong(raw.trim());
+            if (ts <= 0) return false;
+            return System.currentTimeMillis() - ts > CALL_TTL_MS;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void markCallShown(String key) {
+        try { guardPrefs().edit().putLong("shown:" + key, System.currentTimeMillis()).apply(); } catch (Exception ignored) {}
+    }
+
+    private boolean wasCallShown(String key) {
+        try {
+            long at = guardPrefs().getLong("shown:" + key, 0L);
+            return at > 0 && System.currentTimeMillis() - at < CALL_DUPE_WINDOW_MS;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void markCallCancelled(String key) {
+        try { guardPrefs().edit().putLong("cancel:" + key, System.currentTimeMillis()).apply(); } catch (Exception ignored) {}
+    }
+
+    /** True when this exact call was already hung up / cancelled by the caller. */
+    private boolean wasCallCancelled(String key) {
+        try {
+            long at = guardPrefs().getLong("cancel:" + key, 0L);
+            if (at <= 0) return false;
+            return System.currentTimeMillis() - at <= CALL_CANCEL_WINDOW_MS;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     // ---------------------------------------------------------------- calls
