@@ -65,6 +65,7 @@ import {
   updateGroupPermissions,
   uploadGroupAvatar,
   updateGroupMemberRole,
+  endGroupCall,
 } from '@/services/groups';
 import type {
   Group,
@@ -227,6 +228,8 @@ const GroupChatPage: React.FC = () => {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [activeGroupCall, setActiveGroupCall] = useState<GroupCall | null>(null);
   const [callParticipants, setCallParticipants] = useState<GroupCallParticipant[]>([]);
+  /** User ids really connected to the active call (null until presence has synced). */
+  const [liveCallUserIds, setLiveCallUserIds] = useState<Set<string> | null>(null);
 
   const groupNumericUid = useMemo(() => {
     return group?.id ? getGroupNumericUid(group.id) : (rawGroupId ? getGroupNumericUid(rawGroupId) : '');
@@ -408,6 +411,47 @@ const GroupChatPage: React.FC = () => {
     return () => { void channel.unsubscribe(); };
   }, [activeGroupCallId]);
 
+  // A call is only "running" while someone is actually connected to it. If nobody
+  // is there (everyone hung up or closed the app), close the leftover DB row.
+  useEffect(() => {
+    setLiveCallUserIds(null);
+    if (!activeGroupCallId) return;
+    const callIdForCheck = activeGroupCallId;
+    let staleTimer: number | undefined;
+    const channel = supabase.channel('group-call-live-' + callIdForCheck);
+    const readLive = () => {
+      const ids = new Set<string>();
+      Object.values(channel.presenceState()).forEach(entries => {
+        (entries as Array<{ user_id?: string }>).forEach(entry => { if (entry.user_id) ids.add(entry.user_id); });
+      });
+      return ids;
+    };
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const ids = readLive();
+        if (ids.size > 0) {
+          window.clearTimeout(staleTimer);
+          setLiveCallUserIds(ids);
+        } else {
+          setLiveCallUserIds(prev => (prev && prev.size > 0 ? ids : prev));
+        }
+      })
+      .subscribe(status => {
+        if (status !== 'SUBSCRIBED') return;
+        staleTimer = window.setTimeout(() => {
+          if (readLive().size > 0) return;
+          setLiveCallUserIds(new Set());
+          void endGroupCall(callIdForCheck).catch(() => {});
+        }, 6000);
+      });
+    return () => { window.clearTimeout(staleTimer); void supabase.removeChannel(channel); };
+  }, [activeGroupCallId]);
+
+  const callIsLive = !!activeGroupCall && !!liveCallUserIds && liveCallUserIds.size > 0;
+  const liveParticipants = liveCallUserIds
+    ? callParticipants.filter(p => liveCallUserIds.has(p.user_id))
+    : [];
+
   // Realtime message updates
   useEffect(() => {
     if (!groupId || !groupId.includes('-')) return;
@@ -441,6 +485,11 @@ const GroupChatPage: React.FC = () => {
   const handleStartCall = useCallback(async (kind: 'audio' | 'video') => {
     setShowInfo(false);
     toast.loading(`Starting group ${kind} call...`, { id: 'starting-call-toast', duration: 3000 });
+    if (activeGroupCall && !callIsLive) {
+      // Leftover row of a call nobody is in: close it so a fresh call starts
+      await endGroupCall(activeGroupCall.id).catch(() => {});
+      setActiveGroupCall(null);
+    }
     try {
       if (callPanelRef.current) {
         await callPanelRef.current.startCall(kind);
@@ -465,7 +514,7 @@ const GroupChatPage: React.FC = () => {
       }
       toast.error(err?.message || 'Call start nahi hui', { id: 'starting-call-toast' });
     }
-  }, [group, groupCall, members]);
+  }, [group, groupCall, members, activeGroupCall, callIsLive]);
 
   // Member search for adding
   useEffect(() => {
@@ -865,17 +914,17 @@ const GroupChatPage: React.FC = () => {
             </div>
           </button>
 
-          {activeGroupCall && !(groupCall.active && groupCall.groupId === currentGroup.id) ? (
+          {activeGroupCall && callIsLive && !(groupCall.active && groupCall.groupId === currentGroup.id) ? (
             /* Call running in this group: replace call buttons with Join */
             <div className="flex shrink-0 items-center gap-1.5">
-            {callParticipants.length > 0 && (
-              <div className="flex -space-x-2" title={callParticipants.map(p => p.profile?.username || p.profile?.full_name || 'Member').join(', ')}>
-                {callParticipants.slice(0, 3).map(p => (
+            {liveParticipants.length > 0 && (
+              <div className="flex -space-x-2" title={liveParticipants.map(p => p.profile?.username || p.profile?.full_name || 'Member').join(', ')}>
+                {liveParticipants.slice(0, 3).map(p => (
                   <Avatar key={p.user_id} profile={p.profile} size="w-6 h-6 ring-2 ring-background" />
                 ))}
-                {callParticipants.length > 3 && (
+                {liveParticipants.length > 3 && (
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-semibold text-white ring-2 ring-background">
-                    +{callParticipants.length - 3}
+                    +{liveParticipants.length - 3}
                   </span>
                 )}
               </div>
@@ -903,7 +952,7 @@ const GroupChatPage: React.FC = () => {
                 }
               }}
               className={`head-action-btn transition-all ${
-                (groupCall.active && groupCall.groupId === currentGroup.id) || activeGroupCall?.kind === 'audio'
+                (groupCall.active && groupCall.groupId === currentGroup.id) || (callIsLive && activeGroupCall?.kind === 'audio')
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
                   : ''
               }`}
@@ -924,7 +973,7 @@ const GroupChatPage: React.FC = () => {
                 }
               }}
               className={`head-action-btn transition-all ${
-                (groupCall.active && groupCall.groupId === currentGroup.id && groupCall.kind === 'video') || activeGroupCall?.kind === 'video'
+                (groupCall.active && groupCall.groupId === currentGroup.id && groupCall.kind === 'video') || (callIsLive && activeGroupCall?.kind === 'video')
                   ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
                   : ''
               }`}

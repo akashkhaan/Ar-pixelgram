@@ -200,7 +200,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setRemoteLabels(current => new Map(current).set(peerId, person.username || person.full_name || 'Participant'));
         setRemoteAvatars(current => new Map(current).set(peerId, person.avatar_url || null));
       } else {
-        supabase.from('profiles').select('username, full_name, avatar_url').eq('id', peerId).maybeSingle().then(({ data }) => {
+        supabase.from('profiles').select('username, full_name, avatar_url').eq('user_id', peerId).maybeSingle().then(({ data }) => {
           if (data) {
             setRemoteLabels(current => new Map(current).set(peerId, data.username || data.full_name || 'Participant'));
             setRemoteAvatars(current => new Map(current).set(peerId, data.avatar_url || null));
@@ -381,6 +381,17 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       .subscribe();
     return () => { void channel.unsubscribe(); };
   }, [active, callId]);
+
+  // Live presence: drops automatically when the app/tab closes, so the group
+  // header can tell a really running call from a stale DB row.
+  useEffect(() => {
+    if (!active || !callId || !user?.id) return;
+    const channel = supabase.channel(`group-call-live-${callId}`, { config: { presence: { key: user.id } } });
+    channel.subscribe(status => {
+      if (status === 'SUBSCRIBED') void channel.track({ user_id: user.id });
+    });
+    return () => { void channel.untrack().catch(() => {}); void supabase.removeChannel(channel); };
+  }, [active, callId, user?.id]);
 
   // Voice-call audio mode (Android echo canceller / noise suppressor) + speaker routing
   useEffect(() => {
