@@ -40,6 +40,13 @@ function groupStoriesByUser(stories: Story[]): Record<string, { profile: Profile
     if (!groups[uid]) groups[uid] = { profile: story.profile, stories: [] };
     groups[uid].stories.push(story);
   }
+  // Instagram jaisa: ek user ki stories purani se nayi chalti hain (jo pehle
+  // upload hui wo pehle, jo last me upload hui wo last me), ulti nahi.
+  for (const uid of Object.keys(groups)) {
+    groups[uid].stories.sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  }
   return groups;
 }
 
@@ -52,6 +59,13 @@ const StoriesPage: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [viewerUserId, setViewerUserId] = useState<string | null>(null);
   const [storyIndex, setStoryIndex] = useState(0);
+  // Instagram jaisa auto-advance: story ka progress bar khud bharta hai aur
+  // khatam hote hi agla story apne aap chal padta hai.
+  const [storyProgress, setStoryProgress] = useState(0);
+  const [videoDurationMs, setVideoDurationMs] = useState(0);
+  const progressKeyRef = useRef<string | null>(null);
+  const progressStartRef = useRef(0);
+  const advanceGuardRef = useRef(0);
   const [showUpload, setShowUpload] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
@@ -186,6 +200,9 @@ const StoriesPage: React.FC = () => {
     storyAudioRef.current?.pause();
     if (storyAudioRef.current) storyAudioRef.current.currentTime = 0;
     videoViewerRef.current?.pause();
+    // Agli baar kholne par progress shuru se chale, adhoora na ho
+    progressKeyRef.current = null;
+    setStoryProgress(0);
     setViewerUserId(null); setShowReply(false); setShowViewers(false); };
 
   const viewerGroup = viewerUserId ? groups[viewerUserId] : null;
@@ -256,6 +273,10 @@ const StoriesPage: React.FC = () => {
 
   const nextStory = () => {
     if (!viewerGroup || !viewerUserId) return;
+    // Timer aur video ke end — dono ek saath aa sakte hain, isliye ek hi baar aage badho
+    const now = Date.now();
+    if (now - advanceGuardRef.current < 250) return;
+    advanceGuardRef.current = now;
     setShowReply(false);
     if (storyIndex < viewerGroup.stories.length - 1) {
       setStoryIndex(i => i + 1);
@@ -269,6 +290,35 @@ const StoriesPage: React.FC = () => {
   const prevStory = () => {
     if (storyIndex > 0) { setStoryIndex(i => i - 1); setShowReply(false); }
   };
+
+  // Instagram jaisa auto-advance: photo 5 second, video apni length tak;
+  // progress bar usi speed se bharta hai, pura hone par agla story khud chalta hai.
+  useEffect(() => {
+    if (!viewerUserId || !currentStory) return;
+    const key = `${viewerUserId}:${currentStory.id}`;
+    if (progressKeyRef.current !== key) {
+      progressKeyRef.current = key;
+      progressStartRef.current = performance.now();
+      advanceGuardRef.current = 0;
+      setVideoDurationMs(0);
+      setStoryProgress(0);
+    }
+    const isVideo = !!currentStory && (
+      (currentStory as Story & { media_type?: string }).media_type === 'video' ||
+      !!currentStory.image_url?.match(/\.(mp4|mov|webm|avi)(\?|$)/i)
+    );
+    const duration = isVideo ? (videoDurationMs > 0 ? videoDurationMs : 15000) : 5000;
+    let frame = 0;
+    const tick = () => {
+      const elapsed = performance.now() - progressStartRef.current;
+      const ratio = Math.min(1, elapsed / duration);
+      setStoryProgress(ratio);
+      if (ratio >= 1) { nextStory(); return; }
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [viewerUserId, storyIndex, currentStory?.id, videoDurationMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -503,11 +553,14 @@ const StoriesPage: React.FC = () => {
             else nextStory();
           }}
         >
-          {/* Progress bars */}
+          {/* Progress bars — current story ka bar khud bharta hai (Instagram jaisa) */}
           <div className="absolute top-0 left-0 right-0 flex gap-1 p-3 z-10">
             {viewerGroup.stories.map((_, i) => (
               <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
-                <div className={`h-full bg-white transition-all ${i < storyIndex ? 'w-full' : i === storyIndex ? 'w-full' : 'w-0'}`} />
+                <div
+                  className="h-full bg-white"
+                  style={{ width: i < storyIndex ? '100%' : i === storyIndex ? `${storyProgress * 100}%` : '0%' }}
+                />
               </div>
             ))}
           </div>
@@ -528,12 +581,21 @@ const StoriesPage: React.FC = () => {
                 <p className="text-white font-semibold text-sm truncate">{viewerGroup.profile.username}</p>
               </button>
               {currentStory.music_title ? (
-                <div className="flex items-center gap-1.5 text-white/95 text-xs bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full mt-0.5 w-fit">
+                /* Instagram jaisa: gaane ke naam par tap karo to song page khule */
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!currentStory.music_track_id) return;
+                    closeViewer();
+                    navigate(`/song/${currentStory.music_track_id}`);
+                  }}
+                  className="flex items-center gap-1.5 text-white/95 text-xs bg-black/30 backdrop-blur-sm px-2 py-0.5 rounded-full mt-0.5 w-fit active:scale-95 transition-transform"
+                >
                   <Music2 className="w-3 h-3 text-primary animate-pulse shrink-0" />
                   <span className="font-semibold truncate max-w-[170px]">
                     {currentStory.music_title} · {currentStory.music_artist}
                   </span>
-                </div>
+                </button>
               ) : (
                 <div className="flex items-center gap-2">
                   <p className="text-white/70 text-xs">{new Date(currentStory.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</p>
@@ -582,13 +644,15 @@ const StoriesPage: React.FC = () => {
           {/* Story media — image or video */}
           {currentIsVideo ? (
             <video
+              key={currentStory.id}
               ref={videoViewerRef}
               src={currentStory.image_url}
               className="absolute inset-0 w-full h-full object-cover"
               autoPlay
-              loop
               playsInline
               muted={!!currentStory.music_preview_url && !!currentStory.mute_original}
+              onLoadedMetadata={e => setVideoDurationMs((e.currentTarget.duration || 0) * 1000)}
+              onEnded={nextStory}
             />
           ) : (
             <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
