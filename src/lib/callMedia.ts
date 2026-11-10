@@ -16,34 +16,68 @@ export const CALL_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
   ...({ voiceIsolation: true } as MediaTrackConstraints),
 };
 
-// Runs on the audio thread (not throttled in background). Adaptive noise gate:
-// tracks the background noise floor and only lets audio through while the
-// level is clearly above it (i.e. someone is talking into the phone).
-const VOICE_GATE_WORKLET = `
+// Runs on the audio thread (not throttled in background). Voice gate with echo
+// suppression. Input 0 is the mic, input 1 is what the other people are saying
+// (played on our speaker). The mic is only let through while its level is
+// clearly above both the learned background-noise floor and the expected echo
+// of the far end, so traffic/vehicle noise and loudspeaker bleed are muted and
+// only the person talking into this phone is sent.
+export const VOICE_GATE_WORKLET = `
 class VoiceGate extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.floor = 0.002;
-    this.gain = 1;
+    this.floor = 0.003;
+    this.farEnv = 0;
+    this.echoRatio = 0.6;
+    this.gain = 0;
     this.hold = 0;
+    this.attack = 1 - Math.exp(-1 / (0.004 * sampleRate));
+    this.release = 1 - Math.exp(-1 / (0.15 * sampleRate));
+  }
+  rms(buf) {
+    if (!buf) return 0;
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    return Math.sqrt(sum / buf.length);
   }
   process(inputs, outputs) {
     const input = inputs[0] && inputs[0][0];
     const output = outputs[0] && outputs[0][0];
     if (!output) return true;
     if (!input) { output.fill(0); return true; }
-    let sum = 0;
-    for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
-    const rms = Math.sqrt(sum / input.length);
-    if (rms < this.floor) this.floor = this.floor * 0.9 + rms * 0.1;
-    else this.floor = Math.min(this.floor * 1.0005 + 0.000001, 0.05);
-    const open = rms > Math.max(this.floor * 3, 0.006);
-    if (open) this.hold = Math.round(sampleRate * 0.35 / input.length);
+    const block = input.length / sampleRate;
+    const mic = this.rms(input);
+    const far = this.rms(inputs[1] && inputs[1][0]);
+
+    // Far-end envelope: instant rise, ~400 ms decay to cover room echo/delay.
+    this.farEnv = far > this.farEnv ? far : this.farEnv * Math.exp(-block / 0.4);
+    const farActive = this.farEnv > 0.004;
+
+    // Background noise floor: follows quiet moments quickly, rises slowly so
+    // steady noise (engine, fan, road) is learned within ~1-2 s.
+    if (!farActive || mic < this.floor) {
+      if (mic < this.floor) this.floor += (mic - this.floor) * 0.2;
+      else this.floor = Math.min(this.floor * Math.exp(block * 1.0), 0.08);
+    }
+    this.floor = Math.max(this.floor, 0.0005);
+
+    const echoThreshold = farActive ? this.farEnv * this.echoRatio * 2.2 : 0;
+    const threshold = Math.max(this.floor * 3.5, 0.008, echoThreshold);
+    const open = mic > threshold;
+
+    // While the far end talks and the mic stays closed, the mic is hearing
+    // speaker bleed: learn how loud that echo is relative to the far end.
+    if (farActive && !open && this.hold === 0 && this.farEnv > 0) {
+      const ratio = Math.min(Math.max(mic / this.farEnv, 0.05), 3);
+      this.echoRatio += (ratio - this.echoRatio) * (ratio > this.echoRatio ? 0.05 : 0.005);
+    }
+
+    if (open) this.hold = Math.round(0.25 / block);
     else if (this.hold > 0) this.hold--;
-    const target = open || this.hold > 0 ? 1 : 0.06;
-    const coeff = target > this.gain ? 0.5 : 0.04;
+    const target = open || this.hold > 0 ? 1 : 0.003;
+    const coeff = target > this.gain ? this.attack : this.release;
     for (let i = 0; i < input.length; i++) {
-      this.gain += (target - this.gain) * coeff / 16;
+      this.gain += (target - this.gain) * coeff;
       output[i] = input[i] * this.gain;
     }
     return true;
@@ -51,6 +85,34 @@ class VoiceGate extends AudioWorkletProcessor {
 }
 registerProcessor('voice-gate', VoiceGate);
 `;
+
+type FarEndBus = { ctx: AudioContext; bus: GainNode; sources: MediaStreamAudioSourceNode[] };
+let farEndBus: FarEndBus | null = null;
+let farEndStreams: MediaStream[] = [];
+
+function connectFarEnd(): void {
+  if (!farEndBus) return;
+  const { ctx, bus } = farEndBus;
+  farEndBus.sources.forEach(node => { try { node.disconnect(); } catch { /* noop */ } });
+  farEndBus.sources = [];
+  farEndStreams.forEach(stream => {
+    if (!stream.getAudioTracks().length) return;
+    try {
+      const node = ctx.createMediaStreamSource(stream);
+      node.connect(bus);
+      farEndBus?.sources.push(node);
+    } catch { /* noop */ }
+  });
+}
+
+/**
+ * Tells the mic gate what the other people in the call sound like, so their
+ * voices coming out of our loudspeaker are not sent back to them.
+ */
+export function setCallFarEndStreams(streams: MediaStream[]): void {
+  farEndStreams = streams;
+  connectFarEnd();
+}
 
 let voiceGateModuleUrl: string | null = null;
 
@@ -79,12 +141,12 @@ export async function cleanCallAudio(stream: MediaStream): Promise<MediaStream> 
 
     const highpass = ctx.createBiquadFilter();
     highpass.type = 'highpass';
-    highpass.frequency.value = 120;
+    highpass.frequency.value = 150;
     highpass.Q.value = 0.7;
 
     const rumbleCut = ctx.createBiquadFilter();
     rumbleCut.type = 'highpass';
-    rumbleCut.frequency.value = 120;
+    rumbleCut.frequency.value = 150;
     rumbleCut.Q.value = 0.7;
 
     const lowpass = ctx.createBiquadFilter();
@@ -102,8 +164,12 @@ export async function cleanCallAudio(stream: MediaStream): Promise<MediaStream> 
           voiceGateModuleUrl = URL.createObjectURL(new Blob([VOICE_GATE_WORKLET], { type: 'application/javascript' }));
         }
         await ctx.audioWorklet.addModule(voiceGateModuleUrl);
-        const gate = new AudioWorkletNode(ctx, 'voice-gate', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
-        node = node.connect(gate);
+        const gate = new AudioWorkletNode(ctx, 'voice-gate', { numberOfInputs: 2, numberOfOutputs: 1, outputChannelCount: [1] });
+        node = node.connect(gate, 0, 0);
+        const bus = ctx.createGain();
+        bus.connect(gate, 0, 1);
+        farEndBus = { ctx, bus, sources: [] };
+        connectFarEnd();
       } catch (err) {
         console.warn('voice gate unavailable', err);
       }
@@ -114,15 +180,19 @@ export async function cleanCallAudio(stream: MediaStream): Promise<MediaStream> 
     if (!cleanTrack) throw new Error('No processed audio track');
 
     const audioCtx = ctx;
+    const closeCtx = () => {
+      if (farEndBus?.ctx === audioCtx) farEndBus = null;
+      void audioCtx.close().catch(() => {});
+    };
     const stopClean = cleanTrack.stop.bind(cleanTrack);
     cleanTrack.stop = () => {
       stopClean();
       try { rawTrack.stop(); } catch { /* noop */ }
-      void audioCtx.close().catch(() => {});
+      closeCtx();
     };
     rawTrack.addEventListener('ended', () => {
       try { stopClean(); } catch { /* noop */ }
-      void audioCtx.close().catch(() => {});
+      closeCtx();
     });
 
     return new MediaStream([cleanTrack, ...stream.getVideoTracks()]);

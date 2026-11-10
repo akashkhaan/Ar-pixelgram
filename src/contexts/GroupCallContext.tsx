@@ -13,7 +13,7 @@ import {
 } from '@/services/groups';
 import { createNotification, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
-import { CALL_AUDIO_CONSTRAINTS, applyCallAudioRoute, cleanCallAudio, prepareCallAudio, tuneAudioSender } from '@/lib/callMedia';
+import { CALL_AUDIO_CONSTRAINTS, applyCallAudioRoute, cleanCallAudio, prepareCallAudio, setCallFarEndStreams, tuneAudioSender } from '@/lib/callMedia';
 import type { GroupCallParticipant, GroupMember } from '@/types/groups';
 import { toast } from 'sonner';
 
@@ -386,6 +386,10 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     applyCallAudioRoute(active, speakerOn);
   }, [active, speakerOn]);
+
+  useEffect(() => {
+    setCallFarEndStreams(Array.from(remoteStreams.values()));
+  }, [remoteStreams]);
 
   // Elapsed timer
   useEffect(() => {

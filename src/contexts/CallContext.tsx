@@ -6,7 +6,7 @@ import { supabase } from '@/db/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { getProfile, createNotification, sendMessage, saveCallLog, formatCallDuration, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
-import { getCallMedia, attachCallStream, applyCallAudioRoute } from '@/lib/callMedia';
+import { getCallMedia, attachCallStream, applyCallAudioRoute, setCallFarEndStreams } from '@/lib/callMedia';
 import type { Profile } from '@/types/types';
 import { getHelloTuneFromProfile, isHelloTuneActive } from '@/services/helloTunes';
 
@@ -859,6 +859,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const inCall = state.status === 'connecting' || state.status === 'active';
     applyCallAudioRoute(inCall, speakerOn);
   }, [state.status, speakerOn]);
+
+  useEffect(() => {
+    setCallFarEndStreams(remoteStream ? [remoteStream] : []);
+  }, [remoteStream]);
 
   // Close cached signaling channels when the provider goes away.
   useEffect(() => () => {
