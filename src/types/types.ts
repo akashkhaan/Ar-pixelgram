@@ -68,6 +68,7 @@ export interface Story {
   music_start_ms?: number | null;
   music_duration_ms?: number | null;
   mute_original?: boolean | null;
+  text_overlays?: import('@/lib/storyText').StoryTextOverlay[];
 }
 
 export interface Follow {

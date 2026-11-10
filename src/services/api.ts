@@ -1,4 +1,5 @@
 import { markPostDeleted, markReelDeleted, filterDeletedPosts, filterDeletedReels } from '@/lib/hiddenContent';
+import { decodeStoryText } from '@/lib/storyText';
 import { dropLegacyPosts, dropLegacyReels } from '@/lib/legacyCleanup';
 import { supabase } from '@/db/supabase';
 import { withTimeout } from '@/lib/withTimeout';
@@ -344,6 +345,7 @@ export async function isSaved(postId: string, userId: string): Promise<boolean> 
 // ===================== STORIES =====================
 export function decodeStoryMusic(story: Story): Story {
   const clean = cleanDisplayCaption(story.caption);
+  const text_overlays = decodeStoryText(story.caption);
   const match = (story.caption || '').match(/<!--pixelgram_music:([\s\S]*?)-->/);
   if (match) {
     try {
@@ -351,6 +353,7 @@ export function decodeStoryMusic(story: Story): Story {
       return {
         ...story,
         caption: clean || null,
+        text_overlays,
         music_track_id: story.music_track_id || meta.id,
         music_title: story.music_title || meta.title,
         music_artist: story.music_artist || meta.artist,
@@ -365,6 +368,7 @@ export function decodeStoryMusic(story: Story): Story {
   return {
     ...story,
     caption: clean || null,
+    text_overlays,
   };
 }
 

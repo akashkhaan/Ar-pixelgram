@@ -11,6 +11,7 @@ function loadApi(supabase, withTimeout = async p => p) {
     if (name === '@/lib/withTimeout') return { withTimeout };
     if (name.includes('hiddenContent')) return { filterDeletedReels: rows => rows };
     if (name.includes('legacyCleanup')) return { dropLegacyReels: rows => rows };
+    if (name.includes('storyText')) return { decodeStoryText: () => [] };
     throw new Error(`Unexpected import: ${name}`);
   };
   module._compile(ts.transpileModule(readFileSync(new URL('./api.ts', import.meta.url), 'utf8'), {

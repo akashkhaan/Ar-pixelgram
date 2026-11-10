@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { getStoryTapDirection } from './storyNavigation';
-import { Plus, X, MoreVertical, Trash2, ImagePlus, Film, Loader2, Share2, Heart, Send, Clock, Music2, Pencil } from 'lucide-react';
+import { Plus, X, MoreVertical, Trash2, Loader2, Share2, Heart, Send, Clock, Music2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
 import MusicPickerSheet from '@/components/reels/MusicPickerSheet';
@@ -27,6 +27,9 @@ import { composeMediaWithMusic } from '@/services/mediaComposer';
 import { uploadMediaWithProgress } from '@/services/mediaUpload';
 import { finishUpload, startUpload, updateUpload } from '@/services/uploadManager';
 import StoryViewersSheet, { EyeIcon, HeartIcon, type ViewerFilter } from './StoryViewersSheet';
+import StoryEditor from '@/components/stories/StoryEditor';
+import StoryTextLayer from '@/components/stories/StoryTextLayer';
+import { encodeStoryText, type StoryTextOverlay } from '@/lib/storyText';
 import { savePersistentJob, deletePersistentJob, updatePersistentJobProgress, markJobActive, unmarkJobActive, markUploadActiveInSession, clearUploadActiveInSession } from '@/services/persistentUploadQueue';
 
 function groupStoriesByUser(stories: Story[]): Record<string, { profile: Profile; stories: Story[] }> {
@@ -54,6 +57,7 @@ const StoriesPage: React.FC = () => {
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
   const [caption, setCaption] = useState('');
+  const storyFileInputRef = useRef<HTMLInputElement>(null);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [trimTrack, setTrimTrack] = useState<MusicTrack | null>(null);
   const [storyTrack, setStoryTrack] = useState<MusicTrack | null>(null);
@@ -302,9 +306,11 @@ const StoriesPage: React.FC = () => {
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   };
 
-  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+    const type: 'image' | 'video' = file.type.startsWith('video') || /\.(mp4|mov|webm|mkv|3gp|avi)$/i.test(file.name) ? 'video' : 'image';
     if (type === 'image' && file.size > 10 * 1024 * 1024) { toast.error('Image must be under 10MB'); return; }
     if (type === 'video' && file.size > 100 * 1024 * 1024) { toast.error('Video must be under 100MB'); return; }
     setMediaFile(file);
@@ -313,11 +319,20 @@ const StoriesPage: React.FC = () => {
     setStoryTrack(null);
     setTrimTrack(null);
     setMusicStartMs(0);
+    setShowUpload(true);
   };
 
-  const handleUploadStory = async () => {
+  const closeStoryEditor = () => {
+    setShowUpload(false);
+    setMediaFile(null);
+    setMediaPreview(null);
+    setStoryTrack(null);
+    setTrimTrack(null);
+  };
+
+  const handleUploadStory = async (overlays: StoryTextOverlay[] = []) => {
     if (!mediaFile || !user) return;
-    const captionText = caption;
+    const captionText = encodeStoryText(caption.trim() || null, overlays) || '';
     const uploadId = startUpload('story', 'Story upload', mediaPreview || undefined, mediaType);
     // Instagram jaisa: Post dabate hi screen band, upload peeche chalta rahe (upar % dikhta hai)
     setShowUpload(false);
@@ -408,7 +423,14 @@ const StoriesPage: React.FC = () => {
 
 
           {/* Add story button */}
-          <button onClick={() => setShowUpload(true)} className="flex flex-col items-center gap-1.5 shrink-0 group">
+          <input
+            ref={storyFileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            className="hidden"
+            onChange={handleMediaSelect}
+          />
+          <button onClick={() => storyFileInputRef.current?.click()} className="flex flex-col items-center gap-1.5 shrink-0 group">
             <div className="w-16 h-16 rounded-full border-2 border-dashed border-primary/50 flex items-center justify-center bg-primary/5 group-hover:bg-primary/10 transition-all group-hover:border-primary">
               <Plus className="w-6 h-6 text-primary transition-transform group-hover:scale-110" />
             </div>
@@ -571,6 +593,7 @@ const StoriesPage: React.FC = () => {
           ) : (
             <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-contain" />
           )}
+          <StoryTextLayer overlays={currentStory.text_overlays} />
 
           {/* Story background audio */}
           {currentStory.music_preview_url && (
@@ -666,139 +689,18 @@ const StoriesPage: React.FC = () => {
         />
       )}
 
-      {/* Upload story modal */}
-      {showUpload && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-          <div
-            className="w-full max-w-lg bg-card rounded-t-[32px] border-t border-border/40 overflow-y-auto shadow-2xl"
-            style={{
-              maxHeight: '90vh',
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
-            }}
-          >
-            <div className="p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-lg"
-                  style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }}
-                >
-                  <Plus className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-foreground">{t('newStory')}</h3>
-                  <p className="text-xs text-muted-foreground">Photo, video aur music add karein</p>
-                </div>
-              </div>
-              <button onClick={() => { setShowUpload(false); setMediaFile(null); setMediaPreview(null); setStoryTrack(null); }} className="p-1.5 rounded-full hover:bg-muted/60">
-                <X className="w-5 h-5 text-muted-foreground" />
-              </button>
-            </div>
-
-            {/* Media type toggle */}
-            {!mediaPreview && (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col items-center justify-center h-32 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors gap-2">
-                  <ImagePlus className="w-8 h-8 text-primary" />
-                  <span className="text-sm font-medium text-primary">{t('uploadImage')}</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={e => handleMediaSelect(e, 'image')} />
-                </label>
-                <label className="flex flex-col items-center justify-center h-32 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors gap-2"
-                  style={{ borderColor: 'hsl(var(--p2) / 0.4)', backgroundColor: 'hsl(var(--p2) / 0.05)' }}>
-                  <Film className="w-8 h-8" style={{ color: 'hsl(var(--p2))' }} />
-                  <span className="text-sm font-medium" style={{ color: 'hsl(var(--p2))' }}>{t('uploadVideo')}</span>
-                  <input type="file" accept="video/*" className="hidden" onChange={e => handleMediaSelect(e, 'video')} />
-                </label>
-              </div>
-            )}
-
-            {/* Preview */}
-            {mediaPreview && (
-              <div className="relative aspect-[9/16] max-h-52 rounded-2xl overflow-hidden bg-black mx-auto">
-                {mediaType === 'video' ? (
-                  <video src={mediaPreview} className="w-full h-full object-cover" autoPlay muted loop playsInline />
-                ) : (
-                  <img src={mediaPreview} alt="Preview" className="w-full h-full object-cover" />
-                )}
-                <button onClick={() => { setMediaFile(null); setMediaPreview(null); }} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center text-white">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-                <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-white text-xs font-medium"
-                  style={{ background: mediaType === 'video' ? 'hsl(var(--p2) / 0.85)' : 'hsl(var(--p1) / 0.85)' }}>
-                  {mediaType === 'video' ? '🎬 Video' : '📷 Photo'}
-                </div>
-              </div>
-            )}
-
-            {mediaPreview && (
-              <div className="rounded-2xl border border-border/70 bg-muted/35 p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                    {storyTrack?.artwork ? (
-                      <img src={storyTrack.artwork} alt="" className="h-10 w-10 rounded-xl object-cover" />
-                    ) : (
-                      <Music2 className="h-5 w-5 text-primary" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold uppercase tracking-wider text-primary">Story music</p>
-                    <p className="truncate text-sm font-semibold text-foreground">
-                      {storyTrack ? `${storyTrack.title} · ${storyTrack.artist}` : 'Gana add karein'}
-                    </p>
-                    {storyTrack && (
-                      <p className="text-[11px] text-muted-foreground">
-                        {Math.floor(musicStartMs / 1000)}s se start · original audio {muteOriginal ? 'off' : 'on'}
-                      </p>
-                    )}
-                  </div>
-                  {storyTrack ? (
-                    <button
-                      onClick={() => setTrimTrack(storyTrack)}
-                      className="flex items-center gap-1 rounded-full bg-primary/10 px-3 py-2 text-xs font-bold text-primary"
-                    >
-                      <Pencil className="h-3.5 w-3.5" /> Cut
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setMusicPickerOpen(true)}
-                      className="rounded-full bg-gradient-to-r from-[hsl(var(--p1))] to-[hsl(var(--p2))] px-4 py-2 text-xs font-bold text-white"
-                    >
-                      Add music
-                    </button>
-                  )}
-                </div>
-                {storyTrack && (
-                  <button
-                    onClick={() => setMusicPickerOpen(true)}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-border/70 bg-background/60 py-2 text-xs font-semibold text-foreground"
-                  >
-                    <Music2 className="h-3.5 w-3.5 text-primary" /> Change song
-                  </button>
-                )}
-              </div>
-            )}
-
-            <input
-              type="text"
-              placeholder={t('caption') + ' (optional)'}
-              value={caption}
-              onChange={e => setCaption(e.target.value)}
-              maxLength={100}
-              className="w-full h-10 px-3 rounded-xl border border-border bg-input text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-
-            {/* Publish button — always visible */}
-            <Button
-              className="w-full h-12 font-bold rounded-xl text-white border-0"
-              style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }}
-              onClick={handleUploadStory}
-              disabled={uploading || !mediaFile}
-            >
-              {uploading ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Posting…</> : `✨ ${t('publish')}`}
-            </Button>
-            </div>
-          </div>
-        </div>
+      {/* Story composer */}
+      {showUpload && mediaPreview && (
+        <StoryEditor
+          mediaUrl={mediaPreview}
+          mediaType={mediaType}
+          track={storyTrack}
+          uploading={uploading}
+          onClose={closeStoryEditor}
+          onOpenMusic={() => setMusicPickerOpen(true)}
+          onCutMusic={() => storyTrack && setTrimTrack(storyTrack)}
+          onShare={overlays => void handleUploadStory(overlays)}
+        />
       )}
 
       <MusicPickerSheet
