@@ -5,6 +5,7 @@ import {
   createGroupCall,
   endGroupCall,
   getActiveGroupCall,
+  getGroupCallParticipants,
   joinGroupCall,
   leaveGroupCall,
   startOrJoinGroupCall,
@@ -13,7 +14,7 @@ import {
 import { createNotification, sendPushTo } from '@/services/api';
 import { notifyPhone, dismissPhoneNotification } from '@/lib/notifyPhone';
 import { CALL_AUDIO_CONSTRAINTS } from '@/lib/callMedia';
-import type { GroupMember } from '@/types/groups';
+import type { GroupCallParticipant, GroupMember } from '@/types/groups';
 import { toast } from 'sonner';
 
 export type CallKind = 'audio' | 'video';
@@ -50,6 +51,7 @@ export interface GroupCallContextValue {
   remoteAvatars: Map<string, string | null>;
   remoteMuted: Map<string, boolean>;
   remoteCameraOff: Map<string, boolean>;
+  participants: GroupCallParticipant[];
   muted: boolean;
   cameraOff: boolean;
   facingFront: boolean;
@@ -113,6 +115,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [remoteAvatars, setRemoteAvatars] = useState<Map<string, string | null>>(new Map());
   const [remoteMuted, setRemoteMuted] = useState<Map<string, boolean>>(new Map());
   const [remoteCameraOff, setRemoteCameraOff] = useState<Map<string, boolean>>(new Map());
+  const [participants, setParticipants] = useState<GroupCallParticipant[]>([]);
 
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
@@ -138,6 +141,13 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       payload: signal,
     });
   }, []);
+
+  const waitForChannel = async (timeoutMs = 8000) => {
+    const deadline = Date.now() + timeoutMs;
+    while (!(channelRef.current && channelReadyRef.current) && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  };
 
   const memberFor = useCallback(
     (uid: string) => members.find(m => m.user_id === uid)?.profile || null,
@@ -331,12 +341,15 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [active, closePeer, createPeer, incoming, kind, send, user],
   );
 
+  const handleSignalRef = useRef(handleSignal);
+  handleSignalRef.current = handleSignal;
+
   // Set up channel whenever groupId changes or is set
   useEffect(() => {
     if (!groupId) return;
     const channel = supabase.channel(`group-call-signal-${groupId}`);
     channel.on('broadcast', { event: 'signal' }, payload => {
-      void handleSignal(payload.payload as Signal);
+      void handleSignalRef.current(payload.payload as Signal);
     });
     channel.subscribe(status => {
       channelReadyRef.current = status === 'SUBSCRIBED';
@@ -347,7 +360,24 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       void channel.unsubscribe();
       channelRef.current = null;
     };
-  }, [groupId, handleSignal]);
+  }, [groupId]);
+
+  // Everyone currently in the call (from the DB), so all joined members are shown
+  useEffect(() => {
+    if (!active || !callId) {
+      setParticipants([]);
+      return;
+    }
+    const refresh = () => {
+      void getGroupCallParticipants(callId).then(setParticipants).catch(() => {});
+    };
+    refresh();
+    const channel = supabase
+      .channel(`group-call-participants-${callId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_call_participants', filter: `call_id=eq.${callId}` }, refresh)
+      .subscribe();
+    return () => { void channel.unsubscribe(); };
+  }, [active, callId]);
 
   // Elapsed timer
   useEffect(() => {
@@ -476,6 +506,25 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const dbCall = await startOrJoinGroupCall(targetGroupId, requestedKind);
       const newCallId = dbCall.id;
+
+      if (!dbCall.isNew) {
+        const existing = await getActiveGroupCall(targetGroupId);
+        const existingStart = existing ? new Date(existing.started_at || existing.created_at).getTime() : undefined;
+        await joinGroupCall(newCallId);
+        setKind(dbCall.kind);
+        setCallId(newCallId);
+        activeCallRef.current = newCallId;
+        setActive(true);
+        setMinimized(false);
+        setIncoming(null);
+        setStartedAt(existingStart || Date.now());
+        await waitForChannel();
+        send({ type: 'join', callId: newCallId, from: user.id, kind: dbCall.kind });
+        toast.success('Joined group call');
+        return;
+      }
+
+      await joinGroupCall(newCallId).catch(() => {});
       setCallId(newCallId);
       activeCallRef.current = newCallId;
       setActive(true);
@@ -483,6 +532,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const now = Date.now();
       setStartedAt(now);
+      await waitForChannel();
 
       const callerName = profile?.full_name || profile?.username || 'Group Member';
       const callerAvatar = profile?.avatar_url || null;
@@ -571,6 +621,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const startTime = startedAtTime || Date.now();
       setStartedAt(startTime);
 
+      await waitForChannel();
       send({
         type: 'join',
         callId: effectiveCallId || 'active',
@@ -897,6 +948,7 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         remoteAvatars,
         remoteMuted,
         remoteCameraOff,
+        participants,
         muted,
         cameraOff,
         facingFront,

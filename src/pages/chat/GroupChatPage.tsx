@@ -46,6 +46,7 @@ import { uploadChatMedia } from '@/services/api';
 import {
   addGroupMember,
   getActiveGroupCall,
+  getGroupCallParticipants,
   getGroup,
   getGroupMedia,
   getGroupMembers,
@@ -68,6 +69,7 @@ import {
 import type {
   Group,
   GroupCall,
+  GroupCallParticipant,
   GroupMedia,
   GroupMember,
   GroupMessage,
@@ -224,6 +226,7 @@ const GroupChatPage: React.FC = () => {
   const [reactionMessage, setReactionMessage] = useState<string | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [activeGroupCall, setActiveGroupCall] = useState<GroupCall | null>(null);
+  const [callParticipants, setCallParticipants] = useState<GroupCallParticipant[]>([]);
 
   const groupNumericUid = useMemo(() => {
     return group?.id ? getGroupNumericUid(group.id) : (rawGroupId ? getGroupNumericUid(rawGroupId) : '');
@@ -386,6 +389,24 @@ const GroupChatPage: React.FC = () => {
       .subscribe();
     return () => { void channel.unsubscribe(); };
   }, [groupId]);
+
+  // Who is currently in the group call (shown before joining, like Messenger)
+  const activeGroupCallId = activeGroupCall?.id;
+  useEffect(() => {
+    if (!activeGroupCallId) {
+      setCallParticipants([]);
+      return;
+    }
+    const refresh = () => {
+      void getGroupCallParticipants(activeGroupCallId).then(setCallParticipants).catch(() => {});
+    };
+    refresh();
+    const channel = supabase
+      .channel('group-call-people-' + activeGroupCallId)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'group_call_participants', filter: 'call_id=eq.' + activeGroupCallId }, refresh)
+      .subscribe();
+    return () => { void channel.unsubscribe(); };
+  }, [activeGroupCallId]);
 
   // Realtime message updates
   useEffect(() => {
@@ -844,47 +865,62 @@ const GroupChatPage: React.FC = () => {
             </div>
           </button>
 
-          {/* Call button 📞 */}
-          <button
-            type="button"
-            onClick={() => {
-              if (groupCall.active && groupCall.groupId === currentGroup.id) {
-                groupCall.setMinimized(false);
-              } else {
-                void handleStartCall('audio');
-              }
-            }}
-            className={`head-action-btn transition-all ${
-              (groupCall.active && groupCall.groupId === currentGroup.id) || activeGroupCall?.kind === 'audio'
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
-                : ''
-            }`}
-            aria-label="Audio call"
-            title={groupCall.active && groupCall.groupId === currentGroup.id ? "Return to call" : "Start audio call"}
-          >
-            <Phone className="w-4.5 h-4.5" />
-          </button>
+          {activeGroupCall && !(groupCall.active && groupCall.groupId === currentGroup.id) ? (
+            /* Call running in this group: replace call buttons with Join */
+            <button
+              type="button"
+              onClick={() => void handleStartCall(activeGroupCall.kind)}
+              className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-emerald-500/30 transition-colors hover:bg-emerald-700"
+              aria-label={activeGroupCall.kind === 'video' ? 'Join video call' : 'Join call'}
+            >
+              {activeGroupCall.kind === 'video' ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+              {activeGroupCall.kind === 'video' ? 'Join video call' : 'Join call'}
+            </button>
+          ) : (
+            <>
+            {/* Call button 📞 */}
+            <button
+              type="button"
+              onClick={() => {
+                if (groupCall.active && groupCall.groupId === currentGroup.id) {
+                  groupCall.setMinimized(false);
+                } else {
+                  void handleStartCall('audio');
+                }
+              }}
+              className={`head-action-btn transition-all ${
+                (groupCall.active && groupCall.groupId === currentGroup.id) || activeGroupCall?.kind === 'audio'
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
+                  : ''
+              }`}
+              aria-label="Audio call"
+              title={groupCall.active && groupCall.groupId === currentGroup.id ? "Return to call" : "Start audio call"}
+            >
+              <Phone className="w-4.5 h-4.5" />
+            </button>
 
-          {/* Video button 📹 */}
-          <button
-            type="button"
-            onClick={() => {
-              if (groupCall.active && groupCall.groupId === currentGroup.id) {
-                groupCall.setMinimized(false);
-              } else {
-                void handleStartCall('video');
-              }
-            }}
-            className={`head-action-btn transition-all ${
-              (groupCall.active && groupCall.groupId === currentGroup.id && groupCall.kind === 'video') || activeGroupCall?.kind === 'video'
-                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
-                : ''
-            }`}
-            aria-label="Video call"
-            title={groupCall.active && groupCall.groupId === currentGroup.id ? "Return to call" : "Start video call"}
-          >
-            <Video className="w-4.5 h-4.5" />
-          </button>
+            {/* Video button 📹 */}
+            <button
+              type="button"
+              onClick={() => {
+                if (groupCall.active && groupCall.groupId === currentGroup.id) {
+                  groupCall.setMinimized(false);
+                } else {
+                  void handleStartCall('video');
+                }
+              }}
+              className={`head-action-btn transition-all ${
+                (groupCall.active && groupCall.groupId === currentGroup.id && groupCall.kind === 'video') || activeGroupCall?.kind === 'video'
+                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
+                  : ''
+              }`}
+              aria-label="Video call"
+              title={groupCall.active && groupCall.groupId === currentGroup.id ? "Return to call" : "Start video call"}
+            >
+              <Video className="w-4.5 h-4.5" />
+            </button>
+            </>
+          )}
         </header>
 
         {/* IN-CONVERSATION SEARCH BAR */}
@@ -956,16 +992,30 @@ const GroupChatPage: React.FC = () => {
                   Group {activeGroupCall.kind === 'video' ? 'video' : 'audio'} call active
                 </p>
                 <p className="text-[11px] text-emerald-300/80 truncate">
-                  Tap Join to connect with group members
+                  {callParticipants.length > 0
+                    ? `${callParticipants.map(p => p.profile?.username || p.profile?.full_name || 'Member').join(', ')} · ${callParticipants.length} in call`
+                    : 'Tap Join to connect with group members'}
                 </p>
               </div>
+              {callParticipants.length > 0 && (
+                <div className="flex shrink-0 -space-x-2">
+                  {callParticipants.slice(0, 4).map(p => (
+                    <Avatar key={p.user_id} profile={p.profile} size="w-6 h-6 ring-2 ring-emerald-950" />
+                  ))}
+                  {callParticipants.length > 4 && (
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-700 text-[10px] font-semibold text-white ring-2 ring-emerald-950">
+                      +{callParticipants.length - 4}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <Button
               size="sm"
               onClick={() => void handleStartCall(activeGroupCall.kind)}
               className="h-7.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 shadow-sm shadow-emerald-500/30 shrink-0"
             >
-              Join
+              {activeGroupCall.kind === 'video' ? 'Join video call' : 'Join call'}
             </Button>
           </div>
         ) : null}

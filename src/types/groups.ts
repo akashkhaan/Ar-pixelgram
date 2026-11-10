@@ -86,3 +86,10 @@ export interface GroupCall {
   ended_at: string | null;
   created_at: string;
 }
+
+export interface GroupCallParticipant {
+  call_id: string;
+  user_id: string;
+  joined_at: string;
+  profile?: Profile | null;
+}

@@ -2,7 +2,7 @@ import { supabase } from '@/db/supabase';
 import { createNotification, sendPushTo } from '@/services/api';
 import { getGroupNumericUid, resolveGroupId } from '@/services/groupUid';
 import type { Profile } from '@/types/types';
-import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary, GroupCall } from '@/types/groups';
+import type { Group, GroupMember, GroupMedia, GroupMessage, GroupMessageReaction, GroupPinnedMessage, GroupPermissions, GroupRole, GroupSummary, GroupCall, GroupCallParticipant } from '@/types/groups';
 
 function phonePreview(text: string): string {
   return text.length > 80 ? text.slice(0, 77) + '...' : text;
@@ -546,6 +546,20 @@ export async function joinGroupCall(callId: string): Promise<void> {
     .update({ status: 'active' })
     .eq('id', callId)
     .eq('status', 'ringing');
+}
+
+export async function getGroupCallParticipants(callId: string): Promise<GroupCallParticipant[]> {
+  const { data, error } = await supabase
+    .from('group_call_participants')
+    .select('call_id, user_id, joined_at')
+    .eq('call_id', callId)
+    .is('left_at', null)
+    .order('joined_at', { ascending: true });
+  if (error || !data?.length) return [];
+  const ids = data.map(row => row.user_id as string);
+  const { data: profiles } = await supabase.from('profiles').select('*').in('id', ids);
+  const byId = new Map(((profiles || []) as Profile[]).map(p => [p.id, p]));
+  return data.map(row => ({ ...(row as Omit<GroupCallParticipant, 'profile'>), profile: byId.get(row.user_id as string) || null }));
 }
 
 export async function leaveGroupCall(callId: string): Promise<void> {

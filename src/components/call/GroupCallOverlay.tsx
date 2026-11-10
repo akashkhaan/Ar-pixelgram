@@ -206,6 +206,7 @@ export const GroupCallOverlay: React.FC = () => {
     remoteAvatars,
     remoteMuted,
     remoteCameraOff,
+    participants,
     muted,
     cameraOff,
     speakerOn,
@@ -277,6 +278,7 @@ export const GroupCallOverlay: React.FC = () => {
   // ONLY SHOW PARTICIPANTS WHO HAVE ACTUALLY JOINED THE CALL:
   const joinedRemotePeerIds = Array.from(
     new Set([
+      ...(participants || []).map(p => p.user_id),
       ...Array.from(remoteStreams.keys()),
       ...Array.from(remoteLabels.keys()),
     ])
@@ -293,14 +295,18 @@ export const GroupCallOverlay: React.FC = () => {
   const remoteSlots = joinedRemotePeerIds.map((peerId, i) => {
     const stream = remoteStreams.get(peerId) || null;
     const memberObj = otherMembers.find(m => m.user_id === peerId);
+    const participantProfile = (participants || []).find(p => p.user_id === peerId)?.profile;
     const peerName =
       remoteLabels.get(peerId) ||
       memberObj?.profile?.username ||
+      participantProfile?.username ||
+      participantProfile?.full_name ||
       memberObj?.profile?.full_name ||
       `Member ${i + 1}`;
     const peerAvatar =
       remoteAvatars.get(peerId) ||
       memberObj?.profile?.avatar_url ||
+      participantProfile?.avatar_url ||
       null;
     const isPeerMuted = remoteMuted.get(peerId) || false;
     const isPeerCamOff = remoteCameraOff?.get(peerId);
