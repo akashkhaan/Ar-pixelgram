@@ -20,6 +20,7 @@ import { CallOverlay, IncomingCallModal } from "@/components/call/CallOverlay";
 import { IncomingGroupCallModal } from "@/components/call/IncomingGroupCallModal";
 import GroupCallOverlay from "@/components/call/GroupCallOverlay";
 import UploadProgressOverlay from "@/components/common/UploadProgressOverlay";
+import AppUpdateSheet from "@/components/common/AppUpdateSheet";
 import { routes } from "./routes";
 import { useVisitTracker } from "@/hooks/useVisitTracker";
 
@@ -108,6 +109,7 @@ const App: React.FC = () => {
               <GroupCallOverlay />
               <UploadProgressOverlay />
               <InAppBrowserModal />
+              <AppUpdateSheet />
             </GroupCallProvider>
           </CallProvider>
         </AuthProvider>

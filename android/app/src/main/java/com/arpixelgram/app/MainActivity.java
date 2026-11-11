@@ -170,6 +170,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         androidx.core.splashscreen.SplashScreen splashScreen = androidx.core.splashscreen.SplashScreen.installSplashScreen(this);
         registerPlugin(BackgroundUploadPlugin.class);
+        registerPlugin(AppUpdatePlugin.class);
         super.onCreate(savedInstanceState);
         final long appBootTime = System.currentTimeMillis();
         splashScreen.setKeepOnScreenCondition(() -> !isWebReady && (System.currentTimeMillis() - appBootTime < 1000));
