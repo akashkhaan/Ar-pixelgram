@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { createDecipheriv } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { APP_ORIGINS, createAiChatHandler } from './server/pixelgram-ai.mjs';
 
 const DEFAULT_FRONTEND_ORIGIN = 'https://ar-pixelgram.onrender.com';
 const SAAVN_SEARCH_URL = 'https://www.jiosaavn.com/api.php';
@@ -103,6 +104,8 @@ function getAllowedOrigins() {
     process.env.FRONTEND_ORIGIN || DEFAULT_FRONTEND_ORIGIN,
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    // Pixelgram Android app (Capacitor WebView)
+    ...APP_ORIGINS,
   ]);
 }
 
@@ -274,7 +277,7 @@ async function handleShareRoute(fetchImpl, request, response, requestUrl) {
   return true;
 }
 
-export function createMusicApiServer(fetchImpl = globalThis.fetch) {
+export function createMusicApiServer(fetchImpl = globalThis.fetch, { aiChat = createAiChatHandler({ fetchImpl }) } = {}) {
   return createServer(async (request, response) => {
     const requestUrl = new URL(request.url || '/', 'http://localhost');
 
@@ -291,7 +294,7 @@ export function createMusicApiServer(fetchImpl = globalThis.fetch) {
     }
     if (origin) {
       response.setHeader('Access-Control-Allow-Origin', origin);
-      response.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     }
 
@@ -303,6 +306,16 @@ export function createMusicApiServer(fetchImpl = globalThis.fetch) {
 
     if (requestUrl.pathname === '/healthz' && request.method === 'GET') {
       sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (requestUrl.pathname === '/api/ai-chat') {
+      if (request.method !== 'POST') {
+        response.setHeader('Allow', 'POST, OPTIONS');
+        sendJson(response, 405, { error: 'Method not allowed' });
+        return;
+      }
+      await aiChat(request, response);
       return;
     }
 
