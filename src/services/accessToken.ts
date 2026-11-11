@@ -1,7 +1,7 @@
 // Access token service (Facebook-style token + device management)
 import { supabase } from '@/db/supabase';
 
-const BASE = 'https://jfizzduvmzavtqwzqacy.supabase.co/functions/v1';
+const BASE = 'https://ojctcqahhkdehtgffzvx.supabase.co/functions/v1';
 
 export interface DeviceInfo {
   device_id: string;

@@ -18,10 +18,10 @@ export interface SavedAccount {
 }
 
 const STORAGE_KEY = 'pixelgram_saved_accounts_v1';
-const SUPABASE_URL = 'https://jfizzduvmzavtqwzqacy.supabase.co';
+const SUPABASE_URL = 'https://ojctcqahhkdehtgffzvx.supabase.co';
 const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmaXp6ZHV2bXphdnRxd3pxYWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjQ2MTIsImV4cCI6MjEwMTU0MDYxMn0.9i77iYIYBEBDWzm528gVDpV3qgiiwkvE5MVTTKIG19s';
-const SUPABASE_STORAGE_KEY = 'sb-jfizzduvmzavtqwzqacy-auth-token';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qY3RjcWFoaGtkZWh0Z2ZmenZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzODE0MjksImV4cCI6MjEwOTk1NzQyOX0.xsne2kKDrJzYqop_x6miW1AGKztlHMTt_aeSrycNvRY';
+const SUPABASE_STORAGE_KEY = 'sb-ojctcqahhkdehtgffzvx-auth-token';
 
 export function getSavedAccounts(): SavedAccount[] {
   try {

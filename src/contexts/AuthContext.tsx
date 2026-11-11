@@ -29,7 +29,7 @@ const AuthContext = createContext<AuthContextType>({
 function getInitialCachedUser(): User | null {
   if (typeof window === 'undefined') return null;
   try {
-    const directKey = 'sb-jfizzduvmzavtqwzqacy-auth-token';
+    const directKey = 'sb-ojctcqahhkdehtgffzvx-auth-token';
     const directRaw = localStorage.getItem(directKey);
     if (directRaw) {
       const parsed = JSON.parse(directRaw);

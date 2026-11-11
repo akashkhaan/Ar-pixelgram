@@ -1464,7 +1464,7 @@ RESULTS: {"endpoint":"https://pedpueynanjigivctnmo.supabase.co","message":" Star
 COMMAND:
 # Test if the new Supabase project is accessible using the user's provided credentials
 NEW_URL="https://jfizzduvmzavtqwzqacy.supabase.co"
-NEW_ANON="sb_publishable_imRVLbBFOpaRnvoS1SUMxw_npn4xPeV"
+NEW_ANON="<removed>"
 NEW_SERVICE="sb_secret_FQzl3_hajcn7iNiiqVQJxQ_j9zikhw8"
 
 # Try to query the new project's REST API
@@ -1700,7 +1700,7 @@ curl -s -w "\nHTTP_STATUS:%{http_code}" \
   "suffix": "\n[The command completed with exit code 0.]"
 })**
 --BEGIN AGENT OBSERVATION--
-[{"name":"anon","api_key":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmaXp6ZHV2bXphdnRxd3pxYWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjQ2MTIsImV4cCI6MjEwMTU0MDYxMn0.9i77iYIYBEBDWzm528gVDpV3qgiiwkvE5MVTTKIG19s","id":"anon","type":"legacy","hash":"fsqQPGnAY7-1py0XzOyJrKqIJh0yZlvca5QHQpJPvXw","prefix":"9i77i","description":"Legacy anon API key"},{"name":"service_role","api_key":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmaXp6ZHV2bXphdnRxd3pxYWN5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTk2NDYxMiwiZXhwIjoyMTAxNTQwNjEyfQ.XqU4qrVrxiWeZwBKy6fdUNPjIQaMJY2mqtgVVs9aOHE","id":"service_role","type":"legacy","hash":"6_QtJDNxSYDYsei7GINgXwpGaFmNuOXoXY7ZgJNP5IQ","prefix":"XqU4q","description":"Legacy service_role API key"},{"id":"42d40c8c-c653-477b-a976-1538ec09db1a","name":"default","type":"publishable","api_key":"sb_publishable_imRVLbBFOpaRnvoS1SUMxw_npn4xPeV","description":null,"secret_jwt_template":null,"hash":"Y7j-RV7DMyDXfIl78Eo275cuHH_34WtmEmRtn0I15GI","prefix":"sb_publishable_imRVL","inserted_at":"2026-08-05T21:16:52.206445+00:00","updated_at":"2026-08-05T21:16:52.206445+00:00"},{"id":"0270ef72-8de6-47ef-814f-2fb01df096d2","name":"default","type":"secret","api_key":"sb_secret_FQzl3··························","description":null,"secret_jwt_template":{"role":"service_role"},"hash":"f17nvybiKQAaLTAB8B81v3TUsB2NMntycHGBYpbv0rQ","prefix":"sb_secret_FQzl3","inserted_at":"2026-08-05T21:16:52.206445+00:00","updated_at":"2026-08-05T21:16:52.206445+00:00"}]
+[{"name":"anon","api_key":"<removed>","id":"anon","type":"legacy","hash":"fsqQPGnAY7-1py0XzOyJrKqIJh0yZlvca5QHQpJPvXw","prefix":"9i77i","description":"Legacy anon API key"},{"name":"service_role","api_key":"<removed>","id":"service_role","type":"legacy","hash":"6_QtJDNxSYDYsei7GINgXwpGaFmNuOXoXY7ZgJNP5IQ","prefix":"XqU4q","description":"Legacy service_role API key"},{"id":"42d40c8c-c653-477b-a976-1538ec09db1a","name":"default","type":"publishable","api_key":"<removed>","description":null,"secret_jwt_template":null,"hash":"Y7j-RV7DMyDXfIl78Eo275cuHH_34WtmEmRtn0I15GI","prefix":"sb_publishable_imRVL","inserted_at":"2026-08-05T21:16:52.206445+00:00","updated_at":"2026-08-05T21:16:52.206445+00:00"},{"id":"0270ef72-8de6-47ef-814f-2fb01df096d2","name":"default","type":"secret","api_key":"sb_secret_FQzl3··························","description":null,"secret_jwt_template":{"role":"service_role"},"hash":"f17nvybiKQAaLTAB8B81v3TUsB2NMntycHGBYpbv0rQ","prefix":"sb_secret_FQzl3","inserted_at":"2026-08-05T21:16:52.206445+00:00","updated_at":"2026-08-05T21:16:52.206445+00:00"}]
 [The command completed with exit code 0.]
 [Current working directory: /workspace]
 --END AGENT OBSERVATION--

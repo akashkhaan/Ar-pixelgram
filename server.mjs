@@ -109,9 +109,9 @@ function getAllowedOrigins() {
 // ---------- Link previews (WhatsApp / Facebook / Telegram photo card) ----------
 // Static website crawler ko photo nahi de sakti, isliye share link yahan aata hai:
 // crawler ko og:image wala HTML milta hai, aur insaan turant app par pahunch jata hai.
-const DEFAULT_SUPABASE_URL = 'https://jfizzduvmzavtqwzqacy.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://ojctcqahhkdehtgffzvx.supabase.co';
 // Public (anon) key — yahi key website ke andar bhi hoti hai.
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmaXp6ZHV2bXphdnRxd3pxYWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5NjQ2MTIsImV4cCI6MjEwMTU0MDYxMn0.9i77iYIYBEBDWzm528gVDpV3qgiiwkvE5MVTTKIG19s';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qY3RjcWFoaGtkZWh0Z2ZmenZ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzODE0MjksImV4cCI6MjEwOTk1NzQyOX0.xsne2kKDrJzYqop_x6miW1AGKztlHMTt_aeSrycNvRY';
 const SHARE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHARE_TYPES = new Set(['video', 'post', 'reel', 'profile']);
 
