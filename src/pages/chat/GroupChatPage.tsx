@@ -25,6 +25,7 @@ import {
   X,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import ChatComposerInput from '@/components/chat/ChatComposerInput';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -804,7 +805,7 @@ const GroupChatPage: React.FC = () => {
         }
         .group-chat-wrap .send-bar {
           display: flex;
-          align-items: center;
+          align-items: flex-end;
           gap: 8px;
           padding: 10px 12px;
           background: rgba(26,18,51,.9);
@@ -845,6 +846,31 @@ const GroupChatPage: React.FC = () => {
         }
         .group-chat-wrap .send-btn:active {
           transform: scale(.9);
+        }
+        .group-chat-wrap .chat-composer-input {
+          display: block;
+          width: 100%;
+          min-height: 44px;
+          resize: none;
+          border-radius: 22px;
+          background: rgba(255,255,255,.07);
+          border: 1px solid var(--line);
+          color: var(--ink);
+          -webkit-text-fill-color: var(--ink);
+          caret-color: var(--pink);
+          padding: 11px 16px;
+          font-size: 14.5px;
+          line-height: 20px;
+          outline: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .group-chat-wrap .chat-composer-input::placeholder {
+          color: var(--mute);
+          -webkit-text-fill-color: var(--mute);
+        }
+        .group-chat-wrap .chat-composer-input:focus {
+          border-color: var(--pink);
         }
         .group-chat-wrap .tool-btn {
           width: 40px;
@@ -1304,9 +1330,9 @@ const GroupChatPage: React.FC = () => {
             <input type="file" className="hidden" onChange={handleFile} disabled={uploading || sending} />
           </label>
           <div className="relative flex-1 min-w-0">
-            <input
+            <ChatComposerInput
               value={content}
-              onChange={event => handleContentChange(event.target.value)}
+              onChange={handleContentChange}
               placeholder="Type a message..."
               maxLength={2000}
             />

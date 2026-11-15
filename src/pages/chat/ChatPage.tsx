@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 // चैट पेज — seen status, block/unblock, online status, avatar→profile click, Messenger settings & theme
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ChatComposerInput from '@/components/chat/ChatComposerInput';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import MessengerDirectSettings from '@/components/chat/MessengerDirectSettings';
@@ -610,6 +611,32 @@ const ChatPage: React.FC = () => {
         .chat-wrap .send-btn:active {
           transform: scale(.9);
         }
+        .chat-wrap .chat-composer-input {
+          display: block;
+          width: 100%;
+          min-height: 44px;
+          resize: none;
+          border-radius: 22px;
+          background: hsl(var(--muted));
+          border: 1px solid var(--line);
+          color: hsl(var(--foreground));
+          -webkit-text-fill-color: hsl(var(--foreground));
+          caret-color: var(--pink);
+          padding: 11px 44px 11px 16px;
+          font-size: 15px;
+          line-height: 20px;
+          outline: 0;
+          white-space: pre-wrap;
+          word-break: break-word;
+          transition: border-color .15s;
+        }
+        .chat-wrap .chat-composer-input::placeholder {
+          color: hsl(var(--muted-foreground));
+          -webkit-text-fill-color: hsl(var(--muted-foreground));
+        }
+        .chat-wrap .chat-composer-input:focus {
+          border-color: var(--pink);
+        }
         .chat-wrap .tool-btn {
           width: 38px;
           height: 38px;
@@ -1041,7 +1068,7 @@ const ChatPage: React.FC = () => {
         ) : (
           <form
             onSubmit={handleSend}
-            className="sticky bottom-0 z-20 flex shrink-0 items-center gap-1 sm:gap-2 px-2.5 py-2 bg-background/95 backdrop-blur-xl border-t border-border/50"
+            className="sticky bottom-0 z-20 flex shrink-0 items-end gap-1 sm:gap-2 px-2.5 py-2 bg-background/95 backdrop-blur-xl border-t border-border/50"
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom,0px),8px)' }}
           >
             {/* Hidden file inputs for Camera and Gallery (Photos & Videos) */}
@@ -1061,8 +1088,8 @@ const ChatPage: React.FC = () => {
               onChange={handlePickMedia}
             />
 
-            {/* Left Action Buttons */}
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Left Action Buttons (hidden while typing, like Instagram) */}
+            <div className={cn('flex items-center gap-1 shrink-0', content.trim() && 'hidden')}>
               {/* 1. Plus Button (+) */}
               <button
                 type="button"
@@ -1108,19 +1135,18 @@ const ChatPage: React.FC = () => {
             </div>
 
             {/* Pill Message Input */}
-            <div className="relative flex-1 min-w-0 flex items-center">
-              <input
+            <div className="relative flex-1 min-w-0 flex items-end">
+              <ChatComposerInput
                 placeholder={blocked || blockedByOther ? 'Message unavailable' : 'Message…'}
                 value={content}
-                onChange={e => { setContent(e.target.value); handleTyping(); }}
-                className="w-full h-11 rounded-full bg-white/7 border border-white/10 text-[#F7F3FF] placeholder:text-[#A99FD2] px-4 pr-10 text-sm outline-none focus:border-[#FF3D7F] transition-all"
+                onChange={value => { setContent(value); handleTyping(); }}
                 maxLength={500}
                 disabled={blocked || blockedByOther}
               />
               <button
                 type="button"
                 onClick={() => setShowEmoji(!showEmoji)}
-                className="absolute right-2.5 w-7 h-7 flex items-center justify-center text-[#A99FD2] hover:text-[#FF3D7F] transition-transform"
+                className="absolute right-2.5 bottom-2 w-7 h-7 flex items-center justify-center text-[#A99FD2] hover:text-[#FF3D7F] transition-transform"
                 title="Emoji"
               >
                 <Smile className={cn('w-5 h-5 transition-transform', showEmoji ? 'text-[#FF3D7F] scale-110' : '')} />
