@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/db/supabase';
 import { Lock, Mail, Phone, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -26,9 +26,10 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   const [phone, setPhone] = useState<string>('');
   const [selectedMethod, setSelectedMethod] = useState<'email' | 'phone'>('email');
 
-  // OTP State
-  const [activeSecretOtp, setActiveSecretOtp] = useState<string>('');
+  // OTP State — code sirf server verify karta hai, browser ke paas koi
+  // "apna" accepted code nahi hota.
   const [loading, setLoading] = useState(false);
+  const unlockedRef = useRef(false);
 
   // Listen for Email Magic Link / confirmation clicks
   useEffect(() => {
@@ -42,8 +43,14 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
       handleAuthEvent(event, session);
     });
 
-    if (window.location.hash.includes('access_token=') || window.location.hash.includes('type=magiclink')) {
-      unlockAccountSuccess();
+    // Magic link se bana hua asli session ho tab hi unlock — URL me
+    // "#access_token=..." likh dene bhar se account unlock nahi hoga.
+    if (window.location.hash.includes('access_token=')) {
+      supabase.auth.getSession().then(({ data }) => {
+        if (data?.session?.user?.id && data.session.user.id === user?.id) {
+          void unlockAccountSuccess();
+        }
+      });
     }
 
     return () => {
@@ -144,10 +151,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
     setLoading(true);
 
-    // Generate secret OTP
-    const generated = String(Math.floor(100000 + Math.random() * 900000));
-    setActiveSecretOtp(generated);
-
     try {
       if (selectedMethod === 'email') {
         const { error: otpErr } = await supabase.auth.signInWithOtp({
@@ -160,7 +163,6 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
               avatar_url: profile?.avatar_url,
               purpose: 'Pixelgram Account Unlock Code',
               site_name: 'Pixelgram',
-              code: generated,
             },
           },
         });
@@ -174,15 +176,21 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           toast.success(isResend ? `Naya security code ${maskEmail(destination)} par bhej diya gaya hai!` : `Security code ${maskEmail(destination)} par bhej diya gaya hai!`);
         }
       } else {
-        // SMS via Twilio
+        // SMS via Twilio — code server par hash hoke save hota hai, taaki
+        // verify ke waqt asli code hi match ho (client kuch decide nahi karta).
         try {
-          await supabase.functions.invoke('signup-phone-start', {
-            body: { phone: destination.trim() },
+          const { data, error } = await supabase.functions.invoke('unlock-account-otp', {
+            body: { action: 'send', userId: user.id, type: 'phone', destination: destination.trim() },
           });
-          toast.success(isResend ? `Naya SMS code bhej diya gaya hai!` : `SMS code Twilio se ${maskPhone(destination)} par bhej diya gaya hai!`);
+          if (error || data?.error) {
+            throw new Error(data?.error || error?.message || 'sms_failed');
+          }
+          toast.success(isResend ? `Naya SMS code bhej diya gaya hai!` : `SMS code ${maskPhone(destination)} par bhej diya gaya hai!`);
         } catch (e: any) {
           console.warn('SMS dispatch error:', e);
-          toast.success(`SMS verification code bhej diya gaya hai!`);
+          toast.error('SMS code bhejne me dikkat aayi. Kripya email se try karein.');
+          setLoading(false);
+          return;
         }
       }
 
@@ -198,6 +206,9 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
   // Perform Unlock in database
   const unlockAccountSuccess = async () => {
+    // Magic link + OTP dono ek saath aa sakte hain — unlock sirf ek baar chale
+    if (unlockedRef.current) return;
+    unlockedRef.current = true;
     try {
       await supabase
         .from('profiles')
@@ -231,64 +242,95 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
     }
 
     const destination = selectedMethod === 'phone' ? phone : email;
-    let isVerified = false;
 
-    // 1. Try Supabase Auth verifyOtp (URL / Token / Code)
-    if (selectedMethod === 'email') {
+    // ---------- PHONE: server-side verify (hash + expiry DB me check hota hai) ----------
+    if (selectedMethod === 'phone') {
+      let fnError: any = null;
       try {
-        if (trimmedInput.includes('http') || trimmedInput.includes('token=')) {
-          try {
-            const urlStr = trimmedInput.replace(/^.*https?:\/\//, 'https://');
-            const urlObj = new URL(urlStr);
-            const tokenParam = urlObj.searchParams.get('token') || urlObj.searchParams.get('code');
-            const tokenHash = urlObj.searchParams.get('token_hash');
-            if (tokenHash) {
-              const { data, error } = await supabase.auth.verifyOtp({
-                token_hash: tokenHash,
-                type: 'email',
-              });
-              if (!error && (data?.session || data?.user)) return true;
-            } else if (tokenParam) {
-              const { data, error } = await supabase.auth.verifyOtp({
-                email: destination.trim(),
-                token: tokenParam,
-                type: 'email',
-              });
-              if (!error && (data?.session || data?.user)) return true;
-            }
-          } catch {}
-        }
-        const numMatch = trimmedInput.match(/\d{6}/);
-        const codeToVerify = numMatch ? numMatch[0] : trimmedInput;
-        const { data, error } = await supabase.auth.verifyOtp({
-          email: destination.trim(),
-          token: codeToVerify,
-          type: 'email',
+        const { data, error } = await supabase.functions.invoke('unlock-account-otp', {
+          body: {
+            action: 'verify',
+            userId: user.id,
+            destination: destination.trim(),
+            code: trimmedInput,
+          },
         });
-        if (!error && (data?.session || data?.user)) {
-          isVerified = true;
+        fnError = error;
+        if (!error && data?.ok === true) {
+          await unlockAccountSuccess();
+          return true;
         }
-      } catch (err) {
-        console.warn('verifyOtp error:', err);
+        // Function ka asli error message (galat code / expire) user ko dikhao
+        const serverMessage = typeof data?.error === 'string' ? data.error : '';
+        throw new Error(serverMessage || 'Galat OTP code! Kripya sahi code daalein.');
+      } catch (err: any) {
+        if (err?.message && !fnError) throw err;
+        console.warn('unlock-account-otp verify error:', err, fnError);
+        throw new Error(err?.message || 'OTP verify nahi ho paya. Naya code bhejein.');
       }
     }
 
-    // 2. Secret OTP match
-    if (!isVerified && activeSecretOtp && trimmedInput === activeSecretOtp) {
-      isVerified = true;
+    // ---------- EMAIL: sirf Supabase Auth OTP (server) verify karta hai ----------
+    let emailError: string = '';
+
+    try {
+      // a) Email me aaya poora link paste kiya ho to us se verify
+      if (trimmedInput.includes('http') || trimmedInput.includes('token=')) {
+        try {
+          const urlStr = trimmedInput.replace(/^.*https?:\/\//, 'https://');
+          const urlObj = new URL(urlStr);
+          const tokenParam = urlObj.searchParams.get('token') || urlObj.searchParams.get('code');
+          const tokenHash = urlObj.searchParams.get('token_hash');
+          if (tokenHash) {
+            const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
+            if (!error && (data?.session || data?.user)) {
+              await unlockAccountSuccess();
+              return true;
+            }
+            emailError = error?.message || '';
+          } else if (tokenParam) {
+            const { data, error } = await supabase.auth.verifyOtp({
+              email: destination.trim(),
+              token: tokenParam,
+              type: 'email',
+            });
+            if (!error && (data?.session || data?.user)) {
+              await unlockAccountSuccess();
+              return true;
+            }
+            emailError = error?.message || '';
+          }
+        } catch (e) {
+          console.warn('Email link parse failed:', e);
+        }
+      }
+
+      // b) 6-digit code — Supabase hi sahi/galat/expire decide karta hai
+      const numMatch = trimmedInput.match(/\d{6}/);
+      const codeToVerify = numMatch ? numMatch[0] : trimmedInput;
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: destination.trim(),
+        token: codeToVerify,
+        type: 'email',
+      });
+
+      if (!error && (data?.session || data?.user)) {
+        await unlockAccountSuccess();
+        return true;
+      }
+      emailError = error?.message || '';
+    } catch (err: any) {
+      emailError = err?.message || '';
     }
 
-    // 3. Fallback valid 6-digit check
-    if (!isVerified && trimmedInput.length === 6) {
-      isVerified = true;
-    }
-
-    if (isVerified) {
-      await unlockAccountSuccess();
-      return true;
-    } else {
-      throw new Error('Galat OTP code! Kripya sahi code daalein.');
-    }
+    // Yahan tak aaye matlab code galat ya expire hai — unlock NAHI hoga
+    // Supabase galat aur expired code ke liye ek jaisa message deta hai,
+    // isliye dono ka saaf matlab likhte hain (unlock phir bhi nahi hoga).
+    throw new Error(
+      /expire|invalid|token/i.test(emailError)
+        ? 'Code galat hai ya expire ho gaya hai. Resend par tap karke naya code bhejein.'
+        : 'Galat OTP code! Kripya sahi code daalein.'
+    );
   };
 
   const displayName = profile?.full_name || profile?.username || 'User';
