@@ -31,32 +31,12 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   const [loading, setLoading] = useState(false);
   const unlockedRef = useRef(false);
 
-  // Listen for Email Magic Link / confirmation clicks
-  useEffect(() => {
-    const handleAuthEvent = async (event: string, session: any) => {
-      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user?.id === user?.id) {
-        await unlockAccountSuccess();
-      }
-    };
-
-    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      handleAuthEvent(event, session);
-    });
-
-    // Magic link se bana hua asli session ho tab hi unlock — URL me
-    // "#access_token=..." likh dene bhar se account unlock nahi hoga.
-    if (window.location.hash.includes('access_token=')) {
-      supabase.auth.getSession().then(({ data }) => {
-        if (data?.session?.user?.id && data.session.user.id === user?.id) {
-          void unlockAccountSuccess();
-        }
-      });
-    }
-
-    return () => {
-      sub.subscription.unsubscribe();
-    };
-  }, [user]);
+  // NOTE: pehle yahan auth events (SIGNED_IN / USER_UPDATED / #access_token) par
+  // account automatically unlock karne wala listener tha. Wahi "bina OTP account
+  // khul gaya" bug tha — page reload / tab focus / token refresh par bhi chalta tha.
+  // Ab unlock sirf handleVerifyOtpCode() se hota hai, yaani asli OTP verify hone ke baad.
+  // Database me bhi guard trigger hai (00008_guard_account_unlock.sql), to galat
+  // tarike se unlock ki koshish DB hi reject kar deti hai.
 
   // Load user verified contacts
   useEffect(() => {
@@ -205,33 +185,41 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   };
 
   // Perform Unlock in database
-  const unlockAccountSuccess = async () => {
-    // Magic link + OTP dono ek saath aa sakte hain — unlock sirf ek baar chale
-    if (unlockedRef.current) return;
+  const unlockAccountSuccess = async (): Promise<boolean> => {
+    // OTP + link dono ek saath aa sakte hain — unlock sirf ek baar chale
+    if (unlockedRef.current) return true;
     unlockedRef.current = true;
-    try {
-      await supabase
-        .from('profiles')
-        .update({
-          account_status: 'active',
-          status_reason: null,
-          status_updated_at: new Date().toISOString(),
-          is_suspended: false,
-        })
-        .eq('user_id', user.id);
 
-      toast.success(`Mubarak ho ${profile?.full_name || profile?.username}! Aapka account unlock ho gaya hai! 🎉`);
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        account_status: 'active',
+        status_reason: null,
+        status_updated_at: new Date().toISOString(),
+        is_suspended: false,
+      })
+      .eq('user_id', user.id);
 
-      setTimeout(() => {
-        if (onUnlocked) {
-          onUnlocked();
-        } else {
-          window.location.href = '/home';
-        }
-      }, 2000);
-    } catch (err) {
-      console.error('Failed to unlock profile:', err);
+    // supabase-js error throw nahi karta, return karta hai — isliye check zaroori.
+    // (DB guard bina OTP-verified session ke ye update reject kar deta hai.)
+    if (error) {
+      unlockedRef.current = false;
+      console.error('Failed to unlock profile:', error);
+      toast.error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
+      return false;
     }
+
+    toast.success(`Mubarak ho ${profile?.full_name || profile?.username}! Aapka account unlock ho gaya hai! 🎉`);
+
+    setTimeout(() => {
+      if (onUnlocked) {
+        onUnlocked();
+      } else {
+        window.location.href = '/home';
+      }
+    }, 2000);
+
+    return true;
   };
 
   // Verify entered OTP
@@ -257,7 +245,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         });
         fnError = error;
         if (!error && data?.ok === true) {
-          await unlockAccountSuccess();
+          const unlocked = await unlockAccountSuccess();
+          if (!unlocked) throw new Error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
           return true;
         }
         // Function ka asli error message (galat code / expire) user ko dikhao
@@ -284,7 +273,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           if (tokenHash) {
             const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
             if (!error && (data?.session || data?.user)) {
-              await unlockAccountSuccess();
+              const unlocked = await unlockAccountSuccess();
+              if (!unlocked) throw new Error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
               return true;
             }
             emailError = error?.message || '';
@@ -295,7 +285,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
               type: 'email',
             });
             if (!error && (data?.session || data?.user)) {
-              await unlockAccountSuccess();
+              const unlocked = await unlockAccountSuccess();
+              if (!unlocked) throw new Error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
               return true;
             }
             emailError = error?.message || '';
@@ -315,7 +306,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
       });
 
       if (!error && (data?.session || data?.user)) {
-        await unlockAccountSuccess();
+        const unlocked = await unlockAccountSuccess();
+        if (!unlocked) throw new Error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
         return true;
       }
       emailError = error?.message || '';
