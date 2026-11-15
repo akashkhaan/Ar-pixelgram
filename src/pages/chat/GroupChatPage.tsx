@@ -41,6 +41,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
+import { joinGroupCallLive } from '@/lib/groupCallLive';
 import { cn } from '@/lib/utils';
 import { uploadChatMedia } from '@/services/api';
 import {
@@ -418,33 +419,25 @@ const GroupChatPage: React.FC = () => {
     if (!activeGroupCallId) return;
     const callIdForCheck = activeGroupCallId;
     let staleTimer: number | undefined;
-    const channel = supabase.channel('group-call-live-' + callIdForCheck);
-    const readLive = () => {
-      const ids = new Set<string>();
-      Object.values(channel.presenceState()).forEach(entries => {
-        (entries as Array<{ user_id?: string }>).forEach(entry => { if (entry.user_id) ids.add(entry.user_id); });
-      });
-      return ids;
-    };
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const ids = readLive();
+    const live = joinGroupCallLive(callIdForCheck, {
+      onSync: ids => {
         if (ids.size > 0) {
           window.clearTimeout(staleTimer);
           setLiveCallUserIds(ids);
         } else {
           setLiveCallUserIds(prev => (prev && prev.size > 0 ? ids : prev));
         }
-      })
-      .subscribe(status => {
-        if (status !== 'SUBSCRIBED') return;
+      },
+      onReady: () => {
+        window.clearTimeout(staleTimer);
         staleTimer = window.setTimeout(() => {
-          if (readLive().size > 0) return;
+          if (live.readLive().size > 0) return;
           setLiveCallUserIds(new Set());
           void endGroupCall(callIdForCheck).catch(() => {});
         }, 6000);
-      });
-    return () => { window.clearTimeout(staleTimer); void supabase.removeChannel(channel); };
+      },
+    });
+    return () => { window.clearTimeout(staleTimer); live.release(); };
   }, [activeGroupCallId]);
 
   const callIsLive = !!activeGroupCall && !!liveCallUserIds && liveCallUserIds.size > 0;

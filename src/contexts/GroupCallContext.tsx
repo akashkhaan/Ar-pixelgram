@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/db/supabase';
+import { joinGroupCallLive } from '@/lib/groupCallLive';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   createGroupCall,
@@ -386,11 +387,8 @@ export const GroupCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // header can tell a really running call from a stale DB row.
   useEffect(() => {
     if (!active || !callId || !user?.id) return;
-    const channel = supabase.channel(`group-call-live-${callId}`, { config: { presence: { key: user.id } } });
-    channel.subscribe(status => {
-      if (status === 'SUBSCRIBED') void channel.track({ user_id: user.id });
-    });
-    return () => { void channel.untrack().catch(() => {}); void supabase.removeChannel(channel); };
+    const live = joinGroupCallLive(callId, { trackUserId: user.id });
+    return () => live.release();
   }, [active, callId, user?.id]);
 
   // Voice-call audio mode (Android echo canceller / noise suppressor) + speaker routing
