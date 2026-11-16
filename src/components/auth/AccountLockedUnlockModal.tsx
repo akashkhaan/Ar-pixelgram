@@ -49,7 +49,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   // OTP State — code sirf server verify karta hai, browser ke paas koi
   // "apna" accepted code nahi hota.
   const [loading, setLoading] = useState(false);
-  const [otpTtl, setOtpTtl] = useState(300);
+  const [otpTtl, setOtpTtl] = useState(60);
   const [resendAfter, setResendAfter] = useState(60);
   const [resendCount, setResendCount] = useState(0);
   const [freshOtpSession, setFreshOtpSession] = useState(false);
@@ -209,8 +209,8 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
             : `Security code ${maskEmail(destination)} par bhej diya gaya hai!`
         );
 
-        // email code Supabase bhejta hai (10 min valid)
-        setOtpTtl(600);
+        // email code: 1 minute (60s) ke andar daalna hai
+        setOtpTtl(60);
         setResendAfter(60);
       } else {
         // SMS — code server par hash hoke save hota hai; response me code/hash
@@ -233,7 +233,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           return;
         }
 
-        setOtpTtl(Number(data?.expiresIn ?? 300));
+        setOtpTtl(Number(data?.expiresIn ?? 60));
         setResendAfter(Number(data?.resendAfter ?? 60));
         toast.success(
           isResend ? 'Naya SMS code bhej diya gaya hai!' : `SMS code ${maskPhone(destination)} par bhej diya gaya hai!`
@@ -279,6 +279,11 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
     if (error) {
       console.error('Failed to unlock profile:', error);
+      // DB guard ka message aage bhejo (expire / bina OTP / limit)
+      const raw = String((error as any)?.message ?? '');
+      if (/expire/i.test(raw)) {
+        toast.error('Code expire ho gaya hai. Resend par tap karke naya code bhejein.');
+      }
       return false;
     }
     finishUnlock();

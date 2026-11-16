@@ -31,7 +31,7 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
   onBack,
   successTitle = 'Your Account Verified Successfully',
   successSubtitle = 'Welcome back. Redirecting...',
-  ttlSeconds = 300,
+  ttlSeconds = 60,
   resendCooldown = 60,
   resendKey = 0,
 }) => {
@@ -219,6 +219,14 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
         verifyOtp(full);
       }
     }
+  };
+
+  // Countdown ko mm:ss me dikhao (60 -> 01:00, 532 -> 08:52).
+  const formatTime = (totalSeconds: number) => {
+    const safe = Math.max(0, Math.floor(totalSeconds));
+    const minutes = Math.floor(safe / 60);
+    const seconds = safe % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
   // Resend cooldown: naya code bhejne ke baad kuch second rukna padta hai
@@ -521,7 +529,7 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
             {isExpired ? (
               <span className="text-rose-400 font-semibold">Code expired</span>
             ) : (
-              <span>Expires in: <b className="text-indigo-300">00:{timeLeft < 10 ? `0${timeLeft}` : timeLeft}</b></span>
+              <span>Expires in: <b className="text-indigo-300">{formatTime(timeLeft)}</b></span>
             )}
             <span>•</span>
             <button

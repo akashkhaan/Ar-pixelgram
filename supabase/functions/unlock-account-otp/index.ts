@@ -24,7 +24,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 const CODE_LENGTH = 6;
-const CODE_TTL_SECONDS = 5 * 60;        // code 5 minute valid
+const CODE_TTL_SECONDS = 60;            // code 60 second valid (1 minute)
 const MAX_ATTEMPTS = 5;                 // 5 galat try => code dead
 const RESEND_COOLDOWN_SECONDS = 60;     // 60s me dobara send nahi
 const MAX_SENDS_PER_WINDOW = 3;         // 15 min me max 3 sends
@@ -73,7 +73,7 @@ async function sendSmsViaTwilio(to: string, code: string) {
     body: new URLSearchParams({
       To: to,
       From: from,
-      Body: `${code} aapka Pixelgram account unlock verification code hai. Ye code 5 minute me expire ho jayega.`,
+      Body: `${code} aapka Pixelgram account unlock verification code hai. Ye code 1 minute me expire ho jayega.`,
     }),
   });
 
@@ -103,7 +103,7 @@ async function sendEmailViaResend(to: string, code: string) {
           <div style="background:#f3f4f6;padding:16px;border-radius:8px;text-align:center;margin:20px 0;">
             <span style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#111;">${code}</span>
           </div>
-          <p style="color:#e11d48;font-size:13px;font-weight:600;">⚠️ Ye code 5 minute ke liye valid hai.</p>
+          <p style="color:#e11d48;font-size:13px;font-weight:600;">⚠️ Ye code sirf 1 minute ke liye valid hai.</p>
           <p style="color:#888;font-size:12px;margin-top:20px;">Agar aapne unlock request nahi ki, to is email ko ignore karein.</p>
         </div>
       `,
