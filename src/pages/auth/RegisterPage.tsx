@@ -3,6 +3,7 @@ import DesktopSlidingAuth from '@/components/auth/DesktopSlidingAuth';
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/db/supabase';
+import { friendlyAuthError, afterSignupEmailNotice } from '@/lib/authEmail';
 import { uploadImage, updateProfile } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -209,11 +210,11 @@ const RegisterPage: React.FC = () => {
         password,
         options: { data: { username, full_name: fullName } },
       });
-      if (error) { toast.error(error.message); return; }
+      if (error) { toast.error(friendlyAuthError(error.message)); return; }
 
       const userId = data.user?.id;
       if (!data.session) {
-        toast.success('Account ban gaya! Email me confirmation link check karein.');
+        toast.success(await afterSignupEmailNotice(email.trim().toLowerCase()), { duration: 8000 });
         navigate('/login');
         return;
       }

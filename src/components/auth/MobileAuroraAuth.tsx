@@ -6,6 +6,7 @@ import { supabase } from '@/db/supabase';
 import { getProfile, updateProfile } from '@/services/api';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
+import { friendlyAuthError, afterSignupEmailNotice, resendSignupConfirmation } from '@/lib/authEmail';
 import { Loader2 } from 'lucide-react';
 
 interface MobileAuroraAuthProps {
@@ -133,10 +134,27 @@ export const MobileAuroraAuth: React.FC<MobileAuroraAuthProps> = ({ initialMode 
 
     if (loginError) {
       setLoginLoading(false);
-      if (loginError.toLowerCase().includes('invalid')) {
+      const lowerErr = loginError.toLowerCase();
+
+      if (lowerErr.includes('email not confirmed') || lowerErr.includes('not confirmed')) {
+        toast.error('Email confirm nahi hua hai. Inbox me link kholo.', {
+          duration: 8000,
+          action: {
+            label: 'Resend link',
+            onClick: () => {
+              void resendSignupConfirmation(loginUser).then((r) =>
+                r.ok ? toast.success(r.message, { duration: 8000 }) : toast.error(r.message)
+              );
+            },
+          },
+        });
+        return;
+      }
+
+      if (lowerErr.includes('invalid')) {
         toast.error("Wrong username/email/phone or password. If you don't have an account, please Sign Up first.");
       } else {
-        toast.error(loginError);
+        toast.error(friendlyAuthError(loginError));
       }
       return;
     }
@@ -247,7 +265,7 @@ export const MobileAuroraAuth: React.FC<MobileAuroraAuthProps> = ({ initialMode 
       });
 
       if (error) {
-        toast.error(error.message);
+        toast.error(friendlyAuthError(error.message));
         setRegLoading(false);
         return;
       }
@@ -264,7 +282,7 @@ export const MobileAuroraAuth: React.FC<MobileAuroraAuthProps> = ({ initialMode 
       }
 
       if (!data.session) {
-        toast.success('Account created! Please check your email for confirmation link.');
+        toast.success(await afterSignupEmailNotice(emailToUse), { duration: 8000 });
         setIsSignUp(false);
       } else {
         toast.success('Account created successfully! Welcome to Pixelgram.');
