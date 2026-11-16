@@ -5,6 +5,26 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { FuturisticOtpCard } from './FuturisticOtpCard';
 
+// JWT ke amr claim se pata chalta hai ki session kaise bana tha
+// ("password" ya "otp"). Sirf fresh OTP session hi unlock ka rasta hai.
+function hasFreshOtpSession(accessToken?: string | null): boolean {
+  if (!accessToken) return false;
+  try {
+    const payload = accessToken.split('.')[1];
+    if (!payload) return false;
+    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
+    const amr = Array.isArray(json?.amr) ? json.amr : [];
+    const now = Date.now() / 1000;
+    return amr.some((item: any) => {
+      const method = String(item?.method ?? '').toLowerCase();
+      const ts = Number(item?.timestamp ?? 0);
+      return ['otp', 'email_otp', 'sms_otp'].includes(method) && ts > 0 && now - ts < 15 * 60;
+    });
+  } catch {
+    return false;
+  }
+}
+
 interface AccountLockedUnlockModalProps {
   user: any;
   profile: any;
@@ -29,6 +49,10 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   // OTP State — code sirf server verify karta hai, browser ke paas koi
   // "apna" accepted code nahi hota.
   const [loading, setLoading] = useState(false);
+  const [otpTtl, setOtpTtl] = useState(300);
+  const [resendAfter, setResendAfter] = useState(60);
+  const [resendCount, setResendCount] = useState(0);
+  const [freshOtpSession, setFreshOtpSession] = useState(false);
   const unlockedRef = useRef(false);
 
   // NOTE: pehle yahan auth events (SIGNED_IN / USER_UPDATED / #access_token) par
@@ -37,6 +61,27 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   // Ab unlock sirf handleVerifyOtpCode() se hota hai, yaani asli OTP verify hone ke baad.
   // Database me bhi guard trigger hai (00008_guard_account_unlock.sql), to galat
   // tarike se unlock ki koshish DB hi reject kar deti hai.
+
+  // Email ka magic link click hone par session banta hai (amr = otp).
+  // Us case me OTP screen par ek saaf button dikhate hain — automatic kuch
+  // unlock nahi hota, user khud tap karta hai.
+  useEffect(() => {
+    const sync = async () => {
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (!session?.user?.id || session.user.id !== user?.id) {
+        setFreshOtpSession(false);
+        return;
+      }
+      setFreshOtpSession(hasFreshOtpSession(session.access_token));
+    };
+
+    void sync();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      void sync();
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [user]);
 
   // Load user verified contacts
   useEffect(() => {
@@ -121,7 +166,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
   const hasEmail = Boolean(email && email.trim());
   const hasPhone = Boolean(phone && phone.trim());
 
-  // Send REAL OTP to Email or Phone (NO ON-SCREEN CODE DISPLAY!)
+  // Send REAL OTP to Email or Phone (code sirf server ke paas hota hai)
   const handleSendOtp = async (isResend: boolean = false) => {
     const destination = selectedMethod === 'phone' ? phone : email;
     if (!destination) {
@@ -149,47 +194,79 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
         if (otpErr) {
           console.warn('Supabase signInWithOtp error:', otpErr);
-          if (otpErr.message?.includes('rate limit') || (otpErr as any)?.status === 429) {
-            toast.warning('Email rate limit reached. Kripya 1 minute baad dobara try karein.');
-          }
-        } else {
-          toast.success(isResend ? `Naya security code ${maskEmail(destination)} par bhej diya gaya hai!` : `Security code ${maskEmail(destination)} par bhej diya gaya hai!`);
-        }
-      } else {
-        // SMS via Twilio — code server par hash hoke save hota hai, taaki
-        // verify ke waqt asli code hi match ho (client kuch decide nahi karta).
-        try {
-          const { data, error } = await supabase.functions.invoke('unlock-account-otp', {
-            body: { action: 'send', userId: user.id, type: 'phone', destination: destination.trim() },
-          });
-          if (error || data?.error) {
-            throw new Error(data?.error || error?.message || 'sms_failed');
-          }
-          toast.success(isResend ? `Naya SMS code bhej diya gaya hai!` : `SMS code ${maskPhone(destination)} par bhej diya gaya hai!`);
-        } catch (e: any) {
-          console.warn('SMS dispatch error:', e);
-          toast.error('SMS code bhejne me dikkat aayi. Kripya email se try karein.');
-          setLoading(false);
+          const isRateLimit = otpErr.message?.includes('rate limit') || (otpErr as any)?.status === 429;
+          toast.error(
+            isRateLimit
+              ? 'Email rate limit ho gaya hai. Kripya 1 minute baad dobara try karein.'
+              : 'Email code bhejne me dikkat aayi. Kripya phone se try karein.'
+          );
           return;
         }
+
+        toast.success(
+          isResend
+            ? `Naya security code ${maskEmail(destination)} par bhej diya gaya hai!`
+            : `Security code ${maskEmail(destination)} par bhej diya gaya hai!`
+        );
+
+        // email code Supabase bhejta hai (10 min valid)
+        setOtpTtl(600);
+        setResendAfter(60);
+      } else {
+        // SMS — code server par hash hoke save hota hai; response me code/hash
+        // kabhi nahi aata, sirf expiry aur cooldown aata hai.
+        const { data, error } = await supabase.functions.invoke('unlock-account-otp', {
+          body: { action: 'send', type: 'phone', destination: destination.trim() },
+        });
+
+        if (error || data?.error) {
+          const code = data?.error || 'delivery_failed';
+          if (code === 'resend_cooldown' && data?.retry_after) {
+            toast.warning(`Kripya ${data.retry_after} second baad naya code maangein.`);
+          } else if (code === 'too_many_requests') {
+            toast.error('Bahut zyada koshish. Kripya 15 minute baad try karein.');
+          } else if (code === 'destination_not_on_account') {
+            toast.error('Ye number is account se juda hua nahi hai.');
+          } else {
+            toast.error('SMS code bhejne me dikkat aayi. Kripya email se try karein.');
+          }
+          return;
+        }
+
+        setOtpTtl(Number(data?.expiresIn ?? 300));
+        setResendAfter(Number(data?.resendAfter ?? 60));
+        toast.success(
+          isResend ? 'Naya SMS code bhej diya gaya hai!' : `SMS code ${maskPhone(destination)} par bhej diya gaya hai!`
+        );
       }
 
+      setResendCount((n) => n + 1);
       setStep('enter_otp');
     } catch (err: any) {
       console.error('handleSendOtp error:', err);
       toast.error('Code bhejne me dikkat aayi. Kripya dobara try karein.');
-      setStep('enter_otp');
     } finally {
       setLoading(false);
     }
   };
 
-  // Perform Unlock in database
-  const unlockAccountSuccess = async (): Promise<boolean> => {
-    // OTP + link dono ek saath aa sakte hain — unlock sirf ek baar chale
-    if (unlockedRef.current) return true;
+  // Sirf UI: success dikhao aur aage bhejo (koi DB write nahi)
+  const finishUnlock = () => {
+    if (unlockedRef.current) return;
     unlockedRef.current = true;
+    toast.success(`Mubarak ho ${profile?.full_name || profile?.username}! Aapka account unlock ho gaya hai! 🎉`);
+    setTimeout(() => {
+      if (onUnlocked) {
+        onUnlocked();
+      } else {
+        window.location.href = '/home';
+      }
+    }, 2000);
+  };
 
+  // Account status update — ise database ka guard trigger check karta hai:
+  // sirf fresh OTP-verified session se hi chalta hai, warna error aata hai.
+  const unlockViaClient = async (): Promise<boolean> => {
     const { error } = await supabase
       .from('profiles')
       .update({
@@ -200,26 +277,35 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
       })
       .eq('user_id', user.id);
 
-    // supabase-js error throw nahi karta, return karta hai — isliye check zaroori.
-    // (DB guard bina OTP-verified session ke ye update reject kar deta hai.)
     if (error) {
-      unlockedRef.current = false;
       console.error('Failed to unlock profile:', error);
-      toast.error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
       return false;
     }
-
-    toast.success(`Mubarak ho ${profile?.full_name || profile?.username}! Aapka account unlock ho gaya hai! 🎉`);
-
-    setTimeout(() => {
-      if (onUnlocked) {
-        onUnlocked();
-      } else {
-        window.location.href = '/home';
-      }
-    }, 2000);
-
+    finishUnlock();
     return true;
+  };
+
+  // Magic link se verify hua session — user ke tap par hi unlock
+  const handleLinkUnlock = async () => {
+    setLoading(true);
+    try {
+      const { data: check } = await supabase
+        .from('profiles')
+        .select('account_status')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (check?.account_status === 'active') {
+        finishUnlock();
+        return;
+      }
+      const ok = await unlockViaClient();
+      if (!ok) {
+        toast.error('Unlock nahi ho paya. Kripya email ka 6-digit code daalein.');
+        setFreshOtpSession(false);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Verify entered OTP
@@ -245,13 +331,25 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
         });
         fnError = error;
         if (!error && data?.ok === true) {
-          const unlocked = await unlockAccountSuccess();
-          if (!unlocked) throw new Error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
+          // Server (service role) ne account unlock kar diya hai — yahan dobara
+          // client se update karne ki zarurat nahi, warna guard trigger reject karega.
+          finishUnlock();
           return true;
         }
-        // Function ka asli error message (galat code / expire) user ko dikhao
-        const serverMessage = typeof data?.error === 'string' ? data.error : '';
-        throw new Error(serverMessage || 'Galat OTP code! Kripya sahi code daalein.');
+        // Function ka asli error message (galat code / expire / limit) dikhao
+        const serverCode = typeof data?.error === 'string' ? data.error : '';
+        const left = data?.attempts_left;
+        const message =
+          serverCode === 'invalid_code'
+            ? `Galat OTP code!${typeof left === 'number' ? ` (${left} try baaki)` : ''}`
+            : serverCode === 'otp_expired'
+              ? 'Code expire ho gaya hai. Resend par tap karke naya code bhejein.'
+              : serverCode === 'no_active_code'
+                ? 'Koi active code nahi hai. Pehle naya code bhejein.'
+                : serverCode === 'too_many_attempts'
+                  ? 'Bahut zyada galat koshish. Naya code maangein.'
+                  : '';
+        throw new Error(message || 'Galat OTP code! Kripya sahi code daalein.');
       } catch (err: any) {
         if (err?.message && !fnError) throw err;
         console.warn('unlock-account-otp verify error:', err, fnError);
@@ -273,7 +371,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
           if (tokenHash) {
             const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
             if (!error && (data?.session || data?.user)) {
-              const unlocked = await unlockAccountSuccess();
+              const unlocked = await unlockViaClient();
               if (!unlocked) throw new Error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
               return true;
             }
@@ -285,7 +383,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
               type: 'email',
             });
             if (!error && (data?.session || data?.user)) {
-              const unlocked = await unlockAccountSuccess();
+              const unlocked = await unlockViaClient();
               if (!unlocked) throw new Error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
               return true;
             }
@@ -306,7 +404,7 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
       });
 
       if (!error && (data?.session || data?.user)) {
-        const unlocked = await unlockAccountSuccess();
+        const unlocked = await unlockViaClient();
         if (!unlocked) throw new Error('Account unlock nahi ho paya. Kripya naya code bhej kar dobara try karein.');
         return true;
       }
@@ -515,17 +613,37 @@ export const AccountLockedUnlockModal: React.FC<AccountLockedUnlockModalProps> =
 
       {/* STEP 3: FUTURISTIC OTP CARD COMPONENT (USER PROVIDED HTML/CSS) */}
       {step === 'enter_otp' && (
-        <FuturisticOtpCard
-          title={selectedMethod === 'phone' ? 'Check Your Phone Now' : 'Check Your Email Now'}
-          subtitle={selectedMethod === 'phone' ? 'Enter the OTP sent to your phone.' : 'Enter the OTP sent to your email.'}
-          target={selectedMethod === 'phone' ? maskPhone(phone) : maskEmail(email)}
-          type={selectedMethod}
-          onVerify={handleVerifyOtpCode}
-          onResend={() => handleSendOtp(true)}
-          onBack={() => setStep('choose_method')}
-          successTitle="Account Unlocked Successfully!"
-          successSubtitle="Welcome back. Redirecting to your feed..."
-        />
+        <>
+          {freshOtpSession && (
+            <div className="fixed inset-x-0 bottom-4 z-50 px-4">
+              <div className="mx-auto flex max-w-sm items-center justify-between gap-3 rounded-2xl bg-emerald-600 px-4 py-3 text-white shadow-xl">
+                <span className="text-xs font-semibold">Email link verify ho gaya hai</span>
+                <Button
+                  size="sm"
+                  onClick={handleLinkUnlock}
+                  disabled={loading}
+                  className="bg-white text-emerald-700 hover:bg-white/90"
+                >
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Unlock'}
+                </Button>
+              </div>
+            </div>
+          )}
+          <FuturisticOtpCard
+            title={selectedMethod === 'phone' ? 'Check Your Phone Now' : 'Check Your Email Now'}
+            subtitle={selectedMethod === 'phone' ? 'Enter the OTP sent to your phone.' : 'Enter the OTP sent to your email.'}
+            target={selectedMethod === 'phone' ? maskPhone(phone) : maskEmail(email)}
+            type={selectedMethod}
+            ttlSeconds={otpTtl}
+            resendCooldown={resendAfter}
+            resendKey={resendCount}
+            onVerify={handleVerifyOtpCode}
+            onResend={() => handleSendOtp(true)}
+            onBack={() => setStep('choose_method')}
+            successTitle="Account Unlocked Successfully!"
+            successSubtitle="Welcome back. Redirecting to your feed..."
+          />
+        </>
       )}
     </div>
   );

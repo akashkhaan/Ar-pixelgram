@@ -1,69 +1,43 @@
 -- ============================================================================
---  Pixelgram — Account Unlock Security Fix (v3)
---  Supabase Dashboard -> SQL Editor -> New query -> paste -> Run
---  (idempotent: dobara chalao to error nahi aayega)
+--  Pixelgram — Account unlock guard (v4, final)
+--  Applied to: project ojctcqahhkdehtgffzvx (arpixelgram, ap-south-1)
 --
---  KYUN v3:
---   * pichhla frontend "fix" adhoora tha — usme auth event (SIGNED_IN /
---     USER_UPDATED / #access_token) par auto-unlock wala code baaki tha,
---     isliye account bina OTP hi khul jaata tha.
---   * unlock ka faisla browser kar raha tha (client se profiles.update),
---     yaani console se bhi unlock ho sakta tha.
---   * saath me ye bhi mila: koi bhi logged-in user khud ko admin bana sakta
---     tha (profiles.update { is_admin: true }).
+--  Problem jo fix ho rahi hai:
+--    * Browser reload / tab focus / token refresh / email link click par
+--      account apne aap unlock ho jaata tha (SIGNED_IN event + client-side
+--      profiles.update). Yaani OTP ki zaroorat hi nahi padti thi.
 --
---  v3 ka rule (database level, app bundle purana ho tab bhi lagu):
---    account_status / is_suspended / status_reason / status_updated_at badalne ke liye
---      1) service_role (edge function / server), YA
---      2) admin (profiles.is_admin = true), YA
---      3) khud ka account + session sach me "OTP verify" karke bana ho
---         (JWT ke amr claim me method=otp aur 15 minute ke andar)
---    is_admin badalne ke liye: sirf service_role ya admin (aur wo bhi doosre ka).
---    Baaki koi bhi koshish => error 42501.
+--  Rule (database level — app ka purana bundle bhi isse nahi bach sakta):
+--    account_status / is_suspended / status_reason / status_updated_at
+--    sirf in teen sooraton me badal sakta hai:
+--      1) service_role  (edge function / server)
+--      2) admin         (profiles.is_admin = true) — sirf doosre user ke liye
+--      3) khud ka account + session sach me OTP verify karke bana ho
+--         (JWT amr claim: method=otp aur 15 minute ke andar)
+--    is_admin badalne ke liye: sirf service_role ya admin (doosre user ka).
+--    Koi bhi aur koshish => error 42501.
 -- ============================================================================
 
 begin;
 
 -- ---------------------------------------------------------------------------
--- 1. OTP table (server-side verify ke liye; plaintext code kabhi store nahi,
---    sirf sha256 hash)
--- ---------------------------------------------------------------------------
-create table if not exists public.unlock_otp_requests (
-  id              uuid primary key default gen_random_uuid(),
-  user_id         uuid not null references auth.users(id) on delete cascade,
-  channel         text not null check (channel in ('email', 'phone')),
-  destination     text not null,
-  code_hash       text not null,
-  attempts        int  not null default 0,
-  max_attempts    int  not null default 5,
-  last_attempt_at timestamptz,
-  expires_at      timestamptz not null,
-  consumed_at     timestamptz,
-  created_at      timestamptz not null default now()
-);
-
-create index if not exists unlock_otp_requests_user_idx
-  on public.unlock_otp_requests (user_id, created_at desc);
-
-alter table public.unlock_otp_requests enable row level security;
-revoke all on public.unlock_otp_requests from anon, authenticated;
-
--- ---------------------------------------------------------------------------
--- 2. Audit log
+-- 1. Audit log
 -- ---------------------------------------------------------------------------
 create table if not exists public.account_unlock_logs (
   id          uuid primary key default gen_random_uuid(),
-  user_id     uuid not null references auth.users(id) on delete cascade,
+  user_id     uuid not null,
   method      text not null,
   actor_id    uuid,
   amr_method  text,
   unlocked_at timestamptz not null default now()
 );
 
+create index if not exists account_unlock_logs_user_idx
+  on public.account_unlock_logs (user_id, unlocked_at desc);
+
 alter table public.account_unlock_logs enable row level security;
 revoke all on public.account_unlock_logs from anon, authenticated;
 
--- logging helper (definer, taaki trigger se insert ho sake)
 create or replace function public.log_account_unlock(
   p_user_id uuid, p_method text, p_actor uuid, p_amr text
 ) returns void
@@ -78,8 +52,8 @@ $$;
 revoke all on function public.log_account_unlock(uuid, text, uuid, text) from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- 3. THE GUARD  (SECURITY INVOKER zaroori hai — DEFINER me current_user
---    function owner ban jaata hai aur check bypass ho jaata hai)
+-- 2. THE GUARD (SECURITY INVOKER — DEFINER me current_user owner ban jaata
+--    hai aur check bypass ho jaata hai)
 -- ---------------------------------------------------------------------------
 create or replace function public.guard_account_status_change()
 returns trigger
@@ -88,19 +62,19 @@ security invoker
 set search_path = public
 as $$
 declare
-  db_role          text := current_user;
-  jwt_role         text := coalesce(current_setting('request.jwt.claim.role', true), '');
-  claims           jsonb := '{}'::jsonb;
-  amr_item         jsonb;
-  amr_method       text;
-  amr_ts           timestamptz;
-  fresh_otp        boolean := false;
-  caller           uuid := null;
-  caller_is_admin  boolean := false;
-  status_changed   boolean;
-  admin_changed    boolean;
+  db_role         text := current_user;
+  jwt_role        text := coalesce(current_setting('request.jwt.claim.role', true), '');
+  claims          jsonb := '{}'::jsonb;
+  amr_item        jsonb;
+  amr_method      text;
+  amr_ts          timestamptz;
+  fresh_otp       boolean := false;
+  caller          uuid := null;
+  caller_is_admin boolean := false;
+  status_changed  boolean;
+  admin_changed   boolean;
 begin
-  -- (1) trusted server paths: edge function / dashboard / migration
+  -- (1) trusted server paths: edge function / dashboard / migration / cron
   if jwt_role = 'service_role'
      or db_role in ('postgres', 'supabase_admin', 'service_role') then
     return new;
@@ -113,7 +87,7 @@ begin
 
   admin_changed := (new.is_admin is distinct from old.is_admin);
 
-  -- kuch sensitive change nahi (bio, avatar, name...) => allowed
+  -- normal profile edit (naam, bio, photo, hello tune...) => koi rok nahi
   if not status_changed and not admin_changed then
     return new;
   end if;
@@ -124,7 +98,6 @@ begin
     claims := '{}'::jsonb;
   end;
 
-  -- caller id: auth.uid() ki jagah claims se (auth schema dependency se bachne ke liye)
   begin
     caller := nullif(claims ->> 'sub', '')::uuid;
   exception when others then
@@ -150,17 +123,20 @@ begin
   select coalesce(p.is_admin, false) into caller_is_admin
   from public.profiles p where p.user_id = caller;
 
-  -- (2) admin panel se lock/unlock/page
-  if status_changed and caller_is_admin and caller is not null then
+  -- (2) admin panel: admin doosre user ko lock/unlock/ban kar sakta hai,
+  --     aur doosre user ko admin bana/haTa sakta hai. Apna hi is_admin
+  --     ya apna hi status change karna is raste se nahi hoga.
+  if caller_is_admin and caller is not null and caller <> old.user_id then
     perform public.log_account_unlock(old.user_id, 'admin_panel', caller, null);
     return new;
   end if;
 
-  -- (3) user ne khud OTP verify kiya (email code / email link / SMS code)
+  -- (3) user ne khud OTP verify kiya (email code / magic link / SMS code)
   if status_changed
      and fresh_otp
-     and new.account_status = 'active'
-     and (claims ->> 'sub')::uuid = old.user_id then
+     and caller is not null
+     and caller = old.user_id
+     and new.account_status = 'active' then
     perform public.log_account_unlock(old.user_id, 'otp_verified_session', caller, amr_method);
     return new;
   end if;
@@ -181,53 +157,8 @@ create trigger trg_guard_account_status
   for each row
   execute function public.guard_account_status_change();
 
--- purana v1 ka guard (agar bana tha)
+-- purane/adhoore guard agar bane ho
 drop trigger if exists trg_prevent_client_account_status_change on public.profiles;
 drop function if exists public.prevent_client_account_status_change();
 
--- ---------------------------------------------------------------------------
--- 4. cleanup (7 din purane OTP rows)
--- ---------------------------------------------------------------------------
-create or replace function public.cleanup_unlock_otp_requests()
-returns void
-language sql
-security definer
-set search_path = public
-as $$
-  delete from public.unlock_otp_requests
-  where created_at < now() - interval '7 days';
-$$;
-
-revoke all on function public.cleanup_unlock_otp_requests() from anon, authenticated;
-
-do $$
-begin
-  if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    if exists (select 1 from cron.job where jobname = 'pixelgram_cleanup_unlock_otp') then
-      perform cron.unschedule('pixelgram_cleanup_unlock_otp');
-    end if;
-    perform cron.schedule('pixelgram_cleanup_unlock_otp', '15 3 * * *',
-      'select public.cleanup_unlock_otp_requests();');
-    raise notice 'pg_cron: pixelgram_cleanup_unlock_otp set';
-  else
-    raise notice 'pg_cron nahi hai — cleanup manual: select public.cleanup_unlock_otp_requests();';
-  end if;
-exception when others then
-  raise notice 'cron skip: %', sqlerrm;
-end $$;
-
 commit;
-
--- ============================================================================
---  VERIFY
--- ============================================================================
-select tablename, rowsecurity from pg_tables
-where schemaname = 'public' and tablename in ('unlock_otp_requests','account_unlock_logs');
-
-select tgname, tgenabled from pg_trigger
-where tgrelid = 'public.profiles'::regclass and not tgisinternal;
-
-select account_status, count(*) from public.profiles group by account_status;
-
--- asli test (Error aana chahiye: "Bina OTP unlock nahi hoga"):
--- update public.profiles set account_status='active' where user_id='<locked-user-uuid>';

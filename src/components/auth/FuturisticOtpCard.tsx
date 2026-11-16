@@ -12,6 +12,12 @@ export interface FuturisticOtpCardProps {
   onBack?: () => void;
   successTitle?: string;
   successSubtitle?: string;
+  /** Code kitni der valid hai (seconds). Server ke TTL se match karna chahiye. */
+  ttlSeconds?: number;
+  /** Resend button kitni der baad enable ho (seconds). */
+  resendCooldown?: number;
+  /** Har naye code bhejne par badhao — timer reset ho jayega. */
+  resendKey?: number;
 }
 
 export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
@@ -25,6 +31,9 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
   onBack,
   successTitle = 'Your Account Verified Successfully',
   successSubtitle = 'Welcome back. Redirecting...',
+  ttlSeconds = 300,
+  resendCooldown = 60,
+  resendKey = 0,
 }) => {
   const [digits, setDigits] = useState<string[]>(Array(length).fill(''));
   const [activeIdx, setActiveIdx] = useState<number>(0);
@@ -33,7 +42,7 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
   const [verifyPercent, setVerifyPercent] = useState<number>(0);
 
   // 60-second countdown timer
-  const [timeLeft, setTimeLeft] = useState<number>(60);
+  const [timeLeft, setTimeLeft] = useState<number>(ttlSeconds);
   const [isExpired, setIsExpired] = useState<boolean>(false);
   const timerRef = useRef<any>(null);
 
@@ -45,7 +54,7 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
   // Start / restart timer
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    setTimeLeft(60);
+    setTimeLeft(ttlSeconds);
     setIsExpired(false);
 
     timerRef.current = setInterval(() => {
@@ -58,14 +67,14 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
         return prev - 1;
       });
     }, 1000);
-  }, []);
+  }, [ttlSeconds]);
 
   useEffect(() => {
     startTimer();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [startTimer]);
+  }, [startTimer, resendKey]);
 
   // Focus first input on mount
   useEffect(() => {
@@ -212,6 +221,8 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
     }
   };
 
+  // Resend cooldown: naya code bhejne ke baad kuch second rukna padta hai
+  const resendWaitLeft = Math.max(0, Math.min(resendCooldown, resendCooldown - (ttlSeconds - timeLeft)));
   // Real OTP Verification
   const verifyOtp = async (codeToVerify: string) => {
     if (status === 'verifying' || status === 'success') return;
@@ -222,7 +233,7 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
     }
 
     if (isExpired || timeLeft <= 0) {
-      setErrorMessage('⚠️ OTP 1 minute me expire ho gaya hai. Resend par tap karein.');
+      setErrorMessage('⚠️ Ye code expire ho gaya hai. Resend par tap karke naya code bhejein.');
       return;
     }
 
@@ -516,10 +527,14 @@ export const FuturisticOtpCard: React.FC<FuturisticOtpCardProps> = ({
             <button
               type="button"
               onClick={handleResend}
-              disabled={status === 'verifying'}
-              className="font-bold text-indigo-300 hover:text-white hover:underline cursor-pointer transition-colors"
+              disabled={status === 'verifying' || resendWaitLeft > 0}
+              className={`font-bold transition-colors ${
+                resendWaitLeft > 0
+                  ? 'text-indigo-200/40 cursor-not-allowed'
+                  : 'text-indigo-300 hover:text-white hover:underline cursor-pointer'
+              }`}
             >
-              Resend Code
+              {resendWaitLeft > 0 ? `Resend in ${resendWaitLeft}s` : 'Resend Code'}
             </button>
           </div>
         </div>
