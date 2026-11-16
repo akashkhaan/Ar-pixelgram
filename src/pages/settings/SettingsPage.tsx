@@ -1,6 +1,7 @@
 import FacebookSwitchAccountModal from '@/components/profile/FacebookSwitchAccountModal';
 import { logInToAnotherAccount } from '@/lib/savedAccounts';
 import InstagramIcon from "@/components/icons/InstagramIcon";
+import YoutubeIcon from "@/components/icons/YoutubeIcon";
 import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Users, Globe, HelpCircle, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Shield, Sun, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,7 @@ const SettingsPage: React.FC = () => {
   const [darkMode, setDarkMode] = useState(document.documentElement.classList.contains('dark'));
   const [section, setSection] = useState<'main' | 'help' | 'report' | 'verification'>('main');
   const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [ownerOpen, setOwnerOpen] = useState(false);
   const [verificationRequest, setVerificationRequest] = useState<VerificationRequest | null>(null);
   const [verifyReason, setVerifyReason] = useState('');
   const [loading, setLoading] = useState(false);
@@ -590,16 +592,55 @@ const SettingsPage: React.FC = () => {
           { icon: KeyRound, label: 'Access Token', desc: '30 din ka token, devices aur logout manage karein', onClick: () => navigate('/settings/access-token'), danger: false },
           { icon: HelpCircle, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help'), danger: false },
           { icon: Flag, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report'), danger: false },
-          {
-            customIcon: <InstagramIcon size={26} />,
-            label: 'Owner contact',
-            desc: 'Click on join pixelgram owner connect',
-            href: 'https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==',
-            badge: 'Instagram',
-            danger: false,
-          },
+          { ownerConnect: true, label: 'Owner Connect' },
           { icon: Shield, label: 'Privacy', desc: 'Manage your privacy settings', onClick: () => navigate('/edit-profile'), danger: false },
         ].map((item: any) => {
+          if (item.ownerConnect) {
+            const links = [
+              { key: 'ig', icon: <InstagramIcon size={24} />, name: 'Instagram', handle: '@akash_raaj_89', href: 'https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==' },
+              { key: 'yt', icon: <YoutubeIcon size={24} />, name: 'YouTube', handle: '@techtrickindia9', href: 'https://youtube.com/@techtrickindia9?si=vBCxAOAcKYq2O0zl' },
+            ];
+            return (
+              <div key="owner-connect" className="w-full glass-card rounded-xl border border-pink-500/20 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setOwnerOpen((v) => !v)}
+                  aria-expanded={ownerOpen}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/60 transition-colors"
+                >
+                  <div className="relative w-9 h-7 shrink-0">
+                    <InstagramIcon size={24} className="absolute left-0 top-0.5" />
+                    <YoutubeIcon size={20} className="absolute right-0 bottom-0 ring-2 ring-background" />
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-medium text-foreground">Owner Connect</p>
+                    <p className="text-xs text-muted-foreground">Pixelgram owner se Instagram ya YouTube par judiye</p>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${ownerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {ownerOpen && (
+                  <div className="px-3 pb-3 space-y-2">
+                    {links.map((l) => (
+                      <a
+                        key={l.key}
+                        href={l.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors group"
+                      >
+                        {l.icon}
+                        <div className="flex-1 min-w-0 text-left">
+                          <p className="text-sm font-medium text-foreground">{l.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{l.handle}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
           if (item.href) {
             return (
               <a
