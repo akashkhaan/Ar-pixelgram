@@ -22,7 +22,7 @@ import ReportProblemSection from './ReportProblemSection';
 const THEME_STORAGE_KEY = 'pixelgram-theme';
 
 const SettingsPage: React.FC = () => {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const goBack = useGoBack("/profile");
   const handleBack = () => { if (section !== "main") setSection("main"); else goBack(); };
@@ -46,18 +46,24 @@ const SettingsPage: React.FC = () => {
   }, []);
 
   // 30-day (1 month) verification timeline & auto-expiry calculations
-  const approvedAtRaw = verificationRequest?.reviewed_at || (profile?.is_verified ? (profile?.created_at || '2026-10-02T10:00:00Z') : null);
+  // Tick kab mila: profile.verified_at (server set karta hai), warna approve hone ki date.
+  const approvedAtRaw = profile?.verified_at
+    || (verificationRequest?.status === 'approved' ? verificationRequest.reviewed_at : null)
+    || null;
   const approvedDate = approvedAtRaw ? new Date(approvedAtRaw) : new Date();
   // 30 days = 1 month validity
   const expiryDate = new Date(approvedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
   const diffMs = expiryDate.getTime() - now;
-  const isExpired = approvedAtRaw ? diffMs <= 0 : false;
-  const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  const expiredByTime = approvedAtRaw ? diffMs <= 0 : false;
+  const isExpired = verificationRequest?.status === 'expired' || expiredByTime;
+  const daysLeft = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
   const hoursLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
   const minutesLeft = Math.max(0, Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60)));
   const secondsLeft = Math.max(0, Math.floor((diffMs % (1000 * 60)) / 1000));
 
-  const isVerifiedActive = Boolean((profile?.is_verified || verificationRequest?.status === 'approved') && !isExpired);
+  const isVerifiedActive = Boolean(profile?.is_verified && !expiredByTime);
+  // Renew/Request form dikhana hai ya nahi
+  const canRequestTick = !isVerifiedActive && verificationRequest?.status !== 'pending';
 
   // 3-Phase Ghost Vanish rotating card:
   // Box 30s ke baad bhoot ki tarah gayab hoga, fir 2nd box aayega (6s), fir 3rd box (6s), fir wapas 1st box
@@ -101,14 +107,16 @@ const SettingsPage: React.FC = () => {
     return () => clearTimeout(timer);
   }, [cardPhase]);
 
-  // Auto-expire tick after 1 month (gayab ho jaye)
+  // Auto-expire tick after 1 month (gayab ho jaye) — server bhi har 5 min me hatata hai,
+  // ye sirf turant UI update ke liye hai.
   useEffect(() => {
-    if (profile?.is_verified && isExpired && user) {
-      import('@/services/api').then(({ supabase }) => {
-        supabase.from('profiles').update({ is_verified: false }).eq('user_id', user.id);
+    if (profile?.is_verified && expiredByTime && user) {
+      import('@/services/api').then(async ({ supabase }) => {
+        await supabase.from('profiles').update({ is_verified: false }).eq('user_id', user.id);
+        await refreshProfile?.();
       }).catch(console.error);
     }
-  }, [profile?.is_verified, isExpired, user]);
+  }, [profile?.is_verified, expiredByTime, user]);
 
   const formatFriendlyDate = (d: Date) => {
     try {
@@ -215,13 +223,14 @@ const SettingsPage: React.FC = () => {
           <h2 className="text-xl font-bold text-foreground mb-2">Verification Request</h2>
           <p className="text-sm text-muted-foreground mb-5 text-pretty">Get a blue checkmark to show your account is authentic.</p>
 
-          {profile?.is_verified ? (
+          {isVerifiedActive ? (
             <div className="flex flex-col items-center py-12 text-center">
               <BadgeCheck className="w-16 h-16 text-primary mb-3" />
               <h3 className="font-bold text-foreground text-lg">Already Verified!</h3>
               <p className="text-sm text-muted-foreground">Your account has a verified badge.</p>
+              <p className="text-xs text-muted-foreground mt-2">Khatam hoga: {formatFriendlyDate(expiryDate)} · {formatFriendlyTime(expiryDate)}</p>
             </div>
-          ) : verificationRequest && verificationRequest.status !== 'rejected' ? (
+          ) : !canRequestTick && verificationRequest ? (
             <div className="glass-card rounded-xl p-5 text-center">
               <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-3
                 ${verificationRequest.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
@@ -238,6 +247,16 @@ const SettingsPage: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
+              {isExpired && verificationRequest?.status !== 'rejected' && (
+                <div className="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 p-4 text-center space-y-1">
+                  <div className="inline-flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-400">
+                    <BadgeCheck className="w-4 h-4" /> Blue Tick Expired
+                  </div>
+                  <p className="text-sm text-muted-foreground text-pretty">
+                    Aapka 30 din ka blue tick khatam ho gaya. Neeche reason likh kar dobara request bhejein.
+                  </p>
+                </div>
+              )}
               {verificationRequest?.status === 'rejected' && (
                 <div className="rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-900/20 p-4 text-center space-y-1">
                   <div className="inline-flex items-center gap-2 text-sm font-medium text-red-700 dark:text-red-400">

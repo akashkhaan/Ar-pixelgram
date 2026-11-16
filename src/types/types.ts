@@ -8,6 +8,7 @@ export interface Profile {
   dob: string | null;
   is_private: boolean;
   is_verified: boolean;
+  verified_at?: string | null;
   is_admin: boolean;
   is_suspended: boolean;
   created_at: string;
@@ -133,7 +134,7 @@ export interface VerificationRequest {
   id: string;
   user_id: string;
   reason: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
   reviewed_at: string | null;
   created_at: string;
   profile?: Profile;
