@@ -23,6 +23,11 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      # Build se pehle pakdo: koi import aisi file se aa raha hai jo repo me
+      # commit hi nahi hui (aisa hone par build 'Could not load ...' par fail hota hai)
+      - name: Check imports are committed
+        run: node .rules/check-imports.mjs
+
       - name: Build web bundle
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
