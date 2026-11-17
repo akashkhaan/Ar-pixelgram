@@ -23,7 +23,6 @@ import UploadProgressOverlay from "@/components/common/UploadProgressOverlay";
 import AppUpdateSheet from "@/components/common/AppUpdateSheet";
 import { routes } from "./routes";
 import { useVisitTracker } from "@/hooks/useVisitTracker";
-import PixelgramAssistant from "@/components/pixelgram-ai/PixelgramAssistant";
 
 
 const UploadAutoResumer: React.FC = () => {
@@ -110,7 +109,6 @@ const App: React.FC = () => {
               <GroupCallOverlay />
               <UploadProgressOverlay />
               <InAppBrowserModal />
-              <PixelgramAssistant />
               <AppUpdateSheet />
             </GroupCallProvider>
           </CallProvider>
