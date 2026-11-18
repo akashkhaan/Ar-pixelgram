@@ -688,7 +688,34 @@ const GroupChatPage: React.FC = () => {
   return (
     <MobileLayout hideHeader hideNav noScroll>
       <style>{`
+        /* ── Light theme (default) ── */
         .group-chat-wrap {
+          --ov1: rgba(17,12,40,.04);
+          --ov2: rgba(17,12,40,.06);
+          --ov3: rgba(17,12,40,.10);
+          --bg: #f8f7fb;
+          --s1: #ffffff;
+          --s2: #e4e0f2;
+          --ink: #16121f;
+          --mute: #6f6a80;
+          --line: rgba(17,12,40,.09);
+          --pink: #e11d48;
+          --vio: #7c5cff;
+          --green: #12a67d;
+          --grad: linear-gradient(135deg,#FF3D7F,#7C5CFF);
+          background: var(--bg);
+          color: var(--ink);
+          font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+        }
+        /* ── Dark theme ── */
+        .dark .group-chat-wrap {
+          --ov1: rgba(255,255,255,.06);
+          --ov2: rgba(255,255,255,.07);
+          --ov3: rgba(255,255,255,.12);
           --bg: #0E0820;
           --s1: #1A1233;
           --s2: #2A2050;
@@ -698,14 +725,6 @@ const GroupChatPage: React.FC = () => {
           --pink: #FF3D7F;
           --vio: #7C5CFF;
           --green: #22D3A0;
-          --grad: linear-gradient(135deg,#FF3D7F,#7C5CFF);
-          background: var(--bg);
-          color: var(--ink);
-          font-family: "Bricolage Grotesque", system-ui, -apple-system, "Segoe UI", sans-serif;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          position: relative;
         }
         .group-chat-wrap .chh {
           position: absolute;
@@ -729,7 +748,7 @@ const GroupChatPage: React.FC = () => {
           width: 40px;
           height: 40px;
           border-radius: 14px;
-          background: rgba(255,255,255,.07);
+          background: var(--ov2);
           display: grid;
           place-items: center;
           flex: none;
@@ -740,7 +759,7 @@ const GroupChatPage: React.FC = () => {
         }
         .group-chat-wrap .back:active {
           transform: scale(.92);
-          background: rgba(255,255,255,.12);
+          background: var(--ov3);
         }
         .group-chat-wrap .t {
           flex: 1;
@@ -764,7 +783,7 @@ const GroupChatPage: React.FC = () => {
           width: 38px;
           height: 38px;
           border-radius: 50%;
-          background: rgba(255,255,255,.06);
+          background: var(--ov1);
           border: 1px solid var(--line);
           display: grid;
           place-items: center;
@@ -790,7 +809,7 @@ const GroupChatPage: React.FC = () => {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          background-image: radial-gradient(rgba(255,255,255,.06) 1.2px, transparent 1.4px);
+          background-image: radial-gradient(var(--ov1) 1.2px, transparent 1.4px);
           background-size: 20px 20px;
         }
         .group-chat-wrap .tm {
@@ -801,7 +820,7 @@ const GroupChatPage: React.FC = () => {
           margin: 6px 0 8px;
           padding: 4px 14px;
           border-radius: 99px;
-          background: rgba(255,255,255,.07);
+          background: var(--ov2);
         }
         .group-chat-wrap .send-bar {
           display: flex;
@@ -819,7 +838,7 @@ const GroupChatPage: React.FC = () => {
           flex: 1;
           min-width: 0;
           height: 44px;
-          background: rgba(255,255,255,.07);
+          background: var(--ov2);
           border: 1px solid var(--line);
           border-radius: 99px;
           padding: 0 16px;
@@ -853,7 +872,7 @@ const GroupChatPage: React.FC = () => {
           min-height: 44px;
           resize: none;
           border-radius: 22px;
-          background: rgba(255,255,255,.07);
+          background: var(--ov2);
           border: 1px solid var(--line);
           color: var(--ink);
           -webkit-text-fill-color: var(--ink);
@@ -876,7 +895,7 @@ const GroupChatPage: React.FC = () => {
           width: 40px;
           height: 40px;
           border-radius: 50%;
-          background: rgba(255,255,255,.06);
+          background: var(--ov1);
           display: grid;
           place-items: center;
           color: var(--mute);
@@ -1007,7 +1026,7 @@ const GroupChatPage: React.FC = () => {
 
         {/* IN-CONVERSATION SEARCH BAR */}
         {showMessageSearch && (
-          <div className="flex items-center gap-2 border-b border-white/10 bg-[#1A1233]/80 backdrop-blur-md px-3 py-2 animate-in slide-in-from-top-2 duration-150 shrink-0">
+          <div className="flex items-center gap-2 border-b border-border bg-card/85 backdrop-blur-md px-3 py-2 animate-in slide-in-from-top-2 duration-150 shrink-0">
             <GlassSearch
               autoFocus
               value={messageQuery}
@@ -1017,7 +1036,7 @@ const GroupChatPage: React.FC = () => {
             <button
               type="button"
               onClick={() => { setShowMessageSearch(false); setMessageQuery(''); }}
-              className="p-1.5 rounded-full hover:bg-white/10 text-[#A99FD2] hover:text-[#F7F3FF]"
+              className="p-1.5 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
               aria-label="Close search"
             >
               <X className="h-4 w-4" />
@@ -1080,7 +1099,7 @@ const GroupChatPage: React.FC = () => {
               const targetName = parts[2] || "a member";
               return (
                 <div key={message.id} className="w-full flex justify-center my-3 px-4 select-none">
-                  <div className="text-[12px] font-medium text-muted-foreground/90 bg-white/6 dark:bg-zinc-800/60 border border-white/10 px-4 py-1.5 rounded-full backdrop-blur-md flex items-center gap-2 shadow-xs">
+                  <div className="text-[12px] font-medium text-muted-foreground/90 bg-muted/70 dark:bg-zinc-800/60 border border-border px-4 py-1.5 rounded-full backdrop-blur-md flex items-center gap-2 shadow-xs">
                     <UserPlus className="w-3.5 h-3.5 text-[#FF3D7F] shrink-0" />
                     <span>
                       <strong className="text-foreground font-semibold">@{adderName}</strong> added <strong className="text-[#FF3D7F] font-semibold">@{targetName}</strong>
@@ -1094,7 +1113,7 @@ const GroupChatPage: React.FC = () => {
               const text = message.content.replace("[GROUP_SYSTEM]:", "").trim();
               return (
                 <div key={message.id} className="w-full flex justify-center my-3 px-4 select-none">
-                  <div className="text-[12px] font-medium text-muted-foreground/90 bg-white/6 dark:bg-zinc-800/60 border border-white/10 px-4 py-1.5 rounded-full backdrop-blur-md flex items-center gap-2 shadow-xs">
+                  <div className="text-[12px] font-medium text-muted-foreground/90 bg-muted/70 dark:bg-zinc-800/60 border border-border px-4 py-1.5 rounded-full backdrop-blur-md flex items-center gap-2 shadow-xs">
                     <UserPlus className="w-3.5 h-3.5 text-[#FF3D7F] shrink-0" />
                     <span>{text}</span>
                   </div>
@@ -1168,7 +1187,7 @@ const GroupChatPage: React.FC = () => {
                               "w-fit max-w-full px-4 py-2 rounded-[20px] text-[15px] leading-snug shadow-2xs transition-all cursor-pointer select-text",
                               mine
                                 ? cn("rounded-br-[4px] text-white", activeTheme.bubble)
-                                : "bg-white/10 text-[#F7F3FF] rounded-bl-[4px] border border-white/10 dark:border-white/10 shadow-2xs"
+                                : "bg-muted text-foreground rounded-bl-[4px] border border-border shadow-2xs"
                             )}
                           >
                             {replied && (

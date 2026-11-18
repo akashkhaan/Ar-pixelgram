@@ -765,14 +765,14 @@ const ChatPage: React.FC = () => {
                 onClick={() => setShowDetails(true)}
                 className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-muted"
               >
-                <Info className="w-4 h-4 text-[#A99FD2]" />
+                <Info className="w-4 h-4 text-muted-foreground" />
                 <span>Conversation details</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowSearch(true)}
                 className="cursor-pointer py-2.5 px-3 text-sm font-medium rounded-xl gap-2.5 hover:bg-muted"
               >
-                <Search className="w-4 h-4 text-[#A99FD2]" />
+                <Search className="w-4 h-4 text-muted-foreground" />
                 <span>Search messages</span>
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -1146,7 +1146,7 @@ const ChatPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowEmoji(!showEmoji)}
-                className="absolute right-2.5 bottom-2 w-7 h-7 flex items-center justify-center text-[#A99FD2] hover:text-[#FF3D7F] transition-transform"
+                className="absolute right-2.5 bottom-2 w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-[#FF3D7F] transition-transform"
                 title="Emoji"
               >
                 <Smile className={cn('w-5 h-5 transition-transform', showEmoji ? 'text-[#FF3D7F] scale-110' : '')} />

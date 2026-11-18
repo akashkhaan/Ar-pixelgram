@@ -1218,20 +1218,20 @@ const ChatListPage: React.FC = () => {
                   }}
                 >
                   {myNote ? (
-                    <div className="relative mb-2 px-2.5 py-1 bg-[#1A1233]/95 border border-white/10 rounded-2xl shadow-lg max-w-[84px] text-center">
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1A1233] border-r border-b border-white/10 rotate-45" />
+                    <div className="relative mb-2 px-2.5 py-1 bg-card dark:bg-[#1A1233]/95 border border-border dark:border-white/10 rounded-2xl shadow-lg max-w-[84px] text-center">
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-card dark:bg-[#1A1233] border-r border-b border-border dark:border-white/10 rotate-45" />
                       {myNote.music_track && (
                         <div className="flex items-center justify-center gap-1 text-[8.5px] text-[#FF3D7F] font-bold truncate">
                           <Music2 className="w-2.5 h-2.5 shrink-0 animate-pulse" />
                           <span className="truncate max-w-[60px]">{myNote.music_track.title}</span>
                         </div>
                       )}
-                      <p className="text-[10.5px] font-medium text-[#F7F3FF] truncate max-w-[70px] leading-tight">
+                      <p className="text-[10.5px] font-medium text-foreground dark:text-[#F7F3FF] truncate max-w-[70px] leading-tight">
                         {myNote.text}
                       </p>
                     </div>
                   ) : (
-                    <div className="relative mb-2 px-2 py-0.5 rounded-full bg-white/6 border border-white/10 text-[9.5px] text-[#A99FD2] font-semibold truncate max-w-[74px]">
+                    <div className="relative mb-2 px-2 py-0.5 rounded-full bg-muted/70 dark:bg-white/6 border border-border dark:border-white/10 text-[9.5px] text-muted-foreground dark:text-[#A99FD2] font-semibold truncate max-w-[74px]">
                       Share thought
                     </div>
                   )}
@@ -1269,15 +1269,15 @@ const ChatListPage: React.FC = () => {
                     }}
                   >
                     {note && (
-                      <div className="relative mb-2 px-2.5 py-1 bg-[#1A1233]/95 border border-white/10 rounded-2xl shadow-lg max-w-[84px] text-center">
-                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1A1233] border-r border-b border-white/10 rotate-45" />
+                      <div className="relative mb-2 px-2.5 py-1 bg-card dark:bg-[#1A1233]/95 border border-border dark:border-white/10 rounded-2xl shadow-lg max-w-[84px] text-center">
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-card dark:bg-[#1A1233] border-r border-b border-border dark:border-white/10 rotate-45" />
                         {note.music_track && (
                           <div className="flex items-center justify-center gap-1 text-[8.5px] text-[#FF3D7F] font-bold truncate">
                             <Music2 className="w-2.5 h-2.5 shrink-0 animate-pulse" />
                             <span className="truncate max-w-[60px]">{note.music_track.title}</span>
                           </div>
                         )}
-                        <p className="text-[10.5px] font-medium text-[#F7F3FF] truncate max-w-[70px] leading-tight">
+                        <p className="text-[10.5px] font-medium text-foreground dark:text-[#F7F3FF] truncate max-w-[70px] leading-tight">
                           {note.text}
                         </p>
                       </div>
@@ -1367,7 +1367,7 @@ const ChatListPage: React.FC = () => {
                   {loading && filteredGroups.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-3">
                       <div className="w-9 h-9 rounded-full border-3 border-[#FF3D7F]/30 border-t-[#FF3D7F] animate-spin" />
-                      <span className="text-xs text-[#A99FD2] font-medium">Loading groups...</span>
+                      <span className="text-xs text-muted-foreground dark:text-[#A99FD2] font-medium">Loading groups...</span>
                     </div>
                   ) : filteredGroups.length === 0 ? (
                     <div className="empty">
@@ -1475,7 +1475,7 @@ const ChatListPage: React.FC = () => {
                   {loading && filteredConversations.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-3">
                       <div className="w-9 h-9 rounded-full border-3 border-[#FF3D7F]/30 border-t-[#FF3D7F] animate-spin" />
-                      <span className="text-xs text-[#A99FD2] font-medium">Loading messages...</span>
+                      <span className="text-xs text-muted-foreground dark:text-[#A99FD2] font-medium">Loading messages...</span>
                     </div>
                   ) : (chatFilter === "unread" ? unreadConversations : filteredConversations).length === 0 ? (
                     <div className="empty">
@@ -1593,7 +1593,7 @@ const ChatListPage: React.FC = () => {
                   {chatFilter === "all" && !searchQuery && filteredGroups.length > 0 && (
                     <div className="mt-6 mb-2">
                       <div className="flex items-center justify-between px-2 mb-3">
-                        <span className="text-xs font-bold uppercase tracking-wider text-[#A99FD2]">
+                        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground dark:text-[#A99FD2]">
                           Groups ({filteredGroups.length})
                         </span>
                       </div>

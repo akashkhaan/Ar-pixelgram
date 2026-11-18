@@ -1548,24 +1548,50 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
       className="group-details-root fixed inset-0 z-50 overflow-y-auto overscroll-contain"
       style={
         {
-          '--bg': '#0E0820',
-          '--s1': '#1A1233',
-          '--s2': '#2A2050',
-          '--ink': '#F7F3FF',
-          '--mute': '#A99FD2',
-          '--line': 'rgba(255,255,255,.09)',
-          '--green': '#22D3A0',
-          '--red': '#FF5470',
+          // Base palette (sirf light/dark ke liye nahi — theme-aware CSS me
+          // define hai) aur group theme ke accent colors
           '--a1': activeThemeColors[1],
           '--a2': activeThemeColors[2],
           '--grad': `linear-gradient(135deg, ${activeThemeColors[1]}, ${activeThemeColors[2]})`,
-          backgroundColor: 'var(--bg)',
-          color: 'var(--ink)',
           fontFamily: '"Bricolage Grotesque", system-ui, -apple-system, sans-serif',
         } as React.CSSProperties
       }
     >
       <style>{`
+        /* ── Light theme (default) ── */
+        .group-details-root {
+          --bg: #f8f7fb;
+          --s1: #ffffff;
+          --s2: #e4e0f2;
+          --ink: #16121f;
+          --mute: #6f6a80;
+          --line: rgba(17,12,40,.09);
+          --green: #12a67d;
+          --red: #e11d48;
+          --ov1: rgba(17,12,40,.04);
+          --ov2: rgba(17,12,40,.06);
+          --ov3: rgba(17,12,40,.10);
+          --scrim: rgba(248,247,251,.90);
+          --scrim2: rgba(240,238,248,.82);
+          --dot: rgba(17,12,40,.16);
+        }
+        /* ── Dark theme ── */
+        .dark .group-details-root {
+          --bg: #0E0820;
+          --s1: #1A1233;
+          --s2: #2A2050;
+          --ink: #F7F3FF;
+          --mute: #A99FD2;
+          --line: rgba(255,255,255,.09);
+          --green: #22D3A0;
+          --red: #FF5470;
+          --ov1: rgba(255,255,255,.05);
+          --ov2: rgba(255,255,255,.07);
+          --ov3: rgba(255,255,255,.12);
+          --scrim: rgba(14,8,32,.88);
+          --scrim2: rgba(5,2,14,.75);
+          --dot: rgba(255,255,255,.22);
+        }
         .group-details-root * { box-sizing: border-box; }
         .group-details-root {
           min-height: 100vh;
@@ -1584,6 +1610,11 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           background: radial-gradient(520px 340px at 50% -80px, color-mix(in srgb, var(--a1) 28%, transparent), transparent 70%),
                       radial-gradient(420px 300px at 100% 380px, color-mix(in srgb, var(--a2) 18%, transparent), transparent 70%);
         }
+        /* light mode me accent glow halka rakho */
+        .group-details-root::before { opacity: .5; }
+        .group-details-root::after { opacity: .45; }
+        .dark .group-details-root::before,
+        .dark .group-details-root::after { opacity: 1; }
         .group-details-root::after {
           content: "";
           position: fixed;
@@ -1612,7 +1643,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           align-items: center;
           justify-content: space-between;
           padding: 14px 14px 10px;
-          background: rgba(14, 8, 32, .88);
+          background: var(--scrim);
           backdrop-filter: blur(14px);
           -webkit-backdrop-filter: blur(14px);
           border-bottom: 1px solid var(--line);
@@ -1628,7 +1659,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           width: 42px;
           height: 42px;
           border-radius: 14px;
-          background: rgba(255, 255, 255, .07);
+          background: var(--ov2);
           display: grid;
           place-items: center;
           cursor: pointer;
@@ -1637,7 +1668,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           transition: background .2s;
         }
         .group-details-root .ib:hover {
-          background: rgba(255, 255, 255, .12);
+          background: var(--ov3);
         }
         .group-details-root .ib svg { width: 20px; height: 20px; }
         .group-details-root .hero {
@@ -1664,7 +1695,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           content: "";
           position: absolute;
           inset: 0;
-          background-image: radial-gradient(rgba(255, 255, 255, .22) 1.3px, transparent 1.5px);
+          background-image: radial-gradient(var(--dot) 1.3px, transparent 1.5px);
           background-size: 18px 18px;
         }
         .group-details-root .gav {
@@ -1747,7 +1778,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           margin-top: 14px;
           padding: 4px 8px 4px 18px;
           border-radius: 99px;
-          background: rgba(255, 255, 255, .05);
+          background: var(--ov1);
           border: 1px solid var(--line);
           cursor: pointer;
         }
@@ -1792,7 +1823,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           height: 62px;
           margin: 0 auto 8px;
           border-radius: 50%;
-          background: rgba(255, 255, 255, .07);
+          background: var(--ov2);
           border: 1px solid var(--line);
           color: var(--a1);
           transition: transform .15s;
@@ -1816,7 +1847,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           text-align: center;
           padding: 13px 4px;
           border-radius: 20px;
-          background: rgba(255, 255, 255, .05);
+          background: var(--ov1);
           border: 1px solid var(--line);
           font-size: 13px;
           color: var(--mute);
@@ -1857,7 +1888,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
         .group-details-root .card {
           margin: 0 12px;
           border-radius: 26px;
-          background: rgba(255, 255, 255, .045);
+          background: var(--ov1);
           border: 1px solid var(--line);
           overflow: hidden;
           position: relative;
@@ -1893,8 +1924,8 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           transition: background .2s;
         }
         .group-details-root .row:last-child { border-bottom: 0; }
-        .group-details-root .row:hover { background: rgba(255, 255, 255, .05); }
-        .group-details-root .row:active { background: rgba(255, 255, 255, .09); }
+        .group-details-root .row:hover { background: var(--ov1); }
+        .group-details-root .row:active { background: var(--ov3); }
         .group-details-root .ti {
           flex: none;
           width: 42px;
@@ -1958,6 +1989,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           height: 24px;
           border-radius: 50%;
           background: #fff;
+          box-shadow: 0 1px 3px rgba(17,12,40,.28);
           transition: transform .35s cubic-bezier(.34, 1.56, .64, 1);
         }
         .group-details-root .tg.on { background: var(--grad); }
@@ -1979,7 +2011,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           position: fixed;
           inset: 0;
           z-index: 60;
-          background: rgba(5, 2, 14, .75);
+          background: var(--scrim2);
           opacity: 0;
           pointer-events: none;
           transition: opacity .25s;
@@ -2037,7 +2069,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           width: 100%;
           height: 50px;
           border-radius: 16px;
-          background: rgba(255, 255, 255, .07);
+          background: var(--ov2);
           border: 1px solid var(--line);
           padding: 0 16px;
           font-size: 16px;
@@ -2068,7 +2100,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           border: 0;
           cursor: pointer;
         }
-        .group-details-root .btn.alt { background: rgba(255, 255, 255, .08); }
+        .group-details-root .btn.alt { background: var(--ov3); }
         .group-details-root .btn.red { background: var(--red); }
         .group-details-root .btn:disabled { opacity: .4; cursor: not-allowed; }
         .group-details-root .grid {
@@ -2083,7 +2115,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
           place-items: center;
           font-size: 30px;
           border: 2px solid transparent;
-          background: rgba(255, 255, 255, .06);
+          background: var(--ov2);
           position: relative;
           text-align: center;
           color: inherit;
@@ -2190,7 +2222,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
         .group-details-root .msg {
           padding: 11px 14px;
           border-radius: 18px;
-          background: rgba(255, 255, 255, .06);
+          background: var(--ov2);
           margin-bottom: 8px;
           display: flex;
           gap: 10px;
@@ -2216,7 +2248,7 @@ export const MessengerGroupSettings: React.FC<MessengerGroupSettingsProps> = ({
         .group-details-root .link {
           padding: 14px;
           border-radius: 16px;
-          background: rgba(255, 255, 255, .06);
+          background: var(--ov2);
           border: 1px dashed var(--mute);
           font-size: 14.5px;
           word-break: break-all;

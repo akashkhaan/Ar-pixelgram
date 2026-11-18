@@ -460,35 +460,38 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
   return (
     <div className="ht-root" role="dialog" aria-modal="true" aria-label="Hello Tune settings">
       <style>{`
-        .ht-root{--ht-bg:#0e0820;--ht-card:#1a1233;--ht-stroke:#2b2050;--ht-text:#f7f3ff;--ht-muted:#a99fd2;--ht-pink:#ff3d7f;--ht-purple:#7c5cff;position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:radial-gradient(ellipse at 75% 2%,rgba(124,92,255,.18),transparent 33%),radial-gradient(ellipse at 10% 30%,rgba(255,61,127,.08),transparent 35%),var(--ht-bg);color:var(--ht-text);font-family:inherit;overflow:hidden}
-        .ht-header{height:62px;flex:0 0 62px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--ht-stroke);background:rgba(14,8,32,.88);backdrop-filter:blur(18px)}
-        .ht-icon-button{width:40px;height:40px;border:1px solid var(--ht-stroke);border-radius:14px;background:rgba(255,255,255,.035);color:var(--ht-text);display:grid;place-items:center;flex:0 0 auto}
+        /* ── Light theme (default) ── */
+        .ht-root{--ht-bg:#f8f7fb;--ht-card:#ffffff;--ht-stroke:#e4e0f2;--ht-text:#16121f;--ht-muted:#6f6a80;--ht-pink:#e11d48;--ht-purple:#7c5cff;--ht-ov1:rgba(17,12,40,.04);--ht-ov2:rgba(17,12,40,.06);--ht-scrim:rgba(248,247,251,.92);position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:radial-gradient(ellipse at 75% 2%,rgba(124,92,255,.09),transparent 33%),radial-gradient(ellipse at 10% 30%,rgba(255,61,127,.05),transparent 35%),var(--ht-bg);color:var(--ht-text);font-family:inherit;overflow:hidden}
+        /* ── Dark theme ── */
+        .dark .ht-root{--ht-bg:#0e0820;--ht-card:#1a1233;--ht-stroke:#2b2050;--ht-text:#f7f3ff;--ht-muted:#a99fd2;--ht-pink:#ff3d7f;--ht-purple:#7c5cff;--ht-ov1:var(--ht-ov1);--ht-ov2:var(--ht-ov2);--ht-scrim:var(--ht-scrim);background:radial-gradient(ellipse at 75% 2%,rgba(124,92,255,.18),transparent 33%),radial-gradient(ellipse at 10% 30%,rgba(255,61,127,.08),transparent 35%),var(--ht-bg)}
+        .ht-header{height:62px;flex:0 0 62px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--ht-stroke);background:var(--ht-scrim);backdrop-filter:blur(18px)}
+        .ht-icon-button{width:40px;height:40px;border:1px solid var(--ht-stroke);border-radius:14px;background:var(--ht-ov1);color:var(--ht-text);display:grid;place-items:center;flex:0 0 auto}
         .ht-heading{min-width:0;flex:1}.ht-heading strong{display:block;font-size:16px}.ht-heading span{display:block;color:var(--ht-muted);font-size:11px;margin-top:2px}
-        .ht-content{width:min(100%,560px);margin:0 auto;flex:1;overflow-y:auto;padding:16px 16px calc(32px + env(safe-area-inset-bottom));scrollbar-width:thin;scrollbar-color:#493978 transparent}
+        .ht-content{width:min(100%,560px);margin:0 auto;flex:1;overflow-y:auto;padding:16px 16px calc(32px + env(safe-area-inset-bottom));scrollbar-width:thin;scrollbar-color:var(--ht-stroke) transparent}
         .ht-current{display:flex;align-items:center;gap:12px;padding:14px;margin:2px 0 18px;border:1px solid rgba(124,92,255,.36);border-radius:18px;background:linear-gradient(115deg,rgba(124,92,255,.17),rgba(255,61,127,.08))}
         .ht-current-art,.ht-art{width:48px;height:48px;flex:0 0 48px;border-radius:14px;display:grid;place-items:center;color:white;background:linear-gradient(135deg,var(--art-a,#7c5cff),var(--art-b,#ff3d7f));box-shadow:0 8px 20px rgba(6,4,19,.28)}
         .ht-current-copy{min-width:0;flex:1}.ht-current-copy strong,.ht-current-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ht-current-copy strong{font-size:13px}.ht-current-copy span{color:var(--ht-muted);font-size:11px;margin-top:4px}
-        .ht-overline{font-size:11px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:#c7b8ff;margin:18px 0 10px}
-        .ht-search{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.055);border:1px solid var(--ht-stroke);border-radius:15px;padding:0 11px;height:48px}
-        .ht-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--ht-text);font:inherit;font-size:13px}.ht-search input::placeholder{color:#8478aa}
+        .ht-overline{font-size:11px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--ht-purple);margin:18px 0 10px}
+        .ht-search{display:flex;align-items:center;gap:9px;background:var(--ht-ov2);border:1px solid var(--ht-stroke);border-radius:15px;padding:0 11px;height:48px}
+        .ht-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--ht-text);font:inherit;font-size:13px}.ht-search input::placeholder{color:var(--ht-muted)}
         .ht-moods{display:flex;gap:7px;overflow-x:auto;padding:12px 0 4px;scrollbar-width:none}.ht-moods::-webkit-scrollbar{display:none}
-        .ht-chip{white-space:nowrap;border:1px solid var(--ht-stroke);border-radius:999px;background:rgba(255,255,255,.035);padding:7px 12px;color:#c7bde1;font-size:11px}
+        .ht-chip{white-space:nowrap;border:1px solid var(--ht-stroke);border-radius:999px;background:var(--ht-ov1);padding:7px 12px;color:var(--ht-text);font-size:11px}
         .ht-chip-active{color:white;border-color:transparent;background:linear-gradient(110deg,var(--ht-purple),var(--ht-pink));box-shadow:0 5px 14px rgba(124,92,255,.22)}
         .ht-upload{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px;border-radius:16px;border:1px dashed rgba(199,184,255,.42);color:var(--ht-text);background:rgba(124,92,255,.08)}
-        .ht-upload-icon{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:rgba(124,92,255,.2);color:#d7ccff}
+        .ht-upload-icon{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:rgba(124,92,255,.2);color:var(--ht-purple)}
         .ht-upload strong{display:block;font-size:12px}.ht-upload small{display:block;color:var(--ht-muted);font-size:10px;margin-top:3px}
         .ht-track{display:flex;align-items:center;gap:11px;padding:11px 3px;border-bottom:1px solid rgba(169,159,210,.12)}
         .ht-track-copy{flex:1;min-width:0}.ht-track-copy strong,.ht-track-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ht-track-copy strong{font-size:12px}.ht-track-copy span{color:var(--ht-muted);font-size:10px;margin-top:4px}
-        .ht-track-use{border:1px solid var(--ht-stroke);border-radius:12px;padding:8px 10px;background:rgba(255,255,255,.04);color:#d9ceff;font-size:10px;font-weight:700}
+        .ht-track-use{border:1px solid var(--ht-stroke);border-radius:12px;padding:8px 10px;background:var(--ht-ov1);color:var(--ht-purple);font-size:10px;font-weight:700}
         .ht-empty{padding:26px 12px;text-align:center;color:var(--ht-muted);font-size:12px}
         .ht-error{margin:10px 0;padding:11px 13px;border:1px solid rgba(255,61,127,.32);border-radius:13px;background:rgba(255,61,127,.08);color:#ffc3d7;font-size:11px;line-height:1.5}
-        .ht-trim{position:fixed;inset:0;z-index:95;background:rgba(14,8,32,.98);display:flex;flex-direction:column;overflow-y:auto}
+        .ht-trim{position:fixed;inset:0;z-index:95;background:var(--ht-bg);display:flex;flex-direction:column;overflow-y:auto}
         .ht-trim-content{width:min(100%,560px);margin:0 auto;flex:1;padding:16px 16px calc(26px + env(safe-area-inset-bottom))}
         .ht-trim-hero{display:flex;align-items:center;gap:13px;margin:12px 0 18px}.ht-trim-hero .ht-art{width:56px;height:56px;flex-basis:56px}.ht-trim-hero strong{display:block;font-size:15px}.ht-trim-hero span{display:block;color:var(--ht-muted);font-size:11px;margin-top:4px}
-        .ht-wave-wrap{position:relative;padding:14px 12px 24px;border:1px solid var(--ht-stroke);border-radius:18px;background:rgba(255,255,255,.035);touch-action:none;user-select:none}
+        .ht-wave-wrap{position:relative;padding:14px 12px 24px;border:1px solid var(--ht-stroke);border-radius:18px;background:var(--ht-ov1);touch-action:none;user-select:none}
         .ht-wave-canvas{display:block;width:100%;height:84px}.ht-wave-labels{position:absolute;bottom:7px;left:13px;right:13px;display:flex;justify-content:space-between;color:#a99fd2;font-size:9px}
-        .ht-lengths{display:flex;gap:8px;margin:14px 0}.ht-length{flex:1;border:1px solid var(--ht-stroke);border-radius:12px;background:rgba(255,255,255,.035);color:#c8bddf;padding:10px 6px;font-size:11px;font-weight:700}.ht-length-active{border-color:transparent;color:white;background:linear-gradient(110deg,#7c5cff,#ff3d7f)}
-        .ht-best{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--ht-stroke);border-radius:13px;padding:11px;background:rgba(255,255,255,.035);color:#d3c9ee;font-size:11px}
+        .ht-lengths{display:flex;gap:8px;margin:14px 0}.ht-length{flex:1;border:1px solid var(--ht-stroke);border-radius:12px;background:var(--ht-ov1);color:var(--ht-text);padding:10px 6px;font-size:11px;font-weight:700}.ht-length-active{border-color:transparent;color:white;background:linear-gradient(110deg,#7c5cff,#ff3d7f)}
+        .ht-best{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--ht-stroke);border-radius:13px;padding:11px;background:var(--ht-ov1);color:var(--ht-text);font-size:11px}
         .ht-set{position:sticky;bottom:0;width:min(100%,560px);margin:20px auto 0;border:0;border-radius:15px;padding:14px;background:linear-gradient(110deg,#7c5cff,#ff3d7f);color:white;font-weight:800;font-size:13px;box-shadow:0 9px 22px rgba(124,92,255,.2);display:flex;align-items:center;justify-content:center;gap:8px}
         .ht-set:disabled{opacity:.55}
         .ht-no-results{padding:28px 12px;text-align:center;color:var(--ht-muted);font-size:12px}
@@ -576,7 +579,7 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
           ))}
           {filteredTracks.length === 0 && <div className="ht-no-results">Is search mein koi demo tune nahi mili.</div>}
         </div>
-        <div className="ht-error" style={{ borderColor: 'rgba(124,92,255,.24)', background: 'rgba(124,92,255,.055)', color: '#c8bddf' }}>
+        <div className="ht-error" style={{ borderColor: 'rgba(124,92,255,.24)', background: 'rgba(124,92,255,.055)', color: 'var(--ht-text)' }}>
           Ye 10 built-in demo tunes synthesize ki gayi melodies hain; commercial/film songs ke liye apni audio file upload karo.
         </div>
       </main>

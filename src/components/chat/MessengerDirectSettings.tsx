@@ -193,26 +193,41 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
   return (
     <div className="direct-settings-root fixed inset-0 z-50 flex flex-col overflow-y-auto animate-in fade-in duration-200 select-none">
       <style>{`
-        .direct-settings-root{--ds-bg:#0e0820;--ds-card:#19122f;--ds-stroke:#302451;--ds-ink:#f7f3ff;--ds-muted:#a99fd2;background:radial-gradient(ellipse at 82% 0%,rgba(124,92,255,.17),transparent 34%),radial-gradient(ellipse at 2% 48%,rgba(255,61,127,.08),transparent 34%),var(--ds-bg);color:var(--ds-ink);font-family:inherit;overscroll-behavior:contain}
-        .direct-settings-root .direct-settings-header{border-color:rgba(169,159,210,.14);background:rgba(14,8,32,.86);backdrop-filter:blur(18px)}
-        .direct-settings-root .direct-settings-icon-button{border:1px solid rgba(169,159,210,.15);background:rgba(255,255,255,.035);color:var(--ds-ink)}
+        /* ── Light theme (default) ── */
+        .direct-settings-root{--ds-bg:#f8f7fb;--ds-card:#ffffff;--ds-stroke:#e6e3ef;--ds-ink:#16121f;--ds-muted:#6f6a80;background:radial-gradient(ellipse at 82% 0%,rgba(124,92,255,.08),transparent 34%),radial-gradient(ellipse at 2% 48%,rgba(255,61,127,.05),transparent 34%),var(--ds-bg);color:var(--ds-ink);font-family:inherit;overscroll-behavior:contain}
+        .direct-settings-root .direct-settings-header{border-color:rgba(17,12,40,.10);background:rgba(248,247,251,.88);backdrop-filter:blur(18px)}
+        .direct-settings-root .direct-settings-icon-button{border:1px solid rgba(17,12,40,.10);background:rgba(17,12,40,.03);color:var(--ds-ink)}
         .direct-settings-root .direct-settings-hero{width:min(100%,560px);margin:0 auto;padding-top:25px}
-        .direct-settings-root .direct-settings-avatar{box-shadow:0 0 0 4px rgba(124,92,255,.18),0 14px 36px rgba(4,2,16,.4)}
-        .direct-settings-root .direct-settings-avatar-image{border-color:#21183d}
+        .direct-settings-root .direct-settings-avatar{box-shadow:0 0 0 4px rgba(124,92,255,.12),0 14px 36px rgba(17,12,40,.10)}
+        .direct-settings-root .direct-settings-avatar-image{border-color:#e6e3ef}
         .direct-settings-root .direct-settings-name{color:var(--ds-ink)}
         .direct-settings-root .direct-settings-status{color:var(--ds-muted)}
         .direct-settings-root .direct-settings-actions{width:min(100%,360px)}
-        .direct-settings-root .direct-settings-action-icon{border:1px solid rgba(169,159,210,.17);background:linear-gradient(145deg,#251b48,#19132f);box-shadow:0 7px 16px rgba(0,0,0,.2)}
-        .direct-settings-root .direct-settings-action-icon svg{color:#d9ceff!important}
-        .direct-settings-root .direct-settings-action-label{color:#e4dcf8}
+        .direct-settings-root .direct-settings-action-icon{border:1px solid rgba(17,12,40,.08);background:linear-gradient(145deg,#ffffff,#f2effa);box-shadow:0 7px 16px rgba(17,12,40,.06)}
+        .direct-settings-root .direct-settings-action-label{color:#3a3350}
         .direct-settings-root .direct-settings-sections{width:min(100%,560px);padding-bottom:calc(36px + env(safe-area-inset-bottom))}
-        .direct-settings-root .direct-settings-card{border-color:rgba(169,159,210,.15);background:linear-gradient(145deg,rgba(31,23,57,.95),rgba(23,17,44,.95));box-shadow:0 12px 28px rgba(3,2,12,.18)}
-        .direct-settings-root .direct-settings-row{color:var(--ds-ink);border-color:rgba(169,159,210,.11)}
-        .direct-settings-root .direct-settings-row:hover{background:rgba(124,92,255,.09)}
+        .direct-settings-root .direct-settings-card{border-color:rgba(17,12,40,.08);background:linear-gradient(145deg,#ffffff,#faf9fd);box-shadow:0 12px 28px rgba(17,12,40,.06)}
+        .direct-settings-root .direct-settings-row{color:var(--ds-ink);border-color:rgba(17,12,40,.07)}
+        .direct-settings-root .direct-settings-row:hover{background:rgba(124,92,255,.06)}
         .direct-settings-root .direct-settings-row-title{color:var(--ds-ink)}
         .direct-settings-root .direct-settings-row-subtitle{color:var(--ds-muted)}
-        .direct-settings-root .direct-settings-section-title{color:#c6b8ee}
-        .direct-settings-root .direct-settings-accent{color:#c5aaff}
+        .direct-settings-root .direct-settings-section-title{color:#5b4b8a}
+        .direct-settings-root .direct-settings-accent{color:#7c5cff}
+
+        /* ── Dark theme ── */
+        .dark .direct-settings-root{--ds-bg:#0e0820;--ds-card:#19122f;--ds-stroke:#302451;--ds-ink:#f7f3ff;--ds-muted:#a99fd2;background:radial-gradient(ellipse at 82% 0%,rgba(124,92,255,.17),transparent 34%),radial-gradient(ellipse at 2% 48%,rgba(255,61,127,.08),transparent 34%),var(--ds-bg)}
+        .dark .direct-settings-root .direct-settings-header{border-color:rgba(169,159,210,.14);background:rgba(14,8,32,.86)}
+        .dark .direct-settings-root .direct-settings-icon-button{border:1px solid rgba(169,159,210,.15);background:rgba(255,255,255,.035)}
+        .dark .direct-settings-root .direct-settings-avatar{box-shadow:0 0 0 4px rgba(124,92,255,.18),0 14px 36px rgba(4,2,16,.4)}
+        .dark .direct-settings-root .direct-settings-avatar-image{border-color:#21183d}
+        .dark .direct-settings-root .direct-settings-action-icon{border:1px solid rgba(169,159,210,.17);background:linear-gradient(145deg,#251b48,#19132f);box-shadow:0 7px 16px rgba(0,0,0,.2)}
+        .dark .direct-settings-root .direct-settings-action-icon svg{color:#d9ceff!important}
+        .dark .direct-settings-root .direct-settings-action-label{color:#e4dcf8}
+        .dark .direct-settings-root .direct-settings-card{border-color:rgba(169,159,210,.15);background:linear-gradient(145deg,rgba(31,23,57,.95),rgba(23,17,44,.95));box-shadow:0 12px 28px rgba(3,2,12,.18)}
+        .dark .direct-settings-root .direct-settings-row{border-color:rgba(169,159,210,.11)}
+        .dark .direct-settings-root .direct-settings-row:hover{background:rgba(124,92,255,.09)}
+        .dark .direct-settings-root .direct-settings-section-title{color:#c6b8ee}
+        .dark .direct-settings-root .direct-settings-accent{color:#c5aaff}
       `}</style>
       {/* 1. TOP BAR */}
       <header className="direct-settings-header sticky top-0 z-20 flex shrink-0 items-center justify-between border-b border-border bg-background/95 px-3 py-2.5 backdrop-blur">
