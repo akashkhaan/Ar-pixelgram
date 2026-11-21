@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useHasStory } from '@/hooks/useStoryUsers';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Check, Loader2 } from 'lucide-react';
+import { Camera, Check, ChevronDown, Loader2 } from 'lucide-react';
 import type { Profile } from '@/types/types';
 
 interface PixelgramProfileCardProps {
@@ -15,6 +15,9 @@ interface PixelgramProfileCardProps {
   onFollow?: () => void;
   onAvatarUpload?: (file: File) => void;
   onScrollToPosts?: () => void;
+  /** Bio ya links maujood hain to @username ke niche "See more" dikhta hai */
+  hasMoreInfo?: boolean;
+  onOpenMore?: () => void;
 }
 
 export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
@@ -28,6 +31,8 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
   onFollow,
   onAvatarUpload,
   onScrollToPosts,
+  hasMoreInfo,
+  onOpenMore,
 }) => {
   const navigate = useNavigate();
   const hasStory = useHasStory(profile?.user_id);
@@ -415,6 +420,20 @@ export const PixelgramProfileCard: React.FC<PixelgramProfileCardProps> = ({
           <div className={`pxc-handle pxc-rv ${handleShow ? 'show' : ''}`}>
             @{profile.username}
           </div>
+
+          {/* See more — @username ke bilkul niche (Instagram jaisa) */}
+          {hasMoreInfo && onOpenMore && (
+            <button
+              type="button"
+              onClick={onOpenMore}
+              className={`pxc-seemore pxc-rv ${handleShow ? 'show' : ''}`}
+              aria-haspopup="dialog"
+              aria-label="See bio and links"
+            >
+              <span>See more</span>
+              <ChevronDown aria-hidden="true" />
+            </button>
+          )}
 
           {/* Action Buttons (Bigger Text & Sleek Touch Areas) */}
           {isOwnProfile ? (

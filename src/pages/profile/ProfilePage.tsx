@@ -559,30 +559,11 @@ const ProfilePage: React.FC = () => {
               const el = document.getElementById("posts-tab-section");
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
+            hasMoreInfo={Boolean(profile.bio?.trim()) || getProfileLinks(profile, user, isOwnProfile).length > 0}
+            onOpenMore={() => setBioLinksOpen(true)}
           />
 
-          {/* See more — bio aur links alag panel me, taaki profile clean rahe */}
-          {(() => {
-            const hasBio = Boolean(profile.bio && profile.bio.trim());
-            const hasLinks = getProfileLinks(profile, user, isOwnProfile).length > 0;
-            if (!hasBio && !hasLinks) return null;
-            return (
-              <div className="flex justify-center mt-1.5 px-2">
-                <button
-                  type="button"
-                  onClick={() => setBioLinksOpen(true)}
-                  className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[11.5px] font-bold border border-border bg-muted/60 text-foreground hover:bg-muted active:scale-95 transition-all"
-                  aria-haspopup="dialog"
-                >
-                  {hasBio && <FileText className="w-3.5 h-3.5 text-primary" />}
-                  {hasLinks && <Link2 className="w-3.5 h-3.5 text-primary" />}
-                  <span>See more</span>
-                  <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-                </button>
-              </div>
-            );
-          })()}
-
+          {/* Bio/links ka button card ke andar @username ke niche hai */}
           <ProfileBioLinksSheet
             open={bioLinksOpen}
             onClose={() => setBioLinksOpen(false)}
