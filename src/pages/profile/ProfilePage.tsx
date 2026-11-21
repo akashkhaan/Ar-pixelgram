@@ -1,8 +1,9 @@
-import { ProfileLinks } from "@/components/profile/ProfileLinks";
+import { ProfileBioLinksSheet } from "@/components/profile/ProfileBioLinksSheet";
+import { getProfileLinks } from "@/components/profile/ProfileLinks";
 import { subscribeToUploads, type UploadJob } from "@/services/uploadManager";
 import { PixelgramProfileCard } from "@/components/profile/PixelgramProfileCard";
 import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
-import { ArrowLeft, BadgeCheck, Camera, Film, Flag, Grid3X3, Heart, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Camera, ChevronDown, FileText, Film, Flag, Grid3X3, Heart, Link2, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -61,6 +62,7 @@ const ProfilePage: React.FC = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isUserBlocked, setIsUserBlocked] = useState(false);
+  const [bioLinksOpen, setBioLinksOpen] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   // Resolve Facebook-style numeric ID or query param to target user_id
@@ -559,15 +561,35 @@ const ProfilePage: React.FC = () => {
             }}
           />
 
-          {/* Bio if provided */}
-          {profile.bio && (
-            <p className="text-xs text-muted-foreground mt-2 px-1 text-center whitespace-pre-line">
-              {profile.bio}
-            </p>
-          )}
+          {/* See more — bio aur links alag panel me, taaki profile clean rahe */}
+          {(() => {
+            const hasBio = Boolean(profile.bio && profile.bio.trim());
+            const hasLinks = getProfileLinks(profile, user, isOwnProfile).length > 0;
+            if (!hasBio && !hasLinks) return null;
+            return (
+              <div className="flex justify-center mt-1.5 px-2">
+                <button
+                  type="button"
+                  onClick={() => setBioLinksOpen(true)}
+                  className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[11.5px] font-bold border border-border bg-muted/60 text-foreground hover:bg-muted active:scale-95 transition-all"
+                  aria-haspopup="dialog"
+                >
+                  {hasBio && <FileText className="w-3.5 h-3.5 text-primary" />}
+                  {hasLinks && <Link2 className="w-3.5 h-3.5 text-primary" />}
+                  <span>See more</span>
+                  <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+                </button>
+              </div>
+            );
+          })()}
 
-          {/* Links: Website, Instagram, Facebook */}
-          <ProfileLinks profile={profile} user={user} isOwnProfile={isOwnProfile} />
+          <ProfileBioLinksSheet
+            open={bioLinksOpen}
+            onClose={() => setBioLinksOpen(false)}
+            profile={profile}
+            user={user}
+            isOwnProfile={isOwnProfile}
+          />
         </div>
         {/* Posts / Reels tab bar */}
         <div id="posts-tab-section" className="border-t border-border sticky top-12 bg-background/95 backdrop-blur-sm z-10">

@@ -1,6 +1,5 @@
 import React from 'react';
-import { Link2, Instagram, Facebook, Youtube, Globe, Plus } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Link2, Instagram, Facebook, Youtube, Globe } from 'lucide-react';
 import type { Profile } from '@/types/types';
 import type { User } from '@supabase/supabase-js';
 import { openInAppBrowser } from '@/components/common/InAppBrowserModal';
@@ -16,6 +15,8 @@ interface ParsedLink {
   label: string;
   type: 'youtube' | 'instagram' | 'facebook' | 'website';
 }
+
+export type { ParsedLink };
 
 function parseSmartLink(raw: string, defaultType?: 'website' | 'instagram' | 'facebook'): ParsedLink | null {
   if (!raw || !raw.trim()) return null;
@@ -57,10 +58,15 @@ function parseSmartLink(raw: string, defaultType?: 'website' | 'instagram' | 'fa
   return { url, label: 'Website', type: 'website' };
 }
 
-export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwnProfile }) => {
-  const navigate = useNavigate();
-
-  // Read from profile columns with fallback to user_metadata for instant sync
+/**
+ * Profile ke saare links (website 1/2, instagram, facebook) parse karke deta hai.
+ * Bio/Links sheet aur inline row dono isi ko use karte hain — ek hi jagah logic.
+ */
+export function getProfileLinks(
+  profile: Profile,
+  user?: User | null,
+  isOwnProfile?: boolean
+): ParsedLink[] {
   const rawLink1 = profile.website_link_1 || (isOwnProfile ? (user?.user_metadata?.website_link_1 as string) : null);
   const rawLink2 = profile.website_link_2 || (isOwnProfile ? (user?.user_metadata?.website_link_2 as string) : null);
   const rawInsta = profile.instagram_url || (isOwnProfile ? (user?.user_metadata?.instagram_url as string) : null);
@@ -73,7 +79,6 @@ export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwn
 
   const parsed2 = rawLink2 ? parseSmartLink(rawLink2, 'website') : null;
   if (parsed2) {
-    // If both are websites, distinguish or keep label clean
     if (parsed2.type === 'website' && parsed1?.type === 'website') {
       parsed2.label = 'Website 2';
     }
@@ -85,6 +90,12 @@ export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwn
 
   const parsedFb = rawFb ? parseSmartLink(rawFb, 'facebook') : null;
   if (parsedFb) links.push(parsedFb);
+
+  return links;
+}
+
+export const ProfileLinks: React.FC<ProfileLinksProps> = ({ profile, user, isOwnProfile }) => {
+  const links = getProfileLinks(profile, user, isOwnProfile);
 
   if (links.length === 0) {
     return null;
