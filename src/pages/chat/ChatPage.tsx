@@ -18,6 +18,7 @@ import {
   Plus,
   Search,
   Send,
+  UserRound,
   ShieldOff,
   Smile,
   Video,
@@ -42,6 +43,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCall } from '@/contexts/CallContext';
 import { supabase } from '@/db/supabase';
+import { RESTRICTED_DISPLAY_NAME, isAccountRestricted } from '@/lib/accountStatus';
 import { cn } from '@/lib/utils';
 import {
   blockUser,
@@ -92,6 +94,16 @@ const ChatPage: React.FC = () => {
   const [nickname, setNickname] = useState<string>(() => {
     return (receiverId && localStorage.getItem(`direct_nickname_${receiverId}`)) || '';
   });
+
+  // Suspended/locked account ya maine block kiya ho to Instagram jaisa
+  // "Pixelgram User" dikhta hai (username/photo/status chhup jaate hain)
+  const restrictedAccount = isAccountRestricted(otherProfile);
+  const hideIdentity = restrictedAccount || blocked;
+  const displayName = hideIdentity ? RESTRICTED_DISPLAY_NAME : nickname || otherProfile?.username;
+
+  // Restricted account ko message nahi bhej sakte — Instagram "Message not sent"
+  const blockedForMessaging = blocked || blockedByOther || restrictedAccount;
+  const notifyNotSent = () => toast.error('Message not sent · इस account को message नहीं भेजा जा सकता');
   const [wallpaper, setWallpaper] = useState<string | null>(() => {
     return (receiverId && localStorage.getItem(`chat_wallpaper_${receiverId}`)) || null;
   });
@@ -172,6 +184,7 @@ const ChatPage: React.FC = () => {
   const handleSendCustom = async (customContent: string) => {
     const text = customContent.trim();
     if (!text || !user || !receiverId || sending || blocked || blockedByOther) return;
+    if (restrictedAccount) { notifyNotSent(); return; }
     const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const optimisticMsg: Message = {
       id: tempId,
@@ -189,6 +202,8 @@ const ChatPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to send message:', err);
+      setMessages(prev => (prev || []).filter(m => m && m.id !== tempId));
+      if (String((err as Error)?.message ?? '').includes('message_not_sent')) notifyNotSent();
     }
   };
 
@@ -314,6 +329,7 @@ const ChatPage: React.FC = () => {
     e.preventDefault();
     const text = content.trim();
     if (!text || !user || !receiverId || sending || blocked || blockedByOther) return;
+    if (restrictedAccount) { notifyNotSent(); return; }
 
     setSending(true);
     setContent('');
@@ -338,7 +354,8 @@ const ChatPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to send message:', err);
       setMessages(prev => (prev || []).filter(m => m && m.id !== tempId));
-      toast.error('मैसेज नहीं भेजा जा सका');
+      if (String((err as Error)?.message ?? '').includes('message_not_sent')) notifyNotSent();
+      else toast.error('मैसेज नहीं भेजा जा सका');
     } finally {
       setSending(false);
     }
@@ -347,6 +364,7 @@ const ChatPage: React.FC = () => {
   const handleSendQuickEmoji = async (emojiToSend: string) => {
     const text = emojiToSend.trim();
     if (!text || !user || !receiverId || sending || blocked || blockedByOther) return;
+    if (restrictedAccount) { notifyNotSent(); return; }
 
     setSending(true);
 
@@ -369,7 +387,8 @@ const ChatPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to send emoji:', err);
       setMessages(prev => (prev || []).filter(m => m && m.id !== tempId));
-      toast.error('Emoji nahi bheja ja saka');
+      if (String((err as Error)?.message ?? '').includes('message_not_sent')) notifyNotSent();
+      else toast.error('Emoji nahi bheja ja saka');
     } finally {
       setSending(false);
     }
@@ -411,7 +430,6 @@ const ChatPage: React.FC = () => {
   const statusText = onlineStatusState?.is_online
     ? 'Active now'
     : formatLastSeen(onlineStatusState?.last_seen_at || onlineStatusState?.last_seen || null);
-  const displayName = nickname || otherProfile?.username;
 
   const visibleMessages = useMemo(() => {
     const cleanList = (messages || []).filter((m): m is Message => Boolean(m && m.id && typeof m.content === 'string'));
@@ -688,6 +706,11 @@ const ChatPage: React.FC = () => {
             className="flex items-center gap-2.5 flex-1 min-w-0 text-left cursor-pointer border-0 bg-transparent"
           >
             <div className="relative shrink-0">
+              {hideIdentity ? (
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground ring-2 ring-border">
+                  <UserRound className="w-5 h-5" />
+                </div>
+              ) : (
               <StoryRing userId={otherProfile?.user_id}>
               {otherProfile?.avatar_url ? (
                 <img
@@ -703,14 +726,15 @@ const ChatPage: React.FC = () => {
                 </div>
               )}
               </StoryRing>
-              {onlineStatusState?.is_online && (
+              )}
+              {onlineStatusState?.is_online && !hideIdentity && (
                 <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#22D3A0] ring-2 ring-background shadow-[0_0_8px_#22D3A0]" />
               )}
             </div>
 
             <div className="t">
               <b>{displayName}</b>
-              {otherTyping ? (
+              {hideIdentity ? null : otherTyping ? (
                 <small className="on text-[#FF3D7F] animate-pulse">Typing…</small>
               ) : onlineStatusState?.is_online ? (
                 <small className="on">Active now</small>

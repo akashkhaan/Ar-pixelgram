@@ -1,4 +1,5 @@
 import { supabase } from '@/db/supabase';
+import { dropRestrictedRows } from '@/lib/accountStatus';
 import { notifyFollowersOfNewContent } from '@/services/api';
 import type { Profile } from '@/types/types';
 import * as tus from 'tus-js-client';
@@ -75,7 +76,9 @@ async function attachVideoMeta(rows: AppVideo[], viewerId?: string): Promise<App
 
 async function decorate(rows: AppVideo[], viewerId?: string): Promise<AppVideo[]> {
   const withProfiles = await attachVideoProfiles(rows);
-  return attachVideoMeta(withProfiles, viewerId);
+  // Suspended/locked/disabled account ke videos feed me nahi dikhte
+  const visible = dropRestrictedRows(withProfiles);
+  return attachVideoMeta(visible, viewerId);
 }
 
 async function currentUserId(): Promise<string | undefined> {

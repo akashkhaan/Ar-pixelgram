@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { followUser, getFollowers, getFollowing, getFollowStatus, unfollowUser } from '@/services/api';
 import type { Profile } from '@/types/types';
 import GlassSearch from '@/components/common/GlassSearch';
+import { RESTRICTED_DISPLAY_NAME, isAccountRestricted } from '@/lib/accountStatus';
 
 // प्रत्येक username से unique gradient
 function userGradient(username: string) {
@@ -139,6 +140,8 @@ const FollowListPage: React.FC = () => {
             {filtered.map(profile => {
               const isMe = profile.user_id === user?.id;
               const isFollowing = followingIds.has(profile.user_id);
+              // Suspended/locked account => Instagram jaisa "Pixelgram User"
+              const hideIdentity = isAccountRestricted(profile);
               return (
                 <div key={profile.id} className="flex items-center gap-3 px-4 py-3 border-b border-border/40 hover:bg-muted/30 transition-colors">
                   {/* Avatar */}
@@ -163,10 +166,12 @@ const FollowListPage: React.FC = () => {
                   {/* Name */}
                   <button className="flex-1 min-w-0 text-left"  onClick={() => navigate(`/profile/${profile.user_id}`)}>
                     <div className="flex items-center gap-1">
-                      <span className="text-sm font-bold truncate dynamic-rainbow-text">{profile.username}</span>
-                      {profile.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
+                      <span className="text-sm font-bold truncate dynamic-rainbow-text">
+                        {hideIdentity ? RESTRICTED_DISPLAY_NAME : profile.username}
+                      </span>
+                      {!hideIdentity && profile.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
                     </div>
-                    {profile.full_name && (
+                    {!hideIdentity && profile.full_name && (
                       <p className="text-xs text-muted-foreground truncate">{profile.full_name}</p>
                     )}
                   </button>

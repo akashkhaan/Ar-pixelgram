@@ -14,6 +14,7 @@ import {
   Search,
   Undo2,
   UserPlus,
+  UserRound,
   Users,
   Video,
   X,
@@ -28,6 +29,7 @@ import { supabase } from "@/db/supabase";
 import useGoBack from "@/hooks/use-go-back";
 import { withTimeout } from "@/lib/withTimeout";
 import {
+  getBlockedUserIds,
   getMessagedProfiles,
   getMessages,
   getMutualFollows,
@@ -47,6 +49,7 @@ import ViewNoteModal from "@/components/chat/ViewNoteModal";
 import type { GroupCall } from "@/types/groups";
 import type { Message, Profile } from "@/types/types";
 import GlassSearch from '@/components/common/GlassSearch';
+import { RESTRICTED_DISPLAY_NAME, isAccountRestricted } from '@/lib/accountStatus';
 
 interface ConversationItem {
   profile: Profile;
@@ -64,6 +67,8 @@ const ChatListPage: React.FC = () => {
   const goBack = useGoBack("/home");
 
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  // Maine kin ko block kiya hai — unka naam "Pixelgram User" dikhta hai
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<Awaited<ReturnType<typeof getMyGroups>>>([]);
   const [activeGroupCalls, setActiveGroupCalls] = useState<Record<string, GroupCall>>({});
@@ -158,14 +163,17 @@ const ChatListPage: React.FC = () => {
   const load = useCallback(async () => {
     if (!user) { setLoading(false); return; }
     try {
-      const [mutuals, messaged, groupList] = await withTimeout(
+      const [mutuals, messaged, groupList, blocked] = await withTimeout(
         Promise.all([
           getMutualFollows(user.id),
           getMessagedProfiles(user.id),
           getMyGroups(user.id).catch(() => []),
+          getBlockedUserIds(user.id).catch(() => [] as string[]),
         ]),
         10000
       );
+
+      setBlockedIds(new Set<string>(blocked as string[]));
 
       setGroups(groupList);
 
@@ -1508,6 +1516,13 @@ const ChatListPage: React.FC = () => {
                       ({ profile, lastMessage, unreadCount }, idx) => {
                         const presence = formatUserPresence(profile.user_id);
                         const isUnread = unreadCount > 0;
+                        // Suspended/locked account ya maine block kiya ho to
+                        // naam/photo ki jagah Instagram jaisa "Pixelgram User"
+                        const hideIdentity =
+                          blockedIds.has(profile.user_id) || isAccountRestricted(profile);
+                        const rowName = hideIdentity
+                          ? RESTRICTED_DISPLAY_NAME
+                          : profile.full_name || profile.username;
 
                         return (
                           <div
@@ -1527,7 +1542,11 @@ const ChatListPage: React.FC = () => {
                               }}
                             >
                               <div className="ph">
-                                {profile.avatar_url ? (
+                                {hideIdentity ? (
+                                  <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground">
+                                    <UserRound className="w-5 h-5" />
+                                  </div>
+                                ) : profile.avatar_url ? (
                                   <img src={profile.avatar_url} alt={profile.username} />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-[#FF3D7F] font-bold text-base">
@@ -1535,14 +1554,14 @@ const ChatListPage: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                              {presence.isOnline && <span className="dot" />}
+                              {presence.isOnline && !hideIdentity && <span className="dot" />}
                             </div>
 
                             {/* Middle Information */}
                             <div className="mid">
                               <div className="nm">
-                                <span>{profile.full_name || profile.username}</span>
-                                {profile.is_verified && (
+                                <span>{rowName}</span>
+                                {!hideIdentity && profile.is_verified && (
                                   <BadgeCheck className="w-4 h-4 text-[#7C5CFF] fill-[#7C5CFF]/20 shrink-0" />
                                 )}
                               </div>

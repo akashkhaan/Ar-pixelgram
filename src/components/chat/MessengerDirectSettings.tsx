@@ -21,8 +21,10 @@ import {
   X,
   BadgeCheck,
   Music2,
+  UserRound,
 } from 'lucide-react';
 import type { Profile } from '@/types/types';
+import { RESTRICTED_DISPLAY_NAME, isAccountRestricted } from '@/lib/accountStatus';
 import { useAuth } from '@/contexts/AuthContext';
 import { getHelloTuneFromProfile, isHelloTuneActive, type HelloTuneRecord } from '@/services/helloTunes';
 import { Button } from '@/components/ui/button';
@@ -190,6 +192,11 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
 
   const activeTheme = MESSENGER_THEMES.find(t => t.id === chatTheme) || MESSENGER_THEMES[0];
 
+  // Suspended/locked account ya blocked user => Instagram jaisa "Pixelgram User"
+  const hideIdentity = blocked || isAccountRestricted(profile);
+  const shownName = hideIdentity ? RESTRICTED_DISPLAY_NAME : nickname || profile.username;
+  const shownInitial = hideIdentity ? 'U' : profile.username?.[0]?.toUpperCase() || 'U';
+
   return (
     <div className="direct-settings-root fixed inset-0 z-50 flex flex-col overflow-y-auto animate-in fade-in duration-200 select-none">
       <style>{`
@@ -303,7 +310,11 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
           onClick={() => { onClose(); navigate(`/profile/${profile.user_id}`); }}
           className="direct-settings-avatar relative cursor-pointer group rounded-full"
         >
-          {profile.avatar_url ? (
+          {hideIdentity ? (
+            <div className="direct-settings-avatar-image h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-muted flex items-center justify-center text-muted-foreground shadow-xl ring-4 ring-background border border-border">
+              <UserRound className="h-10 w-10" />
+            </div>
+          ) : profile.avatar_url ? (
             <img
               src={profile.avatar_url}
               alt={profile.username}
@@ -311,21 +322,23 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
             />
           ) : (
             <div className="direct-settings-avatar-image h-24 w-24 sm:h-28 sm:w-28 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-3xl shadow-xl ring-4 ring-background border border-border">
-              {profile.username?.[0]?.toUpperCase() || 'U'}
+              {shownInitial}
             </div>
           )}
         </div>
 
         <div className="flex items-center justify-center gap-1.5 mt-3">
           <h1 className="direct-settings-name text-xl sm:text-2xl font-bold text-foreground tracking-tight">
-            {nickname || profile.username}
+            {shownName}
           </h1>
-          {profile.is_verified && <BadgeCheck className="h-5 w-5 text-sky-500 shrink-0" />}
+          {!hideIdentity && profile.is_verified && <BadgeCheck className="h-5 w-5 text-sky-500 shrink-0" />}
         </div>
 
-        <p className="direct-settings-status mt-0.5 text-xs text-muted-foreground font-medium">
-          {statusText || 'Active now'}
-        </p>
+        {!hideIdentity && (
+          <p className="direct-settings-status mt-0.5 text-xs text-muted-foreground font-medium">
+            {statusText || 'Active now'}
+          </p>
+        )}
 
         {/* 4 ACTION BUTTONS */}
         <div className="direct-settings-actions mt-5 grid grid-cols-4 gap-4 w-full max-w-xs">

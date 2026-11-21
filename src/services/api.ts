@@ -1,6 +1,7 @@
 import { markPostDeleted, markReelDeleted, filterDeletedPosts, filterDeletedReels } from '@/lib/hiddenContent';
 import { decodeStoryText } from '@/lib/storyText';
 import { dropLegacyPosts, dropLegacyReels } from '@/lib/legacyCleanup';
+import { dropRestrictedRows, isAccountRestricted } from '@/lib/accountStatus';
 import { supabase } from '@/db/supabase';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Profile, Post, Story, Comment, Message, Notification, VerificationRequest, Report, BroadcastNotification, ActivityLog } from '@/types/types';
@@ -229,7 +230,10 @@ export async function getHomeFeed(userId: string, page = 0, pageSize = 10): Prom
     .range(page * pageSize, (page + 1) * pageSize - 1);
 
   const rawList = Array.isArray(data) ? (data as Post[]) : [];
-  const posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(rawList.map(decodePostMusic))));
+  // Suspended/locked/disabled accounts ka content feed me nahi dikhta
+  const posts = dropRestrictedRows(
+    await attachProfiles(filterDeletedPosts(dropLegacyPosts(rawList.map(decodePostMusic)))),
+  );
   return attachPostSocialMeta(posts, userId);
 }
 
@@ -257,7 +261,12 @@ export async function deletePost(postId: string): Promise<void> {
   // wajah se post dobara kabhi nahi dikhegi.
 }
 
-export async function getAllPosts(page = 0, pageSize = 20, currentUserId?: string): Promise<Post[]> {
+export async function getAllPosts(
+  page = 0,
+  pageSize = 20,
+  currentUserId?: string,
+  opts?: { includeRestricted?: boolean },
+): Promise<Post[]> {
   const { data, error } = await supabase
     .from('posts')
     .select('*')
@@ -265,7 +274,9 @@ export async function getAllPosts(page = 0, pageSize = 20, currentUserId?: strin
     .range(page * pageSize, (page + 1) * pageSize - 1);
   if (error) throw error;
   const rawList = Array.isArray(data) ? (data as Post[]) : [];
-  const posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(rawList.map(decodePostMusic))));
+  let posts = await attachProfiles(filterDeletedPosts(dropLegacyPosts(rawList.map(decodePostMusic))));
+  // Admin moderation me suspended accounts ki posts bhi dikhni chahiye
+  if (!opts?.includeRestricted) posts = dropRestrictedRows(posts);
   return attachPostSocialMeta(posts, currentUserId);
 }
 
@@ -428,7 +439,10 @@ export async function getFeedStories(userId: string): Promise<Story[]> {
   const profileIds = [...new Set(data.map((s: { user_id: string }) => s.user_id))];
   const { data: profileData } = await supabase.from('profiles').select('*').in('user_id', profileIds);
   const profileMap = Object.fromEntries((profileData || []).map((p: Profile) => [p.user_id, p]));
-  return data.map(s => decodeStoryMusic({ ...s, profile: profileMap[s.user_id] || null }));
+  // Suspended/locked account ki story feed me nahi dikhni chahiye
+  return data
+    .map(s => decodeStoryMusic({ ...s, profile: profileMap[s.user_id] || null }))
+    .filter(s => !isAccountRestricted(s.profile));
 }
 
 export async function deleteStory(storyId: string): Promise<void> {
@@ -446,7 +460,10 @@ export async function getAllStories(page = 0, pageSize = 20): Promise<Story[]> {
   const profileIds = [...new Set(data.map((s: { user_id: string }) => s.user_id))];
   const { data: profileData } = await supabase.from('profiles').select('*').in('user_id', profileIds);
   const profileMap = Object.fromEntries((profileData || []).map((p: Profile) => [p.user_id, p]));
-  return data.map(s => decodeStoryMusic({ ...s, profile: profileMap[s.user_id] || null }));
+  // Suspended/locked account ki story feed me nahi dikhni chahiye
+  return data
+    .map(s => decodeStoryMusic({ ...s, profile: profileMap[s.user_id] || null }))
+    .filter(s => !isAccountRestricted(s.profile));
 }
 
 // ===================== FOLLOWS =====================
@@ -553,7 +570,14 @@ export async function sendMessage(
     .select('*')
     .single();
 
-  if (error) throw error;
+  if (error) {
+    // DB guard: suspended/locked/disabled account ko message block
+    const raw = `${error.message ?? ''} ${(error as { hint?: string }).hint ?? ''}`;
+    if (raw.includes('message_not_sent') || (error as { code?: string }).code === '42501') {
+      throw new Error('message_not_sent');
+    }
+    throw error;
+  }
 
   const msg: Message = (data || {
     id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -1080,6 +1104,16 @@ export async function rejectVerification(requestId: string, userId: string): Pro
 }
 
 // ===================== BLOCK / UNBLOCK =====================
+/** Maine kin-kin ko block kiya hai (blocks: blocker -> blocked) */
+export async function getBlockedUserIds(blockerId: string): Promise<string[]> {
+  try {
+    const { data } = await supabase.from('blocks').select('blocked_id').eq('blocker_id', blockerId);
+    return (data || []).map((r: { blocked_id: string }) => r.blocked_id).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
 export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
   await supabase.from('blocks').upsert({ blocker_id: blockerId, blocked_id: blockedId });
 }
@@ -1505,7 +1539,9 @@ export async function getReelsFeed(limit = 20, offset = 0): Promise<Reel[]> {
   // failure/refresh ke waqt poori reels query ko fail kar deta tha, jabki reel
   // rows pehle hi aa chuki hoti thin. Local persisted session enough hai for
   // the optional is_liked lookup; RLS still protects the database query.
-  const rows = filterDeletedReels(dropLegacyReels((data || []) as Reel[])).map(decodeReelMusic);
+  const rows = dropRestrictedRows(
+    filterDeletedReels(dropLegacyReels((data || []) as Reel[])).map(decodeReelMusic),
+  );
   // Optional like decoration must not discard an already-loaded feed.
   try {
     const { data: { session } } = await withTimeout(supabase.auth.getSession(), 1500);

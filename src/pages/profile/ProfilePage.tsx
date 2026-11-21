@@ -1,4 +1,5 @@
 import { ProfileBioLinksSheet } from "@/components/profile/ProfileBioLinksSheet";
+import { isAccountRestricted } from "@/lib/accountStatus";
 import { getProfileLinks } from "@/components/profile/ProfileLinks";
 import { subscribeToUploads, type UploadJob } from "@/services/uploadManager";
 import { PixelgramProfileCard } from "@/components/profile/PixelgramProfileCard";
@@ -375,6 +376,9 @@ const ProfilePage: React.FC = () => {
   // अपने profile पर suspended/locked/permanently_disabled check (RouteGuard already redirects to /appeal but handle edge case)
   const ownAccountRestricted = isOwnProfile && profile.account_status && profile.account_status !== 'active';
   const isSuspended = !isOwnProfile && (profile.account_status === 'suspended' || profile.account_status === 'locked');
+  // Suspended / locked / disabled account: Instagram jaisa content chhupa do.
+  // Account restore (active) hote hi sab wapas dikhne lagta hai.
+  const restrictedProfile = !isOwnProfile && isAccountRestricted(profile);
 
   // अपना account restricted है तो Instagram-style suspended page दिखाओ
   if (ownAccountRestricted) {
@@ -536,9 +540,9 @@ const ProfilePage: React.FC = () => {
           {/* Pixelgram 3D Profile Card (New Profile System from HTML) */}
           <PixelgramProfileCard
             profile={profile}
-            postsCount={posts.length}
-            followersCount={followersCount}
-            followingCount={followingCount}
+            postsCount={restrictedProfile ? 0 : posts.length}
+            followersCount={restrictedProfile ? 0 : followersCount}
+            followingCount={restrictedProfile ? 0 : followingCount}
             isOwnProfile={isOwnProfile}
             followStatus={followStatus}
             followLoading={followLoading}
@@ -559,7 +563,10 @@ const ProfilePage: React.FC = () => {
               const el = document.getElementById("posts-tab-section");
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
-            hasMoreInfo={Boolean(profile.bio?.trim()) || getProfileLinks(profile, user, isOwnProfile).length > 0}
+            hasMoreInfo={
+              !restrictedProfile &&
+              (Boolean(profile.bio?.trim()) || getProfileLinks(profile, user, isOwnProfile).length > 0)
+            }
             onOpenMore={() => setBioLinksOpen(true)}
           />
 
@@ -592,7 +599,7 @@ const ProfilePage: React.FC = () => {
             >
               <Film className="w-4 h-4" />
               {t('reels')}
-              {reels.length > 0 && (
+              {!restrictedProfile && reels.length > 0 && (
                 <span className="ml-1 text-[10px] font-bold px-1.5 rounded-full text-primary-foreground"
                   style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }}>
                   {reels.length}
@@ -607,7 +614,7 @@ const ProfilePage: React.FC = () => {
             >
               <VideoIcon className="w-4 h-4" />
               वीडियो
-              {videos.length > 0 && (
+              {!restrictedProfile && videos.length > 0 && (
                 <span className="ml-1 text-[10px] font-bold px-1.5 rounded-full text-primary-foreground"
                   style={{ background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }}>
                   {videos.length}
@@ -620,7 +627,12 @@ const ProfilePage: React.FC = () => {
         {/* Tab content */}
         {activeTab === 'posts' && (
           <>
-            {!canSeePosts ? (
+            {restrictedProfile ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                <Grid3X3 className="w-12 h-12 text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">{t('noPostsYet')}</p>
+              </div>
+            ) : !canSeePosts ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                 <Lock className="w-12 h-12 text-muted-foreground mb-3" />
                 <h3 className="font-semibold text-foreground mb-1">This account is private</h3>
@@ -736,7 +748,12 @@ const ProfilePage: React.FC = () => {
 
         {activeTab === 'reels' && (
           <>
-            {!canSeePosts ? (
+            {restrictedProfile ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                <Film className="w-12 h-12 text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">{t('noReelsYet')}</p>
+              </div>
+            ) : !canSeePosts ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                 <Lock className="w-12 h-12 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">Follow this account to see their reels.</p>
@@ -873,7 +890,12 @@ const ProfilePage: React.FC = () => {
         )}
         {activeTab === 'videos' && (
           <>
-            {!canSeePosts ? (
+            {restrictedProfile ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                <VideoIcon className="w-12 h-12 text-muted-foreground mb-3" />
+                <p className="text-sm text-muted-foreground">अभी कोई video upload नहीं हुआ</p>
+              </div>
+            ) : !canSeePosts ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                 <Lock className="w-12 h-12 text-muted-foreground mb-3" />
                 <p className="text-sm text-muted-foreground">Follow this account to see their videos.</p>
