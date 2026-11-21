@@ -21,7 +21,7 @@ const AdminContent: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     if (tab === 'posts') {
-      getAllPosts().then(p => { setPosts(p); setLoading(false); });
+      getAllPosts(0, 20, undefined, { includeRestricted: true }).then(p => { setPosts(p); setLoading(false); });
     } else {
       getAllStories().then(s => { setStories(s); setLoading(false); });
     }
