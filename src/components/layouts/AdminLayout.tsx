@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FileImage, ShieldCheck, Flag,
-  Megaphone, BarChart3, Globe2, KeyRound, LogOut, Menu, X, ChevronRight, Loader2
+  Megaphone, BarChart3, Globe2, KeyRound, LogOut, Menu, X, ChevronRight, Loader2, Wifi
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -16,6 +16,7 @@ const adminNavItems = [
   { path: '/admin/reports', icon: Flag, label: 'Reports' },
   { path: '/admin/broadcast', icon: Megaphone, label: 'Broadcast' },
   { path: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
+  { path: '/admin/online', icon: Wifi, label: 'Online Users' },
   { path: '/admin/visitors', icon: Globe2, label: 'Visitors & Devices' },
   { path: '/admin/tokens', icon: KeyRound, label: 'Token Generator' },
 ];

@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import AdminLayout from '@/components/layouts/AdminLayout';
 import { getAdminStats, getBroadcasts } from '@/services/api';
-import { Users, FileImage, BookOpen, Flag, ShieldCheck, MessageSquare, TrendingUp, Activity } from 'lucide-react';
+import { Users, FileImage, BookOpen, Flag, ShieldCheck, MessageSquare, TrendingUp, Activity, Wifi, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { getOnlineUsers, subscribeOnlineUsers, type OnlineUser } from '@/services/presence';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
 
 const mockGrowthData = [
@@ -26,10 +28,21 @@ const mockEngagement = [
 const AdminDashboard: React.FC = () => {
   const [stats, setStats] = useState({ total_users: 0, total_posts: 0, total_stories: 0, pending_reports: 0, verified_users: 0 });
   const [loading, setLoading] = useState(true);
+  const [online, setOnline] = useState<OnlineUser[]>([]);
 
   useEffect(() => {
     getAdminStats().then(s => { setStats(s); setLoading(false); });
   }, []);
+
+  // Live "Online Now" strip — tap on a user opens their profile
+  const loadOnline = useCallback(() => {
+    getOnlineUsers().then(setOnline).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadOnline();
+    return subscribeOnlineUsers(loadOnline);
+  }, [loadOnline]);
 
   const statCards = [
     { label: 'Total Users', value: stats.total_users, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
@@ -58,6 +71,64 @@ const AdminDashboard: React.FC = () => {
               <p className="text-xs text-muted-foreground mt-1 text-pretty">{label}</p>
             </div>
           ))}
+        </div>
+
+        {/* Online Now — live */}
+        <div className="bg-card border border-border rounded-xl p-4 shadow-card">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex w-2.5 h-2.5">
+                <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-500 opacity-70 animate-ping" />
+                <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              </span>
+              <h3 className="font-semibold text-foreground">
+                Online Now <span className="text-emerald-600 dark:text-emerald-400">({online.length})</span>
+              </h3>
+            </div>
+            <Link to="/admin/online" className="inline-flex items-center text-xs font-semibold text-primary hover:underline">
+              View all <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {online.length === 0 ? (
+            <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+              <Wifi className="w-3.5 h-3.5" /> Abhi koi user online nahi hai
+            </p>
+          ) : (
+            <div className="flex items-center gap-3 overflow-x-auto pb-1">
+              {online.slice(0, 12).map(u => (
+                <Link
+                  key={u.user_id}
+                  to={`/profile/${u.user_id}`}
+                  className="flex flex-col items-center gap-1 shrink-0 w-16 group"
+                  title={`${u.full_name || u.username} · Online`}
+                >
+                  <span className="relative">
+                    {u.avatar_url ? (
+                      <img
+                        src={u.avatar_url}
+                        alt={u.username}
+                        className="w-11 h-11 rounded-full object-cover ring-2 ring-emerald-500/50 group-hover:ring-emerald-500"
+                      />
+                    ) : (
+                      <span className="w-11 h-11 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold ring-2 ring-emerald-500/50">
+                        {(u.full_name || u.username || '?').charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
+                  </span>
+                  <span className="text-[10px] text-muted-foreground truncate w-full text-center group-hover:text-foreground">
+                    {u.username}
+                  </span>
+                </Link>
+              ))}
+              {online.length > 12 && (
+                <Link to="/admin/online" className="shrink-0 text-xs font-semibold text-primary">
+                  +{online.length - 12} more
+                </Link>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Charts */}

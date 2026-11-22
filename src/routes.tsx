@@ -89,6 +89,7 @@ const AdminReports = safeLazy(() => import('./pages/admin/AdminReports'));
 const AdminBroadcast = safeLazy(() => import('./pages/admin/AdminBroadcast'));
 const AdminAnalytics = safeLazy(() => import('./pages/admin/AdminAnalytics'));
 const AdminVisitors = safeLazy(() => import('./pages/admin/AdminVisitors'));
+const AdminOnlineUsers = safeLazy(() => import('./pages/admin/AdminOnlineUsers'));
 const AdminLoginPage = safeLazy(() => import('./pages/admin/AdminLoginPage'));
 const AccessTokenPage = safeLazy(() => import('./pages/settings/AccessTokenPage'));
 const AdminTokens = safeLazy(() => import('./pages/admin/AdminTokens'));
@@ -157,6 +158,7 @@ export const routes: RouteConfig[] = [
   { name: 'Admin Reports', path: '/admin/reports', element: <AdminReports /> },
   { name: 'Admin Broadcast', path: '/admin/broadcast', element: <AdminBroadcast /> },
   { name: 'Admin Analytics', path: '/admin/analytics', element: <AdminAnalytics /> },
+  { name: 'Admin Online Users', path: '/admin/online', element: <AdminOnlineUsers /> },
   { name: 'Admin Visitors', path: '/admin/visitors', element: <AdminVisitors /> },
   { name: 'Admin Tokens', path: '/admin/tokens', element: <AdminTokens /> },
 ];
