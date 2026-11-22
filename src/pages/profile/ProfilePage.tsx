@@ -5,6 +5,7 @@ import { ProfileCoverHeader } from "@/components/profile/ProfileCoverHeader";
 import { getProfileCoverUrl, uploadProfileCover } from "@/services/profileCover";
 import { summarizeProfessionalStats } from "@/lib/profile/professionalStats";
 import { previewShareUrl } from "@/lib/shareLinks";
+import { useStatusBarOverlay } from "@/lib/statusBarOverlay";
 import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
 import { ArrowLeft, BadgeCheck, Camera, ChevronDown, FileText, Film, Flag, Grid3X3, Heart, Link2, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -184,6 +185,9 @@ const ProfilePage: React.FC = () => {
   const activePostUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "post" && j.status === "uploading") : [];
   const activeReelUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "reel" && j.status === "uploading") : [];
   const activeVideoUploads = isOwnProfile ? uploadJobs.filter((j) => j.kind === "video" && j.status === "uploading") : [];
+
+  // App me cover photo status bar (time) ke peeche tak jaye — sirf jab profile dikh raha ho
+  useStatusBarOverlay(Boolean(profile) && !loading && !resolvingQuery);
 
   const load = useCallback(async () => {
     if (queryId && resolvingQuery) return;
@@ -461,7 +465,8 @@ const ProfilePage: React.FC = () => {
 
         {/* Top bar — cover photo ke upar transparent; scroll par solid (back / search / options pehle jaise) */}
         <div
-          className={`sticky top-0 z-30 px-3 h-12 flex items-center justify-between transition-colors duration-200 ${
+          style={{ paddingTop: 'var(--pg-status-bar, 0px)', height: 'calc(3rem + var(--pg-status-bar, 0px))' }}
+          className={`sticky top-0 z-30 px-3 flex items-center justify-between transition-colors duration-200 ${
             headerSolid ? 'bg-background/95 backdrop-blur-md border-b border-border/40' : 'bg-transparent border-b border-transparent'
           }`}
         >
@@ -509,7 +514,7 @@ const ProfilePage: React.FC = () => {
 
         {/* Inline Search Bar */}
         {showSearch && (
-          <div className="sticky top-12 z-20 px-4 py-2 bg-background border-b border-border/60 flex items-center gap-2 animate-in slide-in-from-top duration-150">
+          <div style={{ top: 'calc(3rem + var(--pg-status-bar, 0px))' }} className="sticky top-12 z-20 px-4 py-2 bg-background border-b border-border/60 flex items-center gap-2 animate-in slide-in-from-top duration-150">
             <div className="relative flex-1">
               <GlassSearch
                 value={searchQuery}
@@ -553,7 +558,7 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        <div className={`pb-3 ${showSearch || isUserBlocked ? '' : '-mt-12'}`}>
+        <div className="pb-3" style={showSearch || isUserBlocked ? undefined : { marginTop: 'calc(-3rem - var(--pg-status-bar, 0px))' }}>
           {/* Naya profile top: cover + profile photo + naam (photo jaisa) */}
           <ProfileCoverHeader
             profile={profile}
@@ -626,7 +631,7 @@ const ProfilePage: React.FC = () => {
           />
         </div>
         {/* Posts / Reels tab bar */}
-        <div id="posts-tab-section" className="border-t border-border sticky top-12 bg-background/95 backdrop-blur-sm z-10">
+        <div id="posts-tab-section" style={{ top: 'calc(3rem + var(--pg-status-bar, 0px))' }} className="border-t border-border sticky top-12 bg-background/95 backdrop-blur-sm z-10">
           <div className="flex">
             <button
               onClick={() => setActiveTab('posts')}

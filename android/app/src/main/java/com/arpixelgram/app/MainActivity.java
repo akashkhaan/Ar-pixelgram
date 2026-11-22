@@ -192,6 +192,8 @@ public class MainActivity extends BridgeActivity {
         // Call audio routing (window.AndroidAudio) — WebRTC in a WebView only
         // cancels echo properly when the phone is in the voice-call audio mode.
         webView.addJavascriptInterface(new NativeAudioBridge(this), "AndroidAudio");
+        // Profile cover ko status bar (time) ke peeche tak le jaane ke liye (window.AndroidStatusBar)
+        webView.addJavascriptInterface(new NativeStatusBarBridge(), "AndroidStatusBar");
 
         webView.setWebChromeClient(new BridgeWebChromeClient(getBridge()) {
             // Android WebView bina poster wali video par apna grey "play"
@@ -385,6 +387,42 @@ public class MainActivity extends BridgeActivity {
             );
             uploadsChannel.setDescription("Upload progress for reels and posts");
             nm.createNotificationChannel(uploadsChannel);
+        }
+    }
+
+    /** Web page status bar ke peeche tak content dikha sake (profile cover photo). */
+    public class NativeStatusBarBridge {
+        @JavascriptInterface
+        public int getHeightDp() {
+            try {
+                int id = getResources().getIdentifier("status_bar_height", "dimen", "android");
+                if (id <= 0) return 0;
+                float px = getResources().getDimensionPixelSize(id);
+                return Math.round(px / getResources().getDisplayMetrics().density);
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+
+        @JavascriptInterface
+        public void setOverlay(final boolean overlay) {
+            runOnUiThread(() -> {
+                try {
+                    android.view.Window w = getWindow();
+                    android.view.View decor = w.getDecorView();
+                    int flags = decor.getSystemUiVisibility();
+                    if (overlay) {
+                        flags |= android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+                        flags &= ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                        w.setStatusBarColor(Color.TRANSPARENT);
+                    } else {
+                        flags &= ~android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+                        w.setStatusBarColor(Color.parseColor("#0B0B0F"));
+                    }
+                    decor.setSystemUiVisibility(flags);
+                } catch (Exception ignored) {}
+            });
         }
     }
 

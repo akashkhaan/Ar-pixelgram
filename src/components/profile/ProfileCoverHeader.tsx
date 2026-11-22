@@ -72,6 +72,9 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
   const [loadedCover, setLoadedCover] = useState<string | null>(null);
   const coverOk = loadedCover === coverUrl;
   const [viewer, setViewer] = useState<string | null>(null);
+  // Toota hua profile photo link ho to naam ka pehla akshar dikhao
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
+  const avatarOk = Boolean(profile.avatar_url) && brokenAvatar !== profile.avatar_url;
   const [bioExpanded, setBioExpanded] = useState(false);
   const [bioOverflows, setBioOverflows] = useState(false);
   const bioRef = useRef<HTMLParagraphElement>(null);
@@ -93,7 +96,7 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
       navigate(`/stories?u=${profile.user_id}`);
       return;
     }
-    if (profile.avatar_url) {
+    if (avatarOk && profile.avatar_url) {
       setViewer(profile.avatar_url);
       return;
     }
@@ -167,8 +170,13 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
             aria-label="Profile photo dekhein"
           >
             <span className="block w-full h-full rounded-full overflow-hidden bg-background p-[3px]">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.username} className="w-full h-full rounded-full object-cover" />
+              {avatarOk && profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  onError={() => setBrokenAvatar(profile.avatar_url)}
+                  className="w-full h-full rounded-full object-cover"
+                />
               ) : (
                 <span
                   className="w-full h-full rounded-full flex items-center justify-center text-4xl font-black text-white"
