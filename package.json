@@ -4,10 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "echo 'Do not use this command, only use lint to check'",
-    "build": "vite build",
+    "build": "node scripts/extract-ui-strings.mjs && vite build",
     "test:music-api": "node --test server.test.mjs",
     "test:ai": "node --test src/lib/pixelgram-ai/brain.test.mjs",
     "test:profile": "node --test src/lib/profile/professionalStats.test.mjs",
+    "test:i18n": "node --test scripts/extract-ui-strings.test.mjs",
     "lint": "tsgo -p tsconfig.check.json; npx biome lint; node .rules/check-imports.mjs; .rules/check.sh;npx tailwindcss -i ./src/index.css -o /dev/null 2>&1 | grep -E '^(CssSyntaxError|Error):.*' || true;.rules/testBuild.sh"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 // Run: node --test src/lib/profile/professionalStats.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatCompact, summarizeProfessionalStats } from './professionalStats.js';
+import { formatCompact, proDashboardEnabled, summarizeProfessionalStats } from './professionalStats.js';
 
 const NOW = Date.parse('2026-11-22T00:00:00Z');
 const daysAgo = (d) => new Date(NOW - d * 86400000).toISOString();
@@ -44,4 +44,11 @@ test('compact number format', () => {
   assert.equal(formatCompact(4100), '4.1k');
   assert.equal(formatCompact(4000), '4k');
   assert.equal(formatCompact(2500000), '2.5M');
+});
+
+test('professional dashboard stays hidden until turned on in Edit profile', () => {
+  assert.equal(proDashboardEnabled(undefined), false);
+  assert.equal(proDashboardEnabled({}), false);
+  assert.equal(proDashboardEnabled({ show_pro_dashboard: false }), false);
+  assert.equal(proDashboardEnabled({ show_pro_dashboard: true }), true);
 });

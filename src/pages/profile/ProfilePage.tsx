@@ -3,7 +3,7 @@ import { isAccountRestricted } from "@/lib/accountStatus";
 import { subscribeToUploads, type UploadJob } from "@/services/uploadManager";
 import { ProfileCoverHeader } from "@/components/profile/ProfileCoverHeader";
 import { getProfileCoverUrl, uploadProfileCover } from "@/services/profileCover";
-import { summarizeProfessionalStats } from "@/lib/profile/professionalStats";
+import { proDashboardEnabled, summarizeProfessionalStats } from "@/lib/profile/professionalStats";
 import { previewShareUrl } from "@/lib/shareLinks";
 import { useStatusBarOverlay } from "@/lib/statusBarOverlay";
 import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
@@ -485,31 +485,7 @@ const ProfilePage: React.FC = () => {
               {profile.is_private && <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
             </h1>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Search Posts Button */}
-            <button
-              type="button"
-              onClick={() => setShowSearch(!showSearch)}
-              className={`w-9 h-9 flex items-center justify-center rounded-full active:scale-95 transition-all ${
-                showSearch ? 'bg-primary/10 text-primary' : headerSolid ? 'hover:bg-muted text-foreground' : 'bg-black/40 text-white backdrop-blur-sm'
-              }`}
-              aria-label="Search posts"
-              title="Search posts"
-            >
-              <Search className="w-5 h-5" />
-            </button>
-
-            {/* 3-Dot Options Button (Facebook Style) */}
-            <button
-              type="button"
-              onClick={() => setBottomSheetOpen(true)}
-              className={`w-9 h-9 flex items-center justify-center rounded-full active:scale-95 transition-all ${headerSolid ? 'hover:bg-muted text-foreground' : 'bg-black/40 text-white backdrop-blur-sm'}`}
-              aria-label="Profile options"
-              title="Profile options"
-            >
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
-          </div>
+          {/* Search aur 3-dot buttons hata diye gaye (owner ke kehne par) */}
         </div>
 
         {/* Inline Search Bar */}
@@ -619,6 +595,7 @@ const ProfilePage: React.FC = () => {
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
             totalViews={isOwnProfile ? summarizeProfessionalStats({ reels, videos }).totalViews : 0}
+            showProDashboard={isOwnProfile && proDashboardEnabled(user?.user_metadata)}
           />
 
           {/* Bio/links ka button card ke andar @username ke niche hai */}

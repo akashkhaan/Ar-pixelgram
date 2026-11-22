@@ -30,6 +30,8 @@ interface ProfileCoverHeaderProps {
   onScrollToPosts: () => void;
   /** Reels + videos ke asli views (sirf apne profile par) */
   totalViews: number;
+  /** Edit profile me on kiya ho tabhi */
+  showProDashboard?: boolean;
 }
 
 const VerifiedBadge = () => (
@@ -63,6 +65,7 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
   onOpenLinks,
   onScrollToPosts,
   totalViews,
+  showProDashboard,
 }) => {
   const navigate = useNavigate();
   const hasStory = useHasStory(profile?.user_id);
@@ -324,7 +327,7 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
         )}
 
         {/* Professional dashboard — sirf apne profile par */}
-        {isOwnProfile && (
+        {isOwnProfile && showProDashboard && (
           <button
             type="button"
             onClick={() => navigate('/professional-dashboard')}

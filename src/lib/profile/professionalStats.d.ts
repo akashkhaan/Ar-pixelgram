@@ -21,3 +21,4 @@ export declare function summarizeProfessionalStats(input?: {
   now?: number;
 }): ProfessionalStats;
 export declare function formatCompact(value: number): string;
+export declare function proDashboardEnabled(userMetadata?: Record<string, unknown> | null): boolean;

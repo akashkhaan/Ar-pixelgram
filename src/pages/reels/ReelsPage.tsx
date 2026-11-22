@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useStatusBarOverlay } from '@/lib/statusBarOverlay';
 import StoryRing from '@/components/common/StoryRing';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Camera, Trash2, VideoOff, UserCheck, Pencil, Flag } from 'lucide-react';
@@ -482,7 +483,7 @@ const ReelCard: React.FC<{
       {/* Header: exact HTML layout with Reels next to back and camera on the right */}
       <div
         className="absolute left-0 right-0 top-0 z-30 flex items-center justify-between px-4 pb-2.5"
-        style={{ paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))' }}
+        style={{ paddingTop: 'calc(14px + var(--pg-status-bar, env(safe-area-inset-top, 0px)))' }}
       >
         <button
           type="button"
@@ -673,6 +674,8 @@ const ReelCard: React.FC<{
 };
 
 const ReelsPage: React.FC = () => {
+  // App me reels status bar (time) ke peeche tak full screen
+  useStatusBarOverlay(true);
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1019,7 +1022,7 @@ const ReelsPage: React.FC = () => {
       <div className="h-[100dvh] w-full bg-[#0B0B0F] relative flex flex-col justify-between overflow-hidden select-none">
         <div
           className="absolute left-0 right-0 top-0 z-30 flex items-center justify-between px-4 pb-2.5"
-          style={{ paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))' }}
+          style={{ paddingTop: 'calc(14px + var(--pg-status-bar, env(safe-area-inset-top, 0px)))' }}
         >
           <button type="button" onClick={() => navigate('/profile')} className="flex items-center gap-1.5 text-[19px] font-bold text-white" aria-label="Back to profile">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>

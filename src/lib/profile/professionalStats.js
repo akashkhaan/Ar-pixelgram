@@ -69,3 +69,8 @@ function trim(x) {
   const fixed = x >= 100 ? Math.floor(x).toString() : (Math.floor(x * 10) / 10).toFixed(1);
   return fixed.endsWith('.0') ? fixed.slice(0, -2) : fixed;
 }
+
+/** Edit profile me "Professional dashboard" on kiya ho tabhi profile par dikhe (default: band). */
+export function proDashboardEnabled(userMetadata) {
+  return Boolean(userMetadata && userMetadata.show_pro_dashboard === true);
+}

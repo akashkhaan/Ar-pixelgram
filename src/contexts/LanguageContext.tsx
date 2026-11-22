@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { setAutoTranslateLanguage } from '@/lib/i18n/autoTranslate';
 
 export type LangCode = string;
 
@@ -397,6 +398,18 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLangState(code);
     localStorage.setItem(STORAGE_KEY, code);
   };
+
+  // Bhasha chuni ho to poora app (website + APK) usi bhasha me — Facebook jaisa.
+  // Kabhi chuni hi nahi to app jaisa hai waisa rahe.
+  useEffect(() => {
+    let chosen = false;
+    try {
+      chosen = Boolean(localStorage.getItem(STORAGE_KEY));
+    } catch {
+      chosen = false;
+    }
+    setAutoTranslateLanguage(chosen ? lang : null);
+  }, [lang]);
 
   const t = (key: TranslationKey): string => {
     return translations[lang]?.[key] || translations['en']?.[key] || key;

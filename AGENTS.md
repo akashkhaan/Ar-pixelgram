@@ -15,3 +15,5 @@
 - Android background uploads use the locally registered BackgroundUpload Capacitor plugin and a dataSync foreground service, owning private file bytes and final publishing; never rely on WebView timers or keep-alive tricks.
 - Native publishing uses a stable record UUID and read-back before retry; reconcile native-owned jobs before browser recovery to avoid duplicate uploads after reopening.
 - Profile cover photos live at a fixed path per user in the avatars bucket (services/profileCover), so covers need no profiles column; professional dashboard numbers come from the pure, Node-tested professionalStats module.
+- Translate the whole UI at runtime only from source-extracted strings (scripts/extract-ui-strings.mjs → src/lib/i18n/uiStrings.json, regenerated on build) so user content like names, bios, posts and messages is never translated.
+- Pages that should draw behind the Android status bar call useStatusBarOverlay and offset top controls with the --pg-status-bar CSS variable.

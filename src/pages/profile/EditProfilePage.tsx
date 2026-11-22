@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { proDashboardEnabled } from '@/lib/profile/professionalStats';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
@@ -38,6 +39,7 @@ const EditProfilePage: React.FC = () => {
     bio: '',
     dob: '',
     is_private: false,
+    show_pro_dashboard: false,
     website_link_1: '',
     website_link_2: '',
     instagram_url: '',
@@ -74,6 +76,7 @@ const EditProfilePage: React.FC = () => {
         bio: profile.bio || '',
         dob: profile.dob || '',
         is_private: profile.is_private,
+        show_pro_dashboard: proDashboardEnabled(user?.user_metadata),
         ...initialLinks,
       });
 
@@ -160,6 +163,7 @@ const EditProfilePage: React.FC = () => {
             website_link_2: cleanLink2 || null,
             instagram_url: cleanInsta || null,
             facebook_url: cleanFb || null,
+            show_pro_dashboard: form.show_pro_dashboard,
           },
         });
       } catch {}
@@ -359,6 +363,15 @@ const EditProfilePage: React.FC = () => {
               <p className="text-xs text-muted-foreground">Only approved followers can see your posts</p>
             </div>
             <Switch checked={form.is_private} onCheckedChange={v => setForm(p => ({ ...p, is_private: v }))} />
+          </div>
+
+          {/* Professional dashboard — on karne par hi profile par dikhta hai */}
+          <div className="flex items-center justify-between py-3 px-4 rounded-xl bg-card border border-border">
+            <div>
+              <p className="font-semibold text-sm text-foreground">Professional dashboard</p>
+              <p className="text-xs text-muted-foreground">Profile par apne reels & videos ke views dikhayein</p>
+            </div>
+            <Switch checked={form.show_pro_dashboard} onCheckedChange={v => setForm(p => ({ ...p, show_pro_dashboard: v }))} />
           </div>
 
           <Button type="submit" className="w-full h-11 font-semibold" disabled={loading}>
