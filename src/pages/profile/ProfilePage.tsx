@@ -1,8 +1,10 @@
 import { ProfileBioLinksSheet } from "@/components/profile/ProfileBioLinksSheet";
 import { isAccountRestricted } from "@/lib/accountStatus";
-import { getProfileLinks } from "@/components/profile/ProfileLinks";
 import { subscribeToUploads, type UploadJob } from "@/services/uploadManager";
-import { PixelgramProfileCard } from "@/components/profile/PixelgramProfileCard";
+import { ProfileCoverHeader } from "@/components/profile/ProfileCoverHeader";
+import { getProfileCoverUrl, uploadProfileCover } from "@/services/profileCover";
+import { summarizeProfessionalStats } from "@/lib/profile/professionalStats";
+import { previewShareUrl } from "@/lib/shareLinks";
 import AccountLockedUnlockModal from '@/components/auth/AccountLockedUnlockModal';
 import { ArrowLeft, BadgeCheck, Camera, ChevronDown, FileText, Film, Flag, Grid3X3, Heart, Link2, Loader2, Lock, MessageCircle, MoreHorizontal, Play, Search, Settings, UserX, Video as VideoIcon, X } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -65,6 +67,17 @@ const ProfilePage: React.FC = () => {
   const [isUserBlocked, setIsUserBlocked] = useState(false);
   const [bioLinksOpen, setBioLinksOpen] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  // Cover photo: naya upload turant dikhe isliye version
+  const [coverVersion, setCoverVersion] = useState(0);
+  const [coverUploading, setCoverUploading] = useState(false);
+  // Header cover ke upar transparent, scroll karne par solid
+  const [headerSolid, setHeaderSolid] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setHeaderSolid((window.scrollY || document.documentElement.scrollTop || 0) > 160);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Resolve Facebook-style numeric ID or query param to target user_id
   useEffect(() => {
@@ -446,18 +459,22 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* Profile Top Header Bar (Instagram / Facebook Style) */}
-        <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md px-3 h-12 flex items-center justify-between border-b border-border/40">
+        {/* Top bar — cover photo ke upar transparent; scroll par solid (back / search / options pehle jaise) */}
+        <div
+          className={`sticky top-0 z-30 px-3 h-12 flex items-center justify-between transition-colors duration-200 ${
+            headerSolid ? 'bg-background/95 backdrop-blur-md border-b border-border/40' : 'bg-transparent border-b border-transparent'
+          }`}
+        >
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               onClick={goBack}
-              className="w-9 h-9 -ml-1 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground shrink-0"
+              className={`w-9 h-9 -ml-1 rounded-full active:scale-95 flex items-center justify-center transition-all shrink-0 ${headerSolid ? 'hover:bg-muted text-foreground' : 'bg-black/40 text-white backdrop-blur-sm'}`}
               aria-label="Go back"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <h1 className="font-bold text-base text-foreground truncate flex items-center gap-1.5">
+            <h1 className={`font-bold text-base text-foreground truncate flex items-center gap-1.5 transition-opacity ${headerSolid ? 'opacity-100' : 'opacity-0'}`}>
               {profile.username}
               {profile.is_verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" />}
               {profile.is_private && <Lock className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
@@ -468,8 +485,8 @@ const ProfilePage: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowSearch(!showSearch)}
-              className={`w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all ${
-                showSearch ? 'bg-primary/10 text-primary' : 'text-foreground'
+              className={`w-9 h-9 flex items-center justify-center rounded-full active:scale-95 transition-all ${
+                showSearch ? 'bg-primary/10 text-primary' : headerSolid ? 'hover:bg-muted text-foreground' : 'bg-black/40 text-white backdrop-blur-sm'
               }`}
               aria-label="Search posts"
               title="Search posts"
@@ -481,7 +498,7 @@ const ProfilePage: React.FC = () => {
             <button
               type="button"
               onClick={() => setBottomSheetOpen(true)}
-              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted active:scale-95 transition-all text-foreground"
+              className={`w-9 h-9 flex items-center justify-center rounded-full active:scale-95 transition-all ${headerSolid ? 'hover:bg-muted text-foreground' : 'bg-black/40 text-white backdrop-blur-sm'}`}
               aria-label="Profile options"
               title="Profile options"
             >
@@ -536,17 +553,35 @@ const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        <div className="px-0.5 pt-0.5 pb-2">
-          {/* Pixelgram 3D Profile Card (New Profile System from HTML) */}
-          <PixelgramProfileCard
+        <div className={`pb-3 ${showSearch || isUserBlocked ? '' : '-mt-12'}`}>
+          {/* Naya profile top: cover + profile photo + naam (photo jaisa) */}
+          <ProfileCoverHeader
             profile={profile}
-            postsCount={restrictedProfile ? 0 : posts.length}
-            followersCount={restrictedProfile ? 0 : followersCount}
-            followingCount={restrictedProfile ? 0 : followingCount}
+            user={user}
             isOwnProfile={isOwnProfile}
+            restricted={restrictedProfile}
+            postsCount={posts.length}
+            followersCount={followersCount}
+            followingCount={followingCount}
             followStatus={followStatus}
             followLoading={followLoading}
             onFollow={handleFollow}
+            coverUrl={getProfileCoverUrl(profile.user_id, coverVersion || undefined)}
+            coverUploading={coverUploading}
+            onCoverUpload={async (file: File) => {
+              if (!user) return;
+              if (file.size > 8 * 1024 * 1024) { toast.error("8MB से बड़ी फाइल नहीं"); return; }
+              setCoverUploading(true);
+              try {
+                await uploadProfileCover(file, user.id);
+                setCoverVersion(Date.now());
+                toast.success("कवर फोटो अपडेट हुई ✨");
+              } catch {
+                toast.error("कवर फोटो अपलोड नहीं हुई");
+              } finally {
+                setCoverUploading(false);
+              }
+            }}
             onAvatarUpload={async (file: File) => {
               if (!file || !user) return;
               if (file.size > 5 * 1024 * 1024) { toast.error("5MB से बड़ी फाइल नहीं"); return; }
@@ -559,15 +594,26 @@ const ProfilePage: React.FC = () => {
                 toast.error("फोटो अपलोड नहीं हुई");
               }
             }}
+            onShareProfile={async () => {
+              const name = profile.full_name || profile.username;
+              const url = previewShareUrl('profile', profile.user_id);
+              if (typeof navigator !== 'undefined' && navigator.share) {
+                try {
+                  await navigator.share({ title: `${name} on Pixelgram`, text: `Check out ${name}'s profile on Pixelgram!`, url });
+                  return;
+                } catch (e) {
+                  if ((e as Error)?.name === 'AbortError') return;
+                }
+              }
+              // Share na ho sake to purana share menu (WhatsApp / copy link) khol do
+              setBottomSheetOpen(true);
+            }}
+            onOpenLinks={() => setBioLinksOpen(true)}
             onScrollToPosts={() => {
               const el = document.getElementById("posts-tab-section");
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }}
-            hasMoreInfo={
-              !restrictedProfile &&
-              (Boolean(profile.bio?.trim()) || getProfileLinks(profile, user, isOwnProfile).length > 0)
-            }
-            onOpenMore={() => setBioLinksOpen(true)}
+            totalViews={isOwnProfile ? summarizeProfessionalStats({ reels, videos }).totalViews : 0}
           />
 
           {/* Bio/links ka button card ke andar @username ke niche hai */}

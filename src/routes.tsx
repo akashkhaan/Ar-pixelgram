@@ -71,6 +71,7 @@ const GroupJoinPage = safeLazy(() => import('./pages/chat/GroupJoinPage'));
 const NotificationsPage = safeLazy(() => import('./pages/notifications/NotificationsPage'));
 const ProfilePage = safeLazy(() => import('./pages/profile/ProfilePage'));
 const EditProfilePage = safeLazy(() => import('./pages/profile/EditProfilePage'));
+const ProfessionalDashboardPage = safeLazy(() => import('./pages/profile/ProfessionalDashboardPage'));
 const SettingsPage = safeLazy(() => import('./pages/settings/SettingsPage'));
 const AccountCenterPage = safeLazy(() => import('./pages/settings/AccountCenterPage'));
 const LanguagePage = safeLazy(() => import('./pages/settings/LanguagePage'));
@@ -141,6 +142,7 @@ export const routes: RouteConfig[] = [
   { name: 'User Profile', path: '/profile/:userId', element: <ProfilePage /> },
   { name: 'Profile Facebook URL', path: '/profile.php', element: <ProfilePage /> },
   { name: 'Edit Profile', path: '/edit-profile', element: <EditProfilePage /> },
+  { name: 'Professional Dashboard', path: '/professional-dashboard', element: <ProfessionalDashboardPage /> },
   { name: 'Settings', path: '/settings', element: <SettingsPage /> },
   { name: 'Notification Settings', path: '/settings/notifications', element: <NotificationSettingsPage /> },
   { name: 'Account Center', path: '/settings/account-center', element: <AccountCenterPage /> },

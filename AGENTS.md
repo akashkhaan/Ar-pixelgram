@@ -14,3 +14,4 @@
 
 - Android background uploads use the locally registered BackgroundUpload Capacitor plugin and a dataSync foreground service, owning private file bytes and final publishing; never rely on WebView timers or keep-alive tricks.
 - Native publishing uses a stable record UUID and read-back before retry; reconcile native-owned jobs before browser recovery to avoid duplicate uploads after reopening.
+- Profile cover photos live at a fixed path per user in the avatars bucket (services/profileCover), so covers need no profiles column; professional dashboard numbers come from the pure, Node-tested professionalStats module.
