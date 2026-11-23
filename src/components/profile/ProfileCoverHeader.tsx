@@ -71,10 +71,6 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
   const hasStory = useHasStory(profile?.user_id);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
-  // Ek hi tap par gallery khule — pointerdown ke turant baad aane wala
-  // synthetic click dobara picker na khole
-  const lastCoverOpenRef = useRef(0);
-  const lastAvatarOpenRef = useRef(0);
   // Kaunsa cover URL sach me load hua (cache se turant load hone par bhi sahi rahe)
   const [loadedCover, setLoadedCover] = useState<string | null>(null);
   const coverOk = loadedCover === coverUrl;
@@ -97,29 +93,6 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
     setBioOverflows(el.scrollHeight > el.clientHeight + 1);
   }, [bio, bioExpanded]);
 
-  /** Gallery turant kholta hai (pointerdown se, tap-delay ke bina) */
-  const openCoverPicker = () => {
-    if (!isOwnProfile) return;
-    const now = Date.now();
-    if (now - lastCoverOpenRef.current < 600) return; // double-open guard
-    lastCoverOpenRef.current = now;
-    const input = coverInputRef.current;
-    if (!input) return;
-    input.value = '';
-    input.click();
-  };
-
-  const openAvatarPicker = () => {
-    if (!isOwnProfile) return;
-    const now = Date.now();
-    if (now - lastAvatarOpenRef.current < 600) return;
-    lastAvatarOpenRef.current = now;
-    const input = avatarInputRef.current;
-    if (!input) return;
-    input.value = '';
-    input.click();
-  };
-
   const handleAvatarTap = () => {
     // Story dali ho to tap par story khule (pehle jaisa)
     if (hasStory) {
@@ -130,12 +103,11 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
       setViewer(profile.avatar_url);
       return;
     }
-    if (isOwnProfile) openAvatarPicker();
+    if (isOwnProfile) avatarInputRef.current?.click();
   };
 
   const handleCoverTap = () => {
     if (coverOk) setViewer(coverUrl);
-    else if (isOwnProfile) openCoverPicker();
   };
 
   const pickFile = (cb?: (f: File) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,21 +143,24 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
         {/* Niche fade — photo background me ghul jaye */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-b from-transparent to-background" />
 
+        {/* Camera icon — input label ke andar hai, isliye ek tap par gallery
+            uthhti hai (koi JS click() nahi, Android me kabhi block nahi hota) */}
         {isOwnProfile && (
-          <button
-            type="button"
-            onPointerDown={(e) => {
-              // touch par turant gallery — click event ka intezaar nahi
-              e.preventDefault();
-              openCoverPicker();
-            }}
-            onClick={openCoverPicker}
-            className="absolute right-3 bottom-3 z-10 h-8 px-2.5 rounded-full bg-black/55 text-white text-xs font-semibold flex items-center gap-1.5 backdrop-blur-sm active:scale-95 transition-transform touch-manipulation after:content-[''] after:absolute after:-inset-2.5"
+          <label
+            className="absolute right-3 bottom-3 z-20 h-9 px-2.5 rounded-full bg-black/60 text-white text-xs font-semibold flex items-center gap-1.5 backdrop-blur-sm active:scale-95 transition-transform touch-manipulation cursor-pointer after:content-[''] after:absolute after:-inset-3"
             aria-label="Cover photo badlein"
           >
             {coverUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : coverOk ? <Camera className="w-4 h-4" /> : <ImagePlus className="w-4 h-4" />}
             {!coverOk && !coverUploading && <span>Cover add karein</span>}
-          </button>
+            <input
+              ref={coverInputRef}
+              type="file"
+              accept="image/*"
+              aria-label="Cover photo chuno"
+              onChange={pickFile(onCoverUpload)}
+              className="sr-only"
+            />
+          </label>
         )}
       </div>
 
@@ -222,43 +197,23 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
             </span>
           </button>
           {isOwnProfile && (
-            <button
-              type="button"
-              onPointerDown={(e) => {
-                e.preventDefault();
-                openAvatarPicker();
-              }}
-              onClick={openAvatarPicker}
-              className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center border-2 border-background shadow-lg active:scale-95 touch-manipulation"
+            <label
+              className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center border-2 border-background shadow-lg active:scale-95 touch-manipulation cursor-pointer after:content-[''] after:absolute after:-inset-2"
               aria-label="Profile photo badlein"
             >
               <Camera className="w-3.5 h-3.5" />
-            </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                aria-label="Profile photo chuno"
+                onChange={pickFile(onAvatarUpload)}
+                className="sr-only"
+              />
+            </label>
           )}
         </div>
       </div>
-
-      {/* Inputs hamesha mounted aur display:none NAHI — Android WebView me
-          display:none file input par pehla tap drop ho jaata tha, isliye
-          gallery baar-baar tap karne par khulti thi */}
-      <input
-        ref={avatarInputRef}
-        type="file"
-        accept="image/*"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={pickFile(onAvatarUpload)}
-        className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none"
-      />
-      <input
-        ref={coverInputRef}
-        type="file"
-        accept="image/*"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={pickFile(onCoverUpload)}
-        className="fixed -left-[9999px] top-0 h-px w-px opacity-0 pointer-events-none"
-      />
 
       <div className="px-4 pt-1.5">
         {/* Naam + username */}
