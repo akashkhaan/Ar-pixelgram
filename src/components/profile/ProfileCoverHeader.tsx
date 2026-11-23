@@ -35,7 +35,7 @@ interface ProfileCoverHeaderProps {
 }
 
 const VerifiedBadge = () => (
-  <svg viewBox="0 0 24 24" aria-label="Verified" className="w-5 h-5 shrink-0">
+  <svg viewBox="0 0 24 24" aria-label="Verified" className="w-4 h-4 shrink-0">
     <path
       d="M12 1.8l2.5 1.7 3-.2 1.2 2.8 2.7 1.4-.4 3 1.3 2.7-2 2.3-.3 3-3 .8-1.8 2.4-2.8-1.1-2.8 1.1-1.8-2.4-3-.8-.3-3-2-2.3 1.3-2.7-.4-3 2.7-1.4 1.2-2.8 3 .2z"
       fill="#2f8bff"
@@ -118,12 +118,12 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
   };
 
   const pillBtn =
-    'h-10 flex-1 min-w-0 rounded-full bg-muted text-foreground text-[14px] font-semibold border border-border/60 active:scale-[0.97] transition-transform flex items-center justify-center gap-1.5';
+    'h-8 flex-1 min-w-0 rounded-full bg-muted text-foreground text-[13px] font-semibold border border-border/60 active:scale-[0.97] transition-transform flex items-center justify-center gap-1.5';
 
   return (
     <section className="relative" aria-label="Profile">
       {/* Cover photo — upar tak full */}
-      <div className="relative w-full aspect-[16/10] max-h-[340px] overflow-hidden bg-muted">
+      <div className="relative w-full aspect-[2/1] max-h-[230px] overflow-hidden bg-muted">
         <div
           className="absolute inset-0"
           style={{ background: 'linear-gradient(135deg, hsl(var(--p1) / 0.55), hsl(var(--p2) / 0.45))' }}
@@ -142,14 +142,14 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
           aria-label={coverOk ? 'Cover photo dekhein' : 'Cover photo'}
         />
         {/* Niche fade — photo background me ghul jaye */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-b from-transparent to-background" />
 
         {isOwnProfile && (
           <button
             type="button"
             onClick={() => coverInputRef.current?.click()}
             disabled={coverUploading}
-            className="absolute right-3 bottom-3 z-10 h-9 px-3 rounded-full bg-black/55 text-white text-xs font-semibold flex items-center gap-1.5 backdrop-blur-sm active:scale-95 transition-transform"
+            className="absolute right-3 bottom-3 z-10 h-8 px-2.5 rounded-full bg-black/55 text-white text-xs font-semibold flex items-center gap-1.5 backdrop-blur-sm active:scale-95 transition-transform"
             aria-label="Cover photo badlein"
           >
             {coverUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : coverOk ? <Camera className="w-4 h-4" /> : <ImagePlus className="w-4 h-4" />}
@@ -159,12 +159,12 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
       </div>
 
       {/* Profile photo — cover par aadha chadha hua */}
-      <div className="relative px-4 -mt-14 z-10 flex items-end">
+      <div className="relative px-4 -mt-[58px] z-10 flex items-end">
         <div className="relative">
           <button
             type="button"
             onClick={handleAvatarTap}
-            className="block w-[104px] h-[104px] rounded-full p-[4px] active:scale-95 transition-transform"
+            className="block w-[86px] h-[86px] rounded-full p-[3px] active:scale-95 transition-transform"
             style={{
               background: hasStory
                 ? '#ef4444'
@@ -182,7 +182,7 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
                 />
               ) : (
                 <span
-                  className="w-full h-full rounded-full flex items-center justify-center text-4xl font-black text-white"
+                  className="w-full h-full rounded-full flex items-center justify-center text-3xl font-black text-white"
                   style={{ background: 'linear-gradient(135deg, #7c3aed, #ec2c8f, #ff8a1f)' }}
                 >
                   {profile.username?.[0]?.toUpperCase() || 'P'}
@@ -194,10 +194,10 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
             <button
               type="button"
               onClick={() => avatarInputRef.current?.click()}
-              className="absolute bottom-1 right-1 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center border-2 border-background shadow-lg active:scale-95"
+              className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center border-2 border-background shadow-lg active:scale-95"
               aria-label="Profile photo badlein"
             >
-              <Camera className="w-4 h-4" />
+              <Camera className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
@@ -210,16 +210,16 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
         </>
       )}
 
-      <div className="px-4 pt-2">
+      <div className="px-4 pt-1.5">
         {/* Naam + username */}
-        <h2 className="text-[22px] leading-tight font-bold text-foreground flex items-center gap-1.5 min-w-0">
+        <h2 className="text-[18px] leading-tight font-bold text-foreground flex items-center gap-1.5 min-w-0">
           <span className="truncate">{displayName}</span>
           {profile.is_verified && <VerifiedBadge />}
         </h2>
-        <p className="text-[14px] text-muted-foreground truncate">@{profile.username}</p>
+        <p className="text-[12.5px] text-muted-foreground truncate">@{profile.username}</p>
 
         {/* Posts / followers / following — tap karne par pehle jaisa */}
-        <div className="mt-2 flex items-center gap-3 text-[13px] text-muted-foreground">
+        <div className="mt-1.5 flex items-center gap-2.5 text-[12px] text-muted-foreground">
           <button type="button" onClick={onScrollToPosts} className="active:opacity-70">
             <b className="text-foreground">{restricted ? 0 : postsCount}</b> पोस्ट्स
           </button>
@@ -234,7 +234,7 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
         </div>
 
         {/* Buttons */}
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-2.5 flex items-center gap-2">
           {isOwnProfile ? (
             <>
               <button type="button" className={pillBtn} onClick={() => navigate('/edit-profile')}>
@@ -246,10 +246,10 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
               <button
                 type="button"
                 onClick={() => navigate('/settings')}
-                className="h-10 w-12 shrink-0 rounded-2xl bg-muted text-foreground border border-border/60 flex items-center justify-center active:scale-95 transition-transform"
+                className="h-8 w-10 shrink-0 rounded-xl bg-muted text-foreground border border-border/60 flex items-center justify-center active:scale-95 transition-transform"
                 aria-label="Settings"
               >
-                <Settings className="w-5 h-5" />
+                <Settings className="w-4 h-4" />
               </button>
             </>
           ) : (
@@ -261,7 +261,7 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
                 className={
                   followStatus
                     ? pillBtn
-                    : 'h-10 flex-1 min-w-0 rounded-full text-white text-[14px] font-bold flex items-center justify-center gap-1.5 active:scale-[0.97] transition-transform'
+                    : 'h-8 flex-1 min-w-0 rounded-full text-white text-[13px] font-bold flex items-center justify-center gap-1.5 active:scale-[0.97] transition-transform'
                 }
                 style={followStatus ? undefined : { background: 'linear-gradient(135deg, hsl(var(--p1)), hsl(var(--p2)))' }}
               >
@@ -286,10 +286,10 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
 
         {/* Bio — Edit profile ke niche */}
         {bio && (
-          <div className="mt-3">
+          <div className="mt-2">
             <p
               ref={bioRef}
-              className={`text-[14.5px] leading-[1.6] text-foreground whitespace-pre-line break-words ${
+              className={`text-[13px] leading-[1.45] text-foreground whitespace-pre-line break-words ${
                 bioExpanded ? '' : 'line-clamp-3'
               }`}
             >
@@ -299,7 +299,7 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
               <button
                 type="button"
                 onClick={() => setBioExpanded((v) => !v)}
-                className="mt-0.5 text-[14px] text-muted-foreground font-medium"
+                className="mt-0.5 text-[12.5px] text-muted-foreground font-medium"
               >
                 {bioExpanded ? 'See less' : 'See more'}
               </button>
@@ -309,8 +309,8 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
 
         {/* Link — bio ke niche */}
         {links.length > 0 && (
-          <div className="mt-2 flex items-center gap-1.5 min-w-0 text-[14px]">
-            <Link2 className="w-4 h-4 shrink-0 text-foreground -rotate-45" />
+          <div className="mt-1.5 flex items-center gap-1.5 min-w-0 text-[12.5px]">
+            <Link2 className="w-3.5 h-3.5 shrink-0 text-foreground -rotate-45" />
             <button
               type="button"
               onClick={() => openInAppBrowser(links[0].url, links[0].label)}
@@ -331,12 +331,12 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
           <button
             type="button"
             onClick={() => navigate('/professional-dashboard')}
-            className="mt-3 w-full rounded-2xl bg-muted/70 border border-border/60 px-4 py-3 flex items-start gap-3 text-left active:scale-[0.99] transition-transform"
+            className="mt-2.5 w-full rounded-xl bg-muted/70 border border-border/60 px-3 py-2 flex items-start gap-2.5 text-left active:scale-[0.99] transition-transform"
           >
-            <TrendingUp className="w-5 h-5 mt-0.5 shrink-0 text-emerald-500" />
+            <TrendingUp className="w-4 h-4 mt-0.5 shrink-0 text-emerald-500" />
             <span className="min-w-0">
-              <span className="block text-[15px] font-semibold text-foreground">Professional dashboard</span>
-              <span className="block text-[13px] text-muted-foreground">
+              <span className="block text-[13.5px] font-semibold text-foreground">Professional dashboard</span>
+              <span className="block text-[11.5px] text-muted-foreground">
                 {formatCompact(totalViews)} views on your reels & videos
               </span>
             </span>
