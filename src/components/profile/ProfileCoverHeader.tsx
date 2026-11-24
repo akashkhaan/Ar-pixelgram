@@ -8,6 +8,7 @@ import PhotoViewer from '@/components/common/PhotoViewer';
 import { openInAppBrowser } from '@/components/common/InAppBrowserModal';
 import { getProfileLinks } from '@/components/profile/ProfileLinks';
 import { formatCompact } from '@/lib/profile/professionalStats';
+import CoverPhotoCropper from '@/components/profile/CoverPhotoCropper';
 
 interface ProfileCoverHeaderProps {
   profile: Profile;
@@ -75,6 +76,8 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
   const [loadedCover, setLoadedCover] = useState<string | null>(null);
   const coverOk = loadedCover === coverUrl;
   const [viewer, setViewer] = useState<string | null>(null);
+  // Cover pick karne ke baad pehle adjust (crop) karte hain, phir upload
+  const [coverDraft, setCoverDraft] = useState<File | null>(null);
   // Toota hua profile photo link ho to naam ka pehla akshar dikhao
   const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
   const avatarOk = Boolean(profile.avatar_url) && brokenAvatar !== profile.avatar_url;
@@ -157,7 +160,11 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
               type="file"
               accept="image/*"
               aria-label="Cover photo chuno"
-              onChange={pickFile(onCoverUpload)}
+              onChange={e => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) setCoverDraft(file); // pehle adjust screen
+              }}
               className="sr-only"
             />
           </label>
@@ -348,6 +355,20 @@ export const ProfileCoverHeader: React.FC<ProfileCoverHeaderProps> = ({
           </button>
         )}
       </div>
+
+      {/* Cover adjust screen — drag + zoom karke set karo */}
+      {coverDraft && (
+        <CoverPhotoCropper
+          file={coverDraft}
+          aspect={2}
+          title="Cover photo set karo"
+          onCancel={() => setCoverDraft(null)}
+          onDone={(cropped) => {
+            setCoverDraft(null);
+            onCoverUpload?.(cropped);
+          }}
+        />
+      )}
 
       <PhotoViewer open={Boolean(viewer)} src={viewer || ''} alt={displayName} onClose={() => setViewer(null)} />
     </section>
