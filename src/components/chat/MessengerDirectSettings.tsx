@@ -473,25 +473,6 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </button>
 
-          {/* Caller playback tune */}
-          <button
-            type="button"
-            onClick={() => setShowHelloTuneSettings(true)}
-            className="direct-settings-row flex w-full items-center justify-between px-4 py-3.5 hover:bg-muted/40 transition-colors text-left"
-          >
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="rounded-xl bg-primary/10 p-2 text-primary"><Music2 className="h-4 w-4" /></div>
-              <div className="min-w-0">
-                <p className="direct-settings-row-title text-sm font-medium">Hello Tune</p>
-                <p className="direct-settings-row-subtitle truncate text-xs">
-                  {myHelloTune && isHelloTuneActive(myHelloTune)
-                    ? `${myHelloTune.title} · ${remainingDays(myHelloTune.expiresAt)} din baaki`
-                    : 'Choose what callers hear while ringing'}
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </button>
         </div>
 
         {/* More Actions */}
@@ -740,13 +721,6 @@ export const MessengerDirectSettings: React.FC<MessengerDirectSettingsProps> = (
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <HelloTuneSettings
-        isOpen={showHelloTuneSettings}
-        onClose={() => setShowHelloTuneSettings(false)}
-        userId={currentUser?.id || ''}
-        currentTune={myHelloTune}
-        onSaved={setMyHelloTune}
-      />
           {/* Wallpaper Picker Modal */}
       <ChatWallpaperModal
         open={showWallpaperModal}
