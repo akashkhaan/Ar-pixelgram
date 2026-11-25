@@ -82,6 +82,8 @@ const AdminOnlineUsers: React.FC = () => {
     navigate(`/profile/${userId}`);
   };
 
+  const [broken, setBroken] = useState<Record<string, boolean>>({});
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -106,20 +108,6 @@ const AdminOnlineUsers: React.FC = () => {
               Refresh
             </Button>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {cards.map(({ label, value, icon: Icon, tone }) => (
-            <div key={label} className="bg-card border border-border rounded-xl p-4 shadow-card">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase font-semibold">
-                <span className={`w-6 h-6 rounded-md flex items-center justify-center ${tone}`}>
-                  <Icon className="w-3.5 h-3.5" />
-                </span>
-                {label}
-              </div>
-              <p className="text-2xl font-bold text-foreground mt-2">{value}</p>
-            </div>
-          ))}
         </div>
 
         <div className="relative">
@@ -163,12 +151,12 @@ const AdminOnlineUsers: React.FC = () => {
                     className="relative shrink-0"
                     aria-label={`Open ${u.username} profile`}
                   >
-                    {u.avatar_url ? (
+                    {u.avatar_url && !broken[u.user_id] ? (
                       <img
                         src={u.avatar_url}
                         alt={u.username}
                         className="w-11 h-11 rounded-full object-cover ring-2 ring-emerald-500/40"
-                        onError={e => { (e.target as HTMLElement).style.visibility = 'hidden'; }}
+                        onError={() => setBroken(b => ({ ...b, [u.user_id]: true }))}
                       />
                     ) : (
                       <div className="w-11 h-11 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold ring-2 ring-emerald-500/40">
@@ -195,12 +183,12 @@ const AdminOnlineUsers: React.FC = () => {
                         </span>
                       )}
                     </div>
+                    <p className="text-xs text-muted-foreground truncate">@{u.username}</p>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                         Online
                       </span>
-                      <span className="text-[11px] text-muted-foreground truncate">@{u.username}</span>
                       {(u.city || u.country) && (
                         <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground truncate">
                           <MapPin className="w-3 h-3" />
