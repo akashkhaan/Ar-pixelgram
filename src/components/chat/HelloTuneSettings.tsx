@@ -199,6 +199,29 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragPointerRef = useRef<number | null>(null);
 
+  const [fullPos, setFullPos] = useState(0);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const fullStartRef = useRef<{ at: number; from: number } | null>(null);
+  useEffect(() => {
+    if (playingId !== 'full') return;
+    const t = window.setInterval(() => {
+      const r = fullStartRef.current;
+      if (r) setFullPos(r.from + (Date.now() - r.at) / 1000);
+    }, 250);
+    return () => window.clearInterval(t);
+  }, [playingId]);
+  const playFullFrom = (buffer: AudioBuffer, from: number) => {
+    const start = Math.max(0, Math.min(from, buffer.duration - 0.5));
+    previewBuffer(buffer, 'full', start, buffer.duration - start);
+    fullStartRef.current = { at: Date.now(), from: start };
+    setFullPos(start);
+  };
+  const seekFull = (buffer: AudioBuffer, to: number) => {
+    const pos = Math.max(0, Math.min(to, buffer.duration));
+    setFullPos(pos);
+    if (playingId === 'full') playFullFrom(buffer, pos);
+  };
+
   const activeTune = currentTune && isHelloTuneActive(currentTune) ? currentTune : null;
   const filteredTracks = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -513,6 +536,7 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
               <div className="ht-current-copy">
                 <strong>{activeTune.title}</strong>
                 <span>{activeTune.artist} · {remainingDays(activeTune.expiresAt)} din baaki</span>
+                <span style={{ whiteSpace: 'normal' }}>Lagaya: {new Date(Date.parse(activeTune.expiresAt) - 30 * 86400000).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
               </div>
               <button type="button" className="ht-icon-button" onClick={playSavedTune} aria-label="Preview current tune">
                 {playingId === 'saved' ? <Pause size={17} /> : <Play size={17} />}
@@ -596,6 +620,25 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
               <div className="ht-art" style={{ '--art-a': draft.colors[0], '--art-b': draft.colors[1] } as CSSProperties}><Music size={20} /></div>
               <div><strong>{draft.title}</strong><span>{draft.artist} · {formatTime(draft.buffer.duration)}</span></div>
             </div>
+            <div className="ht-overline">Pura gana suno — jahan se acha lage wahan "Yahan se lagao" dabao</div>
+            <input
+              type="range" min={0} max={Math.floor(draft.buffer.duration)} step={1} value={Math.floor(fullPos)}
+              onChange={e => seekFull(draft.buffer, Number(e.target.value))}
+              style={{ width: '100%', accentColor: 'hsl(var(--primary))' }} aria-label="Gane me aage-peeche karo"
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, opacity: 0.75 }}>
+              <span>{formatTime(fullPos)}</span><span>{formatTime(draft.buffer.duration)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, margin: '8px 0 12px' }}>
+              <button type="button" className="ht-length" onClick={() => seekFull(draft.buffer, fullPos - 10)}>-10s</button>
+              <button type="button" className="ht-length ht-length-active" style={{ flex: 1 }} onClick={() => playingId === 'full' ? stopPreview() : playFullFrom(draft.buffer, fullPos)}>
+                {playingId === 'full' ? 'Roko' : 'Pura gana chalao'}
+              </button>
+              <button type="button" className="ht-length" onClick={() => seekFull(draft.buffer, fullPos + 10)}>+10s</button>
+            </div>
+            <button type="button" className="ht-best" style={{ marginBottom: 12 }} onClick={() => { setClipStart(Math.max(0, Math.min(Math.floor(fullPos), draft.buffer.duration - clipLength))); toast.success(`Gana ${formatTime(fullPos)} se lagega`); }}>
+              <Check size={15} /> Yahan se lagao ({formatTime(fullPos)})
+            </button>
             <div className="ht-overline">Waveform par tap/drag karke start chuno</div>
             <Waveform buffer={draft.buffer} start={clipStart} length={clipLength} onSeek={handleSeek} />
             <div className="ht-lengths">
@@ -621,9 +664,21 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
               {playingId === 'draft' ? <Pause size={15} /> : <Play size={15} />}
               {playingId === 'draft' ? 'Preview roko' : 'Selected clip preview karo'}
             </button>
-            <button type="button" className="ht-set" onClick={handleSave} disabled={isSaving || isLoading}>
-              {isSaving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : <><Check size={16} /> Hello Tune set karo · 28 din</>}
-            </button>
+            {!confirmOpen ? (
+              <button type="button" className="ht-set" onClick={() => setConfirmOpen(true)} disabled={isSaving || isLoading}>
+                <Check size={16} /> Add Hello Tune
+              </button>
+            ) : (
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: '1px solid hsl(var(--border))' }}>
+                <p style={{ fontSize: 13, marginBottom: 10 }}>"{draft.title}" {formatTime(clipStart)} se Hello Tune lagayein? 30 din baad apne aap hat jayega.</p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="ht-length" style={{ flex: 1 }} onClick={() => setConfirmOpen(false)}>Cancel</button>
+                  <button type="button" className="ht-set" style={{ flex: 1, marginTop: 0 }} onClick={() => { stopPreview(); setConfirmOpen(false); handleSave(); }} disabled={isSaving || isLoading}>
+                    {isSaving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : <><Check size={16} /> Confirm</>}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}
