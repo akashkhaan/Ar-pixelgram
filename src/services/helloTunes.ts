@@ -53,7 +53,7 @@ const EMPTY_TUNE = {
   hello_tune_duration_seconds: 20,
   hello_tune_expires_at: null,
 };
-const HELLO_TUNE_DAYS = 28;
+const HELLO_TUNE_DAYS = 30;
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 const audioBuffers = new Map<string, AudioBuffer>();
 
