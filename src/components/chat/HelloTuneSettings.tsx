@@ -434,7 +434,7 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
       onSaved(saved);
       setDraft(null);
       stopPreview();
-      toast.success('Hello Tune set ho gayi — 28 din baad automatically expire hogi');
+      toast.success('Hello Tune set ho gayi — 30 din baad automatically expire hogi');
       onClose();
     } catch (error) {
       console.error('Hello Tune save failed:', error);
