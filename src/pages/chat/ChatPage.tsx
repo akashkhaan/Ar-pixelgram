@@ -15,7 +15,6 @@ import {
   Mic,
   MoreVertical,
   Phone,
-  Plus,
   Search,
   Send,
   UserRound,
@@ -1114,17 +1113,7 @@ const ChatPage: React.FC = () => {
 
             {/* Left Action Buttons (hidden while typing, like Instagram) */}
             <div className={cn('flex items-center gap-1 shrink-0', content.trim() && 'hidden')}>
-              {/* 1. Plus Button (+) */}
-              <button
-                type="button"
-                onClick={() => setShowWallpaperModal(true)}
-                className="tool-btn"
-                title="Add Wallpaper / Custom Background"
-              >
-                <Plus className="w-5 h-5 text-[#FF3D7F]" />
-              </button>
-
-              {/* 2. Camera Button (📷) */}
+              {/* Camera Button (📷) */}
               <button
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
@@ -1135,7 +1124,7 @@ const ChatPage: React.FC = () => {
                 <Camera className="w-5 h-5" />
               </button>
 
-              {/* 3. Gallery Button (🖼️) */}
+              {/* Gallery Button (🖼️) */}
               <button
                 type="button"
                 onClick={() => galleryInputRef.current?.click()}
@@ -1146,7 +1135,7 @@ const ChatPage: React.FC = () => {
                 <ImageIcon className="w-5 h-5" />
               </button>
 
-              {/* 4. Mic Button (🎙️) */}
+              {/* Mic Button (🎙️) */}
               <button
                 type="button"
                 onClick={() => setIsRecordingVoice(true)}
