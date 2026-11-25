@@ -75,6 +75,7 @@ const ProfessionalDashboardPage = safeLazy(() => import('./pages/profile/Profess
 const SettingsPage = safeLazy(() => import('./pages/settings/SettingsPage'));
 const AccountCenterPage = safeLazy(() => import('./pages/settings/AccountCenterPage'));
 const LanguagePage = safeLazy(() => import('./pages/settings/LanguagePage'));
+const HelloTunePage = safeLazy(() => import('./pages/settings/HelloTunePage'));
 const NotificationSettingsPage = safeLazy(() => import('./pages/settings/NotificationSettingsPage'));
 const ReelsPage = safeLazy(() => import('./pages/reels/ReelsPage'));
 const CreateReelPage = safeLazy(() => import('./pages/reels/CreateReelPage'));
@@ -144,6 +145,7 @@ export const routes: RouteConfig[] = [
   { name: 'Edit Profile', path: '/edit-profile', element: <EditProfilePage /> },
   { name: 'Professional Dashboard', path: '/professional-dashboard', element: <ProfessionalDashboardPage /> },
   { name: 'Settings', path: '/settings', element: <SettingsPage /> },
+  { name: 'Hello Tune', path: '/settings/hello-tune', element: <HelloTunePage /> },
   { name: 'Notification Settings', path: '/settings/notifications', element: <NotificationSettingsPage /> },
   { name: 'Account Center', path: '/settings/account-center', element: <AccountCenterPage /> },
   { name: 'Language', path: '/settings/language', element: <LanguagePage /> },
