@@ -1043,6 +1043,10 @@ const WatchVideoPage: React.FC = () => {
         title={`Video by @${authorName} on Pixelgram: ${video.title}`}
         mediaType="video"
         thumbnailUrl={video.thumbnail_url || undefined}
+        contentId={video.id}
+        ownerId={video.user_id}
+        creatorUsername={authorName}
+        snippet={video.title || null}
       />
     </div>
   );

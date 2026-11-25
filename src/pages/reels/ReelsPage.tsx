@@ -668,6 +668,15 @@ const ReelCard: React.FC<{
         videoUrl={reel.video_url || undefined}
         creatorUsername={profile?.username}
         creatorAvatarUrl={profile?.avatar_url}
+        contentId={reel.id}
+        ownerId={reel.user_id}
+        musicTitle={reel.music_title || null}
+        musicArtist={reel.music_artist || null}
+        musicArtworkUrl={reel.music_artwork_url || null}
+        musicPreviewUrl={reel.music_preview_url || null}
+        musicTrackId={reel.music_track_id || null}
+        musicStartMs={reel.music_start_ms || 0}
+        snippet={reel.caption ? reel.caption.slice(0, 90) : null}
       />
     </div>
   );

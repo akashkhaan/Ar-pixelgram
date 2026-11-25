@@ -16,6 +16,7 @@ import PullToRefresh from '@/components/common/PullToRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { SHARE_LABEL, sharedStoryPath, type SharedStoryRef } from '@/lib/storyShare';
 import { getStoryTapDirection } from './storyNavigation';
 import { Plus, X, MoreVertical, Trash2, Loader2, Share2, Heart, Send, Clock, Music2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -658,6 +659,66 @@ const StoriesPage: React.FC = () => {
             <img src={currentStory.image_url} alt="" className="absolute inset-0 w-full h-full object-cover" />
           )}
           <StoryTextLayer overlays={currentStory.text_overlays} />
+
+          {/* Shared reel/post/video sticker — Instagram jaisa */}
+          {currentStory.shared && (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                const ref = currentStory.shared as SharedStoryRef;
+                closeViewer();
+                navigate(sharedStoryPath(ref));
+              }}
+              className="absolute left-1/2 top-1/2 z-20 w-[76%] max-w-[320px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-black/45 shadow-2xl ring-1 ring-white/25 backdrop-blur-sm active:scale-[0.98] transition-transform"
+              aria-label={`${SHARE_LABEL[currentStory.shared.kind]} kholein`}
+            >
+              {/* Thumbnail */}
+              {currentStory.shared.thumbnailUrl && (
+                <div className="relative aspect-[4/5] w-full overflow-hidden">
+                  <img
+                    src={currentStory.shared.thumbnailUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                  <span className="absolute left-2.5 top-2.5 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-extrabold text-black">
+                    {SHARE_LABEL[currentStory.shared.kind]}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 px-3 py-2.5 text-left">
+                {currentStory.shared.ownerAvatarUrl ? (
+                  <img src={currentStory.shared.ownerAvatarUrl} alt="" className="h-7 w-7 rounded-full object-cover ring-1 ring-white/40" />
+                ) : (
+                  <span className="grid h-7 w-7 place-items-center rounded-full bg-white/25 text-[11px] font-bold text-white">
+                    {(currentStory.shared.ownerUsername || 'P')[0]?.toUpperCase()}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-bold text-white">
+                    {!currentStory.shared.thumbnailUrl && (
+                      <span className="mr-1.5 rounded bg-white/20 px-1.5 py-0.5 text-[10px]">
+                        {SHARE_LABEL[currentStory.shared.kind]}
+                      </span>
+                    )}
+                    @{currentStory.shared.ownerUsername || 'pixelgram'}
+                  </p>
+                  {currentStory.shared.title ? (
+                    <p className="flex items-center gap-1 truncate text-[10.5px] text-white/85">
+                      <Music2 className="h-2.5 w-2.5 shrink-0" />
+                      <span className="truncate">{currentStory.shared.title}{currentStory.shared.artist ? ` · ${currentStory.shared.artist}` : ''}</span>
+                    </p>
+                  ) : currentStory.shared.snippet ? (
+                    <p className="truncate text-[10.5px] text-white/85">{currentStory.shared.snippet}</p>
+                  ) : (
+                    <p className="text-[10.5px] text-white/70">Tap to open</p>
+                  )}
+                </div>
+              </div>
+            </button>
+          )}
 
           {/* Story background audio */}
           {currentStory.music_preview_url && (

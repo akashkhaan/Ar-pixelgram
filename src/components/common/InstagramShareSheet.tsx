@@ -4,6 +4,7 @@ import {
   Search,
   Copy,
   Check,
+  Plus,
   Send,
   Share2,
   Loader2,
@@ -15,6 +16,8 @@ import { toast } from 'sonner';
 import GlassSearch from '@/components/common/GlassSearch';
 import { toPreviewShareUrl, warmShareServer } from '@/lib/shareLinks';
 import { shareReelToWhatsAppStatus } from '@/lib/whatsappStatus';
+import { createSharedStory } from '@/services/api';
+import type { SharedStoryRef, SharedStoryKind } from '@/lib/storyShare';
 
 interface InstagramShareSheetProps {
   open: boolean;
@@ -28,6 +31,19 @@ interface InstagramShareSheetProps {
   /** Reel banane wale ka username/DP — status video par chhapne ke liye */
   creatorUsername?: string | null;
   creatorAvatarUrl?: string | null;
+  /** "Add to your story" ke liye content ka id (reel/post/video) */
+  contentId?: string;
+  /** Content kis user ka hai */
+  ownerId?: string | null;
+  /** Story par dikhne wala gana */
+  musicTitle?: string | null;
+  musicArtist?: string | null;
+  musicArtworkUrl?: string | null;
+  musicPreviewUrl?: string | null;
+  musicTrackId?: string | null;
+  musicStartMs?: number | null;
+  /** Post caption ka snippet (sticker par chhota sa dikhta hai) */
+  snippet?: string | null;
 }
 
 export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
@@ -40,6 +56,15 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   videoUrl,
   creatorUsername,
   creatorAvatarUrl,
+  contentId,
+  ownerId,
+  musicTitle,
+  musicArtist,
+  musicArtworkUrl,
+  musicPreviewUrl,
+  musicTrackId,
+  musicStartMs,
+  snippet,
 }) => {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
@@ -50,6 +75,8 @@ export const InstagramShareSheet: React.FC<InstagramShareSheetProps> = ({
   const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [storyBusy, setStoryBusy] = useState(false);
+  const [storyAdded, setStoryAdded] = useState(false);
 
   // WhatsApp/Facebook par photo ke saath dikhne wala link (chat DM me app ka link hi jata hai)
   const externalUrl = useMemo(() => toPreviewShareUrl(url), [url]);
@@ -311,6 +338,59 @@ ${url}`;
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Add to your story — reels / post / video (Instagram jaisa) */}
+        {contentId && (
+          <div className="px-4 pt-3">
+            <button
+              type="button"
+              disabled={storyBusy || storyAdded}
+              onClick={async () => {
+                if (!user) { toast.error('Login zaroori hai'); return; }
+                setStoryBusy(true);
+                try {
+                  const kind: SharedStoryKind = mediaType === 'reel' ? 'reel' : mediaType === 'video' ? 'video' : 'post';
+                  const ref: SharedStoryRef = {
+                    kind,
+                    id: contentId,
+                    ownerId: ownerId || null,
+                    ownerUsername: creatorUsername || null,
+                    ownerAvatarUrl: creatorAvatarUrl || null,
+                    title: musicTitle || null,
+                    artist: musicArtist || null,
+                    artworkUrl: musicArtworkUrl || null,
+                    previewUrl: musicPreviewUrl || null,
+                    trackId: musicTrackId || null,
+                    startMs: musicStartMs || 0,
+                    thumbnailUrl: thumbnailUrl || null,
+                    snippet: snippet || null,
+                  };
+                  await createSharedStory(ref);
+                  setStoryAdded(true);
+                  toast.success('Story par lag gaya ✨ 24 ghante tak dikhega');
+                } catch (err) {
+                  console.error('story share failed', err);
+                  toast.error('Story par nahi laga, dobara try karein');
+                } finally {
+                  setStoryBusy(false);
+                }
+              }}
+              className="flex w-full items-center gap-3 rounded-2xl border border-primary/30 bg-primary/10 px-3 py-2.5 text-left active:scale-[0.99] transition-transform disabled:opacity-70"
+            >
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-dashed border-primary/50 text-primary">
+                {storyBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : storyAdded ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-foreground">
+                  {storyAdded ? 'Story par lag gaya' : 'Add to your story'}
+                </span>
+                <span className="block text-[11px] text-muted-foreground">
+                  {storyAdded ? '24 ghante baad apne aap hat jayega' : 'Aapki story par share karein'}
+                </span>
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Search friend */}
         <div className="px-4 py-2.5">

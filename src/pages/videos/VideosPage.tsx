@@ -213,6 +213,11 @@ const VideosPage: React.FC = () => {
             title={`Video by @${sharingVideo.profile?.username || 'user'} on Pixelgram: ${sharingVideo.title}`}
             mediaType="video"
             thumbnailUrl={sharingVideo.thumbnail_url || undefined}
+            contentId={sharingVideo.id}
+            ownerId={sharingVideo.user_id}
+            creatorUsername={sharingVideo.profile?.username}
+            creatorAvatarUrl={sharingVideo.profile?.avatar_url || undefined}
+            snippet={sharingVideo.title || null}
           />
         )}
       </div>

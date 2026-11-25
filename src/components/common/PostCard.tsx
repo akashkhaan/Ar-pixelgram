@@ -469,6 +469,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onCaptionChange }) 
         title={`Post by @${username} on Pixelgram`}
         mediaType="post"
         thumbnailUrl={post.image_url}
+        contentId={post.id}
+        ownerId={post.user_id}
+        creatorUsername={username}
+        creatorAvatarUrl={post.profile?.avatar_url || undefined}
+        musicTitle={post.music_title || null}
+        musicArtist={post.music_artist || null}
+        musicArtworkUrl={post.music_artwork_url || null}
+        musicPreviewUrl={post.music_preview_url || null}
+        musicTrackId={post.music_track_id || null}
+        musicStartMs={post.music_start_ms || 0}
+        snippet={cleanDisplayCaption(post.caption) || null}
       />
     </article>
   );

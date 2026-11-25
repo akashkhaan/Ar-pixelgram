@@ -2,6 +2,7 @@ import { markPostDeleted, markReelDeleted, filterDeletedPosts, filterDeletedReel
 import { decodeStoryText } from '@/lib/storyText';
 import { dropLegacyPosts, dropLegacyReels } from '@/lib/legacyCleanup';
 import { dropRestrictedRows, isAccountRestricted } from '@/lib/accountStatus';
+import { decodeStoryShare, encodeStoryShare, sharedStoryImage, type SharedStoryRef } from '@/lib/storyShare';
 import { supabase } from '@/db/supabase';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Profile, Post, Story, Comment, Message, Notification, VerificationRequest, Report, BroadcastNotification, ActivityLog } from '@/types/types';
@@ -357,6 +358,7 @@ export async function isSaved(postId: string, userId: string): Promise<boolean> 
 export function decodeStoryMusic(story: Story): Story {
   const clean = cleanDisplayCaption(story.caption);
   const text_overlays = decodeStoryText(story.caption);
+  const shared = decodeStoryShare(story.caption);
   const match = (story.caption || '').match(/<!--pixelgram_music:([\s\S]*?)-->/);
   if (match) {
     try {
@@ -365,6 +367,7 @@ export function decodeStoryMusic(story: Story): Story {
         ...story,
         caption: clean || null,
         text_overlays,
+        shared,
         music_track_id: story.music_track_id || meta.id,
         music_title: story.music_title || meta.title,
         music_artist: story.music_artist || meta.artist,
@@ -380,7 +383,50 @@ export function decodeStoryMusic(story: Story): Story {
     ...story,
     caption: clean || null,
     text_overlays,
+    shared,
   };
+}
+
+/** Reel / post / video ko apni story par share karta hai (Instagram jaisa) */
+export async function createSharedStory(ref: SharedStoryRef): Promise<string | null> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth?.user?.id;
+  if (!uid) throw new Error('Login zaroori hai');
+
+  const row: Record<string, any> = {
+    image_url: sharedStoryImage(ref),
+    caption: encodeStoryShare(ref.snippet || null, ref),
+    media_type: 'image',
+  };
+  // Gana ho to story par bhi music chale + naam dikhe (Instagram jaisa)
+  if (ref.title && ref.previewUrl) {
+    row.music_track_id = ref.trackId || null;
+    row.music_title = ref.title;
+    row.music_artist = ref.artist || null;
+    row.music_artwork_url = ref.artworkUrl || null;
+    row.music_preview_url = ref.previewUrl;
+    row.music_start_ms = ref.startMs || 0;
+    row.music_duration_ms = null;
+    row.mute_original = false;
+  }
+
+  let { data, error } = await supabase.from('stories').insert(row).select('id').maybeSingle();
+  if (error) {
+    // Music columns purane schema me na ho to bina music ke insert
+    const retry = await supabase
+      .from('stories')
+      .insert({ image_url: row.image_url, caption: row.caption, media_type: 'image' })
+      .select('id')
+      .maybeSingle();
+    data = retry.data;
+    error = retry.error;
+  }
+  if (error) throw error;
+
+  if (data?.id) {
+    void notifyFollowersOfNewContent(uid, 'new_story', data.id, ref.snippet || null);
+  }
+  return data?.id ?? null;
 }
 
 export async function createStory(

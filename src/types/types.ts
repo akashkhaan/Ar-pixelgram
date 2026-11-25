@@ -70,6 +70,8 @@ export interface Story {
   music_duration_ms?: number | null;
   mute_original?: boolean | null;
   text_overlays?: import('@/lib/storyText').StoryTextOverlay[];
+  /** Reel/post/video story par share kiya gaya ho to uska ref */
+  shared?: import('@/lib/storyShare').SharedStoryRef | null;
 }
 
 export interface Follow {
