@@ -227,6 +227,7 @@ const EditProfilePage: React.FC = () => {
             website_link_2: cleanLink2 || null,
             instagram_url: cleanInsta || null,
             facebook_url: cleanFb || null,
+            show_pro_dashboard: form.show_pro_dashboard,
           },
         });
       } catch (authMetaErr) {
