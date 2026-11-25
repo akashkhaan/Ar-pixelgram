@@ -187,7 +187,7 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
   const [mood, setMood] = useState('All');
   const [draft, setDraft] = useState<TuneDraft | null>(null);
   const [clipStart, setClipStart] = useState(0);
-  const [clipLength, setClipLength] = useState(20);
+  const [clipLength, setClipLength] = useState(30);
   const [isListening, setIsListening] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -475,8 +475,12 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
     stopPreview();
   };
 
+  useEffect(() => {
+    if (draft) setClipLength(Math.min(30, Math.floor(draft.buffer.duration)));
+  }, [draft]);
+
   const availableClipLengths = draft
-    ? [15, 20, 30].filter(seconds => seconds <= Math.floor(draft.buffer.duration))
+    ? [30].filter(seconds => seconds <= Math.floor(draft.buffer.duration))
     : [];
   if (draft && availableClipLengths.length === 0) availableClipLengths.push(Math.floor(draft.buffer.duration));
 
