@@ -2,7 +2,7 @@ import FacebookSwitchAccountModal from '@/components/profile/FacebookSwitchAccou
 import { logInToAnotherAccount } from '@/lib/savedAccounts';
 import InstagramIcon from "@/components/icons/InstagramIcon";
 import YoutubeIcon from "@/components/icons/YoutubeIcon";
-import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Users, Globe, HelpCircle, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Music2, Shield, Sun, Trash2 } from 'lucide-react';
+import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Globe, HelpCircle, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Music2, Shield, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,7 +10,6 @@ import MobileLayout from '@/components/layouts/MobileLayout';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import useGoBack from '@/hooks/use-go-back';
@@ -293,82 +292,44 @@ const SettingsPage: React.FC = () => {
   return (
     <MobileLayout>
       <div className="p-4 page-transition space-y-5">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="w-9 h-9 rounded-full hover:bg-muted active:scale-95 flex items-center justify-center transition-all text-foreground"
-            aria-label="Go back"
-          >
-            <ArrowLeft className="w-5 h-5 text-foreground" />
+        <div className="ns-head">
+          <button type="button" onClick={handleBack} className="ns-back" aria-label="Go back">
+            <ArrowLeft className="w-6 h-6" strokeWidth={2.1} />
           </button>
-          <h2 className="text-xl font-bold text-foreground">Settings</h2>
+          <h2 className="ns-h1">Settings</h2>
         </div>
 
-        {/* Profile info & Switch Account (Facebook Menu Style from Screenshot) */}
-        <div className="space-y-2.5">
-          {/* Card 1: Profile Card */}
-          <div
-            onClick={() => setShowSwitchModal(true)}
-            className="flex items-center justify-between gap-3 glass-card rounded-2xl p-3.5 hover:bg-muted/70 active:scale-[0.99] transition-all cursor-pointer border border-border/50 shadow-xs"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover shrink-0 ring-1 ring-border/50" />
-              ) : (
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                  <span className="text-primary font-bold text-lg">{profile?.username?.[0]?.toUpperCase()}</span>
-                </div>
-              )}
-              <div className="flex-1 min-w-0 text-left">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <p className="font-bold text-[15px] text-foreground truncate">{profile?.full_name || profile?.username}</p>
-                  {isVerifiedActive && (
-                    <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500 shrink-0 inline-block drop-shadow-xs" stroke="#fff" />
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground truncate">View your profile</p>
-              </div>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-muted/90 flex items-center justify-center text-muted-foreground">
-              <ChevronDown className="w-5 h-5" />
-            </div>
-          </div>
+        <div className="flex flex-col gap-1.5">
+          <button type="button" onClick={() => setShowSwitchModal(true)} className="ns-item">
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="ns-ico ns-round object-cover" style={{ padding: 0 }} />
+            ) : (
+              <span className="ns-ico ns-round" style={{ ['--h' as string]: 265 } as React.CSSProperties}>
+                {profile?.username?.[0]?.toUpperCase()}
+              </span>
+            )}
+            <span className="flex-1 min-w-0">
+              <span className="ns-title flex items-center gap-1.5 min-w-0">
+                <span className="truncate">{profile?.full_name || profile?.username}</span>
+                {isVerifiedActive && (
+                  <BadgeCheck className="w-4 h-4 text-sky-500 fill-sky-500 shrink-0" stroke="#fff" />
+                )}
+              </span>
+              <span className="ns-desc">View your profile</span>
+            </span>
+            <ChevronDown className="ns-chev" />
+          </button>
 
-          {/* Card 2: Switch Account Card (from Screenshot) */}
-          <div
-            onClick={() => setShowSwitchModal(true)}
-            className="flex items-center justify-between gap-3 glass-card rounded-2xl p-3.5 hover:bg-muted/70 active:scale-[0.99] transition-all cursor-pointer border border-border/50 shadow-xs"
-          >
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-12 h-12 rounded-full p-[2px] premium-rainbow-border flex items-center justify-center shrink-0 shadow-sm">
-                <div className="w-full h-full rounded-full bg-card dark:bg-zinc-800 flex items-center justify-center">
-                  <Users className="w-5 h-5 premium-rainbow-icon" />
-                </div>
-              </div>
-              <div className="flex-1 min-w-0 text-left">
-                <p className="font-bold text-[15px] premium-rainbow-text">Switch account</p>
-                <p className="text-xs text-muted-foreground">Tap to switch or add another account</p>
-              </div>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-muted/90 flex items-center justify-center text-muted-foreground">
-              <ChevronDown className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-
-        {/* Appearance */}
-        <div className="glass-card rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-            <div className="flex items-center gap-3">
-              {darkMode ? <Moon className="w-5 h-5 text-primary" /> : <Sun className="w-5 h-5 text-primary" />}
-              <div>
-                <p className="text-sm font-medium text-foreground">Dark Mode</p>
-                <p className="text-xs text-muted-foreground">{darkMode ? 'Dark theme active' : 'Light theme active'}</p>
-              </div>
-            </div>
-            <Switch checked={darkMode} onCheckedChange={toggleTheme} />
-          </div>
+          <button type="button" onClick={() => toggleTheme(!darkMode)} className="ns-item" aria-pressed={darkMode}>
+            <span className="ns-ico" style={{ ['--h' as string]: 255 } as React.CSSProperties}>
+              <Moon className="w-[22px] h-[22px]" strokeWidth={1.9} />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="ns-title">Dark Mode</span>
+              <span className="ns-desc">{darkMode ? 'Dark theme active' : 'Light theme active'}</span>
+            </span>
+            <span className={`ns-switch${darkMode ? ' on' : ''}`} />
+          </button>
         </div>
 
         {/* Dashboard Card with Ghost Vanish & Materialize (Bhoot ki tarah gayab hona) */}
