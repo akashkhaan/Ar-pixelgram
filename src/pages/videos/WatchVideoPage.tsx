@@ -52,6 +52,8 @@ import {
 } from '@/services/api';
 import { firstFrameSrc } from '@/lib/mediaUrl';
 import InstagramShareSheet from '@/components/common/InstagramShareSheet';
+import { getCommentLikeStates, toggleCommentLike, type CommentLikeState } from '@/services/commentLikes';
+import { notifyMentions } from '@/lib/mentions';
 
 const SAVED_VIDEOS_STORAGE = 'pixelgram_saved_videos';
 
@@ -189,6 +191,8 @@ const WatchVideoPage: React.FC = () => {
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [descSheetOpen, setDescSheetOpen] = useState(false);
   const [commentsSheetOpen, setCommentsSheetOpen] = useState(false);
+  const [commentLikes, setCommentLikes] = useState<Record<string, CommentLikeState>>({});
+  const [commentLikeBusy, setCommentLikeBusy] = useState<Record<string, boolean>>({});
 
   // 3-dots action menu for recommended video
   const [recommendedMenuVideo, setRecommendedMenuVideo] = useState<AppVideo | null>(null);
@@ -394,6 +398,16 @@ const WatchVideoPage: React.FC = () => {
       setCommentText('');
       const updated = await getVideoComments(video.id);
       setComments(updated);
+      const text = commentText.trim();
+      if (text) {
+        void notifyMentions({
+          text,
+          actorId: user.id,
+          kind: 'video',
+          contentId: video.id,
+          skipUserIds: [video.user_id],
+        });
+      }
       toast.success('Comment post ho gaya!');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Comment post nahi hua');
@@ -410,6 +424,36 @@ const WatchVideoPage: React.FC = () => {
       navigate('/videos', { replace: true });
     } catch {
       toast.error('Delete nahi hua');
+    }
+  };
+
+  // Comment like count + mera like
+  useEffect(() => {
+    if (!comments.length) return;
+    let live = true;
+    getCommentLikeStates('video', comments.map(c => c.id), user?.id)
+      .then(map => { if (live) setCommentLikes(map); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [comments, user?.id]);
+
+  const handleLikeComment = async (comment: AppVideoComment) => {
+    if (!user || !video || comment.user_id === user.id) return;
+    setCommentLikeBusy(prev => ({ ...prev, [comment.id]: true }));
+    try {
+      const { liked } = await toggleCommentLike('video', comment.id, comment.user_id, {
+        contentId: video.id,
+        actorId: user.id,
+        commentPreview: comment.content,
+      });
+      setCommentLikes(prev => {
+        const cur = prev[comment.id] || { count: 0, mine: false };
+        return { ...prev, [comment.id]: { count: Math.max(0, cur.count + (liked ? 1 : -1)), mine: liked } };
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Like nahi hua');
+    } finally {
+      setCommentLikeBusy(prev => ({ ...prev, [comment.id]: false }));
     }
   };
 
@@ -912,10 +956,16 @@ const WatchVideoPage: React.FC = () => {
                       </p>
                       <div className="flex items-center gap-3 pt-1 text-[11px] text-muted-foreground">
                         <button
-                          onClick={() => toast.success('Liked comment')}
-                          className="flex items-center gap-1 hover:text-foreground"
+                          type="button"
+                          disabled={!!commentLikeBusy[c.id] || user?.id === c.user_id}
+                          onClick={() => void handleLikeComment(c)}
+                          className={`flex items-center gap-1 transition-colors disabled:opacity-60 ${
+                            commentLikes[c.id]?.mine ? 'text-red-500 font-semibold' : 'hover:text-red-500'
+                          }`}
+                          aria-label={commentLikes[c.id]?.mine ? 'Comment like hatayein' : 'Comment like karein'}
                         >
                           <ThumbsUp className="w-3.5 h-3.5" />
+                          {!!commentLikes[c.id]?.count && <span>{commentLikes[c.id]?.count}</span>}
                         </button>
                         <button
                           onClick={() => setCommentText(`@${c.profile?.username} `)}

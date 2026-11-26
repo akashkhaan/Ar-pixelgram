@@ -1,6 +1,6 @@
 import { CommentText } from "./CommentText";
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send } from 'lucide-react';
+import { X, Send, Heart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getComments, addComment, createNotification } from '@/services/api';
 import type { Comment } from '@/types/types';
@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { BadgeCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { getCommentLikeStates, toggleCommentLike, type CommentLikeState } from '@/services/commentLikes';
+import { notifyMentions } from '@/lib/mentions';
+import { cn } from '@/lib/utils';
 
 interface CommentsSheetProps {
   postId: string;
@@ -31,6 +34,8 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
   const [keyboardInset, setKeyboardInset] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [likes, setLikes] = useState<Record<string, CommentLikeState>>({});
+  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (open) {
@@ -45,6 +50,36 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [comments]);
+
+  // Comment like count + "maine like kiya"
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    getCommentLikeStates('post', comments.map(c => c.id), user?.id)
+      .then(map => { if (live) setLikes(map); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [open, comments, user?.id]);
+
+  const handleLikeComment = async (comment: Comment) => {
+    if (!user || comment.user_id === user.id) return;
+    setLikeBusy(prev => ({ ...prev, [comment.id]: true }));
+    try {
+      const { liked } = await toggleCommentLike('post', comment.id, comment.user_id, {
+        contentId: postId,
+        actorId: user.id,
+        commentPreview: comment.content,
+      });
+      setLikes(prev => {
+        const cur = prev[comment.id] || { count: 0, mine: false };
+        return { ...prev, [comment.id]: { count: Math.max(0, cur.count + (liked ? 1 : -1)), mine: liked } };
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Like nahi hua');
+    } finally {
+      setLikeBusy(prev => ({ ...prev, [comment.id]: false }));
+    }
+  };
 
   // Keyboard height track karo (iOS + Android dono par visualViewport milta hai).
   useEffect(() => {
@@ -78,6 +113,13 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
       if (postOwnerId !== user.id) {
         createNotification(postOwnerId, 'comment', user.id, postId).catch(() => {});
       }
+      void notifyMentions({
+        text,
+        actorId: user.id,
+        kind: 'post',
+        contentId: postId,
+        skipUserIds: [postOwnerId],
+      });
       const updated = await getComments(postId);
       setComments(updated);
       onCountChange?.(updated.length);
@@ -135,6 +177,19 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
                     <span className="text-xs text-muted-foreground ml-1">{new Date(comment.created_at).toLocaleDateString()}</span>
                   </div>
                   <p className="text-sm text-foreground text-pretty break-words"><CommentText text={comment.content} /></p>
+                  <button
+                    type="button"
+                    disabled={!!likeBusy[comment.id] || user?.id === comment.user_id}
+                    onClick={() => void handleLikeComment(comment)}
+                    className={cn(
+                      'mt-1 flex items-center gap-1 text-xs transition-colors disabled:opacity-60',
+                      likes[comment.id]?.mine ? 'text-red-500 font-semibold' : 'text-muted-foreground hover:text-red-500',
+                    )}
+                    aria-label={likes[comment.id]?.mine ? 'Comment like hatayein' : 'Comment like karein'}
+                  >
+                    <Heart className={cn('w-3.5 h-3.5', likes[comment.id]?.mine && 'fill-current')} />
+                    {!!likes[comment.id]?.count && <span>{likes[comment.id]?.count}</span>}
+                  </button>
                 </div>
               </div>
             ))

@@ -106,6 +106,8 @@ const MediaThumbnail: React.FC<{
 
   const isReel =
     notif.type === 'reel_like' ||
+    notif.type === 'reel_comment_like' ||
+    notif.type === 'reel_mention' ||
     notif.type === 'reel_comment' ||
     notif.type === 'new_reel' ||
     notif.media_item?.kind === 'reel' ||
@@ -258,7 +260,7 @@ function formatTimeAgo(dateStr: string): string {
 
 // Notification tag badge on avatar bottom-right corner
 const TagIcon: React.FC<{ type: Notification['type'] }> = ({ type }) => {
-  if (type === 'like' || type === 'reel_like' || type === 'story_like') {
+  if (type === 'like' || type === 'reel_like' || type === 'story_like' || type === 'comment_like' || type === 'reel_comment_like' || type === 'video_comment_like') {
     return (
       <span className="tag like" title="Like">
         <svg viewBox="0 0 24 24" className="w-[11px] h-[11px]">
@@ -278,7 +280,7 @@ const TagIcon: React.FC<{ type: Notification['type'] }> = ({ type }) => {
     );
   }
 
-  if (type === 'mention' || type === 'group_mention') {
+  if (type === 'mention' || type === 'group_mention' || type === 'reel_mention' || type === 'video_mention') {
     return (
       <span className="tag mention" title="Mention">
         <svg viewBox="0 0 24 24" className="w-[11px] h-[11px]">
@@ -494,6 +496,27 @@ const NotificationsPage: React.FC = () => {
         if (notif.post_id) navigate(`/reels?r=${notif.post_id}`);
         else navigate('/reels');
         return;
+      case 'reel_comment_like':
+      case 'reel_mention':
+        if (notif.post_id) navigate(`/reels?r=${notif.post_id}&comments=1`);
+        else navigate('/reels');
+        return;
+      case 'video_comment_like':
+      case 'video_mention':
+        if (notif.post_id) {
+          navigate(`/videos/${notif.post_id}${notif.comment_id ? `?comment=${notif.comment_id}` : ''}`);
+        } else {
+          navigate('/videos');
+        }
+        return;
+      case 'comment_like':
+      case 'mention':
+        if (notif.post_id) {
+          navigate(`/post/${notif.post_id}${notif.comment_id ? `?comment=${notif.comment_id}` : ''}`);
+        } else if (notif.actor_id) {
+          navigate(`/profile/${notif.actor_id}`);
+        }
+        return;
       case 'reel_comment':
       case 'comment_reply':
         if (notif.post_id) navigate(`/reels?r=${notif.post_id}&comments=1`);
@@ -584,6 +607,8 @@ const NotificationsPage: React.FC = () => {
   const isReelNotification = (notif: Notification) => {
     return (
       notif.type === 'reel_like' ||
+      notif.type === 'reel_comment_like' ||
+      notif.type === 'reel_mention' ||
       notif.type === 'reel_comment' ||
       notif.type === 'new_reel' ||
       notif.media_item?.kind === 'reel' ||

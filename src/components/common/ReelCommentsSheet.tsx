@@ -1,7 +1,7 @@
 import { CommentText } from "./CommentText";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Send, CornerDownRight, Trash2 } from 'lucide-react';
+import { X, Send, CornerDownRight, Trash2, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { BadgeCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { getCommentLikeStates, toggleCommentLike, type CommentLikeState } from '@/services/commentLikes';
+import { notifyMentions } from '@/lib/mentions';
 
 interface Props {
   reelId: string;
@@ -31,6 +33,8 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
   const [replyTo, setReplyTo] = useState<ReelComment | null>(null);
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [likes, setLikes] = useState<Record<string, CommentLikeState>>({});
+  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
   const refresh = async () => {
     const c = await getReelComments(reelId);
@@ -39,6 +43,40 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
   };
 
   useEffect(() => { if (open) refresh(); /* eslint-disable-next-line */ }, [reelId, open]);
+
+  // Har comment ke like count + mera like
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    getCommentLikeStates('reel', comments.map(c => c.id), user?.id)
+      .then(map => { if (live) setLikes(map); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [open, comments, user?.id]);
+
+  const handleLikeComment = async (c: ReelComment) => {
+    if (!user) return;
+    if (c.user_id === user.id) return;
+    setLikeBusy(prev => ({ ...prev, [c.id]: true }));
+    try {
+      const { liked } = await toggleCommentLike('reel', c.id, c.user_id, {
+        contentId: reelId,
+        actorId: user.id,
+        commentPreview: c.content,
+      });
+      setLikes(prev => {
+        const cur = prev[c.id] || { count: 0, mine: false };
+        return {
+          ...prev,
+          [c.id]: { count: Math.max(0, cur.count + (liked ? 1 : -1)), mine: liked },
+        };
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Like nahi hua');
+    } finally {
+      setLikeBusy(prev => ({ ...prev, [c.id]: false }));
+    }
+  };
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [comments.length]);
 
   // Group: top-level + replies

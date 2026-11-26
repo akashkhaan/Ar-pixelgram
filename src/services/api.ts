@@ -896,6 +896,12 @@ export async function createNotification(
     group_mention: `${who} mentioned you in a group`,
     group_message: `New group message from ${who}`,
     group_call: `📞 Group call from ${who}`,
+    comment_like: `${who} liked your comment`,
+    reel_comment_like: `${who} liked your comment on a reel`,
+    video_comment_like: `${who} liked your comment on a video`,
+    mention: `${who} mentioned you in a comment`,
+    reel_mention: `${who} mentioned you in a comment on a reel`,
+    video_mention: `${who} mentioned you in a comment on a video`,
   };
   const title = titles[type];
   if (!title || message?.startsWith('📞') || message?.startsWith('📵')) return;
@@ -921,6 +927,12 @@ export async function createNotification(
       : type === 'new_reel' ? `${who} shared a new reel.`
       : type === 'new_post' ? `${who} shared a new post.`
       : type === 'new_story' ? `${who} added a new story.`
+      : type === 'comment_like' ? `${who} liked your comment${message ? `: "${message}"` : '.'}`
+      : type === 'reel_comment_like' ? `${who} liked your reel comment${message ? `: "${message}"` : '.'}`
+      : type === 'video_comment_like' ? `${who} liked your video comment${message ? `: "${message}"` : '.'}`
+      : type === 'mention' ? `${who} mentioned you in a comment${message ? `: "${message}"` : '.'}`
+      : type === 'reel_mention' ? `${who} mentioned you in a reel comment${message ? `: "${message}"` : '.'}`
+      : type === 'video_mention' ? `${who} mentioned you in a video comment${message ? `: "${message}"` : '.'}`
       : `${who} sent you a notification.`);
 
   supabase.functions.invoke('send-call-push', {
@@ -930,7 +942,13 @@ export async function createNotification(
       body: pushBody,
       tag: `${type}-${postId || commentId || actorId || Date.now()}`,
       data: {
-        url: type === 'message' && actorId
+        url: type === 'comment_like' || type === 'mention'
+          ? (postId ? `/post/${postId}${commentId ? `?comment=${commentId}` : ''}` : '/notifications')
+          : type === 'reel_comment_like' || type === 'reel_mention'
+            ? (postId ? `/reels?r=${postId}&comments=1` : '/reels')
+            : type === 'video_comment_like' || type === 'video_mention'
+              ? (postId ? `/videos/${postId}${commentId ? `?comment=${commentId}` : ''}` : '/videos')
+              : type === 'message' && actorId
           ? `/chat/${actorId}`
           : (type === 'group_message' || type === 'group_mention' || type === 'group_call')
             ? (postId ? `/group/${postId}` : '/chat')
