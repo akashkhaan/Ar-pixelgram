@@ -202,24 +202,97 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
   const [fullPos, setFullPos] = useState(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const fullStartRef = useRef<{ at: number; from: number } | null>(null);
+  // Uploaded gaane ke liye asli <audio> element — isse 10/30 second aage-piche
+  // sach me seek hota hai (WebAudio buffer restart me position kho jaati thi).
+  const fileAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fileUrlRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (playingId !== 'full') return;
     const t = window.setInterval(() => {
+      const audio = fileAudioRef.current;
+      if (audio && !audio.paused) {
+        setFullPos(audio.currentTime);
+        return;
+      }
       const r = fullStartRef.current;
-      if (r) setFullPos(r.from + (Date.now() - r.at) / 1000);
-    }, 250);
+      if (r) setFullPos(Math.min(draft?.buffer.duration ?? Infinity, r.from + (Date.now() - r.at) / 1000));
+    }, 200);
     return () => window.clearInterval(t);
-  }, [playingId]);
+  }, [playingId, draft]);
+
+  // Draft badle to purana audio band karo
+  useEffect(() => {
+    return () => {
+      const audio = fileAudioRef.current;
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+        fileAudioRef.current = null;
+      }
+      if (fileUrlRef.current) {
+        URL.revokeObjectURL(fileUrlRef.current);
+        fileUrlRef.current = null;
+      }
+    };
+  }, [draft]);
+
+  /** Uploaded file ke liye ek hi audio element reuse karo */
+  const getFileAudio = (): HTMLAudioElement | null => {
+    if (!draft || draft.source.kind !== 'file') return null;
+    if (fileAudioRef.current) return fileAudioRef.current;
+    if (!fileUrlRef.current) fileUrlRef.current = URL.createObjectURL(draft.source.file);
+    const audio = new Audio(fileUrlRef.current);
+    audio.preload = 'auto';
+    audio.volume = 0.9;
+    audio.addEventListener('ended', () => setPlayingId(null));
+    fileAudioRef.current = audio;
+    return audio;
+  };
+
   const playFullFrom = (buffer: AudioBuffer, from: number) => {
+    const isFile = draft?.source.kind === 'file';
+    if (isFile) {
+      const audio = getFileAudio();
+      if (audio) {
+        stopBufferPlayback();
+        const pos = Math.max(0, Math.min(from, (audio.duration || buffer.duration) - 0.2));
+        audio.currentTime = pos;
+        setFullPos(pos);
+        setPlayingId('full');
+        void audio.play().catch(() => toast.error('Gana play nahi hua, dobara try karein'));
+        return;
+      }
+    }
     const start = Math.max(0, Math.min(from, buffer.duration - 0.5));
     previewBuffer(buffer, 'full', start, buffer.duration - start);
     fullStartRef.current = { at: Date.now(), from: start };
     setFullPos(start);
   };
+
   const seekFull = (buffer: AudioBuffer, to: number) => {
-    const pos = Math.max(0, Math.min(to, buffer.duration));
+    const total = draft?.source.kind === 'file'
+      ? (fileAudioRef.current?.duration || buffer.duration)
+      : buffer.duration;
+    const pos = Math.max(0, Math.min(to, Math.max(0, total - 0.05)));
     setFullPos(pos);
+    const audio = fileAudioRef.current;
+    if (audio) {
+      // Asli seek — playback chalu rehta hai, sirf position badalti hai
+      audio.currentTime = pos;
+      fullStartRef.current = { at: Date.now(), from: pos };
+      return;
+    }
     if (playingId === 'full') playFullFrom(buffer, pos);
+  };
+
+  /** Sirf WebAudio playback band karo (file audio ko chhedo mat) */
+  const stopBufferPlayback = () => {
+    playbackRef.current?.();
+    playbackRef.current = null;
+    if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = null;
   };
 
   const activeTune = currentTune && isHelloTuneActive(currentTune) ? currentTune : null;
@@ -237,6 +310,8 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
     playbackRef.current = null;
     if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
     previewTimerRef.current = null;
+    const audio = fileAudioRef.current;
+    if (audio) audio.pause();
     setPlayingId(null);
   };
 
@@ -285,6 +360,28 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Preview play nahi ho paya');
     }
+  };
+
+  /** Selected clip ka preview — uploaded file ho to asli audio se */
+  const playClipPreview = (buffer: AudioBuffer, start: number, length: number) => {
+    if (draft?.source.kind === 'file') {
+      const audio = getFileAudio();
+      if (audio) {
+        stopBufferPlayback();
+        const from = Math.max(0, Math.min(start, (audio.duration || buffer.duration) - 0.2));
+        const len = Math.max(0.5, Math.min(length, (audio.duration || buffer.duration) - from));
+        audio.currentTime = from;
+        setFullPos(from);
+        setPlayingId('draft');
+        void audio.play().catch(() => {});
+        previewTimerRef.current = window.setTimeout(() => {
+          audio.pause();
+          setPlayingId(null);
+        }, len * 1000);
+        return;
+      }
+    }
+    previewBuffer(buffer, 'draft', start, length);
   };
 
   const selectPreset = async (track: HelloTunePreset) => {
@@ -633,14 +730,31 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, opacity: 0.75 }}>
               <span>{formatTime(fullPos)}</span><span>{formatTime(draft.buffer.duration)}</span>
             </div>
-            <div style={{ display: 'flex', gap: 8, margin: '8px 0 12px' }}>
-              <button type="button" className="ht-length" onClick={() => seekFull(draft.buffer, fullPos - 10)}>-10s</button>
-              <button type="button" className="ht-length ht-length-active" style={{ flex: 1 }} onClick={() => playingId === 'full' ? stopPreview() : playFullFrom(draft.buffer, fullPos)}>
-                {playingId === 'full' ? 'Roko' : 'Pura gana chalao'}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '8px 0 12px', flexWrap: 'wrap' }}>
+              <button type="button" className="ht-length" style={{ flex: '0 0 auto', minWidth: 54 }} onClick={() => seekFull(draft.buffer, fullPos - 30)}>-30s</button>
+              <button type="button" className="ht-length" style={{ flex: '0 0 auto', minWidth: 46 }} onClick={() => seekFull(draft.buffer, fullPos - 10)}>-10s</button>
+              <button
+                type="button"
+                className="ht-length ht-length-active"
+                style={{ flex: 1, minWidth: 96 }}
+                onClick={() => (playingId === 'full' ? stopPreview() : playFullFrom(draft.buffer, fullPos))}
+              >
+                {playingId === 'full' ? <Pause size={15} /> : <Play size={15} />}
+                <span style={{ marginLeft: 4 }}>{playingId === 'full' ? 'Roko' : 'Chalao'}</span>
               </button>
-              <button type="button" className="ht-length" onClick={() => seekFull(draft.buffer, fullPos + 10)}>+10s</button>
+              <button type="button" className="ht-length" style={{ flex: '0 0 auto', minWidth: 46 }} onClick={() => seekFull(draft.buffer, fullPos + 10)}>+10s</button>
+              <button type="button" className="ht-length" style={{ flex: '0 0 auto', minWidth: 54 }} onClick={() => seekFull(draft.buffer, fullPos + 30)}>+30s</button>
             </div>
-            <button type="button" className="ht-best" style={{ marginBottom: 12 }} onClick={() => { setClipStart(Math.max(0, Math.min(Math.floor(fullPos), draft.buffer.duration - clipLength))); toast.success(`Gana ${formatTime(fullPos)} se lagega`); }}>
+            <p style={{ fontSize: 11.5, opacity: 0.7, margin: '0 0 10px' }}>
+              Gana chalta rahega — jab jahan se lagana ho, wahan ruk kar "Yahan se lagao" dabao.
+            </p>
+            <button type="button" className="ht-best" style={{ marginBottom: 12 }} onClick={() => {
+              const pos = Math.max(0, Math.min(Math.floor(fullPos), Math.max(0, draft.buffer.duration - clipLength)));
+              setClipStart(pos);
+              // wahi jagah set hone ke baad clip preview turant sun lo
+              playClipPreview(draft.buffer, pos, clipLength);
+              toast.success(`Gana ${formatTime(pos)} se lagega`);
+            }}>
               <Check size={15} /> Yahan se lagao ({formatTime(fullPos)})
             </button>
             <div className="ht-overline">Waveform par tap/drag karke start chuno</div>
@@ -662,7 +776,7 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
                   stopPreview();
                   return;
                 }
-                previewBuffer(draft.buffer, 'draft', clipStart, clipLength);
+                playClipPreview(draft.buffer, clipStart, clipLength);
               }}
             >
               {playingId === 'draft' ? <Pause size={15} /> : <Play size={15} />}

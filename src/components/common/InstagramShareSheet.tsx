@@ -15,6 +15,7 @@ import { supabase } from '@/db/supabase';
 import { toast } from 'sonner';
 import GlassSearch from '@/components/common/GlassSearch';
 import { toPreviewShareUrl, warmShareServer } from '@/lib/shareLinks';
+import { WhatsAppIcon, FacebookIcon, TelegramIcon, XIcon } from '@/components/common/ShareIcons';
 import { shareReelToWhatsAppStatus } from '@/lib/whatsappStatus';
 import { createSharedStory } from '@/services/api';
 import type { SharedStoryRef, SharedStoryKind } from '@/lib/storyShare';
@@ -203,20 +204,45 @@ ${url}`;
     }
   };
 
+  // APK me navigator.share nahi hota, isliye Capacitor Share plugin pehle try
+  // karte hain. Pehle yahan seedha "copy" ho jaata tha — isliye share options
+  // khulte hi nahi the.
   const handleNativeShare = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title,
-          text: `Check out this ${mediaType} on Pixelgram:`,
-          url: externalUrl,
-        });
-      } catch {
-        /* user dismissed */
+    const sharePayload = {
+      title,
+      text: `Check out this ${mediaType} on Pixelgram`,
+      url: externalUrl,
+      dialogTitle: 'Share to',
+    };
+
+    // 1) Native (Android intent chooser) — APK ke liye
+    try {
+      const { Share } = await import('@capacitor/share');
+      // canShare() ek object deta hai: { value: boolean }
+      const capability = await Share.canShare();
+      const canShare = typeof capability === 'boolean' ? capability : Boolean(capability?.value);
+      if (canShare) {
+        await Share.share(sharePayload);
+        return;
       }
-    } else {
-      handleCopyLink();
+    } catch (err) {
+      // user ne cancel kiya to chup raho
+      if (err instanceof Error && /cancel|abort|dismiss/i.test(err.message)) return;
     }
+
+    // 2) Browser / PWA ka OS share sheet
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share(sharePayload);
+        return;
+      } catch (err) {
+        // user ne cancel kiya to chup raho, warna neeche fallback
+        if (err instanceof Error && /abort|cancel/i.test(err.message)) return;
+      }
+    }
+
+    // 3) Kuch bhi na chale to copy + saaf message
+    await handleCopyLink();
   };
 
   const handleWhatsAppStatus = async () => {
@@ -266,8 +292,7 @@ ${url}`;
   const socialChannels: Array<{
     name: string;
     color: string;
-    iconUrl?: string;
-    fallbackEmoji?: string;
+    Icon?: React.FC<{ className?: string }>;
     isCopy?: boolean;
     isMore?: boolean;
     isStatus?: boolean;
@@ -277,29 +302,25 @@ ${url}`;
     {
       name: 'WhatsApp',
       color: '#25D366',
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/3670/3670051.png',
-      fallbackEmoji: '💬',
+      Icon: WhatsAppIcon,
       action: () => window.open(`https://api.whatsapp.com/send?text=${shareText}`, '_blank'),
     },
     {
       name: 'Facebook',
       color: '#1877F2',
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/5968/5968764.png',
-      fallbackEmoji: '📘',
+      Icon: FacebookIcon,
       action: () => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, '_blank'),
     },
     {
       name: 'Telegram',
       color: '#229ED9',
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/2111/2111646.png',
-      fallbackEmoji: '✈️',
+      Icon: TelegramIcon,
       action: () => window.open(`https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(`Check out this ${mediaType} on Pixelgram:`)}`, '_blank'),
     },
     {
       name: 'X (Twitter)',
       color: '#000000',
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/5968/5968830.png',
-      fallbackEmoji: '🐦',
+      Icon: XIcon,
       action: () => window.open(`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${shareText}`, '_blank'),
     },
     {
@@ -504,22 +525,16 @@ ${url}`;
                       <Loader2 className="w-6 h-6 text-white animate-spin" />
                     ) : (
                       <span className="relative w-8 h-8 rounded-full border-2 border-dashed border-white flex items-center justify-center">
-                        <img
-                          src="https://cdn-icons-png.flaticon.com/512/3670/3670051.png"
-                          alt=""
-                          className="w-4 h-4 object-contain"
-                        />
+                        <WhatsAppIcon className="w-4 h-4" />
                       </span>
                     )
                   ) : item.isCopy ? (
                     copied ? <Check className="w-6 h-6 text-white" /> : <Copy className="w-6 h-6 text-white" />
                   ) : item.isMore ? (
                     <Share2 className="w-6 h-6 text-white" />
-                  ) : item.iconUrl ? (
-                    <img src={item.iconUrl} alt={item.name} className="w-6 h-6 object-contain" />
-                  ) : (
-                    <span className="text-xl">{item.fallbackEmoji}</span>
-                  )}
+                  ) : item.Icon ? (
+                    <item.Icon className="w-6 h-6" />
+                  ) : null}
                 </div>
                 <span className="text-[11px] font-medium text-foreground text-center truncate w-full">
                   {item.isCopy && copied ? 'Copied!' : item.name}
