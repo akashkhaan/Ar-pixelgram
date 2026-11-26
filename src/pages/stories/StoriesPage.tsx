@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { SHARE_LABEL, sharedStoryPath, type SharedStoryRef } from '@/lib/storyShare';
 import { getStoryTapDirection } from './storyNavigation';
+import { useStatusBarOverlay } from '@/lib/statusBarOverlay';
 import { Plus, X, MoreVertical, Trash2, Loader2, Share2, Heart, Send, Clock, Music2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -59,6 +60,8 @@ const StoriesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [viewerUserId, setViewerUserId] = useState<string | null>(null);
+  // Story khuli ho to Android me time wali patti ke peeche tak full screen
+  useStatusBarOverlay(!!viewerUserId);
   const [storyIndex, setStoryIndex] = useState(0);
   // Instagram jaisa auto-advance: story ka progress bar khud bharta hai aur
   // khatam hote hi agla story apne aap chal padta hai.
@@ -555,7 +558,7 @@ const StoriesPage: React.FC = () => {
           }}
         >
           {/* Progress bars — current story ka bar khud bharta hai (Instagram jaisa) */}
-          <div className="absolute top-0 left-0 right-0 flex gap-1 p-3 z-10">
+          <div className="absolute top-0 left-0 right-0 flex gap-1 p-3 z-10" style={{ paddingTop: 'calc(var(--pg-status-bar, 0px) + 0.75rem)' }}>
             {viewerGroup.stories.map((_, i) => (
               <div key={i} className="flex-1 h-0.5 rounded-full bg-white/30 overflow-hidden">
                 <div
@@ -567,7 +570,7 @@ const StoriesPage: React.FC = () => {
           </div>
 
           {/* User info */}
-          <div className="absolute top-8 left-4 right-16 flex items-center gap-2 z-10 min-w-0" onClick={e => e.stopPropagation()}>
+          <div className="absolute top-8 left-4 right-16 flex items-center gap-2 z-10 min-w-0" style={{ top: 'calc(var(--pg-status-bar, 0px) + 2rem)' }} onClick={e => e.stopPropagation()}>
             <button onClick={() => { closeViewer(); navigate(`/profile/${viewerGroup.profile.user_id}`); }}>
               {viewerGroup.profile.avatar_url ? (
                 <img src={viewerGroup.profile.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-white" />
@@ -611,7 +614,7 @@ const StoriesPage: React.FC = () => {
           </div>
 
           {/* Story actions — no top counters or separate close/share/delete buttons */}
-          <div className="absolute top-8 right-4 z-10" onClick={e => e.stopPropagation()}>
+          <div className="absolute top-8 right-4 z-10" style={{ top: 'calc(var(--pg-status-bar, 0px) + 2rem)' }} onClick={e => e.stopPropagation()}>
             <DropdownMenu key={currentStory.id}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" aria-label="Story options" className="h-10 w-10 rounded-full">
