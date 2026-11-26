@@ -11,13 +11,25 @@ function compile(relative, mocks) {
   const m = new Module(file); m.filename = file;
   m.require = (name) => (name in mocks ? mocks[name] : require(name)); m._compile(result.outputText, file); return m.exports;
 }
-const { parseLatestRun, isNewer, notesFromMessages, versionForRun } = compile('./appUpdate.ts', {
+const { parseLatestRun, isNewer, notesFromMessages, versionForRun, parseVersionFile, versionForBuild } = compile('./appUpdate.ts', {
   '@capacitor/core': { Capacitor: { getPlatform: () => 'android', isPluginAvailable: () => true }, registerPlugin: () => ({}) },
 });
 const run = (n, conclusion = 'success') => ({ workflow_runs: [{ run_number: n, conclusion, head_sha: 'abc', head_commit: { message: 'x' } }] });
 
-test('version of a GitHub build is 100 + run number (same as build.gradle)', () => {
+test('version build 100 + build number (same as build.gradle)', () => {
   assert.deepEqual(versionForRun(284), { versionCode: 384, versionName: '1.4.284' });
+  assert.deepEqual(versionForBuild(354), { versionCode: 454, versionName: '1.4.354' });
+});
+
+test('version.json hi latest build batata hai (run number nahi — usme gaps aate the)', () => {
+  assert.deepEqual(parseVersionFile({ build: 354 }), {
+    versionCode: 454, versionName: '1.4.354', commit: '', date: undefined, headline: '',
+  });
+  // 353 wale app ko 354 ka update milta hai (pehle seedha 356 dikh raha tha)
+  assert.equal(isNewer(parseVersionFile({ build: 354 }), 453), true);
+  assert.equal(isNewer(parseVersionFile({ build: 353 }), 453), false);
+  assert.equal(parseVersionFile({}), null);
+  assert.equal(parseVersionFile({ build: 'x' }), null);
 });
 
 test('update is offered only when the latest build is newer than the installed app', () => {

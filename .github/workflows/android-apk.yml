@@ -12,9 +12,13 @@ permissions:
 
 jobs:
   build:
+    # version bump wala commit ("[skip apk]") APK build na kare — warna loop ban jayega
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip apk]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # bump commit ka rebase/push ke liye poora history
 
       - uses: actions/setup-node@v4
         with:
@@ -22,6 +26,15 @@ jobs:
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
+
+      # Version sirf version.json se aata hai (run number se nahi). Isliye har
+      # release par version exactly +1 badhta hai — koi 54/55 gayab nahi hota.
+      - name: Read app version
+        run: |
+          BUILD=$(node -e "console.log(require('./version.json').build)")
+          echo "APP_BUILD=$BUILD" >> $GITHUB_ENV
+          echo "APP_VERSION_NAME=1.4.$BUILD" >> $GITHUB_ENV
+          echo "APK version: 1.4.$BUILD (versionCode $((100+BUILD)))"
 
       # Build se pehle pakdo: koi import aisi file se aa raha hai jo repo me
       # commit hi nahi hui (aisa hone par build 'Could not load ...' par fail hota hai)
@@ -58,6 +71,7 @@ jobs:
         working-directory: android
         env:
           JAVA_HOME: /usr/lib/jvm/temurin-21-jdk-amd64
+          APP_BUILD: ${{ env.APP_BUILD }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
@@ -86,3 +100,18 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Release sach me publish hone ke baad hi next version bump — isliye
+      # fail hue builds koi version number "kha" nahi jaate.
+      - name: Bump version for next release
+        if: github.ref == 'refs/heads/main'
+        run: |
+          NEXT=$((APP_BUILD + 1))
+          node -e "const fs=require('fs');const v=require('./version.json');v.build=$NEXT;fs.writeFileSync('version.json',JSON.stringify(v,null,2)+'\n')"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "chore(release): next APK version 1.4.$NEXT [skip apk]"
+          # koi aur push beech me aaya ho to rebase karke push (conflict na ho)
+          git pull --rebase --autostash origin main || true
+          git push || (git pull --rebase --autostash origin main && git push)

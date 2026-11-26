@@ -7,12 +7,15 @@ android {
         applicationId "com.arpixelgram.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // GitHub Actions ka har build number = naya version, taaki naya APK purane
-        // app ke upar "update" ho (login nahi hat-ta). In-app updater bhi isi se
-        // pehchanta hai ki naya version aaya hai: versionCode = 100 + run number.
+        // Version sirf version.json se aata hai (workflow APP_BUILD env bhejta hai),
+        // taaki har release par +1 hi badhe — run number ki tarah gaps na aayein
+        // (pehle 353 ke baad seedha 356 dikh raha tha). In-app updater bhi isi
+        // number se naya version pehchanta hai: versionCode = 100 + build.
+        def appBuild = System.getenv("APP_BUILD")
         def ghRun = System.getenv("GITHUB_RUN_NUMBER")
-        versionCode ghRun ? 100 + Integer.parseInt(ghRun) : 4
-        versionName ghRun ? "1.4." + ghRun : "1.3"
+        def buildNo = appBuild ?: ghRun
+        versionCode buildNo ? 100 + Integer.parseInt(buildNo) : 4
+        versionName buildNo ? "1.4." + buildNo : "1.3"
         resValue "string", "build_commit", (System.getenv("GITHUB_SHA") ?: "")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
