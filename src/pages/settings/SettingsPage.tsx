@@ -604,131 +604,82 @@ const SettingsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Menu items */}
+        {/* Menu items — new design */}
+        <div className="flex flex-col gap-1.5">
         {[
-          { icon: AtSign, label: 'Account Center', desc: 'Email aur phone number add/manage karein', onClick: () => navigate('/settings/account-center'), danger: false },
-          { icon: Music2, label: 'Hello Tune', desc: 'Callers ko ringing par aapka gana sunai de', onClick: () => navigate('/settings/hello-tune'), danger: false },
-          { icon: Globe, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language'), danger: false },
-          { icon: KeyRound, label: 'Access Token', desc: '30 din ka token, devices aur logout manage karein', onClick: () => navigate('/settings/access-token'), danger: false },
-          { icon: HelpCircle, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help'), danger: false },
-          { icon: Flag, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report'), danger: false },
+          { icon: AtSign, h: 255, label: 'Account Center', desc: 'Email aur phone number add/manage karein', onClick: () => navigate('/settings/account-center') },
+          { icon: Music2, h: 285, label: 'Hello Tune', desc: 'Callers ko ringing par aapka gana sunai de', onClick: () => navigate('/settings/hello-tune') },
+          { icon: Globe, h: 215, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language') },
+          { icon: KeyRound, h: 35, label: 'Access Token', desc: '30 din ka token, devices aur logout manage karein', onClick: () => navigate('/settings/access-token') },
+          { icon: HelpCircle, h: 165, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help') },
+          { icon: Flag, h: 340, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report') },
           { ownerConnect: true, label: 'Owner Connect' },
-          { icon: Shield, label: 'Privacy', desc: 'Manage your privacy settings', onClick: () => navigate('/edit-profile'), danger: false },
+          { icon: Shield, h: 195, label: 'Privacy', desc: 'Manage your privacy settings', onClick: () => navigate('/edit-profile') },
         ].map((item: any) => {
           if (item.ownerConnect) {
-            const links = [
-              { key: 'ig', icon: <InstagramIcon size={24} />, name: 'Instagram', handle: '@akash_raaj_89', href: 'https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==' },
-              { key: 'yt', icon: <YoutubeIcon size={24} />, name: 'YouTube', handle: '@techtrickindia9', href: 'https://youtube.com/@techtrickindia9?si=vBCxAOAcKYq2O0zl' },
-            ];
             return (
-              <div key="owner-connect" className="w-full glass-card rounded-xl border border-pink-500/20 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setOwnerOpen((v) => !v)}
-                  aria-expanded={ownerOpen}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/60 transition-colors"
-                >
-                  <div className="relative w-9 h-7 shrink-0">
-                    <InstagramIcon size={24} className="absolute left-0 top-0.5" />
-                    <YoutubeIcon size={20} className="absolute right-0 bottom-0 ring-2 ring-background" />
-                  </div>
-                  <div className="flex-1 min-w-0 text-left">
-                    <p className="text-sm font-medium text-foreground">Owner Connect</p>
-                    <p className="text-xs text-muted-foreground">Pixelgram owner se Instagram ya YouTube par judiye</p>
-                  </div>
-                  <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${ownerOpen ? 'rotate-180' : ''}`} />
+              <div key="owner-connect" className="flex flex-col">
+                <button type="button" onClick={() => setOwnerOpen((v) => !v)} aria-expanded={ownerOpen} className="ns-item">
+                  <span className="ns-ico" style={{ ['--h' as any]: 325 }}><InstagramIcon size={22} /></span>
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="ns-title">Owner Connect</span>
+                    <span className="ns-desc">Pixelgram owner se Instagram ya YouTube par judiye</span>
+                  </span>
+                  <ChevronDown className={`ns-chev transition-transform ${ownerOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {ownerOpen && (
-                  <div className="px-3 pb-3 space-y-2">
-                    {links.map((l) => (
-                      <a
-                        key={l.key}
-                        href={l.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors group"
-                      >
-                        {l.icon}
-                        <div className="flex-1 min-w-0 text-left">
-                          <p className="text-sm font-medium text-foreground">{l.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{l.handle}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
-                      </a>
-                    ))}
+                  <div className="flex gap-2.5 px-1 pt-1 pb-3.5">
+                    <a href="https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==" target="_blank" rel="noopener noreferrer" className="ns-chip" style={{ background: 'linear-gradient(45deg,#f9a03c,#e1306c 55%,#8a3ab9)' }}>
+                      <InstagramIcon size={18} /> Instagram
+                    </a>
+                    <a href="https://youtube.com/@techtrickindia9?si=vBCxAOAcKYq2O0zl" target="_blank" rel="noopener noreferrer" className="ns-chip" style={{ background: '#ff2b2b' }}>
+                      <YoutubeIcon size={18} /> YouTube
+                    </a>
                   </div>
                 )}
               </div>
             );
           }
-          if (item.href) {
-            return (
-              <a
-                key={item.label}
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors group cursor-pointer border border-pink-500/20"
-              >
-                {item.customIcon}
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">{item.label}</p>
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-pink-500/15 via-rose-500/15 to-amber-500/15 text-pink-600 dark:text-pink-400 border border-pink-500/20">
-                      {item.badge}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
-              </a>
-            );
-          }
-          const { icon: Icon, label, desc, onClick, danger } = item;
+          const { icon: Icon, label, desc, onClick, h } = item;
           return (
-            <button key={label} onClick={onClick} className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors">
-              <Icon className={`w-5 h-5 shrink-0 ${danger ? 'text-destructive' : 'text-primary'}`} />
-              <div className="flex-1 min-w-0 text-left">
-                <p className={`text-sm font-medium ${danger ? 'text-destructive' : 'text-foreground'}`}>{label}</p>
-                <p className="text-xs text-muted-foreground">{desc}</p>
-              </div>
-              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+            <button key={label} type="button" onClick={onClick} className="ns-item">
+              <span className="ns-ico" style={{ ['--h' as any]: h }}><Icon className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
+              <span className="flex-1 min-w-0 text-left">
+                <span className="ns-title">{label}</span>
+                <span className="ns-desc">{desc}</span>
+              </span>
+              <ChevronRight className="ns-chev" />
             </button>
           );
         })}
 
         {/* Admin Panel — only visible for admin users */}
         {profile?.is_admin && (
-          <button
-            onClick={() => navigate('/admin')}
-            className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-primary/10 transition-colors border border-primary/40"
-          >
-            <LayoutDashboard className="w-5 h-5 shrink-0 text-primary" />
-            <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-medium text-primary">Admin Panel</p>
-              <p className="text-xs text-muted-foreground">Manage the platform</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-primary shrink-0" />
+          <button type="button" onClick={() => navigate('/admin')} className="ns-item">
+            <span className="ns-ico" style={{ ['--h' as any]: 230 }}><LayoutDashboard className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
+            <span className="flex-1 min-w-0 text-left">
+              <span className="ns-title">Admin Panel</span>
+              <span className="ns-desc">Manage the platform</span>
+            </span>
+            <ChevronRight className="ns-chev" />
           </button>
         )}
 
         {/* Logout */}
-        <button onClick={signOut} className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-muted/60 transition-colors">
-          <LogOut className="w-5 h-5 shrink-0 text-destructive" />
-          <div className="flex-1 text-left">
-            <p className="text-sm font-medium text-destructive">Sign Out</p>
-          </div>
+        <button type="button" onClick={signOut} className="ns-item ns-danger">
+          <span className="ns-ico"><LogOut className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
+          <span className="flex-1 min-w-0 text-left"><span className="ns-title">Sign Out</span></span>
         </button>
 
         {/* Delete account */}
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <button className="w-full flex items-center gap-3 px-4 py-3.5 glass-card rounded-xl hover:bg-destructive/5 transition-colors">
-              <Trash2 className="w-5 h-5 shrink-0 text-destructive" />
-              <div className="flex-1 text-left">
-                <p className="text-sm font-medium text-destructive">Delete Account</p>
-                <p className="text-xs text-muted-foreground">This action is permanent</p>
-              </div>
+            <button type="button" className="ns-item ns-danger">
+              <span className="ns-ico"><Trash2 className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
+              <span className="flex-1 min-w-0 text-left">
+                <span className="ns-title">Delete Account</span>
+                <span className="ns-desc">This action is permanent</span>
+              </span>
             </button>
           </AlertDialogTrigger>
           <AlertDialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
@@ -746,6 +697,7 @@ const SettingsPage: React.FC = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        </div>
       </div>
       <FacebookSwitchAccountModal
         isOpen={showSwitchModal}

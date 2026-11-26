@@ -2563,3 +2563,17 @@
 .animate-spin {
   display: none !important;
 }
+
+/* ===== New Settings design ===== */
+.ns-item{width:100%;display:flex;align-items:center;gap:14px;text-align:left;padding:13px 4px;font-family:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:inherit;cursor:pointer;background:transparent;border:0;border-radius:0;transition:transform .15s,background .2s}
+.ns-item:active{background:hsl(var(--muted))}
+.ns-item:focus-visible{outline:2px solid #6a5cff;outline-offset:3px}
+.ns-ico{flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(140deg,hsl(var(--h,0) 85% 62%),hsl(calc(var(--h,0) + 40) 80% 52%));box-shadow:0 8px 14px -8px hsl(var(--h,0) 80% 50%)}
+.ns-title{display:block;font-weight:800;font-size:16px;letter-spacing:-.01em;line-height:1.25}
+.ns-desc{display:block;font-weight:500;font-size:13.5px;line-height:1.35;color:#7b8099;margin-top:3px}
+.ns-chev{flex:none;width:18px;height:18px;color:#a4a8bf;stroke-width:2.2}
+.ns-danger .ns-title{color:#e5384f}
+.ns-danger .ns-ico{background:linear-gradient(140deg,#ff6b7f,#e5384f);box-shadow:0 8px 14px -8px #e5384f}
+.ns-chip{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;height:42px;border:0;border-radius:14px;font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-weight:600;font-size:14px;color:#fff;cursor:pointer}
+.ns-chip:active{transform:scale(.97)}
+@media (prefers-reduced-motion:reduce){.ns-item,.ns-chev{transition:none}}
