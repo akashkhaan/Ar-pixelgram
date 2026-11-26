@@ -157,6 +157,20 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
           )}
         </div>
       </div>
+      <button
+        type="button"
+        aria-label={likes[c.id]?.mine ? 'Unlike comment' : 'Like comment'}
+        disabled={!!likeBusy[c.id] || user?.id === c.user_id}
+        onClick={() => void handleLikeComment(c)}
+        className={cn(
+          'shrink-0 flex flex-col items-center gap-0.5 pt-1 px-1 transition-transform active:scale-90',
+          likes[c.id]?.mine ? 'text-destructive' : 'text-muted-foreground',
+          user?.id === c.user_id && 'opacity-60',
+        )}
+      >
+        <Heart className={cn('w-4 h-4', likes[c.id]?.mine && 'fill-current')} />
+        {(likes[c.id]?.count || 0) > 0 && <span className="text-[10px] font-medium">{likes[c.id]?.count}</span>}
+      </button>
     </div>
     );
   };
