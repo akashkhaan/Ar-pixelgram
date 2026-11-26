@@ -85,10 +85,10 @@ export async function toggleCommentLike(
 
   const friendly = (err: { code?: string; message?: string } | null) => {
     if (!err) return err;
-    if (err.code === '42P01' || /relation .* does not exist/i.test(err.message || '')) {
-      return new Error('Comment like abhi setup nahi hua — thodi der baad try karein');
+    if (err.code === '42P01' || err.code === 'PGRST205' || /relation .* does not exist|schema cache/i.test(err.message || '')) {
+      return new Error('Comment like ka database setup nahi mila (SQL Supabase me run karein)');
     }
-    return err;
+    return new Error(err.message || 'Like nahi hua');
   };
 
   const { data: existing, error: findError } = await supabase
