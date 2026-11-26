@@ -1,4 +1,5 @@
 import { supabase } from '@/db/supabase';
+import { helloTunePlaybackWindow } from './helloTuneClip';
 import type { Profile } from '@/types/types';
 
 export interface HelloTunePreset {
@@ -180,6 +181,8 @@ export async function saveMyHelloTune(
   input: {
     trackId?: string;
     file?: File;
+    /** true = file pehle se kata hua 30s clip hai (start 0 se bajega) */
+    isClip?: boolean;
     title: string;
     artist: string;
     startSeconds: number;
@@ -207,7 +210,7 @@ export async function saveMyHelloTune(
   if (input.file) {
     const extension = safeFileExtension(input.file);
     if (!extension) throw new Error('MP3, M4A, AAC, WAV, OGG ya WebM audio upload karo');
-    path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}.${extension}`;
+    path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 9)}${input.isClip ? '-clip' : ''}.${extension}`;
     const { error: uploadError } = await supabase.storage
       .from('hello-tunes')
       .upload(path, input.file, {
@@ -492,6 +495,11 @@ function playUploadedHelloTune(tune: HelloTuneRecord): Promise<() => void> {
       }
     };
     const onTimeUpdate = () => {
+      // Kuch phones pehla seek ignore kar dete hain — galat jagah se baj raha ho to dobara set karo
+      if (clipStart > 1 && audio.currentTime < clipStart - 1) {
+        audio.currentTime = clipStart;
+        return;
+      }
       if (audio.currentTime >= clipEnd) {
         audio.currentTime = clipStart;
         void audio.play().catch(onError);
@@ -500,9 +508,10 @@ function playUploadedHelloTune(tune: HelloTuneRecord): Promise<() => void> {
     const onMetadata = () => {
       if (starting) return;
       starting = true;
-      clipStart = Math.max(0, Math.min(tune.startSeconds, Math.max(0, audio.duration - 0.1)));
-      clipEnd = Math.min(audio.duration, clipStart + tune.durationSeconds);
-      audio.currentTime = clipStart;
+      const playWindow = helloTunePlaybackWindow(tune, audio.duration);
+      clipStart = playWindow.start;
+      clipEnd = playWindow.end;
+      if (clipStart > 0) audio.currentTime = clipStart;
       audio.addEventListener('timeupdate', onTimeUpdate);
       void audio.play().then(() => {
         settled = true;

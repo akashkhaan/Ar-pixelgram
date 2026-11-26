@@ -11,6 +11,7 @@ import {
   saveMyHelloTune,
   type HelloTuneRecord,
 } from '@/services/helloTunes';
+import { encodeWavClip } from '@/services/helloTuneClip';
 import {
   canListDeviceSongs,
   deviceSongSrc,
@@ -353,8 +354,13 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
     player.pause();
     setIsSaving(true);
     try {
+      // Chuni hui jagah se 30 second ka hissa kaat kar wahi upload karo —
+      // caller ko bilkul wahi hissa sunai dega jo yahan set kiya
+      const clipBytes = encodeWavClip(draft.buffer, confirmStart, clipLength);
+      const clipFile = new File([clipBytes as BlobPart], `${draft.title.slice(0, 40) || 'hello-tune'}.wav`, { type: 'audio/wav' });
       const saved = await saveMyHelloTune(userId, {
-        file: draft.file,
+        file: clipFile,
+        isClip: true,
         title: draft.title,
         artist: draft.artist,
         startSeconds: confirmStart,
