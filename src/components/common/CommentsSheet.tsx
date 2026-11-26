@@ -65,7 +65,7 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
   }, [open, comments, user?.id]);
 
   const handleLikeComment = async (comment: Comment) => {
-    if (!user || comment.user_id === user.id) return;
+    if (!user) return;
     setLikeBusy(prev => ({ ...prev, [comment.id]: true }));
     try {
       const { liked } = await toggleCommentLike('post', comment.id, comment.user_id, {
@@ -182,7 +182,7 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
                   <p className="text-sm text-foreground text-pretty break-words"><CommentText text={comment.content} /></p>
                   <button
                     type="button"
-                    disabled={!!likeBusy[comment.id] || user?.id === comment.user_id}
+                    disabled={!!likeBusy[comment.id]}
                     onClick={() => void handleLikeComment(comment)}
                     className={cn(
                       'mt-1 flex items-center gap-1 text-xs transition-colors disabled:opacity-60',
