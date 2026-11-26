@@ -440,7 +440,7 @@ const WatchVideoPage: React.FC = () => {
   }, [comments, user?.id]);
 
   const handleLikeComment = async (comment: AppVideoComment) => {
-    if (!user || !video || comment.user_id === user.id) return;
+    if (!user || !video) return;
     setCommentLikeBusy(prev => ({ ...prev, [comment.id]: true }));
     try {
       const { liked } = await toggleCommentLike('video', comment.id, comment.user_id, {
@@ -968,7 +968,7 @@ const WatchVideoPage: React.FC = () => {
                       <div className="flex items-center gap-3 pt-1 text-[11px] text-muted-foreground">
                         <button
                           type="button"
-                          disabled={!!commentLikeBusy[c.id] || user?.id === c.user_id}
+                          disabled={!!commentLikeBusy[c.id]}
                           onClick={() => void handleLikeComment(c)}
                           className={`flex items-center gap-1 transition-colors disabled:opacity-60 ${
                             commentLikes[c.id]?.mine ? 'text-red-500 font-semibold' : 'hover:text-red-500'
