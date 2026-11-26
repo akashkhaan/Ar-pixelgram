@@ -1,15 +1,13 @@
 import { CommentText } from "./CommentText";
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Send, CornerDownRight, Trash2, Heart } from 'lucide-react';
+import { X, Send, Trash2, Heart } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getReelComments, addReelComment, deleteReelComment, createNotification,
   type ReelComment,
 } from '@/services/api';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { BadgeCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -119,132 +117,221 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
 
   const goToProfile = (uid?: string) => { if (uid) { onClose(); navigate(`/profile/${uid}`); } };
 
+  // Like button pe pop + chhote dil udte hain (sirf design animation)
+  const likeFx = (btn: HTMLElement, willLike: boolean) => {
+    btn.classList.remove('rcs-pop'); void btn.offsetWidth; btn.classList.add('rcs-pop');
+    if (!willLike) return;
+    try { navigator.vibrate?.(12); } catch { /* ignore */ }
+    const r = btn.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    for (let k = 0; k < 7; k++) {
+      const h = document.createElement('i'); h.className = 'rcs-mh'; h.textContent = ['❤️', '💖', '💗'][k % 3];
+      h.style.left = cx + 'px'; h.style.top = cy + 'px'; document.body.append(h);
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2, d = 30 + Math.random() * 40;
+      h.animate([{ transform: 'translate(-50%,-50%) scale(.4)', opacity: 1 }, { transform: `translate(${Math.cos(a) * d - 8}px,${Math.sin(a) * d - 8}px) scale(1.1)`, opacity: 0 }], { duration: 800 + Math.random() * 300, easing: 'cubic-bezier(.2,.8,.3,1)' }).onfinish = () => h.remove();
+    }
+  };
+
+  // Send button pe ring effect
+  const sendFx = (btn: HTMLElement | null) => {
+    if (!btn) return;
+    try { navigator.vibrate?.(16); } catch { /* ignore */ }
+    const r = btn.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    for (let k = 0; k < 2; k++) {
+      const d = document.createElement('i'); d.className = 'rcs-ring';
+      d.style.cssText = `left:${x}px;top:${y}px;width:40px;height:40px;margin:-20px 0 0 -20px`;
+      document.body.append(d);
+      d.animate([{ transform: 'scale(.6)', opacity: 0.8 }, { transform: 'scale(4.5)', opacity: 0 }], { duration: 800, delay: k * 160, easing: 'ease-out', fill: 'backwards' }).onfinish = () => d.remove();
+    }
+  };
+
+  const hue = (str: string) => { let h = 0; for (const ch of str) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+
   if (!open) return null;
 
-  const Row: React.FC<{ c: ReelComment; isReply?: boolean }> = ({ c, isReply }) => {
+  const Row: React.FC<{ c: ReelComment; isReply?: boolean; i: number }> = ({ c, isReply, i }) => {
     const isHighlighted = highlightCommentId === c.id;
+    const uname = c.profile?.username || '';
+    const mine = likes[c.id]?.mine;
     return (
-    <div className={cn('flex gap-3 transition-colors rounded-xl p-1.5', isReply && 'ml-10 mt-2', isHighlighted && 'bg-primary/15 ring-2 ring-primary/40')}>
-      <button onClick={() => goToProfile(c.profile?.user_id)} className="shrink-0">
+    <div className={cn('rcs-cm', isReply && 'rcs-reply', isHighlighted && 'rcs-glow')} style={{ ['--i' as string]: i }}>
+      <button type="button" onClick={() => goToProfile(c.profile?.user_id)} className="rcs-av" style={{ ['--h' as string]: hue(uname || 'x') }}>
         {c.profile?.avatar_url ? (
-          <img src={c.profile.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+          <img src={c.profile.avatar_url} alt="" />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-            <span className="text-primary font-bold text-xs">{c.profile?.username?.[0]?.toUpperCase()}</span>
-          </div>
+          <span>{uname[0]?.toUpperCase()}</span>
         )}
       </button>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1 mb-0.5">
-          <button onClick={() => goToProfile(c.profile?.user_id)} className="text-sm font-semibold text-foreground hover:underline">
-            {c.profile?.username}
-          </button>
-          {c.profile?.is_verified && <BadgeCheck className="w-3.5 h-3.5 text-primary" />}
-          <span className="text-xs text-muted-foreground ml-1">{new Date(c.created_at).toLocaleDateString()}</span>
+      <div className="rcs-bd">
+        <div className="rcs-meta">
+          <button type="button" onClick={() => goToProfile(c.profile?.user_id)} className="rcs-name">{uname}</button>
+          {c.profile?.is_verified && <BadgeCheck className="rcs-badge" />}
+          <span>{new Date(c.created_at).toLocaleDateString()}</span>
         </div>
-        <p className="text-sm text-foreground break-words"><CommentText text={c.content} /></p>
-        <div className="flex items-center gap-3 mt-1">
+        <div className="rcs-tx"><CommentText text={c.content} /></div>
+        <div className="rcs-acts">
           <button
-            className="text-xs text-muted-foreground hover:text-primary"
+            type="button"
+            className="rcs-rp"
             onClick={() => setReplyTo(isReply ? comments.find(x => x.id === c.parent_id) || c : c)}
           >
             Reply
           </button>
           {user?.id === c.user_id && (
-            <button className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1" onClick={() => handleDelete(c.id)}>
-              <Trash2 className="w-3 h-3" /> Delete
+            <button type="button" className="rcs-rp rcs-del" onClick={() => handleDelete(c.id)}>
+              <Trash2 /> Delete
             </button>
           )}
         </div>
       </div>
       <button
         type="button"
-        aria-label={likes[c.id]?.mine ? 'Unlike comment' : 'Like comment'}
+        aria-label={mine ? 'Unlike comment' : 'Like comment'}
         disabled={!!likeBusy[c.id] || user?.id === c.user_id}
-        onClick={() => void handleLikeComment(c)}
-        className={cn(
-          'shrink-0 flex flex-col items-center gap-0.5 pt-1 px-1 transition-transform active:scale-90',
-          likes[c.id]?.mine ? 'text-destructive' : 'text-muted-foreground',
-          user?.id === c.user_id && 'opacity-60',
-        )}
+        onClick={e => { likeFx(e.currentTarget, !mine); void handleLikeComment(c); }}
+        className={cn('rcs-lk', mine && 'rcs-on', user?.id === c.user_id && 'rcs-self')}
       >
-        <Heart className={cn('w-4 h-4', likes[c.id]?.mine && 'fill-current')} />
-        {(likes[c.id]?.count || 0) > 0 && <span className="text-[10px] font-medium">{likes[c.id]?.count}</span>}
+        <Heart />
+        {(likes[c.id]?.count || 0) > 0 && <span>{likes[c.id]?.count}</span>}
       </button>
     </div>
     );
   };
+
+  let idx = 0;
 
   // Render via portal directly into document.body so the sheet is not clipped
   // or positioned relative to a transformed parent (the reels slide rail uses
   // translateY, which turns position:fixed into relative-to-parent).
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center"
+      className="rcs-root"
       onTouchStart={e => e.stopPropagation()}
       onTouchMove={e => e.stopPropagation()}
       onTouchEnd={e => e.stopPropagation()}
     >
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-card rounded-t-2xl flex flex-col max-h-[80vh]">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="font-semibold text-foreground">Comments · {comments.length}</h3>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted"><X className="w-5 h-5 text-muted-foreground" /></button>
+      <style>{RCS_CSS}</style>
+      <div className="rcs-dim" onClick={onClose} />
+      <section className="rcs-sheet">
+        <div className="rcs-hd">
+          <h2>Comments · <span key={comments.length} className="rcs-cnt">{comments.length}</span></h2>
+          <button type="button" onClick={onClose} className="rcs-x" aria-label="Close"><X /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+        <div className="rcs-list">
           {grouped.length === 0 ? (
-            <p className="text-center text-muted-foreground text-sm py-8">Sabse pehle comment karo!</p>
+            <p className="rcs-empty">Sabse pehle comment karo!</p>
           ) : grouped.map(g => (
             <div key={g.parent.id}>
-              <Row c={g.parent} />
-              {g.replies.map(r => <Row key={r.id} c={r} isReply />)}
+              <Row c={g.parent} i={idx++} />
+              {g.replies.map(r => <Row key={r.id} c={r} isReply i={idx++} />)}
             </div>
           ))}
           <div ref={bottomRef} />
         </div>
 
         {replyTo && (
-          <div className="px-4 py-2 border-t border-border bg-muted/40 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground min-w-0">
-              <CornerDownRight className="w-3 h-3 shrink-0" />
-              <span className="truncate">Reply @{replyTo.profile?.username}</span>
-            </div>
-            <button onClick={() => setReplyTo(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+          <div className="rcs-rep">
+            <span>Replying to <b>@{replyTo.profile?.username}</b></span>
+            <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel"><X /></button>
           </div>
         )}
 
         {user ? (
           <form
-            onSubmit={handleSubmit}
-            className="flex items-center gap-2 px-4 py-3 border-t border-border"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}
+            onSubmit={e => { sendFx(e.currentTarget.querySelector('.rcs-send')); void handleSubmit(e); }}
+            className={cn('rcs-cp', replyTo && 'rcs-cp-rpl')}
           >
-            <Input
+            <input
+              className="rcs-inp"
               placeholder={replyTo ? `Reply to ${replyTo.profile?.username}…` : 'Add a comment…'}
               value={content}
               onChange={e => setContent(e.target.value)}
-              className="flex-1 h-10"
               maxLength={500}
+              autoComplete="off"
+              enterKeyHint="send"
             />
-            <Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={!content.trim() || loading}>
-              <Send className="w-4 h-4" />
-            </Button>
+            <button type="submit" className="rcs-send" aria-label="Send" disabled={!content.trim() || loading}>
+              <Send />
+            </button>
           </form>
         ) : (
-          <div
-            className="px-4 py-3 border-t border-border bg-muted/40 text-center"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}
-          >
-            <button onClick={() => { onClose(); navigate('/login'); }} className="text-sm font-semibold text-primary hover:underline">
+          <div className="rcs-cp rcs-signin">
+            <button type="button" onClick={() => { onClose(); navigate('/login'); }}>
               Sign in to comment
             </button>
           </div>
         )}
-      </div>
+      </section>
     </div>,
     document.body,
   );
 };
+
+const RCS_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+.rcs-root{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-end;justify-content:center;
+  --rt:#14172b;--rm:#7b8099;--rl:#e8eaf5;--rtint:#f4f5fb;--g1:#6a5cff;--g2:#ff5fa2;
+  font-family:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--rt)}
+.rcs-root button{font-family:inherit;border:0;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rcs-dim{position:absolute;inset:0;background:rgba(10,8,30,.5);animation:rcs-fade .3s ease both}
+@keyframes rcs-fade{from{opacity:0}}
+.rcs-sheet{position:relative;width:100%;max-width:560px;height:min(72vh,600px);display:flex;flex-direction:column;background:#fff;
+  border-radius:30px 30px 0 0;box-shadow:0 -24px 60px -24px rgba(60,50,160,.45);animation:rcs-up .7s cubic-bezier(.2,.9,.25,1.03) both}
+@keyframes rcs-up{from{transform:translateY(105%)}}
+.rcs-hd{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--rl)}
+.rcs-hd h2{font-size:18px;font-weight:800;letter-spacing:-.01em;margin:0;color:var(--rt)}
+.rcs-cnt{display:inline-block;animation:rcs-roll .5s cubic-bezier(.2,.9,.25,1.2)}
+@keyframes rcs-roll{from{transform:translateY(100%);opacity:0}}
+.rcs-x{width:36px;height:36px;border-radius:50%;background:var(--rtint)!important;display:grid;place-items:center;color:var(--rt)}
+.rcs-x svg{width:18px;height:18px;stroke-width:2.4}
+.rcs-list{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:6px 16px 10px;scrollbar-width:none}
+.rcs-list::-webkit-scrollbar{display:none}
+.rcs-empty{text-align:center;color:var(--rm);font-size:14px;font-weight:600;padding:32px 0}
+.rcs-cm{display:flex;gap:12px;align-items:flex-start;padding:12px 4px;border-radius:18px;position:relative;
+  animation:rcs-rise .6s cubic-bezier(.2,.9,.25,1) both;animation-delay:calc(min(var(--i),10) * 80ms + .35s)}
+@keyframes rcs-rise{from{opacity:0;transform:translateY(22px)}}
+.rcs-reply{margin-left:40px}
+.rcs-reply .rcs-av{width:32px;height:32px;font-size:13px}
+.rcs-av{flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:16px;color:#fff;overflow:hidden;padding:0;
+  background:linear-gradient(140deg,hsl(var(--h) 85% 62%),hsl(calc(var(--h) + 40) 80% 50%))!important;box-shadow:0 0 0 2px #fff,0 0 0 4px hsl(var(--h) 85% 84%)}
+.rcs-av img{width:100%;height:100%;object-fit:cover}
+.rcs-bd{flex:1;min-width:0}
+.rcs-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rcs-name{font-weight:800;font-size:15px;color:var(--rt);padding:0}
+.rcs-badge{width:15px;height:15px;color:var(--g1)}
+.rcs-meta>span{font-size:12.5px;color:var(--rm);font-weight:500;margin-left:2px}
+.rcs-tx{font-size:15px;line-height:1.4;margin-top:3px;overflow-wrap:anywhere;font-weight:500;color:var(--rt)}
+.rcs-acts{display:flex;gap:14px;align-items:center}
+.rcs-rp{margin-top:4px;font-size:13px;font-weight:700;color:var(--rm);padding:2px 0;display:flex;align-items:center;gap:4px}
+.rcs-rp:active{color:var(--g1)}
+.rcs-del svg{width:12px;height:12px}
+.rcs-del:active{color:#ff3b6b}
+.rcs-lk{flex:none;width:36px;min-height:36px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#8d92aa;margin-top:2px}
+.rcs-lk svg{width:22px;height:22px;stroke-width:1.9}
+.rcs-lk span{font-size:11px;font-weight:700}
+.rcs-lk.rcs-on{color:#ff3b6b}.rcs-lk.rcs-on svg{fill:#ff3b6b}
+.rcs-lk.rcs-self{opacity:.6}
+.rcs-lk.rcs-pop svg{animation:rcs-hp .55s cubic-bezier(.34,2,.5,1)}
+@keyframes rcs-hp{from{transform:scale(.3)}}
+.rcs-glow::before{content:"";position:absolute;inset:0;border-radius:18px;background:linear-gradient(100deg,rgba(106,92,255,.16),rgba(255,95,162,.16));box-shadow:0 0 0 2px rgba(106,92,255,.35);pointer-events:none}
+.rcs-rep{display:flex;align-items:center;justify-content:space-between;margin:0 16px;padding:8px 12px;border-radius:12px;background:var(--rtint);font-size:13px;font-weight:600;color:var(--rm)}
+.rcs-rep b{color:var(--rt)}
+.rcs-rep button{width:24px;height:24px;display:grid;place-items:center;color:var(--rm)}.rcs-rep svg{width:16px;height:16px;stroke-width:2.4}
+.rcs-cp{display:flex;gap:10px;align-items:center;padding:12px 16px max(14px,env(safe-area-inset-bottom));border-top:1px solid var(--rl)}
+.rcs-cp-rpl{border-top:0}
+.rcs-inp{flex:1;min-width:0;height:48px;border:1.5px solid var(--rl);border-radius:24px;background:#fbfbfe;padding:0 18px;font:500 15px/1 inherit;font-family:inherit;color:var(--rt);outline:none;transition:border-color .2s,box-shadow .2s}
+.rcs-inp::placeholder{color:#a3a8c0}
+.rcs-inp:focus{border-color:var(--g1);box-shadow:0 0 0 4px rgba(106,92,255,.12);background:#fff}
+.rcs-send{flex:none;width:48px;height:48px;border-radius:16px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(130deg,var(--g1),var(--g2))!important;box-shadow:0 12px 20px -10px rgba(106,92,255,.85);transition:opacity .25s,transform .15s,filter .25s}
+.rcs-send svg{width:22px;height:22px}
+.rcs-send:disabled{opacity:.4;box-shadow:none;filter:saturate(.6);cursor:default}
+.rcs-send:not(:disabled):active{transform:scale(.9)}
+.rcs-signin{justify-content:center}
+.rcs-signin button{font-size:14px;font-weight:800;background:linear-gradient(120deg,var(--g1),var(--g2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.rcs-ring{position:fixed;z-index:160;pointer-events:none;border-radius:50%;border:3px solid #ff5fa2}
+.rcs-mh{position:fixed;z-index:165;pointer-events:none;font-size:14px;font-style:normal}
+@media (prefers-reduced-motion:reduce){.rcs-root *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+`;
 
 export default ReelCommentsSheet;
