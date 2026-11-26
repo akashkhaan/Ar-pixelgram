@@ -79,10 +79,6 @@ export async function toggleCommentLike(
   const cfg = CONFIG[kind];
   const { actorId, contentId } = context;
 
-  if (commentOwnerId === actorId) {
-    throw new Error('Apne hi comment par like nahi kar sakte');
-  }
-
   const friendly = (err: { code?: string; message?: string } | null) => {
     if (!err) return err;
     if (err.code === '42P01' || err.code === 'PGRST205' || /relation .* does not exist|schema cache/i.test(err.message || '')) {
@@ -110,8 +106,8 @@ export async function toggleCommentLike(
     .insert({ [cfg.fk]: commentId, user_id: actorId });
   if (error) throw friendly(error);
 
-  // Owner ko app notification + phone push (message me comment ka hissa)
-  createNotification(
+  // Owner ko app notification + phone push (apne comment par nahi)
+  if (commentOwnerId !== actorId) createNotification(
     commentOwnerId,
     cfg.likeType,
     actorId,
