@@ -498,7 +498,7 @@ const NotificationsPage: React.FC = () => {
         return;
       case 'reel_comment_like':
       case 'reel_mention':
-        if (notif.post_id) navigate(`/reels?r=${notif.post_id}&comments=1`);
+        if (notif.post_id) navigate(`/reels?r=${notif.post_id}&comments=1${notif.comment_id ? `&c=${notif.comment_id}` : ''}`);
         else navigate('/reels');
         return;
       case 'video_comment_like':

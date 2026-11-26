@@ -18,6 +18,7 @@ interface CommentsSheetProps {
   open: boolean;
   onClose: () => void;
   onCountChange?: (count: number) => void;
+  highlightCommentId?: string | null;
 }
 
 /**
@@ -26,7 +27,7 @@ interface CommentsSheetProps {
  * visualViewport se keyboard ki height nikaal kar sheet ko upar utha dete hain,
  * isliye "Add a comment…" hamesha keyboard ke thik uper dikhta hai.
  */
-const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open, onClose, onCountChange }) => {
+const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open, onClose, onCountChange, highlightCommentId }) => {
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [content, setContent] = useState('');
@@ -48,8 +49,10 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
   }, [postId, open]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [comments]);
+    const target = highlightCommentId ? document.getElementById(`comment-${highlightCommentId}`) : null;
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    else bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [comments, highlightCommentId]);
 
   // Comment like count + "maine like kiya"
   useEffect(() => {
@@ -162,7 +165,7 @@ const CommentsSheet: React.FC<CommentsSheetProps> = ({ postId, postOwnerId, open
             <p className="text-center text-muted-foreground text-sm py-8">No comments yet. Be the first!</p>
           ) : (
             comments.map(comment => (
-              <div key={comment.id} className="flex gap-3">
+              <div key={comment.id} id={`comment-${comment.id}`} className={`flex gap-3 rounded-xl transition-colors ${highlightCommentId === comment.id ? 'bg-primary/15 ring-1 ring-primary/40 p-2 -mx-2' : ''}`}>
                 {comment.profile?.avatar_url ? (
                   <img src={comment.profile.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
                 ) : (

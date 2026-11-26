@@ -17,13 +17,14 @@ import InstagramShareSheet from '@/components/common/InstagramShareSheet';
 import PhotoViewer from '@/components/common/PhotoViewer';
 
 interface PostCardProps {
+  highlightCommentId?: string | null;
   post: Post;
   /** Passed only where the owner manages posts (their profile). */
   onDelete?: (postId: string) => void;
   onCaptionChange?: (postId: string, caption: string) => void;
 }
 
-const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onCaptionChange }) => {
+const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onCaptionChange, highlightCommentId }) => {
   const [caption, setCaption] = useState(post.caption || '');
   const [editOpen, setEditOpen] = useState(false);
   const [editCaption, setEditCaption] = useState('');
@@ -32,7 +33,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onCaptionChange }) 
   const [liked, setLiked] = useState(post.is_liked || false);
   const [likesCount, setLikesCount] = useState(post.likes_count || 0);
   const [saved, setSaved] = useState(post.is_saved || false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(!!highlightCommentId);
   const [commentsCount, setCommentsCount] = useState(post.comments_count || 0);
   const [showMenu, setShowMenu] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
@@ -446,6 +447,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, onDelete, onCaptionChange }) 
           postId={post.id}
           postOwnerId={post.user_id}
           open={showComments}
+          highlightCommentId={highlightCommentId}
           onClose={() => setShowComments(false)}
           onCountChange={setCommentsCount}
         />

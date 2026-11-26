@@ -945,7 +945,7 @@ export async function createNotification(
         url: type === 'comment_like' || type === 'mention'
           ? (postId ? `/post/${postId}${commentId ? `?comment=${commentId}` : ''}` : '/notifications')
           : type === 'reel_comment_like' || type === 'reel_mention'
-            ? (postId ? `/reels?r=${postId}&comments=1` : '/reels')
+            ? (postId ? `/reels?r=${postId}&comments=1${commentId ? `&c=${commentId}` : ''}` : '/reels')
             : type === 'video_comment_like' || type === 'video_mention'
               ? (postId ? `/videos/${postId}${commentId ? `?comment=${commentId}` : ''}` : '/videos')
               : type === 'message' && actorId

@@ -1,6 +1,6 @@
 import useGoBack from '@/hooks/use-go-back';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ThumbsUp,
@@ -162,6 +162,8 @@ function renderDescriptionWithLinks(text?: string | null) {
 
 const WatchVideoPage: React.FC = () => {
   const { videoId } = useParams<{ videoId: string }>();
+  const [videoSearchParams] = useSearchParams();
+  const highlightCommentId = videoSearchParams.get('comment');
   const navigate = useNavigate();
   const goBack = useGoBack('/videos');
   const { user } = useAuth();
@@ -190,7 +192,7 @@ const WatchVideoPage: React.FC = () => {
   // Sheets & modals
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [descSheetOpen, setDescSheetOpen] = useState(false);
-  const [commentsSheetOpen, setCommentsSheetOpen] = useState(false);
+  const [commentsSheetOpen, setCommentsSheetOpen] = useState(!!highlightCommentId);
   const [commentLikes, setCommentLikes] = useState<Record<string, CommentLikeState>>({});
   const [commentLikeBusy, setCommentLikeBusy] = useState<Record<string, boolean>>({});
 
@@ -458,6 +460,15 @@ const WatchVideoPage: React.FC = () => {
   };
 
   // Sorted comments
+  // Notification se aaye to liked/mentioned comment tak scroll
+  useEffect(() => {
+    if (!highlightCommentId || !commentsSheetOpen) return;
+    const t = setTimeout(() => {
+      document.getElementById(`comment-${highlightCommentId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [highlightCommentId, commentsSheetOpen, comments]);
+
   const displayedComments = useMemo(() => {
     if (commentsSort === 'top') {
       return [...comments];
@@ -937,7 +948,7 @@ const WatchVideoPage: React.FC = () => {
                 </div>
               ) : (
                 displayedComments.map((c) => (
-                  <div key={c.id} className="flex gap-3">
+                  <div key={c.id} id={`comment-${c.id}`} className={`flex gap-3 rounded-xl transition-colors ${highlightCommentId === c.id ? 'bg-primary/15 ring-1 ring-primary/40 p-2 -mx-2' : ''}`}>
                     <Avatar className="w-8 h-8 shrink-0 mt-0.5">
                       <AvatarImage src={c.profile?.avatar_url || undefined} />
                       <AvatarFallback className="text-xs font-bold">

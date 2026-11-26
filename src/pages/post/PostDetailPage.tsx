@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import MobileLayout from "@/components/layouts/MobileLayout";
 import PostCard from "@/components/common/PostCard";
@@ -10,6 +10,8 @@ import useGoBack from "@/hooks/use-go-back";
 
 const PostDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const highlightCommentId = searchParams.get("comment");
   const { user } = useAuth();
   const goBack = useGoBack("/home");
   const [post, setPost] = useState<Post | null>(null);
@@ -50,7 +52,7 @@ const PostDetailPage: React.FC = () => {
           </div>
         ) : post ? (
           <div className="max-w-xl mx-auto pb-12">
-            <PostCard post={post} />
+            <PostCard post={post} highlightCommentId={highlightCommentId} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
