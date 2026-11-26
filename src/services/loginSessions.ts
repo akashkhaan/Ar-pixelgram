@@ -17,8 +17,6 @@ export interface LoginSession {
   last_seen_at: string;
 }
 
-const START_KEY = 'arpg_session_started_at';
-const GEO_KEY = 'arpg_geo_cache';
 
 export function describeDevice(ua: string, platform?: string | null) {
   const isApp = platform === 'app';
@@ -53,24 +51,17 @@ export function describeDevice(ua: string, platform?: string | null) {
 }
 
 function isNativeApp(): boolean {
-  try { return !!(window as any).Capacitor?.isNativePlatform?.(); } catch { return false; }
+  try { return !!(window as any).Capacitor?.isNativePlatform?.() || /;\s*wv\)/i.test(navigator.userAgent); } catch { return false; }
 }
 
-async function getGeo(): Promise<{ ip: string | null; city: string | null; region: string | null; country: string | null }> {
-  try {
-    const cached = JSON.parse(sessionStorage.getItem(GEO_KEY) || 'null');
-    if (cached) return cached;
-  } catch { /* ignore */ }
-  try {
-    const r = await fetch('https://ipapi.co/json/');
-    const j = await r.json();
-    const geo = { ip: j.ip ?? null, city: j.city ?? null, region: j.region ?? null, country: j.country_name ?? null };
-    sessionStorage.setItem(GEO_KEY, JSON.stringify(geo));
-    return geo;
-  } catch {
-    return { ip: null, city: null, region: null, country: null };
-  }
+async function callDevices<T = any>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('access-token-devices', { body });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as T;
 }
+
+const START_KEY = 'arpg_login_registered';
 
 export function clearSessionMarks() {
   try {
@@ -78,62 +69,41 @@ export function clearSessionMarks() {
   } catch { /* ignore */ }
 }
 
-function sessionStartedAt(userId: string): string {
-  const key = `${START_KEY}_${userId}`;
-  let v = localStorage.getItem(key);
-  if (!v) { v = new Date().toISOString(); localStorage.setItem(key, v); }
-  return v;
-}
-
 /** Returns true when this device was logged out remotely (caller should sign out). */
 export async function heartbeat(userId: string): Promise<boolean> {
   const deviceId = getDeviceId();
-  const started = sessionStartedAt(userId);
-  const { data: row } = await supabase
-    .from('user_devices')
-    .select('logged_out_at, logged_in_at')
-    .eq('user_id', userId).eq('device_id', deviceId).maybeSingle();
-
-  if (row?.logged_out_at && new Date(row.logged_out_at).getTime() > new Date(started).getTime()) {
-    localStorage.removeItem(`${START_KEY}_${userId}`);
-    return true;
+  const key = `${START_KEY}_${userId}`;
+  if (localStorage.getItem(key)) {
+    const { devices } = await callDevices<{ devices: LoginSession[] }>({ action: 'list' });
+    if (!devices.some(d => d.device_id === deviceId)) {
+      localStorage.removeItem(key);
+      return true;
+    }
   }
-  const geo = await getGeo();
-  const freshLogin = !row || !!row.logged_out_at || !row.logged_in_at;
-  const now = new Date().toISOString();
-  await supabase.from('user_devices').upsert({
-    user_id: userId,
-    device_id: deviceId,
-    device_name: describeDevice(navigator.userAgent, isNativeApp() ? 'app' : 'web').title,
-    user_agent: navigator.userAgent,
-    platform: isNativeApp() ? 'app' : 'web',
-    ...(geo.ip ? geo : {}),
-    last_seen_at: now,
-    logged_out_at: null,
-    ...(freshLogin ? { logged_in_at: started } : {}),
-  }, { onConflict: 'user_id,device_id' });
+  await callDevices({
+    action: 'register',
+    deviceId,
+    deviceName: describeDevice(navigator.userAgent, isNativeApp() ? 'app' : 'web').title,
+  });
+  localStorage.setItem(key, new Date().toISOString());
   return false;
 }
 
-export async function listSessions(userId: string): Promise<LoginSession[]> {
-  const { data, error } = await supabase
-    .from('user_devices')
-    .select('device_id, device_name, user_agent, platform, ip, city, region, country, first_seen_at, logged_in_at, last_seen_at')
-    .eq('user_id', userId)
-    .is('logged_out_at', null)
-    .order('last_seen_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as LoginSession[];
+export async function listSessions(_userId: string): Promise<LoginSession[]> {
+  await heartbeat(_userId).catch(() => false);
+  const { devices } = await callDevices<{ devices: LoginSession[] }>({ action: 'list' });
+  return (devices ?? []).map(d => ({
+    ...d,
+    platform: /;\s*wv\)/i.test(d.user_agent ?? '') ? 'app' : 'web',
+    logged_in_at: d.first_seen_at,
+    ip: null,
+    region: null,
+  }));
 }
 
-export async function logoutSessions(userId: string, deviceIds: string[]): Promise<void> {
+export async function logoutSessions(_userId: string, deviceIds: string[]): Promise<void> {
   if (!deviceIds.length) return;
-  const { error } = await supabase
-    .from('user_devices')
-    .update({ logged_out_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .in('device_id', deviceIds);
-  if (error) throw error;
+  await callDevices({ action: 'logout', deviceIds });
 }
 
 export function formatFull(iso: string | null): string {
