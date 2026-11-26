@@ -282,7 +282,9 @@ const AccountCenterPage: React.FC = () => {
           <h1 className="ml-2 text-base font-bold text-foreground">{title}</h1>
         </header>
 
-        {addingType ? renderAddForm(addingType) : view === 'contact' ? renderContactInfo() : view === 'password' ? (
+        {addingType ? renderAddForm(addingType) : view === 'contact' ? renderContactInfo() : view === 'devices' ? (
+          <LoginSessionsSection />
+        ) : view === 'password' ? (
           <div className="px-4 pt-5"><PasswordResetSection /></div>
         ) : view === 'personal' ? (
           <div className="space-y-5 px-4 pt-5">
