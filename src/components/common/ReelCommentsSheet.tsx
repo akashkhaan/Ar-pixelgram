@@ -54,7 +54,6 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
 
   const handleLikeComment = async (c: ReelComment) => {
     if (!user) return;
-    if (c.user_id === user.id) return;
     setLikeBusy(prev => ({ ...prev, [c.id]: true }));
     try {
       const { liked } = await toggleCommentLike('reel', c.id, c.user_id, {
@@ -186,7 +185,7 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
       <button
         type="button"
         aria-label={mine ? 'Unlike comment' : 'Like comment'}
-        disabled={!!likeBusy[c.id] || user?.id === c.user_id}
+        disabled={!!likeBusy[c.id]}
         onClick={e => { likeFx(e.currentTarget, !mine); void handleLikeComment(c); }}
         className={cn('rcs-lk', mine && 'rcs-on', user?.id === c.user_id && 'rcs-self')}
       >
