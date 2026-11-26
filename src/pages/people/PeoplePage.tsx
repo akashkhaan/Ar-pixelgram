@@ -101,6 +101,53 @@ const replayBtnAnim = (btn: HTMLElement | null, shine: boolean) => {
   if (shine) btn.classList.add('shine');
 };
 
+
+/** HTML jaisa profile open effect: avatar se circle reveal + rings + avatar udke upar jata hai, phir purana profile khulta hai */
+let profileOpening = false;
+const playProfileOpen = (item: HTMLElement, hue: number, go: () => void) => {
+  if (profileOpening) return;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const av = item.querySelector('.acc-avatar') as HTMLElement | null;
+  if (reduce || !av || !document.body.animate) { go(); return; }
+  profileOpening = true;
+  const r = av.getBoundingClientRect();
+  const ox = r.left + r.width / 2, oy = r.top + r.height / 2;
+  const W = innerWidth, H = innerHeight;
+  const far = Math.max(Math.hypot(ox, oy), Math.hypot(W - ox, oy), Math.hypot(ox, H - oy), Math.hypot(W - ox, H - oy));
+  const list = item.closest('.acc-list') as HTMLElement | null;
+  list?.animate([{ transform: 'none', filter: 'blur(0)', opacity: 1 }, { transform: 'scale(.9)', filter: 'blur(5px)', opacity: .5 }], { duration: 700, easing: 'cubic-bezier(.3,0,.2,1)', fill: 'forwards' });
+  const pf = document.createElement('div');
+  pf.style.cssText = `position:fixed;inset:0;z-index:9990;pointer-events:none;background:linear-gradient(160deg,hsl(${hue} 85% 62%),hsl(${(hue + 50) % 360} 80% 45%))`;
+  document.body.appendChild(pf);
+  pf.animate([{ clipPath: `circle(0px at ${ox}px ${oy}px)` }, { clipPath: `circle(${far + 10}px at ${ox}px ${oy}px)` }], { duration: 650, easing: 'cubic-bezier(.7,0,.2,1)', fill: 'forwards' });
+  [0, 130, 260].forEach((dl, i) => {
+    const h = document.createElement('div');
+    h.style.cssText = `position:fixed;left:${ox - 30}px;top:${oy - 30}px;width:60px;height:60px;border-radius:50%;border:${4 - i}px solid rgba(255,255,255,.95);box-shadow:0 0 24px rgba(255,255,255,.7);z-index:9995;pointer-events:none`;
+    document.body.appendChild(h);
+    h.animate([{ transform: 'scale(0)', opacity: .9 }, { transform: `scale(${far * 2 / 60})`, opacity: 0 }], { duration: 900 + i * 120, delay: dl, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'backwards' }).onfinish = () => h.remove();
+  });
+  const size = 104, tx = W / 2 - size / 2, ty = 90;
+  const fly = (ghost: number) => {
+    const w = av.cloneNode(true) as HTMLElement;
+    w.style.cssText = `position:fixed;left:0;top:0;width:${r.width}px;height:${r.height}px;margin:0;z-index:${9999 - ghost};pointer-events:none;transform-origin:0 0;${ghost ? 'filter:blur(3px);' : ''}`;
+    document.body.appendChild(w);
+    const s = size / r.width;
+    return w.animate([
+      { transform: `translate(${r.left}px,${r.top}px) scale(1) rotate(0deg)`, opacity: ghost ? .5 - ghost * .08 : 1 },
+      { transform: `translate(${tx}px,${ty}px) scale(${s}) rotate(360deg)`, opacity: ghost ? 0 : 1 },
+    ], { duration: 950, delay: ghost * 60, easing: 'cubic-bezier(.25,1.15,.35,1)', fill: 'both' }).finished.then(() => w);
+  };
+  [1, 2, 3, 4].forEach(g => fly(g).then(x => x.remove()));
+  fly(0).then(w => {
+    w.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 250, fill: 'forwards' });
+    go();
+    setTimeout(() => {
+      pf.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' }).onfinish = () => pf.remove();
+      w.remove(); profileOpening = false;
+    }, 250);
+  });
+};
+
 const PeoplePage: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -391,13 +438,13 @@ const PeoplePage: React.FC = () => {
                 <div
                   key={profile.id || profile.user_id}
                   className="acc-item"
-                  onClick={() => navigate(`/profile/${profile.user_id}`)}
+                  onClick={e => playProfileOpen(e.currentTarget, hueOf(profile.username || profile.user_id), () => navigate(`/profile/${profile.user_id}`))}
                 >
                   <button
                     type="button"
                     className="acc-avatar"
                     style={{ '--h': hueOf(profile.username || profile.user_id) } as React.CSSProperties}
-                    onClick={() => navigate(`/profile/${profile.user_id}`)}
+                    
                     aria-label={`View ${profile.username}'s profile`}
                   >
                     {profile.avatar_url ? (
@@ -410,7 +457,7 @@ const PeoplePage: React.FC = () => {
                   <button
                     type="button"
                     className="acc-who"
-                    onClick={() => navigate(`/profile/${profile.user_id}`)}
+                    
                   >
                     <div className="acc-user">
                       <span>{profile.username}</span>
