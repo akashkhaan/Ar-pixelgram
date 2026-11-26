@@ -13,6 +13,7 @@ import {
   AtSign,
   ChevronRight,
   KeyRound,
+  MonitorSmartphone,
   Loader2,
   Mail,
   Phone,
@@ -31,8 +32,9 @@ import {
   type IdentifierType,
 } from '@/services/accountCenter';
 import PasswordResetSection from '@/components/settings/PasswordResetSection';
+import LoginSessionsSection from '@/components/settings/LoginSessionsSection';
 
-type View = 'home' | 'personal' | 'contact' | 'password';
+type View = 'home' | 'personal' | 'contact' | 'password' | 'devices';
 
 const AccountCenterPage: React.FC = () => {
   const navigate = useNavigate();
@@ -68,7 +70,7 @@ const AccountCenterPage: React.FC = () => {
       return;
     }
     if (view === 'contact') setView('personal');
-    else if (view === 'personal' || view === 'password') setView('home');
+    else if (view === 'personal' || view === 'password' || view === 'devices') setView('home');
     else navBack();
   };
 
@@ -132,6 +134,7 @@ const AccountCenterPage: React.FC = () => {
     : view === 'personal' ? 'Personal details'
     : view === 'contact' ? 'Contact info'
     : view === 'password' ? 'Password and security'
+    : view === 'devices' ? "Where you're logged in"
     : 'Accounts Center';
 
   const renderAddForm = (type: IdentifierType) => {
@@ -324,6 +327,14 @@ const AccountCenterPage: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-foreground">Password and security</p>
                   <p className="text-xs text-muted-foreground">Apna password badlein</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </button>
+              <button type="button" onClick={() => setView('devices')} className="flex min-h-[72px] w-full items-center gap-3 border-t border-border px-4 text-left">
+                <MonitorSmartphone className="h-5 w-5 text-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">Where you're logged in</p>
+                  <p className="text-xs text-muted-foreground">Kitne device par login hai, location, time aur log out</p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               </button>

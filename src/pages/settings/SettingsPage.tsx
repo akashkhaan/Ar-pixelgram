@@ -572,10 +572,8 @@ const SettingsPage: React.FC = () => {
           { icon: Music2, h: 285, label: 'Hello Tune', desc: 'Callers ko ringing par aapka gana sunai de', onClick: () => navigate('/settings/hello-tune') },
           { icon: Globe, h: 215, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language') },
           { icon: KeyRound, h: 35, label: 'Access Token', desc: '30 din ka token, devices aur logout manage karein', onClick: () => navigate('/settings/access-token') },
-          { icon: HelpCircle, h: 165, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help') },
           { icon: Flag, h: 340, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report') },
           { ownerConnect: true, label: 'Owner Connect' },
-          { icon: Shield, h: 195, label: 'Privacy', desc: 'Manage your privacy settings', onClick: () => navigate('/edit-profile') },
         ].map((item: any) => {
           if (item.ownerConnect) {
             return (

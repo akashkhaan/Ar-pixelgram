@@ -1,3 +1,4 @@
+import { clearSessionMarks, heartbeat } from '@/services/loginSessions';
 import { saveCurrentAccount } from '@/lib/savedAccounts';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { User } from '@supabase/supabase-js';
@@ -138,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // Deploy/service-worker reload ke dauran transient null callbacks ko logout
       // mat samjho. User ko sirf Supabase ke explicit SIGNED_OUT event par hatao.
+      if (event === 'SIGNED_OUT') clearSessionMarks();
       if (session?.user) {
         setUser(session.user);
         if (session) saveCurrentAccount(session.user, profile, session);
@@ -182,6 +184,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user?.id) void purgeLegacyMediaForUser(user.id);
   }, [user?.id]);
 
+
+  // Login activity: is device ko record karo, aur remote logout hua ho to sign out
+  useEffect(() => {
+    if (!user?.id) return;
+    const uid = user.id;
+    let stopped = false;
+    const check = () => {
+      heartbeat(uid).then(async (kicked) => {
+        if (kicked && !stopped) {
+          stopped = true;
+          await supabase.auth.signOut().catch(() => {});
+          setUser(null);
+          setProfile(null);
+        }
+      }).catch(() => {});
+    };
+    check();
+    const iv = setInterval(check, 30000);
+    const onVis = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { stopped = true; clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
+  }, [user?.id]);
 
   // Realtime Presence / Online Status management
   useEffect(() => {
