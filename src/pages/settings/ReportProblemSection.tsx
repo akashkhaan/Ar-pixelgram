@@ -345,6 +345,12 @@ body.rp-lock{overflow:hidden}
 .rp .submit:not(:disabled):active{transform:scale(.98)}
 .rp .note{text-align:center;font-size:12.5px;line-height:1.5;color:var(--muted);margin-top:14px;font-weight:500}
 .rp input[type=file]{display:none}
+.dark .rp{--bg:hsl(248 28% 7%);--tint:hsl(248 24% 13%);--text:hsl(250 20% 95%);--muted:hsl(250 15% 62%);--line:hsl(248 20% 20%);color-scheme:dark}
+.dark .rp .ov,.dark .rp .succ{background:var(--bg)}
+.dark .rp textarea,.dark .rp .add,.dark .rp .vid{background:var(--tint);color:var(--text)}
+.dark .rp textarea:focus{background:var(--tint)}
+.dark .rp .add{border-color:hsl(248 20% 28%)}
+.dark .rp .pill{background:hsl(330 60% 18%);color:#ff8cc0}
 @media (prefers-reduced-motion:reduce){.rp .wave,.rp .ov,.rp .rise,.rp .pop,.rp .row{transition:none!important}.rp .vid.bad,.rp .submit::after,.rp .submit::before,.rp .show .okc,.rp .show .okc path,.rp .show .okc::before,.rp .show .okc::after,.rp .show p{animation:none}.rp .okc{transform:none}.rp .okc path{stroke-dashoffset:0}.rp .succ p{opacity:1;transform:none}}
 `;
 
