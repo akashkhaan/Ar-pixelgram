@@ -42,7 +42,9 @@ export function versionForRun(build: number) {
 
 /** version.json (repo root) ka saaf shape */
 export function parseVersionFile(data: any, commit = '', date = ''): LatestBuild | null {
-  const build = Number(data?.build);
+  // `published` = jo APK abhi release me hai (app isi se update dikhata hai).
+  // `build` = agla number — purane version.json me sirf `build` hota tha.
+  const build = Number(data?.published ?? data?.build);
   if (!Number.isFinite(build) || build <= 0) return null;
   return {
     ...versionForBuild(Math.floor(build)),

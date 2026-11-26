@@ -22,12 +22,14 @@ test('version build 100 + build number (same as build.gradle)', () => {
 });
 
 test('version.json hi latest build batata hai (run number nahi — usme gaps aate the)', () => {
-  assert.deepEqual(parseVersionFile({ build: 354 }), {
+  assert.deepEqual(parseVersionFile({ published: 354, build: 355 }), {
     versionCode: 454, versionName: '1.4.354', commit: '', date: undefined, headline: '',
   });
+  // purana format (sirf build) bhi chalta rahe
+  assert.equal(parseVersionFile({ build: 354 }).versionName, '1.4.354');
   // 353 wale app ko 354 ka update milta hai (pehle seedha 356 dikh raha tha)
-  assert.equal(isNewer(parseVersionFile({ build: 354 }), 453), true);
-  assert.equal(isNewer(parseVersionFile({ build: 353 }), 453), false);
+  assert.equal(isNewer(parseVersionFile({ published: 354, build: 355 }), 453), true);
+  assert.equal(isNewer(parseVersionFile({ published: 353, build: 354 }), 453), false);
   assert.equal(parseVersionFile({}), null);
   assert.equal(parseVersionFile({ build: 'x' }), null);
 });

@@ -15,7 +15,7 @@ jobs:
     # version bump wala commit ("[skip apk]") APK build na kare — warna loop ban jayega
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      !startsWith(github.event.head_commit.message, 'chore(release): next APK version')
+      !startsWith(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -109,11 +109,13 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           NEXT=$((APP_BUILD + 1))
-          node -e "const fs=require('fs');const v=require('./version.json');v.build=$NEXT;fs.writeFileSync('version.json',JSON.stringify(v,null,2)+'\n')"
+          # published = jo APK abhi release me hai (app isse update dikhata hai)
+          # build       = agla number (agli baar build hoga)
+          node -e "const fs=require('fs');const v=require('./version.json');v.published=$APP_BUILD;v.build=$NEXT;fs.writeFileSync('version.json',JSON.stringify(v,null,2)+'\n')"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add version.json
-          git commit -m "chore(release): next APK version 1.4.$NEXT [skip apk]"
+          git commit -m "chore(release): published 1.4.$APP_BUILD, next 1.4.$NEXT [skip apk]"
           # koi aur push beech me aaya ho to rebase karke push (conflict na ho)
           git pull --rebase --autostash origin main || true
           git push || (git pull --rebase --autostash origin main && git push)
