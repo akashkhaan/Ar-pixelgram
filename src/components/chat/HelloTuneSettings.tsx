@@ -1,35 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChangeEvent, CSSProperties, FC, PointerEvent } from 'react';
-import {
-  ArrowLeft,
-  Check,
-  Loader2,
-  Mic,
-  Music,
-  Pause,
-  Play,
-  Search,
-  Sparkles,
-  Trash2,
-  Upload,
-  X,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent, FC } from 'react';
+import { ArrowLeft, Check, Loader2, Music, Pause, Play, RefreshCw, Search, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
-import GlassSearch from '@/components/common/GlassSearch';
 import {
   decodeHelloTuneFile,
-  HELLO_TUNE_MOODS,
-  HELLO_TUNE_PRESETS,
   isHelloTuneActive,
   loadMyHelloTune,
   playCallerHelloTune,
-  playHelloTuneBuffer,
   removeMyHelloTune,
-  renderHelloTunePreset,
   saveMyHelloTune,
-  type HelloTunePreset,
   type HelloTuneRecord,
 } from '@/services/helloTunes';
+import {
+  canListDeviceSongs,
+  deviceSongSrc,
+  deviceSongToFile,
+  filesToSongs,
+  listDeviceSongs,
+  type DeviceSong,
+} from '@/services/deviceMusic';
 
 interface HelloTuneSettingsProps {
   isOpen: boolean;
@@ -39,35 +28,17 @@ interface HelloTuneSettingsProps {
   onSaved: (tune: HelloTuneRecord | null) => void;
 }
 
-interface SpeechRecognitionResultLike {
-  transcript: string;
-}
-
-interface SpeechRecognitionEventLike {
-  results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>>;
-}
-
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
 type TuneDraft = {
-  source: { kind: 'preset'; trackId: string } | { kind: 'file'; file: File };
+  file: File;
   title: string;
   artist: string;
-  mood: string;
-  colors: [string, string];
   buffer: AudioBuffer;
 };
 
+type SongsState = 'idle' | 'loading' | 'ready' | 'denied' | 'error';
+
+/** Hello Tune hamesha 30 second ki hoti hai */
+const CLIP_SECONDS = 30;
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const MAX_AUDIO_SECONDS = 10 * 60;
 
@@ -80,100 +51,112 @@ function remainingDays(expiresAt: string) {
   return Math.max(0, Math.ceil((Date.parse(expiresAt) - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
-function findBestStart(buffer: AudioBuffer, clipLength: number) {
-  const channel = buffer.getChannelData(0);
-  const safeClipLength = Math.min(clipLength, buffer.duration);
-  const samplesPerWindow = Math.max(1, Math.floor(safeClipLength * buffer.sampleRate));
-  const stride = Math.max(1, Math.floor(buffer.sampleRate * 0.75));
-  const sampleStep = Math.max(1, Math.floor(buffer.sampleRate / 1000));
-  let bestStart = 0;
-  let bestEnergy = -1;
+/**
+ * Selected gaane ka player — WebAudio se chalta hai, isliye aage/peeche karna
+ * hamesha sahi jagah se bajata hai (seek ke baad naya source exact offset se start).
+ */
+function useBufferPlayer(buffer: AudioBuffer | null) {
+  const ctxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const startedAtRef = useRef(0);
+  const offsetRef = useRef(0);
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0);
+  const duration = buffer?.duration ?? 0;
 
-  for (let start = 0; start + samplesPerWindow <= channel.length; start += stride) {
-    let sum = 0;
-    let count = 0;
-    for (let i = start; i < start + samplesPerWindow; i += sampleStep) {
-      sum += channel[i] * channel[i];
-      count++;
+  const stopSource = useCallback(() => {
+    const src = sourceRef.current;
+    sourceRef.current = null;
+    if (src) {
+      src.onended = null;
+      try { src.stop(); } catch { /* already stopped */ }
+      src.disconnect();
     }
-    const energy = count ? sum / count : 0;
-    if (energy > bestEnergy) {
-      bestEnergy = energy;
-      bestStart = start / buffer.sampleRate;
-    }
-  }
-  return Math.max(0, Math.min(bestStart, buffer.duration - safeClipLength));
-}
+  }, []);
 
-function Waveform({
-  buffer,
-  start,
-  length,
-  onSeek,
-}: {
-  buffer: AudioBuffer;
-  start: number;
-  length: number;
-  onSeek: (event: PointerEvent<HTMLDivElement>) => void;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const currentPos = useCallback(() => {
+    const ctx = ctxRef.current;
+    if (!sourceRef.current || !ctx) return offsetRef.current;
+    return Math.min(duration, offsetRef.current + (ctx.currentTime - startedAtRef.current));
+  }, [duration]);
+
+  const playFrom = useCallback((from: number) => {
+    if (!buffer) return;
+    stopSource();
+    if (!ctxRef.current) {
+      const w = window as Window & { webkitAudioContext?: typeof AudioContext };
+      const Ctor = window.AudioContext || w.webkitAudioContext;
+      if (!Ctor) {
+        toast.error('Is phone me audio play support nahi hai');
+        return;
+      }
+      ctxRef.current = new Ctor();
+    }
+    const ctx = ctxRef.current;
+    const start = Math.max(0, Math.min(from, Math.max(0, buffer.duration - 0.1)));
+    void ctx.resume().catch(() => {});
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(ctx.destination);
+    src.onended = () => {
+      if (sourceRef.current !== src) return;
+      sourceRef.current = null;
+      offsetRef.current = buffer.duration;
+      setPos(buffer.duration);
+      setPlaying(false);
+    };
+    src.start(0, start);
+    sourceRef.current = src;
+    startedAtRef.current = ctx.currentTime;
+    offsetRef.current = start;
+    setPos(start);
+    setPlaying(true);
+  }, [buffer, stopSource]);
+
+  const pause = useCallback(() => {
+    const at = currentPos();
+    stopSource();
+    offsetRef.current = at;
+    setPos(at);
+    setPlaying(false);
+  }, [currentPos, stopSource]);
+
+  const seek = useCallback((to: number) => {
+    const target = Math.max(0, Math.min(to, Math.max(0, duration - 0.1)));
+    if (sourceRef.current) {
+      playFrom(target);
+    } else {
+      offsetRef.current = target;
+      setPos(target);
+    }
+  }, [duration, playFrom]);
+
+  const toggle = useCallback(() => {
+    if (sourceRef.current) pause();
+    else playFrom(offsetRef.current >= duration - 0.2 ? 0 : offsetRef.current);
+  }, [duration, pause, playFrom]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const draw = () => {
-      const rect = canvas.getBoundingClientRect();
-      if (!rect.width) return;
-      const ratio = Math.max(1, window.devicePixelRatio || 1);
-      canvas.width = Math.floor(rect.width * ratio);
-      canvas.height = Math.floor(rect.height * ratio);
-      const context = canvas.getContext('2d');
-      if (!context) return;
-      context.scale(ratio, ratio);
-      context.clearRect(0, 0, rect.width, rect.height);
-      const data = buffer.getChannelData(0);
-      const barCount = Math.max(24, Math.floor(rect.width / 5));
-      const samplesPerBar = Math.max(1, Math.floor(data.length / barCount));
-      const barWidth = Math.max(2, rect.width / barCount - 2);
-      const selectedStart = (start / buffer.duration) * rect.width;
-      const selectedEnd = ((start + length) / buffer.duration) * rect.width;
+    if (!playing) return;
+    const timer = window.setInterval(() => setPos(currentPos()), 200);
+    return () => window.clearInterval(timer);
+  }, [playing, currentPos]);
 
-      for (let bar = 0; bar < barCount; bar++) {
-        const from = bar * samplesPerBar;
-        const to = Math.min(data.length, from + samplesPerBar);
-        let peak = 0;
-        const scanStep = Math.max(4, Math.floor(samplesPerBar / 120));
-        for (let i = from; i < to; i += scanStep) peak = Math.max(peak, Math.abs(data[i]));
-        const height = Math.max(5, peak * rect.height * 0.9);
-        const x = bar * (rect.width / barCount);
-        const y = (rect.height - height) / 2;
-        const chosen = x + barWidth >= selectedStart && x <= selectedEnd;
-        const gradient = context.createLinearGradient(0, y, 0, y + height);
-        gradient.addColorStop(0, chosen ? '#FF63A2' : '#6650B7');
-        gradient.addColorStop(1, chosen ? '#8E65FF' : '#3B2B68');
-        context.fillStyle = gradient;
-        context.beginPath();
-        context.roundRect(x, y, barWidth, height, 3);
-        context.fill();
-      }
+  // Naya gaana -> sab reset
+  useEffect(() => {
+    stopSource();
+    offsetRef.current = 0;
+    setPos(0);
+    setPlaying(false);
+  }, [buffer, stopSource]);
 
-      context.strokeStyle = 'rgba(245, 238, 255, .75)';
-      context.lineWidth = 1.5;
-      context.strokeRect(selectedStart, 2, Math.max(2, selectedEnd - selectedStart), rect.height - 4);
-    };
+  useEffect(() => () => {
+    stopSource();
+    void ctxRef.current?.close().catch(() => {});
+    ctxRef.current = null;
+  }, [stopSource]);
 
-    draw();
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(draw) : null;
-    observer?.observe(canvas);
-    return () => observer?.disconnect();
-  }, [buffer, start, length]);
-
-  return (
-    <div className="ht-wave-wrap" onPointerDown={onSeek} onPointerMove={event => event.buttons === 1 && onSeek(event)} onPointerUp={onSeek} onPointerCancel={onSeek}>
-      <canvas ref={canvasRef} className="ht-wave-canvas" aria-label="Audio waveform; tap or drag to choose a section" />
-      <div className="ht-wave-labels"><span>{formatTime(start)}</span><span>{formatTime(start + length)} / {formatTime(buffer.duration)}</span></div>
-    </div>
-  );
+  return { playing, pos, duration, seek, toggle, pause, getPos: currentPos };
 }
 
 export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
@@ -183,185 +166,67 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
   currentTune,
   onSaved,
 }) => {
+  const [songs, setSongs] = useState<DeviceSong[]>([]);
+  const [songsState, setSongsState] = useState<SongsState>('idle');
   const [query, setQuery] = useState('');
-  const [mood, setMood] = useState('All');
+  const [listPlayingId, setListPlayingId] = useState<string | null>(null);
+  const [selectingId, setSelectingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<TuneDraft | null>(null);
-  const [clipStart, setClipStart] = useState(0);
-  const [clipLength, setClipLength] = useState(30);
-  const [isListening, setIsListening] = useState(false);
+  const [confirmStart, setConfirmStart] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [playingId, setPlayingId] = useState<string | null>(null);
-  const playbackRef = useRef<(() => void) | null>(null);
-  const previewTimerRef = useRef<number | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [savedPlaying, setSavedPlaying] = useState(false);
+  const listAudioRef = useRef<HTMLAudioElement | null>(null);
+  const listUrlRef = useRef<string | null>(null);
+  const savedStopRef = useRef<(() => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dragPointerRef = useRef<number | null>(null);
+  const isNative = canListDeviceSongs();
 
-  const [fullPos, setFullPos] = useState(0);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const fullStartRef = useRef<{ at: number; from: number } | null>(null);
-  // Uploaded gaane ke liye asli <audio> element — isse 10/30 second aage-piche
-  // sach me seek hota hai (WebAudio buffer restart me position kho jaati thi).
-  const fileAudioRef = useRef<HTMLAudioElement | null>(null);
-  const fileUrlRef = useRef<string | null>(null);
+  const player = useBufferPlayer(draft?.buffer ?? null);
 
-  useEffect(() => {
-    if (playingId !== 'full') return;
-    const t = window.setInterval(() => {
-      const audio = fileAudioRef.current;
-      if (audio && !audio.paused) {
-        setFullPos(audio.currentTime);
-        return;
-      }
-      const r = fullStartRef.current;
-      if (r) setFullPos(Math.min(draft?.buffer.duration ?? Infinity, r.from + (Date.now() - r.at) / 1000));
-    }, 200);
-    return () => window.clearInterval(t);
-  }, [playingId, draft]);
-
-  // Draft badle to purana audio band karo aur naye uploaded file ko turant preload karo
-  useEffect(() => {
-    if (draft?.source.kind === 'file') {
-      const url = URL.createObjectURL(draft.source.file);
-      fileUrlRef.current = url;
-      const audio = new Audio(url);
-      audio.preload = 'auto';
-      audio.volume = 0.9;
-      audio.addEventListener('ended', () => setPlayingId(null));
-      audio.load();
-      fileAudioRef.current = audio;
-    }
-    return () => {
-      const audio = fileAudioRef.current;
-      if (audio) {
-        audio.pause();
-        audio.removeAttribute('src');
-        audio.load();
-        fileAudioRef.current = null;
-      }
-      if (fileUrlRef.current) {
-        URL.revokeObjectURL(fileUrlRef.current);
-        fileUrlRef.current = null;
-      }
-    };
-  }, [draft]);
-
-  /** Uploaded file ke liye ek hi audio element reuse karo */
-  const getFileAudio = (): HTMLAudioElement | null => {
-    if (!draft || draft.source.kind !== 'file') return null;
-    if (fileAudioRef.current) return fileAudioRef.current;
-    if (!fileUrlRef.current) fileUrlRef.current = URL.createObjectURL(draft.source.file);
-    const audio = new Audio(fileUrlRef.current);
-    audio.preload = 'auto';
-    audio.volume = 0.9;
-    audio.addEventListener('ended', () => setPlayingId(null));
-    fileAudioRef.current = audio;
-    return audio;
-  };
-
-  /** Metadata ready hone ke baad hi currentTime set karke play karo (mobile WebView safe) */
-  const setAudioTimeSafe = (audio: HTMLAudioElement, pos: number, shouldPlay: boolean) => {
-    const apply = () => {
-      const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : pos + 1;
-      audio.currentTime = Math.max(0, Math.min(pos, Math.max(0, dur - 0.1)));
-      if (shouldPlay) {
-        void audio.play().catch(() => toast.error('Gana play nahi hua, dobara try karein'));
-      }
-    };
-    if (audio.readyState >= 1) {
-      apply();
-    } else {
-      audio.addEventListener('loadedmetadata', apply, { once: true });
-      audio.load();
-    }
-  };
-
-  const playFullFrom = (buffer: AudioBuffer, from: number) => {
-    const isFile = draft?.source.kind === 'file';
-    if (isFile) {
-      const audio = getFileAudio();
-      if (audio) {
-        stopBufferPlayback();
-        const total = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : buffer.duration;
-        const pos = Math.max(0, Math.min(from, Math.max(0, total - 0.2)));
-        setFullPos(pos);
-        setPlayingId('full');
-        setAudioTimeSafe(audio, pos, true);
-        return;
-      }
-    }
-    const start = Math.max(0, Math.min(from, buffer.duration - 0.5));
-    previewBuffer(buffer, 'full', start, buffer.duration - start);
-    fullStartRef.current = { at: Date.now(), from: start };
-    setFullPos(start);
-  };
-
-  const seekFull = (buffer: AudioBuffer, to: number) => {
-    const audio = draft?.source.kind === 'file' ? getFileAudio() : null;
-    const total = audio && Number.isFinite(audio.duration) && audio.duration > 0
-      ? audio.duration
-      : buffer.duration;
-    const pos = Math.max(0, Math.min(to, Math.max(0, total - 0.05)));
-    setFullPos(pos);
+  const stopListAudio = useCallback(() => {
+    const audio = listAudioRef.current;
     if (audio) {
-      // Agar clip preview timer chal raha tha to hata do taaki full playback beech me na ruke
-      if (previewTimerRef.current) {
-        window.clearTimeout(previewTimerRef.current);
-        previewTimerRef.current = null;
-      }
-      const wasPlaying = !audio.paused || playingId === 'full' || playingId === 'draft';
-      if (wasPlaying) setPlayingId('full');
-      setAudioTimeSafe(audio, pos, wasPlaying);
-      fullStartRef.current = { at: Date.now(), from: pos };
-      return;
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
     }
-    if (playingId === 'full') playFullFrom(buffer, pos);
-  };
-
-  /** Sirf WebAudio playback band karo (file audio ko chhedo mat) */
-  const stopBufferPlayback = () => {
-    playbackRef.current?.();
-    playbackRef.current = null;
-    if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
-    previewTimerRef.current = null;
-  };
-
-  const activeTune = currentTune && isHelloTuneActive(currentTune) ? currentTune : null;
-  const filteredTracks = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    return HELLO_TUNE_PRESETS.filter(track => {
-      const matchesMood = mood === 'All' || track.mood === mood;
-      const searchable = `${track.title} ${track.artist} ${track.mood} ${track.keywords}`.toLocaleLowerCase();
-      return matchesMood && (!needle || searchable.includes(needle));
-    });
-  }, [mood, query]);
-
-  const stopPreview = () => {
-    playbackRef.current?.();
-    playbackRef.current = null;
-    if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
-    previewTimerRef.current = null;
-    const audio = fileAudioRef.current;
-    if (audio) audio.pause();
-    setPlayingId(null);
-  };
-
-  useEffect(() => () => {
-    playbackRef.current?.();
-    if (previewTimerRef.current) window.clearTimeout(previewTimerRef.current);
-    recognitionRef.current?.stop();
+    listAudioRef.current = null;
+    if (listUrlRef.current) URL.revokeObjectURL(listUrlRef.current);
+    listUrlRef.current = null;
+    setListPlayingId(null);
   }, []);
+
+  const stopSaved = useCallback(() => {
+    savedStopRef.current?.();
+    savedStopRef.current = null;
+    setSavedPlaying(false);
+  }, []);
+
+  const loadSongs = useCallback(async () => {
+    if (!canListDeviceSongs()) return;
+    setSongsState('loading');
+    try {
+      const list = await listDeviceSongs();
+      setSongs(list);
+      setSongsState('ready');
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      setSongsState(code === 'PERMISSION_DENIED' ? 'denied' : 'error');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (isNative && songsState === 'idle') void loadSongs();
+  }, [isOpen, isNative, songsState, loadSongs]);
 
   useEffect(() => {
     if (!isOpen || !userId) return;
     let live = true;
     setLoadError('');
     loadMyHelloTune(userId)
-      .then(tune => {
-        if (live) onSaved(tune);
-      })
+      .then(tune => { if (live) onSaved(tune); })
       .catch(error => {
         console.error('Hello Tune load failed:', error);
         if (live) setLoadError('Hello Tune ke liye latest database migration abhi apply nahi hui hai.');
@@ -371,200 +236,134 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
 
   useEffect(() => {
     if (!isOpen) {
-      stopPreview();
+      stopListAudio();
+      stopSaved();
       setDraft(null);
-      recognitionRef.current?.stop();
-      setIsListening(false);
+      setConfirmStart(null);
     }
-  }, [isOpen]);
+  }, [isOpen, stopListAudio, stopSaved]);
+
+  useEffect(() => () => { stopListAudio(); stopSaved(); }, [stopListAudio, stopSaved]);
+
+  const filteredSongs = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    if (!needle) return songs;
+    return songs.filter(song => `${song.title} ${song.artist} ${song.fileName}`.toLocaleLowerCase().includes(needle));
+  }, [songs, query]);
 
   if (!isOpen) return null;
 
-  const previewBuffer = (buffer: AudioBuffer, id: string, start = 0, length = 12) => {
-    stopPreview();
-    try {
-      playbackRef.current = playHelloTuneBuffer(buffer, start, Math.min(length, buffer.duration - start), false, 0.85);
-      setPlayingId(id);
-      previewTimerRef.current = window.setTimeout(() => {
-        playbackRef.current?.();
-        playbackRef.current = null;
-        setPlayingId(null);
-      }, Math.max(1, Math.min(length, buffer.duration - start)) * 1000);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Preview play nahi ho paya');
-    }
-  };
+  const activeTune = currentTune && isHelloTuneActive(currentTune) ? currentTune : null;
 
-  /** Selected clip ka preview — uploaded file ho to asli audio se */
-  const playClipPreview = (buffer: AudioBuffer, start: number, length: number) => {
-    if (draft?.source.kind === 'file') {
-      const audio = getFileAudio();
-      if (audio) {
-        stopBufferPlayback();
-        const total = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : buffer.duration;
-        const from = Math.max(0, Math.min(start, Math.max(0, total - 0.2)));
-        const len = Math.max(0.5, Math.min(length, Math.max(0.5, total - from)));
-        setFullPos(from);
-        setPlayingId('draft');
-        setAudioTimeSafe(audio, from, true);
-        previewTimerRef.current = window.setTimeout(() => {
-          audio.pause();
-          setPlayingId(null);
-        }, len * 1000);
-        return;
-      }
-    }
-    previewBuffer(buffer, 'draft', start, length);
-  };
-
-  const selectPreset = async (track: HelloTunePreset) => {
-    setIsLoading(true);
-    stopPreview();
-    try {
-      const buffer = await renderHelloTunePreset(track.id);
-      const length = Math.min(20, Math.floor(buffer.duration));
-      setDraft({
-        source: { kind: 'preset', trackId: track.id },
-        title: track.title,
-        artist: track.artist,
-        mood: track.mood,
-        colors: track.colors,
-        buffer,
-      });
-      setClipLength(length);
-      setClipStart(findBestStart(buffer, length));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gana load nahi ho paya');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    if (file.size > MAX_AUDIO_BYTES) {
-      toast.error('Audio file 20 MB se chhoti honi chahiye');
+  const toggleListSong = (song: DeviceSong) => {
+    if (listPlayingId === song.id) {
+      stopListAudio();
       return;
     }
-    const allowedExtension = /\.(mp3|m4a|aac|wav|ogg|opus|webm)$/i.test(file.name);
-    if (!file.type.startsWith('audio/') && !allowedExtension) {
-      toast.error('MP3 ya supported audio file choose karo');
-      return;
+    stopListAudio();
+    stopSaved();
+    let src = '';
+    if (song.file) {
+      src = URL.createObjectURL(song.file);
+      listUrlRef.current = src;
+    } else {
+      src = deviceSongSrc(song);
     }
+    const audio = new Audio(src);
+    audio.preload = 'auto';
+    audio.addEventListener('ended', () => setListPlayingId(null));
+    listAudioRef.current = audio;
+    setListPlayingId(song.id);
+    void audio.play().catch(() => {
+      setListPlayingId(null);
+      toast.error('Gaana play nahi hua — "Select" dabake try karo');
+    });
+  };
 
-    setIsLoading(true);
-    stopPreview();
+  const selectSong = async (song: DeviceSong) => {
+    if (selectingId) return;
+    stopListAudio();
+    stopSaved();
+    setSelectingId(song.id);
     try {
+      if (song.size > MAX_AUDIO_BYTES) throw new Error('Gaana 20 MB se chhota hona chahiye');
+      const file = await deviceSongToFile(song);
+      if (file.size > MAX_AUDIO_BYTES) throw new Error('Gaana 20 MB se chhota hona chahiye');
       const buffer = await decodeHelloTuneFile(file);
-      if (buffer.duration < 1) throw new Error('Audio kam se kam 1 second ka hona chahiye');
-      if (buffer.duration > MAX_AUDIO_SECONDS) throw new Error('Audio 10 minute se chhota hona chahiye');
-      const length = Math.min(20, Math.floor(buffer.duration));
-      const title = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'My Hello Tune';
-      setDraft({
-        source: { kind: 'file', file },
-        title,
-        artist: 'Your upload',
-        mood: 'My audio',
-        colors: ['#7C5CFF', '#FF3D7F'],
-        buffer,
-      });
-      setClipLength(length);
-      setClipStart(findBestStart(buffer, length));
+      if (buffer.duration < 1) throw new Error('Gaana kam se kam 1 second ka hona chahiye');
+      if (buffer.duration > MAX_AUDIO_SECONDS) throw new Error('Gaana 10 minute se chhota hona chahiye');
+      setConfirmStart(null);
+      setDraft({ file, buffer, title: song.title || 'My Hello Tune', artist: song.artist || 'Phone se' });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Audio file khul nahi payi');
+      toast.error(error instanceof Error ? error.message : 'Gaana khul nahi paya');
     } finally {
-      setIsLoading(false);
+      setSelectingId(null);
     }
   };
 
-  const startVoiceSearch = () => {
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-      return;
-    }
-    const speechWindow = window as Window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    const Recognition = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-    if (!Recognition) {
-      toast.error('Voice search is browser mein available nahi hai');
-      return;
-    }
-    recognitionRef.current?.stop();
-    const recognition = new Recognition();
-    recognition.lang = 'hi-IN';
-    recognition.interimResults = false;
-    recognition.onresult = result => {
-      const transcript = result.results[0]?.[0]?.transcript?.trim();
-      if (transcript) setQuery(transcript);
-    };
-    recognition.onerror = () => {
-      setIsListening(false);
-      toast.error('Voice search nahi ho payi; search box use karo');
-    };
-    recognition.onend = () => setIsListening(false);
-    recognitionRef.current = recognition;
-    setIsListening(true);
-    try {
-      recognition.start();
-    } catch {
-      setIsListening(false);
-      toast.error('Voice search start nahi ho payi');
-    }
+  const handlePickFiles = (event: ChangeEvent<HTMLInputElement>) => {
+    const picked = event.target.files ? filesToSongs(event.target.files) : [];
+    event.target.value = '';
+    if (!picked.length) return;
+    setSongs(prev => [...picked, ...prev]);
+    if (!isNative) setSongsState('ready');
+    if (picked.length === 1 && picked[0]) void selectSong(picked[0]);
   };
 
   const playSavedTune = async () => {
     if (!activeTune) return;
-    if (playingId === 'saved') {
-      stopPreview();
+    if (savedPlaying) {
+      stopSaved();
       return;
     }
-    stopPreview();
+    stopListAudio();
     try {
-      playbackRef.current = await playCallerHelloTune(activeTune);
-      setPlayingId('saved');
+      savedStopRef.current = await playCallerHelloTune(activeTune);
+      setSavedPlaying(true);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Tune preview play nahi ho paya');
+      toast.error(error instanceof Error ? error.message : 'Tune play nahi hui');
     }
   };
 
-  const handleSeek = (event: PointerEvent<HTMLDivElement>) => {
-    if (!draft) return;
-    if (event.type === 'pointerdown') {
-      dragPointerRef.current = event.pointerId;
-      event.currentTarget.setPointerCapture(event.pointerId);
-    } else if (dragPointerRef.current !== event.pointerId) {
-      return;
+  const handleRemove = async () => {
+    if (!userId) return;
+    if (!window.confirm('Current Hello Tune hata dein?')) return;
+    setIsSaving(true);
+    try {
+      await removeMyHelloTune(userId);
+      onSaved(null);
+      stopSaved();
+      toast.success('Hello Tune hata di');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Hello Tune remove nahi hui');
+    } finally {
+      setIsSaving(false);
     }
-    const rect = event.currentTarget.getBoundingClientRect();
-    const position = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    setClipStart(Math.max(0, Math.min(draft.buffer.duration - clipLength, position * draft.buffer.duration - clipLength / 2)));
-    if (event.type === 'pointerup' || event.type === 'pointercancel') dragPointerRef.current = null;
   };
+
+  const clipLength = draft ? Math.min(CLIP_SECONDS, Math.floor(draft.buffer.duration)) || 1 : CLIP_SECONDS;
+  const clampStart = (value: number) => (draft ? Math.max(0, Math.min(Math.floor(value), Math.floor(draft.buffer.duration - clipLength))) : 0);
 
   const handleSave = async () => {
-    if (!draft || !userId) {
-      toast.error('Login session nahi mili; dobara sign in karke try karo');
+    if (!draft || confirmStart === null) return;
+    if (!userId) {
+      toast.error('Login session nahi mili; dobara sign in karo');
       return;
     }
+    player.pause();
     setIsSaving(true);
     try {
       const saved = await saveMyHelloTune(userId, {
-        trackId: draft.source.kind === 'preset' ? draft.source.trackId : undefined,
-        file: draft.source.kind === 'file' ? draft.source.file : undefined,
+        file: draft.file,
         title: draft.title,
         artist: draft.artist,
-        startSeconds: clipStart,
+        startSeconds: confirmStart,
         durationSeconds: clipLength,
       });
       onSaved(saved);
       setDraft(null);
-      stopPreview();
-      toast.success('Hello Tune set ho gayi — 30 din baad automatically expire hogi');
+      setConfirmStart(null);
+      toast.success(`Hello Tune set ho gayi (${formatTime(confirmStart)} se) — 30 din tak`);
       onClose();
     } catch (error) {
       console.error('Hello Tune save failed:', error);
@@ -574,89 +373,54 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
     }
   };
 
-  const handleRemove = async () => {
-    if (!userId) return;
-    if (!window.confirm('Current Hello Tune aur uploaded audio dono remove ho jayenge. Continue?')) return;
-    setIsSaving(true);
-    try {
-      await removeMyHelloTune(userId);
-      onSaved(null);
-      stopPreview();
-      toast.success('Hello Tune hata di');
-    } catch (error) {
-      console.error('Hello Tune remove failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Hello Tune remove nahi hui');
-    } finally {
-      setIsSaving(false);
-    }
+  const closeEditor = () => {
+    player.pause();
+    setDraft(null);
+    setConfirmStart(null);
   };
 
-  const chooseBestPart = () => {
-    if (!draft) return;
-    setClipStart(findBestStart(draft.buffer, clipLength));
-    toast.success('Gane ka best section select kiya');
-  };
-
-  const setLength = (seconds: number) => {
-    if (!draft) return;
-    const nextLength = Math.max(1, Math.min(seconds, Math.floor(draft.buffer.duration)));
-    setClipLength(nextLength);
-    setClipStart(Math.max(0, Math.min(clipStart, draft.buffer.duration - nextLength)));
-    stopPreview();
-  };
-
-  useEffect(() => {
-    if (draft) setClipLength(Math.min(30, Math.floor(draft.buffer.duration)));
-  }, [draft]);
-
-  const availableClipLengths = draft
-    ? [30].filter(seconds => seconds <= Math.floor(draft.buffer.duration))
-    : [];
-  if (draft && availableClipLengths.length === 0) availableClipLengths.push(Math.floor(draft.buffer.duration));
+  const startHere = clampStart(player.pos);
 
   return (
     <div className="ht-root" role="dialog" aria-modal="true" aria-label="Hello Tune settings">
       <style>{`
-        /* ── Light theme (default) ── */
-        .ht-root{--ht-bg:#f8f7fb;--ht-card:#ffffff;--ht-stroke:#e4e0f2;--ht-text:#16121f;--ht-muted:#6f6a80;--ht-pink:#e11d48;--ht-purple:#7c5cff;--ht-ov1:rgba(17,12,40,.04);--ht-ov2:rgba(17,12,40,.06);--ht-scrim:rgba(248,247,251,.92);position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:radial-gradient(ellipse at 75% 2%,rgba(124,92,255,.09),transparent 33%),radial-gradient(ellipse at 10% 30%,rgba(255,61,127,.05),transparent 35%),var(--ht-bg);color:var(--ht-text);font-family:inherit;overflow:hidden}
-        /* ── Dark theme ── */
-        .dark .ht-root{--ht-bg:#0e0820;--ht-card:#1a1233;--ht-stroke:#2b2050;--ht-text:#f7f3ff;--ht-muted:#a99fd2;--ht-pink:#ff3d7f;--ht-purple:#7c5cff;--ht-ov1:var(--ht-ov1);--ht-ov2:var(--ht-ov2);--ht-scrim:var(--ht-scrim);background:radial-gradient(ellipse at 75% 2%,rgba(124,92,255,.18),transparent 33%),radial-gradient(ellipse at 10% 30%,rgba(255,61,127,.08),transparent 35%),var(--ht-bg)}
+        .ht-root{--ht-bg:#f8f7fb;--ht-card:#ffffff;--ht-stroke:#e4e0f2;--ht-text:#16121f;--ht-muted:#6f6a80;--ht-pink:#e11d48;--ht-purple:#7c5cff;--ht-ov1:rgba(17,12,40,.04);--ht-ov2:rgba(17,12,40,.06);--ht-scrim:rgba(248,247,251,.92);position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:var(--ht-bg);color:var(--ht-text);font-family:inherit;overflow:hidden}
+        .dark .ht-root{--ht-bg:#0e0820;--ht-card:#1a1233;--ht-stroke:#2b2050;--ht-text:#f7f3ff;--ht-muted:#a99fd2;--ht-pink:#ff3d7f;--ht-ov1:rgba(255,255,255,.04);--ht-ov2:rgba(255,255,255,.07);--ht-scrim:rgba(14,8,32,.92)}
         .ht-header{height:62px;flex:0 0 62px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--ht-stroke);background:var(--ht-scrim);backdrop-filter:blur(18px)}
         .ht-icon-button{width:40px;height:40px;border:1px solid var(--ht-stroke);border-radius:14px;background:var(--ht-ov1);color:var(--ht-text);display:grid;place-items:center;flex:0 0 auto}
         .ht-heading{min-width:0;flex:1}.ht-heading strong{display:block;font-size:16px}.ht-heading span{display:block;color:var(--ht-muted);font-size:11px;margin-top:2px}
-        .ht-content{width:min(100%,560px);margin:0 auto;flex:1;overflow-y:auto;padding:16px 16px calc(32px + env(safe-area-inset-bottom));scrollbar-width:thin;scrollbar-color:var(--ht-stroke) transparent}
+        .ht-content{width:min(100%,560px);margin:0 auto;flex:1;overflow-y:auto;padding:16px 16px calc(32px + env(safe-area-inset-bottom))}
         .ht-current{display:flex;align-items:center;gap:12px;padding:14px;margin:2px 0 18px;border:1px solid rgba(124,92,255,.36);border-radius:18px;background:linear-gradient(115deg,rgba(124,92,255,.17),rgba(255,61,127,.08))}
-        .ht-current-art,.ht-art{width:48px;height:48px;flex:0 0 48px;border-radius:14px;display:grid;place-items:center;color:white;background:linear-gradient(135deg,var(--art-a,#7c5cff),var(--art-b,#ff3d7f));box-shadow:0 8px 20px rgba(6,4,19,.28)}
-        .ht-current-copy{min-width:0;flex:1}.ht-current-copy strong,.ht-current-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ht-current-copy strong{font-size:13px}.ht-current-copy span{color:var(--ht-muted);font-size:11px;margin-top:4px}
-        .ht-overline{font-size:11px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--ht-purple);margin:18px 0 10px}
-        .ht-search{display:flex;align-items:center;gap:9px;background:var(--ht-ov2);border:1px solid var(--ht-stroke);border-radius:15px;padding:0 11px;height:48px}
+        .ht-art{width:44px;height:44px;flex:0 0 44px;border-radius:13px;display:grid;place-items:center;color:white;background:linear-gradient(135deg,#7c5cff,#ff3d7f)}
+        .ht-copy{min-width:0;flex:1}.ht-copy strong,.ht-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ht-copy strong{font-size:13px}.ht-copy span{color:var(--ht-muted);font-size:11px;margin-top:3px}
+        .ht-overline{font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--ht-purple);margin:16px 0 10px}
+        .ht-search{display:flex;align-items:center;gap:9px;background:var(--ht-ov2);border:1px solid var(--ht-stroke);border-radius:14px;padding:0 12px;height:44px;margin-bottom:6px}
         .ht-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--ht-text);font:inherit;font-size:13px}.ht-search input::placeholder{color:var(--ht-muted)}
-        .ht-moods{display:flex;gap:7px;overflow-x:auto;padding:12px 0 4px;scrollbar-width:none}.ht-moods::-webkit-scrollbar{display:none}
-        .ht-chip{white-space:nowrap;border:1px solid var(--ht-stroke);border-radius:999px;background:var(--ht-ov1);padding:7px 12px;color:var(--ht-text);font-size:11px}
-        .ht-chip-active{color:white;border-color:transparent;background:linear-gradient(110deg,var(--ht-purple),var(--ht-pink));box-shadow:0 5px 14px rgba(124,92,255,.22)}
-        .ht-upload{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px;border-radius:16px;border:1px dashed rgba(199,184,255,.42);color:var(--ht-text);background:rgba(124,92,255,.08)}
-        .ht-upload-icon{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:rgba(124,92,255,.2);color:var(--ht-purple)}
-        .ht-upload strong{display:block;font-size:12px}.ht-upload small{display:block;color:var(--ht-muted);font-size:10px;margin-top:3px}
-        .ht-track{display:flex;align-items:center;gap:11px;padding:11px 3px;border-bottom:1px solid rgba(169,159,210,.12)}
-        .ht-track-copy{flex:1;min-width:0}.ht-track-copy strong,.ht-track-copy span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ht-track-copy strong{font-size:12px}.ht-track-copy span{color:var(--ht-muted);font-size:10px;margin-top:4px}
-        .ht-track-use{border:1px solid var(--ht-stroke);border-radius:12px;padding:8px 10px;background:var(--ht-ov1);color:var(--ht-purple);font-size:10px;font-weight:700}
-        .ht-empty{padding:26px 12px;text-align:center;color:var(--ht-muted);font-size:12px}
-        .ht-error{margin:10px 0;padding:11px 13px;border:1px solid rgba(255,61,127,.32);border-radius:13px;background:rgba(255,61,127,.08);color:#ffc3d7;font-size:11px;line-height:1.5}
-        .ht-trim{position:fixed;inset:0;z-index:95;background:var(--ht-bg);display:flex;flex-direction:column;overflow-y:auto}
-        .ht-trim-content{width:min(100%,560px);margin:0 auto;flex:1;padding:16px 16px calc(26px + env(safe-area-inset-bottom))}
-        .ht-trim-hero{display:flex;align-items:center;gap:13px;margin:12px 0 18px}.ht-trim-hero .ht-art{width:56px;height:56px;flex-basis:56px}.ht-trim-hero strong{display:block;font-size:15px}.ht-trim-hero span{display:block;color:var(--ht-muted);font-size:11px;margin-top:4px}
-        .ht-wave-wrap{position:relative;padding:14px 12px 24px;border:1px solid var(--ht-stroke);border-radius:18px;background:var(--ht-ov1);touch-action:none;user-select:none}
-        .ht-wave-canvas{display:block;width:100%;height:84px}.ht-wave-labels{position:absolute;bottom:7px;left:13px;right:13px;display:flex;justify-content:space-between;color:#a99fd2;font-size:9px}
-        .ht-lengths{display:flex;gap:8px;margin:14px 0}.ht-length{flex:1;border:1px solid var(--ht-stroke);border-radius:12px;background:var(--ht-ov1);color:var(--ht-text);padding:10px 6px;font-size:11px;font-weight:700}.ht-length-active{border-color:transparent;color:white;background:linear-gradient(110deg,#7c5cff,#ff3d7f)}
-        .ht-best{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--ht-stroke);border-radius:13px;padding:11px;background:var(--ht-ov1);color:var(--ht-text);font-size:11px}
-        .ht-set{position:sticky;bottom:0;width:min(100%,560px);margin:20px auto 0;border:0;border-radius:15px;padding:14px;background:linear-gradient(110deg,#7c5cff,#ff3d7f);color:white;font-weight:800;font-size:13px;box-shadow:0 9px 22px rgba(124,92,255,.2);display:flex;align-items:center;justify-content:center;gap:8px}
+        .ht-pick{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;border-radius:14px;border:1px dashed rgba(124,92,255,.5);color:var(--ht-text);background:rgba(124,92,255,.08);font-size:13px;font-weight:700;margin-top:10px}
+        .ht-song{display:flex;align-items:center;gap:11px;padding:10px 2px;border-bottom:1px solid var(--ht-stroke)}
+        .ht-select{border:0;border-radius:12px;padding:9px 14px;background:linear-gradient(110deg,#7c5cff,#ff3d7f);color:white;font-size:12px;font-weight:800;min-width:72px;display:flex;align-items:center;justify-content:center}
+        .ht-select:disabled{opacity:.6}
+        .ht-note{padding:22px 10px;text-align:center;color:var(--ht-muted);font-size:13px;line-height:1.5}
+        .ht-error{margin:10px 0;padding:11px 13px;border:1px solid rgba(255,61,127,.32);border-radius:13px;background:rgba(255,61,127,.08);color:var(--ht-pink);font-size:12px}
+        .ht-editor{position:fixed;inset:0;z-index:95;background:var(--ht-bg);display:flex;flex-direction:column;overflow-y:auto}
+        .ht-editor-body{width:min(100%,560px);margin:0 auto;padding:24px 18px calc(28px + env(safe-area-inset-bottom))}
+        .ht-hero{display:flex;align-items:center;gap:13px;margin-bottom:28px}.ht-hero .ht-art{width:60px;height:60px;flex-basis:60px;border-radius:16px}
+        .ht-range{width:100%;accent-color:#7c5cff;height:28px}
+        .ht-times{display:flex;justify-content:space-between;font-size:12px;color:var(--ht-muted);margin-top:2px}
+        .ht-controls{display:flex;align-items:center;justify-content:center;gap:22px;margin:22px 0}
+        .ht-skip{border:1px solid var(--ht-stroke);border-radius:14px;background:var(--ht-ov1);color:var(--ht-text);padding:12px 14px;font-size:13px;font-weight:800}
+        .ht-play{width:68px;height:68px;border:0;border-radius:999px;display:grid;place-items:center;color:white;background:linear-gradient(135deg,#7c5cff,#ff3d7f);box-shadow:0 10px 24px rgba(124,92,255,.3)}
+        .ht-clip{text-align:center;font-size:13px;color:var(--ht-muted);margin-bottom:16px}.ht-clip b{color:var(--ht-text)}
+        .ht-set{width:100%;border:0;border-radius:15px;padding:15px;background:linear-gradient(110deg,#7c5cff,#ff3d7f);color:white;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px}
         .ht-set:disabled{opacity:.55}
-        .ht-no-results{padding:28px 12px;text-align:center;color:var(--ht-muted);font-size:12px}
+        .ht-confirm{margin-top:4px;padding:14px;border-radius:15px;border:1px solid var(--ht-stroke);background:var(--ht-ov1)}
+        .ht-confirm p{font-size:13px;margin:0 0 12px;line-height:1.5}
+        .ht-cancel{flex:1;border:1px solid var(--ht-stroke);border-radius:15px;background:transparent;color:var(--ht-text);font-weight:700;font-size:14px}
       `}</style>
 
       <header className="ht-header">
         <button type="button" className="ht-icon-button" onClick={onClose} aria-label="Back"><ArrowLeft size={19} /></button>
-        <div className="ht-heading"><strong>Hello Tune</strong><span>Caller ko ring ke waqt ye tune sunai degi</span></div>
+        <div className="ht-heading"><strong>Hello Tune</strong><span>Phone ka koi bhi gaana chuno</span></div>
         <button type="button" className="ht-icon-button" onClick={onClose} aria-label="Close"><X size={18} /></button>
       </header>
 
@@ -666,165 +430,123 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
           <>
             <div className="ht-overline">Abhi set hai</div>
             <div className="ht-current">
-              <div className="ht-current-art"><Music size={20} /></div>
-              <div className="ht-current-copy">
+              <div className="ht-art"><Music size={19} /></div>
+              <div className="ht-copy">
                 <strong>{activeTune.title}</strong>
-                <span>{activeTune.artist} · {remainingDays(activeTune.expiresAt)} din baaki</span>
-                <span style={{ whiteSpace: 'normal' }}>Lagaya: {new Date(Date.parse(activeTune.expiresAt) - 30 * 86400000).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                <span>{formatTime(activeTune.startSeconds)} se · {remainingDays(activeTune.expiresAt)} din baaki</span>
               </div>
-              <button type="button" className="ht-icon-button" onClick={playSavedTune} aria-label="Preview current tune">
-                {playingId === 'saved' ? <Pause size={17} /> : <Play size={17} />}
+              <button type="button" className="ht-icon-button" onClick={playSavedTune} aria-label="Current tune suno">
+                {savedPlaying ? <Pause size={17} /> : <Play size={17} />}
               </button>
-              <button type="button" className="ht-icon-button" onClick={handleRemove} disabled={isSaving} aria-label="Remove current tune">
+              <button type="button" className="ht-icon-button" onClick={handleRemove} disabled={isSaving} aria-label="Current tune hatao">
                 {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
               </button>
             </div>
           </>
         )}
 
-        <div className="ht-overline">Apna gana lagao</div>
-        <button type="button" className="ht-upload" onClick={() => fileInputRef.current?.click()} disabled={isLoading}>
-          <span className="ht-upload-icon">{isLoading ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}</span>
-          <span><strong>Gallery se audio upload karo</strong><small>MP3, M4A, AAC, WAV · max 20 MB</small></span>
-        </button>
-        <input ref={fileInputRef} type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus,.webm" hidden onChange={handleUpload} />
+        <div className="ht-overline">Phone ke gaane {songs.length > 0 && `(${songs.length})`}</div>
+        {songs.length > 5 && (
+          <div className="ht-search">
+            <Search size={16} color="var(--ht-muted)" />
+            <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Gaana search karo..." aria-label="Gaana search karo" />
+          </div>
+        )}
 
-        <div className="ht-overline">Pixelgram ke demo tunes</div>
-        <div className="ht-search">
-          <GlassSearch value={query} onChange={event => setQuery(event.target.value)} placeholder="Gana, mood ya artist search karo..." />
-          <button type="button" className="ht-icon-button" style={{ width: 34, height: 34, borderRadius: 11 }} onClick={startVoiceSearch} aria-label="Search by voice">
-            <Mic size={15} color={isListening ? '#ff3d7f' : '#c7b8ff'} />
-          </button>
-        </div>
-        <div className="ht-moods">
-          {HELLO_TUNE_MOODS.map(item => (
-            <button key={item} type="button" className={`ht-chip ${mood === item ? 'ht-chip-active' : ''}`} onClick={() => setMood(item)}>{item}</button>
-          ))}
-        </div>
+        {songsState === 'loading' && <div className="ht-note"><Loader2 size={20} className="animate-spin" style={{ margin: '0 auto 8px' }} />Phone ke gaane dhoondh rahe hain...</div>}
+        {songsState === 'denied' && (
+          <div className="ht-note">
+            Gaane dikhane ke liye Music/Audio permission chahiye.
+            <button type="button" className="ht-pick" onClick={() => void loadSongs()}><RefreshCw size={16} /> Permission do</button>
+          </div>
+        )}
+        {songsState === 'error' && (
+          <div className="ht-note">
+            Phone ke gaane load nahi hue.
+            <button type="button" className="ht-pick" onClick={() => void loadSongs()}><RefreshCw size={16} /> Dobara try karo</button>
+          </div>
+        )}
+        {songsState === 'ready' && songs.length === 0 && <div className="ht-note">Phone me koi gaana (MP3) nahi mila.</div>}
+        {songsState === 'ready' && songs.length > 0 && filteredSongs.length === 0 && <div className="ht-note">Is naam ka koi gaana nahi mila.</div>}
 
         <div>
-          {filteredTracks.map(track => (
-            <div key={track.id} className="ht-track">
-              <div className="ht-art" style={{ '--art-a': track.colors[0], '--art-b': track.colors[1] } as CSSProperties}>
-                <Music size={17} />
-              </div>
-              <div className="ht-track-copy"><strong>{track.title}</strong><span>{track.artist} · {track.mood}</span></div>
+          {filteredSongs.map(song => (
+            <div key={song.id} className="ht-song">
               <button
                 type="button"
                 className="ht-icon-button"
-                style={{ width: 36, height: 36, borderRadius: 12 }}
-                aria-label={`Preview ${track.title}`}
-                onClick={async () => {
-                  if (playingId === track.id) {
-                    stopPreview();
-                    return;
-                  }
-                  setIsLoading(true);
-                  try {
-                    const buffer = await renderHelloTunePreset(track.id);
-                    previewBuffer(buffer, track.id);
-                  } catch (error) {
-                    toast.error(error instanceof Error ? error.message : 'Preview play nahi ho paya');
-                  } finally {
-                    setIsLoading(false);
-                  }
-                }}
+                style={{ width: 42, height: 42, borderRadius: 13 }}
+                onClick={() => toggleListSong(song)}
+                aria-label={listPlayingId === song.id ? `${song.title} roko` : `${song.title} suno`}
               >
-                {playingId === track.id ? <Pause size={15} /> : <Play size={15} />}
+                {listPlayingId === song.id ? <Pause size={17} /> : <Play size={17} />}
               </button>
-              <button type="button" className="ht-track-use" onClick={() => void selectPreset(track)}>Use</button>
+              <div className="ht-copy">
+                <strong>{song.title}</strong>
+                <span>{[song.artist, song.durationMs ? formatTime(song.durationMs / 1000) : ''].filter(Boolean).join(' · ') || song.fileName}</span>
+              </div>
+              <button type="button" className="ht-select" onClick={() => void selectSong(song)} disabled={!!selectingId}>
+                {selectingId === song.id ? <Loader2 size={15} className="animate-spin" /> : 'Select'}
+              </button>
             </div>
           ))}
-          {filteredTracks.length === 0 && <div className="ht-no-results">Is search mein koi demo tune nahi mili.</div>}
         </div>
-        <div className="ht-error" style={{ borderColor: 'rgba(124,92,255,.24)', background: 'rgba(124,92,255,.055)', color: 'var(--ht-text)' }}>
-          Ye 10 built-in demo tunes synthesize ki gayi melodies hain; commercial/film songs ke liye apni audio file upload karo.
-        </div>
+
+        {(!isNative || songsState === 'denied' || songsState === 'error' || (songsState === 'ready' && songs.length === 0)) && (
+          <button type="button" className="ht-pick" onClick={() => fileInputRef.current?.click()}>
+            <Upload size={16} /> Phone se gaane chuno
+          </button>
+        )}
+        <input ref={fileInputRef} type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.opus" multiple hidden onChange={handlePickFiles} />
       </main>
 
       {draft && (
-        <section className="ht-trim" aria-label="Choose a song clip">
+        <section className="ht-editor" aria-label="Gaane me jagah chuno">
           <header className="ht-header">
-            <button type="button" className="ht-icon-button" onClick={() => { stopPreview(); setDraft(null); }} aria-label="Back to tune list"><ArrowLeft size={19} /></button>
-            <div className="ht-heading"><strong>Clip choose karo</strong><span>Caller ko sirf selected section sunai dega</span></div>
-            <button type="button" className="ht-icon-button" onClick={() => { stopPreview(); setDraft(null); }} aria-label="Close clip editor"><X size={18} /></button>
+            <button type="button" className="ht-icon-button" onClick={closeEditor} aria-label="Wapas gaano ki list"><ArrowLeft size={19} /></button>
+            <div className="ht-heading"><strong>Jagah chuno</strong><span>Jahan se acha lage wahan se lagao</span></div>
           </header>
-          <div className="ht-trim-content">
-            <div className="ht-trim-hero">
-              <div className="ht-art" style={{ '--art-a': draft.colors[0], '--art-b': draft.colors[1] } as CSSProperties}><Music size={20} /></div>
-              <div><strong>{draft.title}</strong><span>{draft.artist} · {formatTime(draft.buffer.duration)}</span></div>
+          <div className="ht-editor-body">
+            <div className="ht-hero">
+              <div className="ht-art"><Music size={24} /></div>
+              <div className="ht-copy">
+                <strong style={{ fontSize: 16 }}>{draft.title}</strong>
+                <span>{draft.artist} · {formatTime(player.duration)}</span>
+              </div>
             </div>
-            <div className="ht-overline">Pura gana suno — jahan se acha lage wahan "Yahan se lagao" dabao</div>
+
             <input
-              type="range" min={0} max={Math.floor(draft.buffer.duration)} step={1} value={Math.floor(fullPos)}
-              onChange={e => seekFull(draft.buffer, Number(e.target.value))}
-              style={{ width: '100%', accentColor: 'hsl(var(--primary))' }} aria-label="Gane me aage-peeche karo"
+              className="ht-range"
+              type="range"
+              min={0}
+              max={Math.max(1, Math.floor(player.duration))}
+              step={1}
+              value={Math.floor(player.pos)}
+              onChange={event => { setConfirmStart(null); player.seek(Number(event.target.value)); }}
+              aria-label="Gaane me aage-peeche karo"
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, opacity: 0.75 }}>
-              <span>{formatTime(fullPos)}</span><span>{formatTime(draft.buffer.duration)}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '8px 0 12px', flexWrap: 'wrap' }}>
-              <button type="button" className="ht-length" style={{ flex: '0 0 auto', minWidth: 54 }} onClick={() => seekFull(draft.buffer, fullPos - 30)}>-30s</button>
-              <button type="button" className="ht-length" style={{ flex: '0 0 auto', minWidth: 46 }} onClick={() => seekFull(draft.buffer, fullPos - 10)}>-10s</button>
-              <button
-                type="button"
-                className="ht-length ht-length-active"
-                style={{ flex: 1, minWidth: 96 }}
-                onClick={() => (playingId === 'full' ? stopPreview() : playFullFrom(draft.buffer, fullPos))}
-              >
-                {playingId === 'full' ? <Pause size={15} /> : <Play size={15} />}
-                <span style={{ marginLeft: 4 }}>{playingId === 'full' ? 'Roko' : 'Chalao'}</span>
+            <div className="ht-times"><span>{formatTime(player.pos)}</span><span>{formatTime(player.duration)}</span></div>
+
+            <div className="ht-controls">
+              <button type="button" className="ht-skip" onClick={() => { setConfirmStart(null); player.seek(player.getPos() - 10); }}>-10s</button>
+              <button type="button" className="ht-play" onClick={player.toggle} aria-label={player.playing ? 'Roko' : 'Chalao'}>
+                {player.playing ? <Pause size={28} /> : <Play size={28} style={{ marginLeft: 3 }} />}
               </button>
-              <button type="button" className="ht-length" style={{ flex: '0 0 auto', minWidth: 46 }} onClick={() => seekFull(draft.buffer, fullPos + 10)}>+10s</button>
-              <button type="button" className="ht-length" style={{ flex: '0 0 auto', minWidth: 54 }} onClick={() => seekFull(draft.buffer, fullPos + 30)}>+30s</button>
+              <button type="button" className="ht-skip" onClick={() => { setConfirmStart(null); player.seek(player.getPos() + 10); }}>+10s</button>
             </div>
-            <p style={{ fontSize: 11.5, opacity: 0.7, margin: '0 0 10px' }}>
-              Gana chalta rahega — jab jahan se lagana ho, wahan ruk kar "Yahan se lagao" dabao.
-            </p>
-            <button type="button" className="ht-best" style={{ marginBottom: 12 }} onClick={() => {
-              const pos = Math.max(0, Math.min(Math.floor(fullPos), Math.max(0, draft.buffer.duration - clipLength)));
-              setClipStart(pos);
-              // wahi jagah set hone ke baad clip preview turant sun lo
-              playClipPreview(draft.buffer, pos, clipLength);
-              toast.success(`Gana ${formatTime(pos)} se lagega`);
-            }}>
-              <Check size={15} /> Yahan se lagao ({formatTime(fullPos)})
-            </button>
-            <div className="ht-overline">Waveform par tap/drag karke start chuno</div>
-            <Waveform buffer={draft.buffer} start={clipStart} length={clipLength} onSeek={handleSeek} />
-            <div className="ht-lengths">
-              {availableClipLengths.map(seconds => (
-                <button key={seconds} type="button" className={`ht-length ${clipLength === seconds ? 'ht-length-active' : ''}`} onClick={() => setLength(seconds)}>
-                  {seconds} sec
-                </button>
-              ))}
-            </div>
-            <button type="button" className="ht-best" onClick={chooseBestPart}><Sparkles size={15} /> Gane ka best part select karo</button>
-            <button
-              type="button"
-              className="ht-best"
-              style={{ marginTop: 9 }}
-              onClick={() => {
-                if (playingId === 'draft') {
-                  stopPreview();
-                  return;
-                }
-                playClipPreview(draft.buffer, clipStart, clipLength);
-              }}
-            >
-              {playingId === 'draft' ? <Pause size={15} /> : <Play size={15} />}
-              {playingId === 'draft' ? 'Preview roko' : 'Selected clip preview karo'}
-            </button>
-            {!confirmOpen ? (
-              <button type="button" className="ht-set" onClick={() => setConfirmOpen(true)} disabled={isSaving || isLoading}>
-                <Check size={16} /> Add Hello Tune
+
+            <div className="ht-clip">Caller ko <b>{formatTime(startHere)} – {formatTime(startHere + clipLength)}</b> sunai dega</div>
+
+            {confirmStart === null ? (
+              <button type="button" className="ht-set" onClick={() => setConfirmStart(clampStart(player.getPos()))} disabled={isSaving}>
+                <Check size={17} /> Yahan se lagao ({formatTime(startHere)})
               </button>
             ) : (
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 14, border: '1px solid hsl(var(--border))' }}>
-                <p style={{ fontSize: 13, marginBottom: 10 }}>"{draft.title}" {formatTime(clipStart)} se Hello Tune lagayein? 30 din baad apne aap hat jayega.</p>
+              <div className="ht-confirm">
+                <p>"{draft.title}" <b>{formatTime(confirmStart)}</b> se Hello Tune lagayein? 30 din baad apne aap hat jayegi.</p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="ht-length" style={{ flex: 1 }} onClick={() => setConfirmOpen(false)}>Cancel</button>
-                  <button type="button" className="ht-set" style={{ flex: 1, marginTop: 0 }} onClick={() => { stopPreview(); setConfirmOpen(false); handleSave(); }} disabled={isSaving || isLoading}>
+                  <button type="button" className="ht-cancel" onClick={() => setConfirmStart(null)} disabled={isSaving}>Cancel</button>
+                  <button type="button" className="ht-set" style={{ flex: 1 }} onClick={() => void handleSave()} disabled={isSaving}>
                     {isSaving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : <><Check size={16} /> Confirm</>}
                   </button>
                 </div>
