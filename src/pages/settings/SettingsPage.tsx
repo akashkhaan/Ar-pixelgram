@@ -332,6 +332,100 @@ const SettingsPage: React.FC = () => {
           </button>
         </div>
 
+
+        {/* Menu items — new design */}
+        <div className="flex flex-col gap-1.5">
+        {[
+          { icon: AtSign, h: 255, label: 'Account Center', desc: 'Email aur phone number add/manage karein', onClick: () => navigate('/settings/account-center') },
+          { icon: Music2, h: 285, label: 'Hello Tune', desc: 'Callers ko ringing par aapka gana sunai de', onClick: () => navigate('/settings/hello-tune') },
+          { icon: Globe, h: 215, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language') },
+          { icon: KeyRound, h: 35, label: 'Access Token', desc: '30 din ka token, devices aur logout manage karein', onClick: () => navigate('/settings/access-token') },
+          { icon: Flag, h: 340, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report') },
+          { ownerConnect: true, label: 'Owner Connect' },
+        ].map((item: any) => {
+          if (item.ownerConnect) {
+            return (
+              <div key="owner-connect" className="flex flex-col">
+                <button type="button" onClick={() => setOwnerOpen((v) => !v)} aria-expanded={ownerOpen} className="ns-item">
+                  <span className="ns-ico" style={{ ['--h' as any]: 325 }}><InstagramIcon size={22} /></span>
+                  <span className="flex-1 min-w-0 text-left">
+                    <span className="ns-title">Owner Connect</span>
+                    <span className="ns-desc">Pixelgram owner se Instagram ya YouTube par judiye</span>
+                  </span>
+                  <ChevronDown className={`ns-chev transition-transform ${ownerOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {ownerOpen && (
+                  <div className="flex gap-2.5 px-1 pt-1 pb-3.5">
+                    <a href="https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==" target="_blank" rel="noopener noreferrer" className="ns-chip" style={{ background: 'linear-gradient(45deg,#f9a03c,#e1306c 55%,#8a3ab9)' }}>
+                      <InstagramIcon size={18} /> Instagram
+                    </a>
+                    <a href="https://youtube.com/@techtrickindia9?si=vBCxAOAcKYq2O0zl" target="_blank" rel="noopener noreferrer" className="ns-chip" style={{ background: '#ff2b2b' }}>
+                      <YoutubeIcon size={18} /> YouTube
+                    </a>
+                  </div>
+                )}
+              </div>
+            );
+          }
+          const { icon: Icon, label, desc, onClick, h } = item;
+          return (
+            <button key={label} type="button" onClick={onClick} className="ns-item">
+              <span className="ns-ico" style={{ ['--h' as any]: h }}><Icon className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
+              <span className="flex-1 min-w-0 text-left">
+                <span className="ns-title">{label}</span>
+                <span className="ns-desc">{desc}</span>
+              </span>
+              <ChevronRight className="ns-chev" />
+            </button>
+          );
+        })}
+
+        {/* Admin Panel — only visible for admin users */}
+        {profile?.is_admin && (
+          <button type="button" onClick={() => navigate('/admin')} className="ns-item">
+            <span className="ns-ico" style={{ ['--h' as any]: 230 }}><LayoutDashboard className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
+            <span className="flex-1 min-w-0 text-left">
+              <span className="ns-title">Admin Panel</span>
+              <span className="ns-desc">Manage the platform</span>
+            </span>
+            <ChevronRight className="ns-chev" />
+          </button>
+        )}
+
+        {/* Logout */}
+        <button type="button" onClick={signOut} className="ns-item ns-danger">
+          <span className="ns-ico"><LogOut className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
+          <span className="flex-1 min-w-0 text-left"><span className="ns-title">Sign Out</span></span>
+        </button>
+
+        {/* Delete account */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <button type="button" className="ns-item ns-danger">
+              <span className="ns-ico"><Trash2 className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
+              <span className="flex-1 min-w-0 text-left">
+                <span className="ns-title">Delete Account</span>
+                <span className="ns-desc">This action is permanent</span>
+              </span>
+            </button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Account?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete your account, posts, and all data. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete Account
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        </div>
+
         {/* Dashboard Card with Ghost Vanish & Materialize (Bhoot ki tarah gayab hona) */}
         <div className="frame">
           <div className={`dash relative overflow-hidden h-[185px] min-h-[185px] max-h-[185px] flex flex-col justify-between ${ghostState === "vanishing" ? "ghost-disappear" : ghostState === "appearing" ? "ghost-appear" : ""}`}>
@@ -563,99 +657,6 @@ const SettingsPage: React.FC = () => {
 
 
           </div>
-        </div>
-
-        {/* Menu items — new design */}
-        <div className="flex flex-col gap-1.5">
-        {[
-          { icon: AtSign, h: 255, label: 'Account Center', desc: 'Email aur phone number add/manage karein', onClick: () => navigate('/settings/account-center') },
-          { icon: Music2, h: 285, label: 'Hello Tune', desc: 'Callers ko ringing par aapka gana sunai de', onClick: () => navigate('/settings/hello-tune') },
-          { icon: Globe, h: 215, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language') },
-          { icon: KeyRound, h: 35, label: 'Access Token', desc: '30 din ka token, devices aur logout manage karein', onClick: () => navigate('/settings/access-token') },
-          { icon: Flag, h: 340, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report') },
-          { ownerConnect: true, label: 'Owner Connect' },
-        ].map((item: any) => {
-          if (item.ownerConnect) {
-            return (
-              <div key="owner-connect" className="flex flex-col">
-                <button type="button" onClick={() => setOwnerOpen((v) => !v)} aria-expanded={ownerOpen} className="ns-item">
-                  <span className="ns-ico" style={{ ['--h' as any]: 325 }}><InstagramIcon size={22} /></span>
-                  <span className="flex-1 min-w-0 text-left">
-                    <span className="ns-title">Owner Connect</span>
-                    <span className="ns-desc">Pixelgram owner se Instagram ya YouTube par judiye</span>
-                  </span>
-                  <ChevronDown className={`ns-chev transition-transform ${ownerOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {ownerOpen && (
-                  <div className="flex gap-2.5 px-1 pt-1 pb-3.5">
-                    <a href="https://www.instagram.com/akash_raaj_89?stkn=MXR3NTNhaTB2Mm15cg==" target="_blank" rel="noopener noreferrer" className="ns-chip" style={{ background: 'linear-gradient(45deg,#f9a03c,#e1306c 55%,#8a3ab9)' }}>
-                      <InstagramIcon size={18} /> Instagram
-                    </a>
-                    <a href="https://youtube.com/@techtrickindia9?si=vBCxAOAcKYq2O0zl" target="_blank" rel="noopener noreferrer" className="ns-chip" style={{ background: '#ff2b2b' }}>
-                      <YoutubeIcon size={18} /> YouTube
-                    </a>
-                  </div>
-                )}
-              </div>
-            );
-          }
-          const { icon: Icon, label, desc, onClick, h } = item;
-          return (
-            <button key={label} type="button" onClick={onClick} className="ns-item">
-              <span className="ns-ico" style={{ ['--h' as any]: h }}><Icon className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
-              <span className="flex-1 min-w-0 text-left">
-                <span className="ns-title">{label}</span>
-                <span className="ns-desc">{desc}</span>
-              </span>
-              <ChevronRight className="ns-chev" />
-            </button>
-          );
-        })}
-
-        {/* Admin Panel — only visible for admin users */}
-        {profile?.is_admin && (
-          <button type="button" onClick={() => navigate('/admin')} className="ns-item">
-            <span className="ns-ico" style={{ ['--h' as any]: 230 }}><LayoutDashboard className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
-            <span className="flex-1 min-w-0 text-left">
-              <span className="ns-title">Admin Panel</span>
-              <span className="ns-desc">Manage the platform</span>
-            </span>
-            <ChevronRight className="ns-chev" />
-          </button>
-        )}
-
-        {/* Logout */}
-        <button type="button" onClick={signOut} className="ns-item ns-danger">
-          <span className="ns-ico"><LogOut className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
-          <span className="flex-1 min-w-0 text-left"><span className="ns-title">Sign Out</span></span>
-        </button>
-
-        {/* Delete account */}
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <button type="button" className="ns-item ns-danger">
-              <span className="ns-ico"><Trash2 className="w-[22px] h-[22px]" strokeWidth={1.9} /></span>
-              <span className="flex-1 min-w-0 text-left">
-                <span className="ns-title">Delete Account</span>
-                <span className="ns-desc">This action is permanent</span>
-              </span>
-            </button>
-          </AlertDialogTrigger>
-          <AlertDialogContent className="max-w-[calc(100%-2rem)] md:max-w-lg">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Account?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This will permanently delete your account, posts, and all data. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Delete Account
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
         </div>
       </div>
       <FacebookSwitchAccountModal
