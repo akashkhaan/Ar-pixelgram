@@ -13,7 +13,9 @@ permissions:
 jobs:
   build:
     # version bump wala commit ("[skip apk]") APK build na kare — warna loop ban jayega
-    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip apk]') }}
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !startsWith(github.event.head_commit.message, 'chore(release): next APK version')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
