@@ -3,7 +3,7 @@ import StoryRing from '@/components/common/StoryRing';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Bookmark, Share2, MoreHorizontal, BadgeCheck, Music2, Volume2, VolumeX, Film } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { likePost, unlikePost, savePost, unsavePost, deletePost, updatePostCaption } from '@/services/api';
+import { likePost, unlikePost, savePost, unsavePost, deletePost, updatePostCaption, cleanDisplayCaption } from '@/services/api';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';

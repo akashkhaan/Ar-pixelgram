@@ -221,8 +221,18 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
     return () => window.clearInterval(t);
   }, [playingId, draft]);
 
-  // Draft badle to purana audio band karo
+  // Draft badle to purana audio band karo aur naye uploaded file ko turant preload karo
   useEffect(() => {
+    if (draft?.source.kind === 'file') {
+      const url = URL.createObjectURL(draft.source.file);
+      fileUrlRef.current = url;
+      const audio = new Audio(url);
+      audio.preload = 'auto';
+      audio.volume = 0.9;
+      audio.addEventListener('ended', () => setPlayingId(null));
+      audio.load();
+      fileAudioRef.current = audio;
+    }
     return () => {
       const audio = fileAudioRef.current;
       if (audio) {
@@ -251,17 +261,34 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
     return audio;
   };
 
+  /** Metadata ready hone ke baad hi currentTime set karke play karo (mobile WebView safe) */
+  const setAudioTimeSafe = (audio: HTMLAudioElement, pos: number, shouldPlay: boolean) => {
+    const apply = () => {
+      const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : pos + 1;
+      audio.currentTime = Math.max(0, Math.min(pos, Math.max(0, dur - 0.1)));
+      if (shouldPlay) {
+        void audio.play().catch(() => toast.error('Gana play nahi hua, dobara try karein'));
+      }
+    };
+    if (audio.readyState >= 1) {
+      apply();
+    } else {
+      audio.addEventListener('loadedmetadata', apply, { once: true });
+      audio.load();
+    }
+  };
+
   const playFullFrom = (buffer: AudioBuffer, from: number) => {
     const isFile = draft?.source.kind === 'file';
     if (isFile) {
       const audio = getFileAudio();
       if (audio) {
         stopBufferPlayback();
-        const pos = Math.max(0, Math.min(from, (audio.duration || buffer.duration) - 0.2));
-        audio.currentTime = pos;
+        const total = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : buffer.duration;
+        const pos = Math.max(0, Math.min(from, Math.max(0, total - 0.2)));
         setFullPos(pos);
         setPlayingId('full');
-        void audio.play().catch(() => toast.error('Gana play nahi hua, dobara try karein'));
+        setAudioTimeSafe(audio, pos, true);
         return;
       }
     }
@@ -272,15 +299,21 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
   };
 
   const seekFull = (buffer: AudioBuffer, to: number) => {
-    const total = draft?.source.kind === 'file'
-      ? (fileAudioRef.current?.duration || buffer.duration)
+    const audio = draft?.source.kind === 'file' ? getFileAudio() : null;
+    const total = audio && Number.isFinite(audio.duration) && audio.duration > 0
+      ? audio.duration
       : buffer.duration;
     const pos = Math.max(0, Math.min(to, Math.max(0, total - 0.05)));
     setFullPos(pos);
-    const audio = fileAudioRef.current;
     if (audio) {
-      // Asli seek — playback chalu rehta hai, sirf position badalti hai
-      audio.currentTime = pos;
+      // Agar clip preview timer chal raha tha to hata do taaki full playback beech me na ruke
+      if (previewTimerRef.current) {
+        window.clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = null;
+      }
+      const wasPlaying = !audio.paused || playingId === 'full' || playingId === 'draft';
+      if (wasPlaying) setPlayingId('full');
+      setAudioTimeSafe(audio, pos, wasPlaying);
       fullStartRef.current = { at: Date.now(), from: pos };
       return;
     }
@@ -368,12 +401,12 @@ export const HelloTuneSettings: FC<HelloTuneSettingsProps> = ({
       const audio = getFileAudio();
       if (audio) {
         stopBufferPlayback();
-        const from = Math.max(0, Math.min(start, (audio.duration || buffer.duration) - 0.2));
-        const len = Math.max(0.5, Math.min(length, (audio.duration || buffer.duration) - from));
-        audio.currentTime = from;
+        const total = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : buffer.duration;
+        const from = Math.max(0, Math.min(start, Math.max(0, total - 0.2)));
+        const len = Math.max(0.5, Math.min(length, Math.max(0.5, total - from)));
         setFullPos(from);
         setPlayingId('draft');
-        void audio.play().catch(() => {});
+        setAudioTimeSafe(audio, from, true);
         previewTimerRef.current = window.setTimeout(() => {
           audio.pause();
           setPlayingId(null);
