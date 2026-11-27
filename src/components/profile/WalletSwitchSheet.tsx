@@ -35,15 +35,15 @@ const CSS = `
 .wss.opened .scrim{opacity:1;pointer-events:auto}
 .wss.opened .sh{transform:none}
 .wss .grab{display:block;width:44px;height:5px;border-radius:3px;background:#dcdff0;margin:2px auto 12px;border:0;cursor:pointer}
-.wss .sh-t{display:flex;align-items:center;justify-content:center;position:relative;padding:4px 0 10px}
+.wss .sh-t{z-index:5;pointer-events:none;display:flex;align-items:center;justify-content:center;position:relative;padding:4px 0 10px}
 .wss .sh-t h2{margin:0;font-size:17px;font-weight:800;background:linear-gradient(100deg,var(--g1),var(--g2),#ff9a3c);-webkit-background-clip:text;background-clip:text;color:transparent}
-.wss .x{position:absolute;right:0;top:0;border:0;background:var(--tint);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;cursor:pointer}
+.wss .x{pointer-events:auto;position:absolute;right:0;top:0;border:0;background:var(--tint);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;cursor:pointer}
 .wss .x svg{width:16px;height:16px;stroke-width:2.4}
 .wss .in{opacity:0;transform:translateY(34px) scale(.96)}
 .wss.opened .in{opacity:1;transform:none;transition:opacity .5s,transform .65s cubic-bezier(.2,.9,.25,1.1);transition-delay:calc(.22s + var(--i) * .08s)}
 .wss .vt{flex:none;width:16px;height:16px;overflow:visible}
 .wss .vt circle{fill:#1d9bf0;stroke:none}.wss .vt path{stroke:#fff;stroke-width:2.6}
-.wss .stack{position:relative;margin:0 0 12px;overflow-y:auto;overflow-x:hidden;max-height:min(46vh,350px);overscroll-behavior:contain;scrollbar-width:none;padding:6px 0 14px;-webkit-mask-image:linear-gradient(transparent 0,#000 12px);mask-image:linear-gradient(transparent 0,#000 12px)}
+.wss .stack{position:relative;margin:-54px 0 12px;overflow-y:auto;overflow-x:hidden;max-height:calc(min(46vh,350px) + 54px);overscroll-behavior:contain;scrollbar-width:none;padding:60px 0 14px}
 .wss .stack::-webkit-scrollbar{display:none}
 .wss .sw2{position:relative}
 .wss .srch{position:relative;margin:0 0 6px}
@@ -276,7 +276,7 @@ const WalletSwitchSheet: React.FC<Props> = ({ isOpen, onClose }) => {
               const last = (n - 1) * S;
               const d = Math.min((n - 1 - vi) * 55, 420);
               const sp = '.75s cubic-bezier(.34,1.35,.5,1)';
-              let style: React.CSSProperties = { ['--h' as any]: hueOf(id), zIndex: id === loadingId ? 50 : vi + 1 };
+              let style: React.CSSProperties = { ['--h' as any]: hueOf(id), ...(a.avatar_url ? { background: `linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.15) 45%,rgba(0,0,0,.55)), url("${a.avatar_url}") center/cover no-repeat` } : {}), zIndex: id === loadingId ? 50 : vi + 1 };
               if (!entered) style = { ...style, top: last, transform: 'scale(.84) translateY(40px)', opacity: 0, transition: 'none' };
               else if (!show) style = { ...style, top: 0, opacity: 0, visibility: 'hidden', pointerEvents: 'none' };
               else style = { ...style, top: vi * S, opacity: 1, transform: `scale(${Math.max(0.9, 1 - (n - 1 - vi) * 0.02)})` + (removing === id ? ' translateX(120%) rotate(8deg)' : ''),
