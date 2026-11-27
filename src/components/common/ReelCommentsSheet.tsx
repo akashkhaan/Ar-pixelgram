@@ -147,7 +147,8 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
 
   if (!open) return null;
 
-  const Row: React.FC<{ c: ReelComment; isReply?: boolean; i: number }> = ({ c, isReply, i }) => {
+  // Plain render function (component nahi) taaki har render par list remount na ho
+  const Row = ({ c, isReply, i }: { c: ReelComment; isReply?: boolean; i: number }) => {
     const isHighlighted = highlightCommentId === c.id;
     const uname = c.profile?.username || '';
     const mine = likes[c.id]?.mine;
@@ -221,8 +222,8 @@ const ReelCommentsSheet: React.FC<Props> = ({ reelId, reelOwnerId, open, onClose
             <p className="rcs-empty">Sabse pehle comment karo!</p>
           ) : grouped.map(g => (
             <div key={g.parent.id}>
-              <Row c={g.parent} i={idx++} />
-              {g.replies.map(r => <Row key={r.id} c={r} isReply i={idx++} />)}
+              {Row({ c: g.parent, i: idx++ })}
+              {g.replies.map(r => <React.Fragment key={r.id}>{Row({ c: r, isReply: true, i: idx++ })}</React.Fragment>)}
             </div>
           ))}
           <div ref={bottomRef} />
