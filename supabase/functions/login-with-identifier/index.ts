@@ -97,6 +97,13 @@ Deno.serve(async (req) => {
     });
     const tokenJson = await tokenRes.json();
     if (!tokenRes.ok) {
+      const code = String(tokenJson?.error_code ?? tokenJson?.code ?? '').toLowerCase();
+      const msg = String(tokenJson?.msg ?? tokenJson?.error_description ?? tokenJson?.message ?? '').toLowerCase();
+      if (code === 'email_not_confirmed' || msg.includes('not confirmed')) {
+        return new Response(JSON.stringify({ error: 'Email not confirmed' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       return new Response(JSON.stringify({ error: GENERIC_ERROR }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
