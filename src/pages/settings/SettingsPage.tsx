@@ -2,7 +2,7 @@ import WalletSwitchSheet from '@/components/profile/WalletSwitchSheet';
 import { logInToAnotherAccount } from '@/lib/savedAccounts';
 import InstagramIcon from "@/components/icons/InstagramIcon";
 import YoutubeIcon from "@/components/icons/YoutubeIcon";
-import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Globe, HelpCircle, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Music2, Shield, Trash2 } from 'lucide-react';
+import { ArrowLeft, AtSign, BadgeCheck, Sparkles, ChevronDown, ChevronRight, Flag, UserPlus, Globe, KeyRound, LayoutDashboard, Loader2, LogOut, Moon, Music2, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -573,10 +573,8 @@ const SettingsPage: React.FC = () => {
           { icon: Music2, h: 285, label: 'Hello Tune', desc: 'Callers ko ringing par aapka gana sunai de', onClick: () => navigate('/settings/hello-tune') },
           { icon: Globe, h: 215, label: 'Language', desc: 'App ki bhasha chunein / Select your language', onClick: () => navigate('/settings/language') },
           { icon: KeyRound, h: 35, label: 'Access Token', desc: '30 din ka token, devices aur logout manage karein', onClick: () => navigate('/settings/access-token') },
-          { icon: HelpCircle, h: 165, label: 'Help Center', desc: 'FAQs and support', onClick: () => setSection('help') },
           { icon: Flag, h: 340, label: 'Report a Problem', desc: "Let us know what's wrong", onClick: () => setSection('report') },
           { ownerConnect: true, label: 'Owner Connect' },
-          { icon: Shield, h: 195, label: 'Privacy', desc: 'Manage your privacy settings', onClick: () => navigate('/edit-profile') },
         ].map((item: any) => {
           if (item.ownerConnect) {
             return (
