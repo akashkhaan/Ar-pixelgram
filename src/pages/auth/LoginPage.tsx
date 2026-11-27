@@ -62,8 +62,20 @@ const LoginPage: React.FC = () => {
     }
     if (!data?.user && !loginError) loginError = 'Invalid login credentials';
 
-    if (loginError) {
+    // Server function "not confirmed" ko bhi generic error bana deta hai — email par
+    // seedha check karke batao ki email confirm nahi hua.
+    if (!data?.user && loginError && loginError.toLowerCase().includes('invalid') && identifier.includes('@')) {
+      const chk = await supabase.auth.signInWithPassword({ email: identifier.trim().toLowerCase(), password: password });
+      if (chk.data?.user) data = { user: chk.data.user };
+      else if (chk.error && /not confirmed/i.test(chk.error.message)) loginError = 'Email not confirmed';
+    }
+
+    if (!data?.user && loginError) {
       setLoading(false);
+      if (/not confirmed/i.test(loginError)) {
+        toast.error('Email confirm nahi hua hai. Pehle apne email par aaya confirmation link kholo.', { duration: 8000 });
+        return;
+      }
       if (loginError.toLowerCase().includes('invalid')) {
         toast.error('Wrong username/email/phone or password. If you don\'t have an account, please Sign Up first.');
       } else {
