@@ -97,6 +97,11 @@ const StoryEditor: React.FC<StoryEditorProps> = ({
   };
 
   const iconBtn = 'flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm active:scale-90 transition-transform';
+  // The APK already places this non-overlay editor below the status bar.
+  // Adding the CSS safe-area again pushes both toolbars too far down.
+  const topControlPadding = typeof window !== 'undefined' && 'AndroidStatusBar' in window
+    ? '14px'
+    : 'calc(env(safe-area-inset-top, 0px) + 14px)';
 
   return createPortal(
     <div className="fixed inset-0 z-[70] bg-black select-none" style={{ height: '100dvh' }}>
@@ -127,7 +132,7 @@ const StoryEditor: React.FC<StoryEditorProps> = ({
       {!draft && (
         <div
           className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between px-4"
-          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)' }}
+          style={{ paddingTop: topControlPadding }}
         >
           <button type="button" aria-label="Close" onClick={onClose} className={iconBtn}>
             <X className="h-6 w-6" />
@@ -189,7 +194,7 @@ const StoryEditor: React.FC<StoryEditorProps> = ({
         <div className="absolute inset-0 z-20 flex flex-col bg-black/60" style={{ containerType: 'inline-size' }}>
           <div
             className="flex items-center justify-between px-4"
-            style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)' }}
+            style={{ paddingTop: topControlPadding }}
           >
             {draft.id ? (
               <button type="button" aria-label="Delete text" onClick={deleteDraft} className={iconBtn}>
