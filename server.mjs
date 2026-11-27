@@ -274,13 +274,98 @@ async function handleShareRoute(fetchImpl, request, response, requestUrl) {
   return true;
 }
 
+
+// ---------- Phone ka asli naam (OPPO A3x 5G, vivo V29 ...) ----------
+// Google Play ki live "supported devices" list (har Play-certified Android phone,
+// naye phone bhi) server roz ek baar download karta hai — koi fixed limit nahi.
+export const SUPPORTED_DEVICES_URL = 'https://storage.googleapis.com/play_public/supported_devices.csv';
+const DEVICE_LIST_TTL_MS = 24 * 60 * 60 * 1000;
+const BRAND_FIX = { oppo: 'OPPO', vivo: 'vivo', iqoo: 'iQOO', oneplus: 'OnePlus', xiaomi: 'Xiaomi', redmi: 'Redmi', poco: 'POCO', realme: 'realme', samsung: 'Samsung', motorola: 'Motorola', nokia: 'Nokia', infinix: 'Infinix', tecno: 'TECNO', itel: 'itel', lava: 'Lava', google: 'Google', honor: 'HONOR', huawei: 'HUAWEI', nothing: 'Nothing' };
+
+function parseCsvLine(line) {
+  const out = []; let cur = ''; let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (c === '"') q = false; else cur += c; }
+    else if (c === '"') q = true; else if (c === ',') { out.push(cur); cur = ''; } else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+export function buildDeviceNameMap(csvText) {
+  const map = new Map();
+  for (const raw of csvText.split(/\r?\n/).slice(1)) {
+    if (!raw) continue;
+    const [brandRaw = '', nameRaw = '', , modelRaw = ''] = parseCsvLine(raw);
+    const model = modelRaw.trim().toUpperCase();
+    const name = nameRaw.trim();
+    if (!model) continue;
+    const brand = BRAND_FIX[brandRaw.trim().toLowerCase()] || brandRaw.trim();
+    const isReal = name && name.toUpperCase() !== model;
+    const full = !name ? brand : name.toLowerCase().startsWith(brand.toLowerCase()) ? name : `${brand} ${name}`;
+    const prev = map.get(model);
+    // pehla asli marketing naam rakho (model code jaisa naam sirf fallback)
+    if (!prev || (!prev.real && isReal)) map.set(model, { name: full, real: isReal });
+  }
+  return map;
+}
+
+function decodeDeviceCsv(buf) {
+  const b = Buffer.from(buf);
+  if (b[0] === 0xff && b[1] === 0xfe) return b.subarray(2).toString('utf16le');
+  if (b[1] === 0x00) return b.toString('utf16le');
+  return b.toString('utf8');
+}
+
+function createDeviceNameResolver(fetchImpl) {
+  let map = null; let loadedAt = 0; let loading = null;
+  async function load() {
+    const res = await fetchImpl(SUPPORTED_DEVICES_URL, { signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new Error(`device list ${res.status}`);
+    map = buildDeviceNameMap(decodeDeviceCsv(await res.arrayBuffer()));
+    loadedAt = Date.now();
+  }
+  async function ensure() {
+    if (map && Date.now() - loadedAt < DEVICE_LIST_TTL_MS) return map;
+    if (!loading) loading = load().catch((e) => { if (!map) throw e; }).finally(() => { loading = null; });
+    if (map) return map; // purani list se jawab do, naya background me aa raha hai
+    await loading;
+    return map;
+  }
+  return async (models) => {
+    const m = await ensure();
+    const out = {};
+    for (const model of models) { const hit = m.get(model.toUpperCase()); if (hit) out[model] = hit.name; }
+    return out;
+  };
+}
+
 export function createMusicApiServer(fetchImpl = globalThis.fetch) {
+  const resolveDeviceNames = createDeviceNameResolver(fetchImpl);
   return createServer(async (request, response) => {
     const requestUrl = new URL(request.url || '/', 'http://localhost');
 
     if ((request.method === 'GET' || request.method === 'HEAD') && requestUrl.pathname.startsWith('/s/')) {
       if (await handleShareRoute(fetchImpl, request, response, requestUrl)) return;
     }
+    if (requestUrl.pathname === '/api/device-name') {
+      // Public info (phone model -> naam), website aur APK dono se chalna chahiye.
+      response.setHeader('Access-Control-Allow-Origin', '*');
+      if (request.method === 'OPTIONS') { response.statusCode = 204; response.end(); return; }
+      const models = (requestUrl.searchParams.get('models') || '')
+        .split(',').map((m) => m.trim()).filter((m) => /^[\w .+\-()/]{1,40}$/.test(m)).slice(0, 50);
+      if (!models.length) { sendJson(response, 200, { names: {} }); return; }
+      try {
+        const names = await resolveDeviceNames(models);
+        response.setHeader('Cache-Control', 'public, max-age=86400');
+        sendJson(response, 200, { names });
+      } catch {
+        sendJson(response, 502, { error: 'Device list unavailable', names: {} });
+      }
+      return;
+    }
+
     const origin = request.headers.origin;
     const allowedOrigins = getAllowedOrigins();
 

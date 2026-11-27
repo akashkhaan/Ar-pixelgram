@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCipheriv } from 'node:crypto';
-import { createMusicApiServer, mapSaavnResults } from './server.mjs';
+import { buildDeviceNameMap, createMusicApiServer, mapSaavnResults } from './server.mjs';
 
 const key = Buffer.from('38346581', 'utf8');
 
@@ -150,4 +150,26 @@ test('profile share link gives WhatsApp the profile photo as a small JPG (webp/l
   const html = await (await fetch(`http://127.0.0.1:${port}/s/profile/${id}`)).text();
   assert.match(html, /og:image" content="https:\/\/wsrv\.nl\/\?url=https%3A%2F%2Fimg\.example%2Fdp\.webp&amp;w=400&amp;h=400&amp;fit=cover&amp;output=jpg/);
   assert.match(html, new RegExp(`url=https://ar-pixelgram\\.onrender\\.com/profile/${id}`));
+});
+
+test('phone model codes resolve to brand + marketing name', () => {
+  const csv = 'Retail Branding,Marketing Name,Device,Model\n"Oppo","A3x 5G","OP5EA7L1","CPH2681"\n"Vivo","V29","V2250","V2250"\n"realme","RMX3710","REE2ADL1","RMX3710"\n"realme","realme C55","REE2ADL1","RMX3710"\n"Samsung","Galaxy A51","a51","SM-A515F"';
+  const map = buildDeviceNameMap(csv);
+  assert.equal(map.get('CPH2681').name, 'OPPO A3x 5G');
+  assert.equal(map.get('V2250').name, 'vivo V29');
+  assert.equal(map.get('RMX3710').name, 'realme C55');
+  assert.equal(map.get('SM-A515F').name, 'Samsung Galaxy A51');
+});
+
+test('device-name endpoint answers any origin (website and APK)', async (t) => {
+  const csv = 'Retail Branding,Marketing Name,Device,Model\n"Oppo","A3x 5G","OP5EA7L1","CPH2681"\n';
+  const body = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(csv, 'utf16le')]);
+  const server = createMusicApiServer(async () => new Response(body));
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  t.after(() => server.close());
+  const { port } = server.address();
+  const res = await fetch(`http://127.0.0.1:${port}/api/device-name?models=CPH2681,UNKNOWN1`, { headers: { Origin: 'https://localhost' } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('access-control-allow-origin'), '*');
+  assert.deepEqual((await res.json()).names, { CPH2681: 'OPPO A3x 5G' });
 });

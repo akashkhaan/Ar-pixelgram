@@ -4,7 +4,7 @@ import { Laptop, Loader2, MapPin, Monitor, Smartphone, Tablet } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDeviceId } from '@/services/accessToken';
-import { describeDevice, formatFull, listSessions, logoutSessions, type LoginSession } from '@/services/loginSessions';
+import { describeDevice, formatFull, listSessions, logoutSessions, resolvePhoneNames, type LoginSession } from '@/services/loginSessions';
 
 const KindIcon = ({ kind }: { kind: string }) => {
   const cls = 'h-6 w-6 text-foreground';
@@ -21,10 +21,16 @@ const LoginSessionsSection: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [names, setNames] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (!user) return;
-    try { setItems(await listSessions(user.id)); }
+    try {
+      const list = await listSessions(user.id);
+      setItems(list);
+      const models = list.map(s => describeDevice(s.user_agent ?? '', s.platform, s.device_name).model).filter(Boolean);
+      if (models.length) void resolvePhoneNames(models).then(setNames);
+    }
     catch { toast.error('Login activity load nahi ho paayi'); }
     finally { setLoading(false); }
   }, [user]);
@@ -72,7 +78,8 @@ const LoginSessionsSection: React.FC = () => {
 
       <div className="space-y-3">
         {items.map(s => {
-          const d = describeDevice(s.user_agent ?? '', s.platform);
+          const d = describeDevice(s.user_agent ?? '', s.platform, s.device_name);
+          const phoneName = d.model ? (names[d.model] || d.model) : d.title;
           const loc = [s.city, s.region, s.country].filter(Boolean).join(', ') || 'Location pata nahi';
           const isMe = s.device_id === myId;
           const checked = selected.includes(s.device_id);
@@ -82,8 +89,9 @@ const LoginSessionsSection: React.FC = () => {
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted"><KindIcon kind={d.kind} /></div>
               <div className="min-w-0 flex-1 space-y-0.5">
                 <p className="text-sm font-semibold text-foreground">
-                  {d.title} {isMe && <span className="ml-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">This device</span>}
+                  {phoneName} {isMe && <span className="ml-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">This device</span>}
                 </p>
+                {d.model && phoneName !== d.model && <p className="text-xs text-muted-foreground">Model {d.model}</p>}
                 <p className="text-xs text-muted-foreground">{d.kindLabel} · {d.os} · {d.via}</p>
                 <p className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="h-3 w-3" />{loc}{s.ip ? ` · IP ${s.ip}` : ''}</p>
                 <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Login:</span> {formatFull(s.logged_in_at ?? s.first_seen_at)}</p>
