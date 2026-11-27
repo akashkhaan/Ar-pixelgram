@@ -132,7 +132,15 @@ export const MobileAuroraAuth: React.FC<MobileAuroraAuthProps> = ({ initialMode 
 
     if (!data?.user && !loginError) loginError = 'Invalid login credentials';
 
-    if (loginError) {
+    // Server function "not confirmed" ko bhi generic error bana deta hai — email par
+    // seedha check karke batao ki email confirm nahi hua.
+    if (!data?.user && loginError && loginError.toLowerCase().includes('invalid') && loginUser.includes('@')) {
+      const chk = await supabase.auth.signInWithPassword({ email: loginUser.trim().toLowerCase(), password: loginPass });
+      if (chk.data?.user) data = { user: chk.data.user };
+      else if (chk.error && /not confirmed/i.test(chk.error.message)) loginError = 'Email not confirmed';
+    }
+
+    if (!data?.user && loginError) {
       setLoginLoading(false);
       const lowerErr = loginError.toLowerCase();
 
