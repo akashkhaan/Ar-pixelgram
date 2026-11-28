@@ -384,6 +384,9 @@ ${url}`;
                     trackId: musicTrackId || null,
                     startMs: musicStartMs || 0,
                     thumbnailUrl: thumbnailUrl || null,
+                    // Reels ka videoUrl directly milta hai. Video posts apni file
+                    // image_url me rakhte hain; photo posts helper me filter hote hain.
+                    mediaUrl: videoUrl || (mediaType === 'post' ? thumbnailUrl || null : null),
                     snippet: snippet || null,
                   };
                   await createSharedStory(ref);

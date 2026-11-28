@@ -3,6 +3,7 @@ import { decodeStoryText } from '@/lib/storyText';
 import { dropLegacyPosts, dropLegacyReels } from '@/lib/legacyCleanup';
 import { dropRestrictedRows, isAccountRestricted } from '@/lib/accountStatus';
 import { decodeStoryShare, encodeStoryShare, sharedStoryImage, type SharedStoryRef } from '@/lib/storyShare';
+import { mergeSharedStoryMedia } from '@/lib/sharedStoryMedia.mjs';
 import { supabase } from '@/db/supabase';
 import { withTimeout } from '@/lib/withTimeout';
 import type { Profile, Post, Story, Comment, Message, Notification, VerificationRequest, Report, BroadcastNotification, ActivityLog } from '@/types/types';
@@ -427,6 +428,30 @@ export async function createSharedStory(ref: SharedStoryRef): Promise<string | n
     void notifyFollowersOfNewContent(uid, 'new_story', data.id, ref.snippet || null);
   }
   return data?.id ?? null;
+}
+
+/**
+ * Shared story kholte waqt original content se playable media aur creator profile
+ * refresh karo. Purani stories me mediaUrl nahi tha, isliye sirf nayi shares par
+ * depend nahi karte. Original delete/private ho to saved sticker dikhata rahe.
+ */
+export async function resolveSharedStory(ref: SharedStoryRef): Promise<SharedStoryRef> {
+  try {
+    let source = null;
+    if (ref.kind === 'reel') {
+      source = await getReelById(ref.id);
+    } else if (ref.kind === 'video') {
+      // Dynamic import avoids the api <-> videos module cycle.
+      const { getVideoById } = await import('@/services/videos');
+      source = await getVideoById(ref.id);
+    } else {
+      source = await getPostById(ref.id);
+    }
+    return mergeSharedStoryMedia(ref, source);
+  } catch (error) {
+    console.warn('Shared story media could not be refreshed', error);
+    return ref;
+  }
 }
 
 export async function createStory(

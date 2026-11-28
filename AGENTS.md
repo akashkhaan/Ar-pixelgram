@@ -18,3 +18,4 @@
 - Translate the whole UI at runtime only from source-extracted strings (scripts/extract-ui-strings.mjs → src/lib/i18n/uiStrings.json, regenerated on build) so user content like names, bios, posts and messages is never translated.
 - Pages that should draw behind the Android status bar call useStatusBarOverlay and offset top controls with the --pg-status-bar CSS variable.
 - Keep the non-overlay story editor's top controls at one toolbar gap inside the native WebView; use CSS safe-area padding only in browsers because Android already insets this editor below the status bar.
+- Shared reel/video stories carry the original media URL and resolve it again when viewed, so older shares also play and creator names stay current; never mistake a photo post thumbnail for video.

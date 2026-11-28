@@ -6,7 +6,7 @@ import MobileLayout from '@/components/layouts/MobileLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { withTimeout } from '@/lib/withTimeout';
 import {
-  getFeedStories, getAllPosts, createStory, deleteStory,
+  getFeedStories, getAllPosts, createStory, deleteStory, resolveSharedStory,
   toggleStoryLike, isStoryLiked, getStoryViewers, recordStoryView, sendMessage, createNotification,
   type StoryViewer
 } from '@/services/api';
@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { SHARE_LABEL, sharedStoryPath, type SharedStoryRef } from '@/lib/storyShare';
+import { getSharedStoryVideoUrl } from '@/lib/sharedStoryMedia.mjs';
+import SharedStoryVideo from '@/components/stories/SharedStoryVideo';
 import { getStoryTapDirection } from './storyNavigation';
 import { useStatusBarOverlay } from '@/lib/statusBarOverlay';
 import { Plus, X, MoreVertical, Trash2, Loader2, Share2, Heart, Send, Clock, Music2 } from 'lucide-react';
@@ -89,6 +91,7 @@ const StoriesPage: React.FC = () => {
   const [viewerFilter, setViewerFilter] = useState<ViewerFilter>('all');
   // storyId -> asli viewers (DB se). undefined = abhi load ho raha hai
   const [viewersMap, setViewersMap] = useState<Record<string, StoryViewer[] | undefined>>({});
+  const [resolvedSharedMap, setResolvedSharedMap] = useState<Record<string, SharedStoryRef>>({});
   const videoViewerRef = useRef<HTMLVideoElement>(null);
   const storyAudioRef = useRef<HTMLAudioElement>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -212,6 +215,21 @@ const StoriesPage: React.FC = () => {
   const viewerGroup = viewerUserId ? groups[viewerUserId] : null;
   const currentStory = viewerGroup?.stories[storyIndex];
   const isOwnGroup = !!user && viewerUserId === user.id;
+  const currentShared = currentStory?.shared
+    ? resolvedSharedMap[currentStory.id] || currentStory.shared
+    : null;
+  const currentSharedVideoUrl = getSharedStoryVideoUrl(currentShared);
+
+  // Nayi aur purani shared stories dono me original video aur creator profile lao.
+  useEffect(() => {
+    const story = currentStory;
+    if (!story?.shared || resolvedSharedMap[story.id]) return;
+    let cancelled = false;
+    void resolveSharedStory(story.shared).then((resolved) => {
+      if (!cancelled) setResolvedSharedMap((previous) => ({ ...previous, [story.id]: resolved }));
+    });
+    return () => { cancelled = true; };
+  }, [currentStory?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apni story khuli ho to har story ke asli viewers + likes DB se load karo (koi fake data nahi)
   const loadOwnViewers = (ids: string[]) => {
@@ -237,14 +255,14 @@ const StoriesPage: React.FC = () => {
   useEffect(() => {
     const a = storyAudioRef.current;
     if (!a) return;
-    if (viewerUserId && currentStory?.music_preview_url) {
+    if (viewerUserId && currentStory?.music_preview_url && !currentSharedVideoUrl) {
       const startSec = (currentStory.music_start_ms || 0) / 1000;
       try { a.currentTime = startSec; } catch {}
       a.play().catch(() => {});
     } else {
       a.pause();
     }
-  }, [viewerUserId, currentStory, storyIndex]);
+  }, [viewerUserId, currentStory, storyIndex, currentSharedVideoUrl]);
 
   // Pause story audio when screen turns off or page loses focus
   useEffect(() => {
@@ -307,10 +325,12 @@ const StoriesPage: React.FC = () => {
       setVideoDurationMs(0);
       setStoryProgress(0);
     }
-    const isVideo = !!currentStory && (
+    // Purani share ka media resolve hone tak 5-second photo timer na chalao.
+    if (currentStory.shared && !currentSharedVideoUrl && !resolvedSharedMap[currentStory.id]) return;
+    const isVideo = !!currentSharedVideoUrl || (!!currentStory && (
       (currentStory as Story & { media_type?: string }).media_type === 'video' ||
       !!currentStory.image_url?.match(/\.(mp4|mov|webm|avi)(\?|$)/i)
-    );
+    ));
     const duration = isVideo ? (videoDurationMs > 0 ? videoDurationMs : 15000) : 5000;
     let frame = 0;
     const tick = () => {
@@ -322,7 +342,7 @@ const StoriesPage: React.FC = () => {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [viewerUserId, storyIndex, currentStory?.id, videoDurationMs]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewerUserId, storyIndex, currentStory?.id, currentShared, currentSharedVideoUrl, videoDurationMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -663,68 +683,81 @@ const StoriesPage: React.FC = () => {
           )}
           <StoryTextLayer overlays={currentStory.text_overlays} />
 
-          {/* Shared reel/post/video sticker — Instagram jaisa */}
-          {currentStory.shared && (
-            <button
-              type="button"
+          {/* Shared reel/post/video sticker — original video story ke andar chalta hai */}
+          {currentShared && (
+            <div
+              role="button"
+              tabIndex={0}
               onClick={e => {
                 e.stopPropagation();
-                const ref = currentStory.shared as SharedStoryRef;
                 closeViewer();
-                navigate(sharedStoryPath(ref));
+                navigate(sharedStoryPath(currentShared));
+              }}
+              onKeyDown={e => {
+                if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+                e.preventDefault();
+                closeViewer();
+                navigate(sharedStoryPath(currentShared));
               }}
               className="absolute left-1/2 top-1/2 z-20 w-[76%] max-w-[320px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl bg-black/45 shadow-2xl ring-1 ring-white/25 backdrop-blur-sm active:scale-[0.98] transition-transform"
-              aria-label={`${SHARE_LABEL[currentStory.shared.kind]} kholein`}
+              aria-label={`${SHARE_LABEL[currentShared.kind]} kholein`}
             >
-              {/* Thumbnail */}
-              {currentStory.shared.thumbnailUrl && (
+              {currentSharedVideoUrl ? (
+                <SharedStoryVideo
+                  key={`${currentStory.id}:${currentSharedVideoUrl}`}
+                  src={currentSharedVideoUrl}
+                  poster={currentShared.thumbnailUrl}
+                  videoRef={videoViewerRef}
+                  onLoadedMetadata={setVideoDurationMs}
+                  onEnded={nextStory}
+                />
+              ) : currentShared.thumbnailUrl ? (
                 <div className="relative aspect-[4/5] w-full overflow-hidden">
-                  <img
-                    src={currentStory.shared.thumbnailUrl}
-                    alt=""
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={currentShared.thumbnailUrl} alt="" className="h-full w-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  <span className="absolute left-2.5 top-2.5 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-extrabold text-black">
-                    {SHARE_LABEL[currentStory.shared.kind]}
-                  </span>
                 </div>
+              ) : null}
+
+              {(currentSharedVideoUrl || currentShared.thumbnailUrl) && (
+                <span className="absolute left-2.5 top-2.5 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-extrabold text-black">
+                  {SHARE_LABEL[currentShared.kind]}
+                </span>
               )}
 
               <div className="flex items-center gap-2 px-3 py-2.5 text-left">
-                {currentStory.shared.ownerAvatarUrl ? (
-                  <img src={currentStory.shared.ownerAvatarUrl} alt="" className="h-7 w-7 rounded-full object-cover ring-1 ring-white/40" />
+                {currentShared.ownerAvatarUrl ? (
+                  <img src={currentShared.ownerAvatarUrl} alt="" className="h-7 w-7 rounded-full object-cover ring-1 ring-white/40" />
                 ) : (
                   <span className="grid h-7 w-7 place-items-center rounded-full bg-white/25 text-[11px] font-bold text-white">
-                    {(currentStory.shared.ownerUsername || 'P')[0]?.toUpperCase()}
+                    {(currentShared.ownerUsername || 'P')[0]?.toUpperCase()}
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px] font-bold text-white">
-                    {!currentStory.shared.thumbnailUrl && (
+                    {!currentSharedVideoUrl && !currentShared.thumbnailUrl && (
                       <span className="mr-1.5 rounded bg-white/20 px-1.5 py-0.5 text-[10px]">
-                        {SHARE_LABEL[currentStory.shared.kind]}
+                        {SHARE_LABEL[currentShared.kind]}
                       </span>
                     )}
-                    @{currentStory.shared.ownerUsername || 'pixelgram'}
+                    @{currentShared.ownerUsername || 'pixelgram'}
                   </p>
-                  {currentStory.shared.title ? (
+                  {currentShared.title ? (
                     <p className="flex items-center gap-1 truncate text-[10.5px] text-white/85">
                       <Music2 className="h-2.5 w-2.5 shrink-0" />
-                      <span className="truncate">{currentStory.shared.title}{currentStory.shared.artist ? ` · ${currentStory.shared.artist}` : ''}</span>
+                      <span className="truncate">{currentShared.title}{currentShared.artist ? ` · ${currentShared.artist}` : ''}</span>
                     </p>
-                  ) : currentStory.shared.snippet ? (
-                    <p className="truncate text-[10.5px] text-white/85">{currentStory.shared.snippet}</p>
+                  ) : currentShared.snippet ? (
+                    <p className="truncate text-[10.5px] text-white/85">{currentShared.snippet}</p>
                   ) : (
                     <p className="text-[10.5px] text-white/70">Tap to open</p>
                   )}
                 </div>
               </div>
-            </button>
+            </div>
           )}
 
           {/* Story background audio */}
-          {currentStory.music_preview_url && (
+          {currentStory.music_preview_url && !currentSharedVideoUrl && (
             <audio
               ref={storyAudioRef}
               src={currentStory.music_preview_url}

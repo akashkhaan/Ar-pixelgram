@@ -30,6 +30,8 @@ export interface SharedStoryRef {
   startMs?: number | null;
   /** Sticker me dikhne wali thumbnail */
   thumbnailUrl?: string | null;
+  /** Original reel/video file — story ke andar playback ke liye */
+  mediaUrl?: string | null;
   /** Post me caption ka pehla hissa */
   snippet?: string | null;
 }
