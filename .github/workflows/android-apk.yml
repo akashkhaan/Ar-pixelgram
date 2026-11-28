@@ -10,6 +10,13 @@ on:
 permissions:
   contents: write
 
+# Ek time pe sirf ek build. Beech me aaye pushes queue me rukte hain (cancel nahi),
+# aur agla build hamesha main ka sabse naya code leta hai — isliye har change
+# kisi na kisi version me zaroor aata hai, koi version number double/skip nahi hota.
+concurrency:
+  group: android-apk-main
+  cancel-in-progress: false
+
 jobs:
   build:
     # version bump wala commit ("[skip apk]") APK build na kare — warna loop ban jayega
@@ -21,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # bump commit ka rebase/push ke liye poora history
+          ref: main        # hamesha latest main (pichhle build ka version bump bhi)
 
       - uses: actions/setup-node@v4
         with:
@@ -117,5 +125,9 @@ jobs:
           git add version.json
           git commit -m "chore(release): published 1.4.$APP_BUILD, next 1.4.$NEXT [skip apk]"
           # koi aur push beech me aaya ho to rebase karke push (conflict na ho)
-          git pull --rebase --autostash origin main || true
-          git push || (git pull --rebase --autostash origin main && git push)
+          for i in 1 2 3 4 5; do
+            git pull --rebase -X theirs --autostash origin main || true
+            if git push; then exit 0; fi
+            sleep 5
+          done
+          exit 1

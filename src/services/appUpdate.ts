@@ -83,12 +83,12 @@ export function cleanNote(message: string): string {
 export function notesFromMessages(messages: string[]): string[] {
   const out: string[] = [];
   for (const m of messages) {
-    if (/^Merge (pull request|branch)/i.test(m)) continue;
+    if (/^Merge (pull request|branch)/i.test(m) || /^chore\(release\)/i.test(m) || /\[skip apk\]/i.test(m)) continue;
     const n = cleanNote(m);
     if (!n || /^(changes|update|wip|bump)$/i.test(n) || out.includes(n)) continue;
     out.push(n);
   }
-  return out.slice(0, 30);
+  return out.slice(0, 50);
 }
 
 async function getJson(url: string): Promise<any> {
@@ -131,7 +131,7 @@ export async function fetchWhatsNew(installedCommit: string, latest: LatestBuild
       const notes = notesFromMessages(msgs);
       if (notes.length) return notes;
     }
-    const recent = await getJson(`${API}/commits?sha=${latest.commit}&per_page=10`);
+    const recent = await getJson(`${API}/commits?sha=${latest.commit}&per_page=30`);
     const notes = notesFromMessages((recent ?? []).map((c: any) => String(c?.commit?.message || '')));
     if (notes.length) return notes;
   } catch { /* neeche fallback */ }

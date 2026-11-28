@@ -5,7 +5,7 @@ import {
   type InstalledInfo, type LatestBuild,
 } from '@/services/appUpdate';
 
-const CHECK_EVERY_MS = 30 * 60 * 1000;
+const CHECK_EVERY_MS = 60 * 1000; // har khulne par + har minute (koi update na chhoote)
 type Phase = 'idle' | 'downloading' | 'installing' | 'needPermission' | 'error';
 
 /**
@@ -35,6 +35,7 @@ const AppUpdateSheet: React.FC = () => {
       if (latest && isNewer(latest, info.versionCode)) {
         setNotes(await fetchWhatsNew(info.commit, latest));
         setManifest(latest);
+        // jo naya version aaya wahi dikhao; "baad me" sirf usi version ke liye tha
         if (dismissedFor.current !== latest.versionCode) setOpen(true);
       }
     } catch (e) {
@@ -47,10 +48,11 @@ const AppUpdateSheet: React.FC = () => {
     const t = setTimeout(check, 2500);
     const onVisible = () => { if (document.visibilityState === 'visible') void check(); };
     document.addEventListener('visibilitychange', onVisible);
+    const poll = setInterval(() => { if (document.visibilityState === 'visible') void check(); }, CHECK_EVERY_MS);
     let handle: { remove: () => Promise<void> } | undefined;
     AppUpdate.addListener('progress', (p) => { if (p.percent >= 0) setPercent(p.percent); })
       .then((h) => { handle = h; }).catch(() => {});
-    return () => { clearTimeout(t); document.removeEventListener('visibilitychange', onVisible); void handle?.remove(); };
+    return () => { clearTimeout(t); clearInterval(poll); document.removeEventListener('visibilitychange', onVisible); void handle?.remove(); };
   }, [check]);
 
   // Settings se "allow" karke wapas aaye to dobara Update dabane ki zaroorat na pade
