@@ -99,13 +99,33 @@ async function getJson(url: string): Promise<any> {
 
 const VERSION_URL = `https://raw.githubusercontent.com/${REPO}/main/version.json`;
 
+let versionEtag = '';
+let versionCache: any = null;
+
+async function fetchVersionJson(): Promise<any> {
+  try {
+    const headers: Record<string, string> = { Accept: 'application/vnd.github.raw+json' };
+    if (versionEtag) headers['If-None-Match'] = versionEtag; // 304 rate-limit me count nahi hota
+    const res = await fetch(`${API}/contents/version.json?ref=main`, { headers, cache: 'no-store' });
+    if (res.status === 304 && versionCache) return versionCache;
+    if (res.ok) {
+      versionEtag = res.headers.get('ETag') || '';
+      versionCache = await res.json();
+      return versionCache;
+    }
+  } catch { /* neeche raw */ }
+  const res = await fetch(`${VERSION_URL}?t=${Date.now()}`, { cache: 'no-store' });
+  return res.ok ? res.json() : null;
+}
+
 /** Latest available APK build — seedha repo ke version.json se (gaps nahi). */
 export async function fetchLatestBuild(): Promise<LatestBuild | null> {
-  // 1) version.json — single source of truth, cache-busting ke saath
+  // 1) version.json — single source of truth. Pehle GitHub API (turant naya
+  // number, CDN cache nahi), phir raw file (5 min tak purana ho sakta hai).
   try {
-    const res = await fetch(`${VERSION_URL}?t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      const parsed = parseVersionFile(await res.json());
+    const data = await fetchVersionJson();
+    if (data) {
+      const parsed = parseVersionFile(data);
       if (parsed) {
         // "Kya naya hai" ke liye latest successful build ka commit chahiye
         try {

@@ -5,7 +5,7 @@ import {
   type InstalledInfo, type LatestBuild,
 } from '@/services/appUpdate';
 
-const CHECK_EVERY_MS = 60 * 1000; // har khulne par + har minute (koi update na chhoote)
+const CHECK_EVERY_MS = 2 * 60 * 1000; // har khulne par + har 2 minute (koi update na chhoote)
 type Phase = 'idle' | 'downloading' | 'installing' | 'needPermission' | 'error';
 
 /**
