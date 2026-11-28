@@ -1,5 +1,5 @@
 {
-  "build": 365,
-  "published": 364,
+  "build": 366,
+  "published": 365,
   "note": "published = jo APK abhi release me hai (app isi se update dikhata hai). build = agla number. Workflow release ke baad published=build, build=build+1 karta hai."
 }
